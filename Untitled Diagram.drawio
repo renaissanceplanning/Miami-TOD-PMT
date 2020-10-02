@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2020-10-02T15:32:22.497Z" agent="5.0 (Windows)" etag="Tm5aGpkAaF-NCAtggJrf" version="13.7.3" type="github" pages="2">
+<mxfile host="app.diagrams.net" modified="2020-10-02T17:03:21.124Z" agent="5.0 (Windows)" etag="lnzvlccL_xojcnA_9TbD" version="13.7.3" type="github" pages="2">
   <diagram id="FKpOxl4j8zAN8j0LntPf" name="BasicDir">
     <mxGraphModel dx="1422" dy="831" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
@@ -7,7 +7,7 @@
         <mxCell id="gzsq6Yt03Mv5ZVgsQ6RC-1" value="Data" style="pointerEvents=1;shadow=0;dashed=0;html=1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.concepts.folder;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
           <mxGeometry x="70" y="180" width="150" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="gzsq6Yt03Mv5ZVgsQ6RC-2" value="PMT_Year" style="shape=datastore;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="gzsq6Yt03Mv5ZVgsQ6RC-2" value="PMT_{Year}" style="shape=datastore;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="80" y="640" width="130" height="130" as="geometry" />
         </mxCell>
         <mxCell id="gzsq6Yt03Mv5ZVgsQ6RC-3" value="Data" style="pointerEvents=1;shadow=0;dashed=0;html=1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.concepts.folder;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
@@ -144,8 +144,8 @@
             <mxPoint x="550" y="390" as="sourcePoint" />
             <mxPoint x="490" y="460" as="targetPoint" />
             <Array as="points">
-              <mxPoint x="469" y="420" />
-              <mxPoint x="469" y="430" />
+              <mxPoint x="500" y="420" />
+              <mxPoint x="500" y="420" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -155,7 +155,7 @@
             <mxPoint x="530" y="370" as="targetPoint" />
             <Array as="points">
               <mxPoint x="470" y="310" />
-              <mxPoint x="470" y="430" />
+              <mxPoint x="470" y="420" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -254,6 +254,16 @@
         <mxCell id="S8PTDXg0hTSVDCqvhR2H-1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;dashed=1;endArrow=block;endFill=0;strokeColor=#0000FF;strokeWidth=2;fontColor=#000099;" edge="1" parent="1" source="DnI2SUh-H0ago46fSjTC-1" target="DnI2SUh-H0ago46fSjTC-1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
+        <mxCell id="AuzIK_mmCAWobpE1Owzl-1" value="" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;html=1;dashed=1;strokeColor=#0000FF;strokeWidth=2;endFill=0;" edge="1" parent="1" source="gzsq6Yt03Mv5ZVgsQ6RC-6" target="gzsq6Yt03Mv5ZVgsQ6RC-19">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="407.5" y="540" as="sourcePoint" />
+            <mxPoint x="550" y="580" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="470" y="510" />
+              <mxPoint x="470" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
@@ -265,26 +275,26 @@
         <mxCell id="elD038r_92A3GgNFvKKa-0" value="&lt;b&gt;PMT_{year}&lt;/b&gt;" style="shape=datastore;whiteSpace=wrap;html=1;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
           <mxGeometry x="410" y="20" width="320" height="230" as="geometry" />
         </mxCell>
-        <mxCell id="elD038r_92A3GgNFvKKa-2" value="&lt;div&gt;&lt;b&gt;Parcels:&lt;/b&gt;&lt;/div&gt;&lt;div&gt;- Socioeconomic_demographic (value)&lt;br&gt;&lt;/div&gt;&lt;div&gt;- Fiscal_impact&lt;/div&gt;&lt;div&gt;- Development_opportunity&lt;/div&gt;&lt;div&gt;- Access_and_travel_time&lt;/div&gt;&lt;div&gt;- Mode_share_and_trip_length&lt;/div&gt;&lt;div&gt;- Impervious_area&lt;br&gt;&lt;/div&gt;&lt;div&gt;- Energy_consumption&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#000000;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
-          <mxGeometry x="312" y="500" width="250" height="140" as="geometry" />
+        <mxCell id="elD038r_92A3GgNFvKKa-2" value="&lt;div&gt;&lt;b&gt;Parcels:&lt;/b&gt;&lt;/div&gt;&lt;div&gt;- Socioeconomic_demographic&lt;br&gt;&lt;/div&gt;&lt;div&gt;- Land_use_and_value&lt;br&gt;&lt;/div&gt;&lt;div&gt;- Fiscal_impact&lt;/div&gt;&lt;div&gt;- Development_opportunity&lt;/div&gt;&lt;div&gt;- Access_and_travel_time&lt;/div&gt;&lt;div&gt;- Mode_share_and_trip_length&lt;/div&gt;&lt;div&gt;- Impervious_area&lt;br&gt;&lt;/div&gt;&lt;div&gt;- Energy_consumption&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#000000;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
+          <mxGeometry x="312" y="504" width="250" height="146" as="geometry" />
         </mxCell>
         <mxCell id="elD038r_92A3GgNFvKKa-16" value="&lt;div&gt;&lt;b&gt;Basic_Features&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;div&gt;- County Boundary&lt;/div&gt;&lt;div&gt;- Station Locations&lt;/div&gt;&lt;div&gt;- Corridor Lines&lt;/div&gt;&lt;div&gt;- Corridor Buffers&lt;/div&gt;&lt;div&gt;- Station Buffers&lt;/div&gt;- Urban Growth Boundary&lt;/div&gt;" style="shape=datastore;whiteSpace=wrap;html=1;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
           <mxGeometry x="40" y="20" width="240" height="230" as="geometry" />
         </mxCell>
         <mxCell id="elD038r_92A3GgNFvKKa-17" value="&lt;div&gt;&lt;b&gt;Network:&lt;/b&gt;&lt;/div&gt;&lt;div&gt;- OSMNX_Walk (LTS)&lt;br&gt;&lt;/div&gt;&lt;div&gt;- OSMNX_Walk_ND*&lt;/div&gt;&lt;div&gt;- OSMNX_Walk_Junctions&lt;br&gt;&lt;/div&gt;&lt;div&gt;- OSMNX_Bike (LTS)&lt;br&gt;&lt;/div&gt;&lt;div&gt;- OSMNX_Bike_ND*&lt;/div&gt;&lt;div&gt;- OSMNX_Bike_Junctions&lt;/div&gt;&lt;div&gt;- SERPM_Base_Hwy_Unloaded...(centrality)&lt;/div&gt;&lt;div&gt;- SERPM_EC_Hwy_Unloaded...(centrality)&lt;/div&gt;&lt;div&gt;- SERPM_LRTP_Hwy_Unloaded...(centrality)&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#000000;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
-          <mxGeometry x="312" y="340" width="250" height="160" as="geometry" />
+          <mxGeometry x="312" y="344" width="250" height="160" as="geometry" />
         </mxCell>
         <mxCell id="elD038r_92A3GgNFvKKa-18" value="&lt;div&gt;&lt;b&gt;Transport:&lt;/b&gt;&lt;/div&gt;&lt;div&gt;- Transit_Boadings_alightings&lt;/div&gt;&lt;div&gt;- CitiBike_utilization&lt;/div&gt;&lt;div&gt;- Parking_spaces&lt;/div&gt;&lt;div&gt;- TAZ_regional_access_productivity&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#000000;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
-          <mxGeometry x="312" y="700" width="250" height="100" as="geometry" />
+          <mxGeometry x="312" y="710" width="250" height="94" as="geometry" />
         </mxCell>
         <mxCell id="elD038r_92A3GgNFvKKa-19" value="&lt;div&gt;&lt;b&gt;SafetySecurity&lt;/b&gt;&lt;/div&gt;&lt;div&gt;- Violent_crime_incidents&lt;/div&gt;&lt;div&gt;- Nonmotorized_crashes&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#000000;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
-          <mxGeometry x="312" y="640" width="250" height="60" as="geometry" />
+          <mxGeometry x="312" y="650" width="250" height="60" as="geometry" />
         </mxCell>
         <mxCell id="elD038r_92A3GgNFvKKa-20" value="&lt;div&gt;&lt;i&gt;Tables:&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;i&gt;- every summary variable this year&lt;br&gt;&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;i&gt;- every summary variable previous 5 years&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;i&gt;- every summary variable modeled near term&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;i&gt;- every summary variable modeled long term&lt;br&gt;&lt;/i&gt;&lt;/div&gt;&lt;div&gt;&lt;i&gt;- region, corridor, station_area&lt;br&gt;&lt;/i&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#000000;fillColor=#EBEBEB;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
-          <mxGeometry x="570" y="280" width="260" height="130" as="geometry" />
+          <mxGeometry x="572" y="284" width="260" height="130" as="geometry" />
         </mxCell>
         <mxCell id="elD038r_92A3GgNFvKKa-21" value="&lt;div&gt;&lt;b&gt;Buildings&lt;/b&gt;&lt;/div&gt;&lt;div&gt;- Building_footprints&lt;/div&gt;&lt;div&gt;- Building_permits&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#000000;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
-          <mxGeometry x="312" y="280" width="250" height="60" as="geometry" />
+          <mxGeometry x="312" y="284" width="250" height="60" as="geometry" />
         </mxCell>
         <mxCell id="2LsYvtmTQZgOFnxk3ndg-0" value="" style="endArrow=classic;html=1;strokeWidth=1;fontColor=#000099;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="yJTX_5fowlN7aJKwZSzn-1" source="elD038r_92A3GgNFvKKa-0" target="elD038r_92A3GgNFvKKa-21">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
@@ -300,7 +310,7 @@
           </mxGeometry>
         </mxCell>
         <mxCell id="ixPHajmr6o0fU8Bz8tXy-0" value="&lt;div&gt;&lt;font color=&quot;#006600&quot;&gt;&lt;i&gt;Basic features are updated on an as-needed basis, and &quot;summarization&quot; scripts always target these features to generate summary tables. &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#006600&quot;&gt;&lt;i&gt;&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#006600&quot;&gt;&lt;i&gt;In this way, the PMT will always report on trends in the corridors and station areas defined by the latest preferred alignments rather than showing information for outdated alignments. &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#82b366;fillColor=#d5e8d4;" vertex="1" parent="yJTX_5fowlN7aJKwZSzn-1">
-          <mxGeometry x="30" y="280" width="260" height="170" as="geometry" />
+          <mxGeometry x="30" y="283" width="260" height="170" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
