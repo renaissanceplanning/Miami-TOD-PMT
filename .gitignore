@@ -1,0 +1,9 @@
+*.idea
+*.spyproject
+*.vscode
+.Rdata
+.RdataTmp
+.Rhistory
+R_Scripts/Unused
+R_Scripts/R_Data_Processing
+Python/__pycache__

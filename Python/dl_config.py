@@ -1,0 +1,7 @@
+
+
+ALL_CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/'
+PED_BIKE_QUERY = "query?outFields=*f=geojson&where=COUNTY_TXT%20%3D%20'MIAMI-DADE'%20AND%20PEDESTRIAN_BICYCLIST_IND%20%3D%20'Y'"
+
+"https://opendata.arcgis.com/datasets/7e5a3d0e5c0544888910082487880eac_0.csv?where=COUNTY_TXT%20%3D%20%27miami-dade%27%20AND%20PEDESTRIAN_BICYCLIST_IND%20%3D%20%27Y%27%20AND%20CALENDAR_YEAR%20%3E%3D%202014%20AND%20CALENDAR_YEAR%20%3C%3D%202020&geometry=%7B%22xmin%22%3A-85.443%2C%22ymin%22%3A24.734%2C%22xmax%22%3A-74.99%2C%22ymax%22%3A26.468%2C%22type%22%3A%22extent%22%2C%22spatialReference%22%3A%7B%22wkid%22%3A4326%7D%7D&outSR=4326"
+
