@@ -1,82 +1,105 @@
 # -*- coding: utf-8 -*-
 
-import sys
-import requests
+""""
+Created: October 2020
+@author: Charles Rudder
+
+Download Bike and Pedestrian Crash data from FDOT open data portal
+------------------------------------------------------------------
+Uses a pointer to an OpenDataPortal Feature layer
+    (https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0)
+    along with a basic location filter to Miami-Dade County to filter and
+    download crash data involving pedestrians and cyclists.
+
+Assumes the data table column names are static.
+
+Download is a geojson file
+
+Uses this library: https://github.com/openaddresses/pyesridump to handle
+the work of interacting with the ESRI feature service and extracting geojson.
+
+If run as "main", walking and biking crashes features are downloaded for
+Miami-Dade County to the RAW data folder and named bike_ped.json
+
+"""
 import json
-# import geopandas as gpd
+from esridump.dumper import EsriDumper
 import os
 from dl_config import ALL_CRASHES_SERVICE, PED_BIKE_QUERY
+from PMT import RAW
 
-"""
-@author: Charles Rudder
-Function name:
-fetch_bikeped_crashes
 
-Description:
-Uses a pointer to an OpenDataPortal Feature layer (https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0)
-    to filter and download crash data involving pedestrians and cyclists.
-    Assumes the data table column names are static.
-    Download is a geojson file
-    
-Inputs:
-transform_epsg: integer of valid EPSG for transformation of buildings.
-save_directory: string of path to desired save directory.
-                If None (default), no save will be completed.
-
-Returns:
-    A GeoDataFrame of bike and pedestrian crashes for a user specified year range
-    By default, the CRS of the returned object will be EPSG:4326
-
-"""
-
-# Testing specs: Miami-Dade County
-transform_epsg = None
-save_directory = r"K:\Projects\MiamiDade\PMT\Data\Raw\Safety_Security"
-
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-def urljoin(*args):
+def dl_bike_ped_crashes(
+        all_crashes_url=ALL_CRASHES_SERVICE,
+        fields='ALL',
+        where_clause=PED_BIKE_QUERY,
+        out_crs='4326',
+        out_path=RAW,
+        out_name="bike_ped_crashes_raw.geojson"):
     """
-    There's probably a better way of handling this.
+    Reads in a feature service url and filters based on the query and
+    saves geojson copy of the file to the specified output location
+
+    Parameters
+    ----------
+    all_crashes_url: String
+        Url path to the all crashes layer
+    fields: List
+        a comma-separated list of fields to request from the server
+    where_clause: dict
+        a dictionary key of 'where' with the value being the intended filter
+    out_crs: String
+        EPSG code used to define output coordinates
+    out_path: Path
+        Directory where file will be stored
+    out_name: String
+        The name of the output geojson file.
+
+    Returns
+    -------
+    None
+        A geojson file of bike and pedestrian crashes is saved at
+        '{out_path}/{out_name}'
     """
-    return "/".join(map(lambda x: str(x).rstrip('/'), args))
+    # handle an option to limit fields returned
+    if fields != 'ALL':
+        if isinstance(fields, list):
+            requested_fields = fields
+        else:
+            requested_fields = fields.split(',')
+    else:
+        requested_fields = None
 
-def build_query_request(url):
-    return urljoin(url, "query")
+    # read data from feature server
+    dumper = EsriDumper(url=all_crashes_url,
+                        extra_query_args=where_clause,
+                        fields=requested_fields,
+                        outSR=out_crs)
 
-def get_json(service_url, where="1 = 1", fields='*', count_only=False, crs='4326'):
-    """
-    Gets the JSON file from ArcGIS
-    """
-    params = {
-        'where': where,
-        'outFields': fields,
-        'returnGeometry': True,
-        'outSR': crs,
-        'f': "pjson",
-        'orderByFields': "",
-        'returnCountOnly': count_only
-    }
-    response = requests.get(build_query_request(service_url), params=params)
-    r_json = response.json()
+    # write out data from server to geojson
+    out_file = os.path.join(out_path, out_name)
+    with open(out_file, 'w') as dst:
+        dst.write('{"type":"FeatureCollection","features":[\n')
+        feature_iter = iter(dumper)
+        try:
+            feature = next(feature_iter)
+            while True:
+                dst.write(json.dumps(feature))
+                feature = next(feature_iter)
+                dst.write(',\n')
+        except StopIteration:
+            dst.write('\n')
 
-
-    gdf = gpd.GeoDataFrame.from_features(
-            r_json["features"], crs=crs)
-    return gdf
-
-
-# def fetch_bikeped_crashes(output_crs, output_dir):
+        dst.write(']}')
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.path.append(r'D:\Users\DE7\Downloads\arcgis_rest\arcgis')
-    from arcgis_rest import ArcGIS_REST
-
-    ALL_CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer'
-    service = ArcGIS_REST(ALL_CRASHES_SERVICE)
-    layer_id = 0
-    shapes = service.get(layer_id, "COUNTY_TXT='MIAMI-DADE")
+    out_path = RAW
+    out_name = "bike_ped.json"
+    dl_bike_ped_crashes(
+        all_crashes_url=ALL_CRASHES_SERVICE,
+        fields='ALL',
+        where_clause=PED_BIKE_QUERY,
+        out_crs='4326',
+        out_path=out_path,
+        out_name=out_name)
