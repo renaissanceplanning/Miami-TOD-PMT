@@ -11,12 +11,13 @@ to raw parks features are used to push content to the cleaned data
 folder.
 """
 
-#%% Imports
+# %% Imports
 import geopandas as gpd
 import PMT
 
+
 # %% FUNCTION
-def cleanParks(raw_dir, poly_fcs, points_fc, clean_dir, out_poly, 
+def cleanParks(raw_dir, poly_fcs, points_fc, clean_dir, out_poly,
                out_points, drop_columns=[], rename_columns=[]):
     """
     Consolidates park polygons, tidying column names and saving features
@@ -54,11 +55,12 @@ def cleanParks(raw_dir, poly_fcs, points_fc, clean_dir, out_poly,
     """
     # Merge polygons
     PMT.mergeFeatures(raw_dir, poly_fcs, clean_dir, out_poly,
-                     drop_columns=drop_columns, rename_columns=rename_columns)
+                      drop_columns=drop_columns, rename_columns=rename_columns)
     # Copy points
     in_points = PMT.makePath(raw_dir, points_fc)
     out_points = PMT.makePath(clean_dir, out_points)
     PMT.copyFeatures(in_points, out_points)
+
 
 # %% Apply
 if __name__ == "__main__":
@@ -74,16 +76,16 @@ if __name__ == "__main__":
     drop_cols = [
         ["CONTACT", "MNGTAGCY"],
         ["NATAREA", "PKSCHOOL", "WIFI"],
-        [] # Empty list if no drops are needed
+        []  # Empty list if no drops are needed
     ]
     rename_cols = [
-        {}, # Empty dict if no renames are needed
-        {}, 
+        {},  # Empty dict if no renames are needed
+        {},
         {"FID": "ID",
-        "ACRES": "TOTACRE",
-        "SHAPE_Length": "Shape__Length",
-        "SHAPE_Area": "Shape__Area"
-        }
+         "ACRES": "TOTACRE",
+         "SHAPE_Length": "Shape__Length",
+         "SHAPE_Area": "Shape__Area"
+         }
     ]
     out_poly = "Parks.shp"
 

@@ -14,13 +14,18 @@ Sources inlcude:
 """
 # %% IMPORTS
 import os
-from glob import glob
-from os import rename
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import Point
-from datetime import datetime as dt
-from collections import OrderedDict
+from PMT import (
+    SCRIPTS,
+    ROOT,
+    DATA,
+    RAW,
+    CLEANED,
+    REF,
+    BASIC_FEATURES,
+    makePath,
+)
 from crash_config import (
     FIELDS_DICT,
     INCIDENT_TYPES,
@@ -39,80 +44,144 @@ from crash_config import (
 script_path = os.path.realpath(__file__)
 script_folder = os.path.dirname(script_path)
 project_folder = os.path.dirname(script_folder)
-source_folder = os.path.join(
-    os.path.dirname(project_folder),
-    "Data",
-    "Raw",
+source_folder = makePath(
+    RAW,
     "Safety_Security",
     "Crash_Data",
 )
-output_folder = os.path.join(
-    os.path.dirname(project_folder),
-    "Data",
-    "Cleaned",
+output_folder = makePath(
+    CLEANED,
     "Safety_Security",
     "Crash_Data",
 )
 
 
-def rename_subset(csv, usecols, rename_dict, county):
-    df = pd.read_csv(
-        csv,
-        usecols=usecols,
-    )
-    df.rename(columns=rename_dict, inplace=True)
-    return df[df["COUNTY"] == county]
+def rename_subset(geojson, usecols=USE, rename_dict=FIELDS_DICT, county=COUNTY):
+    """
+    reads in geojson, drops unnecessary attributes and renames the kept attributes
+    Parameters
+    ----------
+    geojson: json
+        GeoJSON text file consisting of points for bike/ped crashes
+    usecols: list
+        list of columns to use in formatting
+    rename_dict: dict
+        dictionary to map existing column names to more readable names
+    county: String
+        name of county to subset data to
+    Returns
+    -------
+        geodataframe
+    """
+    gdf = gpd.read_file(geojson)
+    drop_cols = [col for col in gdf.columns if col not in usecols]
+    gdf.drop(drop_cols, axis=1, inplace=True)
+    gdf.rename(columns=rename_dict, inplace=True)
+    return gdf[gdf["COUNTY"] == county]
 
 
-def split_date(df, date_field):
-    df[date_field] = pd.to_datetime(arg=df[date_field], infer_datetime_format=True)
-    df["DAY"] = df[date_field].dt.day
-    df["MONTH"] = df[date_field].dt.month
-    df["YEAR"] = df[date_field].dt.year
-    return df
+def split_date(gdf, date_field):
+    """
+    ingest date attribute and splits it out to DAY, MONTH, YEAR
+    Parameters
+    ----------
+    gdf: geodataframe
+        geodataframe with a date field
+    date_field: column name
+        geodatafram column name containing a well formatted date
+    Returns
+    -------
+        geodataframe reformatted to include split day, month and year
+    """
+    # convert unix time to da
+    gdf[date_field] = gdf[date_field].apply(lambda x: str(x)[:10])
+    gdf[date_field] = pd.to_datetime(arg=gdf[date_field], infer_datetime_format=True)
+    gdf["DAY"] = gdf[date_field].dt.day
+    gdf["MONTH"] = gdf[date_field].dt.month
+    gdf["YEAR"] = gdf[date_field].dt.year
+    return gdf
 
 
-def combine_incidents(df, type_dict):
+def combine_incidents(gdf, type_dict):
+    """
+    Combines boolean bike involved, pedestrian involved and bike/ped involved
+    columns into a single text attribute
+    Parameters
+    ----------
+    df: pandas dataframe
+    type_dict: dictionary
+        dictionary mapping 3 types to text representation
+
+    Returns
+    -------
+    None
+        maps boolean incidents types to text representation column
+    """
     for crash_type, crash_text in type_dict.items():
-        mask = df[crash_type] == "Y"
-        df.loc[mask, "TRANS_TYPE"] = crash_text
+        mask = gdf[crash_type] == "Y"
+        gdf.loc[mask, "TRANS_TYPE"] = crash_text
 
 
-## work
+def clean_bike_ped_crashes(
+        file_path,
+        out_path,
+        out_name,
+        usecols=USE,
+        rename_dict=INCIDENT_TYPES,
+        county=COUNTY,
+        in_crs=IN_CRS,
+        out_crs=OUT_CRS,
+):
+    """
+    ingests a file path to a raw geojson file to clean and format for use
+    Parameters
+    ----------
+    file_path: String
+        string path to geojson file
+    out_path: String
+        string path to output folder
+    out_name: String
+        string name of output file
+    usecols: List
+        list of columns to use in formatting
+    rename_dict: dict
+        dictionary mapping existing columns to output names
+    county: String
+        county containing data of interest
+    in_crs:
+        EPSG code of the input data
+    out_crs:
+        EPSG code of the output data
+
+    Returns
+    -------
+    None
+    """
+    bp_gdf = rename_subset(
+        geojson=file_path,
+        usecols=usecols,
+        rename_dict=FIELDS_DICT,
+        county=county)
+    bp_gdf.crs = in_crs
+
+    split_date(
+        gdf=bp_gdf, date_field="DATE")
+    combine_incidents(
+        gdf=bp_gdf, type_dict=rename_dict)
+    # recode integer coded attributes
+    bp_gdf.replace(
+        to_replace={"CITY": CITY_CODES}, inplace=True)
+    bp_gdf.replace(
+        to_replace={"HARM_EVNT": HARMFUL_CODES}, inplace=True)
+    bp_gdf.replace(
+        to_replace={"INJSEVER": SEVERITY_CODES}, inplace=True)
+
+    # reproject to project CRS
+    bp_gdf.to_crs(out_crs)
+    # write out to shapefile
+    out_file = makePath(out_path, out_name)
+    bp_gdf.to_file(filename=out_file)
 
 
-source_files = glob(source_folder + "\*.csv")
-gdf_list = []
-for sf in source_files:
-    # read data and format
-    df = rename_subset(csv=sf, usecols=USE, rename_dict=FIELDS_DICT, county=COUNTY)
-    split_date(df=df, date_field="DATE")
-    combine_incidents(df=df, type_dict=INCIDENT_TYPES)
-    # recode city to text value
-    df.replace(to_replace={"CITY": CITY_CODES}, inplace=True)
-    # recode harmful event to text value
-    df.replace(to_replace={"HARM_EVNT": HARMFUL_CODES}, inplace=True)
-    # recode crash injury severity
-    df.replace(to_replace={"INJSEVER": SEVERITY_CODES}, inplace=True)
-    
-    # convert to geodataframe
-    gdf = gpd.GeoDataFrame(
-        df.drop(DROPS, axis=1),
-        crs=IN_CRS,
-        geometry=[Point(yx) for yx in zip(df["LONG"], df["LAT"])],
-    )
-    gdf.to_crs(crs=OUT_CRS, inplace=True)
-    gdf.to_file(
-        filename=os.path.join(output_folder, os.path.basename(sf)[:-4] + ".shp")
-    )
-    gdf_list.append(gdf)
+if __name__ == "__main__":
 
-all = gpd.GeoDataFrame(pd.concat(gdf_list, ignore_index=True), crs=gdf_list[0].crs)
-oldest = int(all["YEAR"].min())
-newest = int(all["YEAR"].max())
-all.to_file(
-    os.path.join(
-        output_folder,
-        f"Miami_Dade_NonMotorist_CrashData_{str(oldest)}-{str(newest)}.shp",
-    )
-)

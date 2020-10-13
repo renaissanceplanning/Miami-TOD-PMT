@@ -27,6 +27,7 @@ CLEANED = os.path.join(DATA, "cleaned")
 REF = os.path.join(DATA, "reference")
 BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb")
 
+
 # %% FUNCTIONS
 def makePath(in_folder, *subnames):
     """
@@ -42,7 +43,7 @@ def makePath(in_folder, *subnames):
 
     Returns: Path
     """
-    return(os.path.join(in_folder, *subnames))
+    return os.path.join(in_folder, *subnames)
 
 
 def fetchJsonUrl(url, encoding="utf-8", is_spatial=False, crs="epsg:4326"):
@@ -62,7 +63,7 @@ def fetchJsonUrl(url, encoding="utf-8", is_spatial=False, crs="epsg:4326"):
     req = http.request("GET", url)
     req_json = json.loads(req.data.decode(encoding))
     gdf = gpd.GeoDataFrame.from_features(
-            req_json["features"], crs=crs)
+        req_json["features"], crs=crs)
     if is_spatial:
         return gdf
     else:
@@ -125,11 +126,11 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         drop_columns = [[] for _ in fc_names]
     if not rename_columns:
         rename_columns = [{} for _ in fc_names]
-    
+
     # Iterate over input fc's
     all_features = []
     for fc_name, drop_cols, rename_cols in zip(
-        fc_names, drop_columns, rename_columns):
+            fc_names, drop_columns, rename_columns):
         # Read features
         in_fc = makePath(raw_dir, fc_name)
         gdf = gpd.read_file(in_fc)
@@ -137,7 +138,7 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         gdf.drop(columns=drop_cols, inplace=True)
         gdf.rename(columns=rename_cols, inplace=True)
         all_features.append(gdf)
-    
+
     # Concatenate features
     merged = pd.concat(all_features)
 
@@ -227,10 +228,10 @@ def multipolygonToPolygon(gdf):
             mult_df = gpd.GeoDataFrame(columns=gdf.columns)
             recs = len(row.geometry)
             #  - Repare the feature many times in the mini-gdf
-            mult_df = mult_df.append([row]*recs, ignore_index=True)
+            mult_df = mult_df.append([row] * recs, ignore_index=True)
             #  - Iterate over rows keeping the i'th geom element as you go
             for geom_i in range(recs):
-                mult_df.loc[geom_i,"geometry"] = row.geometry[geom_i]
+                mult_df.loc[geom_i, "geometry"] = row.geometry[geom_i]
             #  - Append mini-gdf rows to the output container
             poly_df = poly_df.append(mult_df, ignore_index=True)
     return poly_df
@@ -323,7 +324,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     disag_fields = sum_fields + groupby_fields
 
     # Set up the output feature class (copy features from agg_fc)
-    out_ws, out_fc = path.split(output_fc)
+    out_ws, out_fc = os.path.split(output_fc)
     # out_ws, out_fc = output_fc.rsplit(r"\", 1)
     arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
 
@@ -383,3 +384,13 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         # Delete output fc
         arcpy.Delete_management(output_fc)
         raise
+
+
+if __name__ == "__main__":
+    arcpy.env.overwriteOutput = True
+    sumToAggregateGeo(
+        disag_fc=r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Safety_Security\Crash_Data"
+                 r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
+        sum_fields=["SPEED_LIM"], groupby_fields=["CITY"],
+        agg_fc=r"K:\Projects\MiamiDade\PMT\Basic_features.gdb\Basic_features_SPFLE\SMART_Plan_Station_Areas",
+        agg_id_field="Id", output_fc=r"C:\Users\V_RPG\Desktop\bike_speed_agg")
