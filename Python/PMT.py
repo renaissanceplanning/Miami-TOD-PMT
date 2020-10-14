@@ -26,6 +26,7 @@ RAW = os.path.join(DATA, "raw")
 CLEANED = os.path.join(DATA, "cleaned")
 REF = os.path.join(DATA, "reference")
 BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb")
+YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 
 
 # %% FUNCTIONS
@@ -51,13 +52,18 @@ def fetchJsonUrl(url, encoding="utf-8", is_spatial=False, crs="epsg:4326"):
     Retrieve a json/geojson file at the given url and convert to a
     data frame or geodataframe.
 
-    PARAMETERS
+    Parameters
     -----------
     url: String
     encoding: String, default="uft-8"
     is_spatial: Boolean, default=False
         If True, dump json to geodataframe
     crs: String
+
+    Returns
+    ---------
+    df: DataFrame of GeoDataFrame
+        A data frame representation of the json resource found at the url.
     """
     http = urllib3.PoolManager()
     req = http.request("GET", url)
@@ -84,6 +90,11 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns=[]):
     rename_columns: {String: String,...}
         A dictionary with keys that reflect raw column names and
         values that assign new names to these columns.
+
+    Returns
+    ---------
+    out_fc: Path
+        Path to the file location for the copied features.
     """
     gdf = gpd.read_file(in_fc)
     if drop_columns:
@@ -118,6 +129,11 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         A list of dictionaries. Each dictionary corresponds to feature classes
         listed in `fc_names`. Each has keys that reflect raw column names and
         values that assign new names to these columns.
+
+    Returns
+    --------
+    out_file: Path
+        Path to the output file (merged features saved to disk)
     """
     # Align inputs
     if isinstance(fc_names, string_types):
@@ -145,6 +161,8 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
     # Save output
     out_file = makePath(clean_dir, out_fc)
     merged.to_file(out_file)
+
+    return out_file
 
 
 def colMultiIndexToNames(columns, separator="_"):

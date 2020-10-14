@@ -1,35 +1,58 @@
+"""
+Created: October 2020
+@Author: Brian Froeb
+
+....
+
+"""
+
 # %% Imports and Set Up
 import geopandas as gpd
 import pandas as pd
 import gc
 
-Shape_Path = r'K:/Projects/MiamiDade/PMT/Data/Reference'
-Shape_File = r'CensusBG.shp'
-Shape      = gpd.read_file(f'{Shape_Path}/{Shape_File}')
-Shape      = Shape[Shape['geometry'].isnull() == False]
 
-years = [2014, 2015, 2016, 2017, 2018, 2019]
 
-for year in years:
-   Parcels_Path =(r'K:/Projects/MiamiDade/PMT/Data/Cleaned/' 
-                   'Parcels/Parcel_Geometry')
-   Parcels_File = f'Miami_{year}.shp'
-   Parcels      = gpd.read_file(f'{Parcels_Path}/{Parcels_File}')
+def allocateJobs(parcels_fc, lodes_csv):
+    pass
+
+def allocatePop(parcels_fc, lodes_csv):
+    pass
+
+
+# Read in the parcel data - parcel id as string
+# Read in LODES data
+
+
+# shape_path = r'K:/Projects/MiamiDade/PMT/Data/Reference'
+# shape_file = r'CensusBG.shp'
+
+# shape = gpd.read_file(f'{shape_path}/{shape_file}')
+
+# shape = shape[shape['geometry'].isnull() == False]
+
+# years = [2014, 2015, 2016, 2017, 2018, 2019]
+
+# for year in years:
+#    Parcels_Path =(r'K:/Projects/MiamiDade/PMT/Data/Cleaned/' 
+#                    'Parcels/Parcel_Geometry')
+#    Parcels_File = f'Miami_{year}.shp'
+#    Parcels      = gpd.read_file(f'{Parcels_Path}/{Parcels_File}')
    
-   Attribute_Path =(r'K:/Projects/MiamiDade/PMT/Data/Cleaned/'
-                     'Parcels/Parcel_Attributes')  
-   Attribute_File = f'Miami_{year}_DOR.csv'
-   Attribute      = pd.read_csv(f'{Attribute_Path}/{Attribute_File}')
+#    Attribute_Path =(r'K:/Projects/MiamiDade/PMT/Data/Cleaned/'
+#                      'Parcels/Parcel_Attributes')  
+#    Attribute_File = f'Miami_{year}_DOR.csv'
+#    Attribute      = pd.read_csv(f'{Attribute_Path}/{Attribute_File}')
    
-   Parcels["PARCELNO"]    = Parcels["PARCELNO"].astype('str')   
-   Attribute["PARCELNO"]  = Attribute["PARCELNO"].astype('str').str.zfill(13)
+#    Parcels["PARCELNO"] = Parcels["PARCELNO"].astype('str')
+#    Attribute["PARCELNO"] = Attribute["PARCELNO"].astype('str').str.zfill(13)
    
-   Parcels = pd.merge(Parcels, Attribute,  
-                      how = "inner", 
-                      on="PARCELNO",
-                      validate = 'one_to_one')
+#    Parcels = pd.merge(Parcels, Attribute,  
+#                       how = "inner", 
+#                       on="PARCELNO",
+#                       validate = 'one_to_one')
    
-   del Attribute, Attribute_Path, Attribute_File
+#    del Attribute, Attribute_Path, Attribute_File
    
    LODES_Path   = r'K:/Projects/MiamiDade/PMT/Data/Cleaned/Block_Groups'
    LODES_File   = f'Block_Groups_{year}.csv'
@@ -73,8 +96,8 @@ for year in years:
                            on="GEOID10",
                            validate = 'one_to_one')
 
-   # remove any null geometries
-   Parcels = Parcels[Parcels['geometry'].isnull() == False]
+#    # remove any null geometries
+#    Parcels = Parcels[Parcels['geometry'].isnull() == False]
    
    Parcels  = Parcels.to_crs("ESRI:102733")
    LODES    = LODES.to_crs("ESRI:102733")

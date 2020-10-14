@@ -1,4 +1,5 @@
-#### set up #### 
+
+# Requirements ---------------------------------------------------------------- 
 library(tidyverse)
 library(sf)
 library(Hmisc)
@@ -7,12 +8,12 @@ Helper_Path = paste0('K:/Projects/MiamiDade/PMT/Scripts/',
                      'R_Scripts/prep_Modeling_HelperFunctions.R')
 source(Helper_Path)
 
-#### Data Imports ####
+# Data read -------------------------------------------------------------------
 Out_Dir = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Block_Groups/"
 
 For_Model_Dir = "K:/Projects/MiamiDade/PMT/Data/Modeling/For_Model"
-My_Files      = list.files(path = For_Model_Dir, pattern = "*.csv") %>%
-                    str_sub(start = 1, end = -5)
+My_Files = list.files(path = For_Model_Dir, pattern = "*.csv") %>%
+  str_sub(start = 1, end = -5)
 
 for (i in My_Files) {
   shapefile = paste0(i, ".csv")
@@ -100,35 +101,35 @@ gather(Block_Groups,
 Independent_Variables = c("LND_VAL",   "LND_SQFOOT",  "JV", "TOT_LVG_AREA" ,
                           "NO_BULDNG", "NO_RES_UNTS", "RESIDENTIAL_LVG_AREA",
                           
-                          "CNS01_LVG_AREA", "CNS02_LVG_AREA", "CNS03_LVG_AREA",      
-                          "CNS04_LVG_AREA", "CNS05_LVG_AREA", "CNS06_LVG_AREA", 
-                          "CNS07_LVG_AREA", "CNS08_LVG_AREA", "CNS09_LVG_AREA", 
-                          "CNS10_LVG_AREA", "CNS11_LVG_AREA", "CNS12_LVG_AREA", 
-                          "CNS13_LVG_AREA", "CNS14_LVG_AREA", "CNS15_LVG_AREA",      
-                          "CNS16_LVG_AREA", "CNS17_LVG_AREA", "CNS18_LVG_AREA", 
+                          "CNS01_LVG_AREA", "CNS02_LVG_AREA", "CNS03_LVG_AREA",
+                          "CNS04_LVG_AREA", "CNS05_LVG_AREA", "CNS06_LVG_AREA",
+                          "CNS07_LVG_AREA", "CNS08_LVG_AREA", "CNS09_LVG_AREA",
+                          "CNS10_LVG_AREA", "CNS11_LVG_AREA", "CNS12_LVG_AREA",
+                          "CNS13_LVG_AREA", "CNS14_LVG_AREA", "CNS15_LVG_AREA",
+                          "CNS16_LVG_AREA", "CNS17_LVG_AREA", "CNS18_LVG_AREA",
                           "CNS19_LVG_AREA", "CNS20_LVG_AREA", "Total_Emp_Area",
                           
                           "Year", "Since_2013")
 
-Dependent_Variables_Emp = c("CNS01", "CNS02",               
-                            "CNS03", "CNS04",                
-                            "CNS05", "CNS06",               
-                            "CNS07", "CNS08",                
-                            "CNS09", "CNS10",               
-                            "CNS11", "CNS12",                
-                            "CNS13", "CNS14",               
-                            "CNS15", "CNS16",                
-                            "CNS17", "CNS18",               
-                            "CNS19", "CNS20")                
+Dependent_Variables_Emp = c("CNS01", "CNS02",
+                            "CNS03", "CNS04",
+                            "CNS05", "CNS06",
+                            "CNS07", "CNS08",
+                            "CNS09", "CNS10",
+                            "CNS11", "CNS12",
+                            "CNS13", "CNS14",
+                            "CNS15", "CNS16",
+                            "CNS17", "CNS18",
+                            "CNS19", "CNS20")
                             
-Dependent_Variables_Pop = c("Total_Non_Hisp", "Total_Hispanic", "White_Hispanic",    
-                            "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic",     
-                            "Other_Hispanic", "White_Non_Hisp", "Black_Non_Hisp", 
-                            "Asian_Non_Hisp", "Multi_Non_Hisp", "Other_Non_Hisp") 
-                            
-Dependent_Variables_TRN = c("Drove", "Carpooled", "Transit", 
-                            "NonMotor", "WFH", "Other")     
-                            
+Dependent_Variables_Pop = c("Total_Non_Hisp", "Total_Hispanic", "White_Hispanic",
+                            "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic",
+                            "Other_Hispanic", "White_Non_Hisp", "Black_Non_Hisp",
+                            "Asian_Non_Hisp", "Multi_Non_Hisp", "Other_Non_Hisp")
+
+Dependent_Variables_TRN = c("Drove", "Carpooled", "Transit",
+                            "NonMotor", "WFH", "Other")
+
 Total_Variables         = c("Total_Population", "Total_Employment")
 
 ## Correlation Matrix

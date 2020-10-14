@@ -469,7 +469,7 @@ Function name:
 backcast_osm_buildings
 
 Description: 
-Uses the OSM start_date tag or the OSM metadata feature creation timestamp to 
+Uses the OSM start_date tag or the OSM metadata feature creation timestamp to
 backcast buildings (the output of fetch_osm_buildings) to a particular date
 [and time, if desired]
 
@@ -480,9 +480,9 @@ how: string of either 'timestamp' or 'start_date', defining which field will
      be used to backcast
 date_time: string of date/time used to backcast the data. See 'Notes' for
            formatting
-before: boolean, should buildings created before or after date_time be 
+before: boolean, should buildings created before or after date_time be
         returned?
-        If True (default), every building created on or before date_time is 
+        If True (default), every building created on or before date_time is
         returned.
         If False, every building created after date_time is returned.
 save_directory: string of path to desired save directory.
@@ -494,7 +494,7 @@ Notes:
        >> YYYY-MM-DD HH:MM:SS
    If how == "start_date":
        >> YYYY-MM-DD
-   If time is provided, time should be specified in UTC, on the 24-hour clock. 
+   If time is provided, time should be specified in UTC, on the 24-hour clock.
    For basic conversions from UTC to US Time Zones, note that:
        - UTC is 4 hours ahead of eastern
        - UTC is 5 hours ahead of central
