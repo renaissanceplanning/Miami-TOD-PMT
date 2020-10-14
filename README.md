@@ -20,15 +20,19 @@ conda create --clone arcgispro-py3 --name %LocalAppData%\ESRI\conda\envs\pmt_too
 ```
 activate pmt_tools
 ```
-- _Install conda packages_
+- _Update python to ensure its in sync with the arcgis pro need_
 ```
-conda install momepy osmnx geopandas 
+conda update python
+```
+- _Install conda packages using **conda-forge** channel_
+```
+conda install -c conda-forge momepy osmnx geopandas rasterio spyder sphinx rasterstats fiona 
 * enter 'y/yes' and return when asked
-
+* spyder is optional if you want to install a Data Science focused IDE
 ```
 - _Install pip packages_
 ```
-pip install esridump
+pip install esridump censusdata
 ```
         
         
