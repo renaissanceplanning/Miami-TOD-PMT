@@ -19,7 +19,7 @@ import re
 import json
 
 # %% CONSTANTS - FOLDERS
-SCRIPTS = os.getcwd()
+SCRIPTS = Path(__file__).parents[1]
 ROOT = Path(SCRIPTS).parents[0]
 DATA = os.path.join(ROOT, "Data")
 RAW = os.path.join(DATA, "raw")
@@ -27,7 +27,6 @@ CLEANED = os.path.join(DATA, "cleaned")
 REF = os.path.join(DATA, "reference")
 BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
-
 
 # %% FUNCTIONS
 def makePath(in_folder, *subnames):
@@ -47,7 +46,75 @@ def makePath(in_folder, *subnames):
     return os.path.join(in_folder, *subnames)
 
 
-def fetchJsonUrl(url, encoding="utf-8", is_spatial=False, crs="epsg:4326"):
+def jsonToFeatureClass(json_obj, out_fc, sr=4326):
+    """
+
+    Parameters
+    -----------
+    json_obj: dict
+    out_fc: Path
+    sr: Int, default=4326
+    """
+    # Stack features and attributes
+    prop_stack = []
+    geom_stack = []
+    for ft in json_obj["features"]:
+        attr_dict = ft["properties"]
+        df = pd.DataFrame([attr_dict.values()], columns=attr_dict.keys())
+        prop_stack.append(df)
+        geom = arcpy.AsShape(ft["geometry"], False)
+        geom_stack.append(geom)
+
+    # Create output fc
+    sr = arcpy.SpatialReference(sr)
+    geom_type = geom_stack[0].type.upper()
+    if arcpy.Exists(out_file):
+        if overwrite:
+            arcpy.Delete_management(out_file)
+        else:
+            raise RuntimeError(f"output {out_file} already exists")
+    out_path, out_name = os.path.split(out_file)
+    arcpy.CreateFeatureclass_management(out_path, out_name, geom_type,
+                                        spatial_reference=sr)
+    arcpy.AddField_management(out_file, "LINEID", "LONG")
+
+    # Add geometries
+    with arcpy.da.InsertCursor(out_file, ["SHAPE@", "LINEID"]) as c:
+        for i, geom in enumerate(geom_stack):
+            row = [geom, i]
+            c.insertRow(row)
+
+    # Create attributes dataframe
+    prop_df = pd.concat(prop_stack)
+    prop_df["LINEID"] = np.arange(len(prop_df))
+    for excl in exclude:
+        if excl in prop_df.columns.to_list():
+            prop_df.drop(columns=excl, inplace=True)
+    if arcpy.Describe(out_file).dataType.lower() == "shapefile":
+        prop_df.fillna(0.0, inplace=True)
+
+    # Extend table
+    print([f.name for f in arcpy.ListFields(out_file)])
+    print(prop_df.columns)
+    extendTableDf(out_file, "LINEID", prop_df, "LINEID")
+
+
+def jsonToTable(json_obj, out_file):
+    """
+
+    Parameters
+    -----------
+    json_obj: dict
+    out_file: Path
+    """
+    # convert to dataframe
+    gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
+    df = pd.DataFrame(gdf.drop(columns="geometry"))
+    return dfToTable(df, out_file)
+
+
+def fetchJsonUrl(url, out_file, encoding="utf-8", is_spatial=False,
+                 crs=4326, overwrite=False):
     """
     Retrieve a json/geojson file at the given url and convert to a
     data frame or geodataframe.
@@ -55,24 +122,29 @@ def fetchJsonUrl(url, encoding="utf-8", is_spatial=False, crs="epsg:4326"):
     Parameters
     -----------
     url: String
+    out_file: Path
     encoding: String, default="uft-8"
     is_spatial: Boolean, default=False
         If True, dump json to geodataframe
     crs: String
+    overwrite: Boolean
 
     Returns
     ---------
-    df: DataFrame of GeoDataFrame
-        A data frame representation of the json resource found at the url.
+    out_file: Path
     """
+    exclude = ["FID", "OID", "ObjectID", "SHAPE_Length", "SHAPE_Area"]
     http = urllib3.PoolManager()
     req = http.request("GET", url)
     req_json = json.loads(req.data.decode(encoding))
-    gdf = gpd.GeoDataFrame.from_features(
-        req_json["features"], crs=crs)
+    
     if is_spatial:
-        return gdf
+        jsonToFeatureClass(json_obj, out_fc, sr=4326)
+
     else:
+        prop_stack = []
+        
+        gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
         return pd.DataFrame(gdf.drop(columns="geometry"))
 
 
@@ -96,6 +168,8 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns=[]):
     out_fc: Path
         Path to the file location for the copied features.
     """
+    #TODO: if out_fc will be in a geodatabase, use arcpy instead of gpd?
+
     gdf = gpd.read_file(in_fc)
     if drop_columns:
         gdf.drop(columns=drop_columns, inplace=True)
@@ -142,11 +216,11 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         drop_columns = [[] for _ in fc_names]
     if not rename_columns:
         rename_columns = [{} for _ in fc_names]
-
+    
     # Iterate over input fc's
     all_features = []
     for fc_name, drop_cols, rename_cols in zip(
-            fc_names, drop_columns, rename_columns):
+        fc_names, drop_columns, rename_columns):
         # Read features
         in_fc = makePath(raw_dir, fc_name)
         gdf = gpd.read_file(in_fc)
@@ -154,7 +228,7 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         gdf.drop(columns=drop_cols, inplace=True)
         gdf.rename(columns=rename_cols, inplace=True)
         all_features.append(gdf)
-
+    
     # Concatenate features
     merged = pd.concat(all_features)
 
@@ -219,6 +293,29 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
                          in_array=in_array,
                          array_match_field=df_match_field,
                          **kwargs)
+
+
+def dfToTable(df, out_table):
+    """
+    Use a pandas data frame to export a arcgis table.
+
+    Parameters
+    -----------
+    df: DataFrame
+        The data frame whose columns will be added to `in_table`
+    out_table: Path
+
+    Returns
+    --------
+    out_table: Path
+    """
+    in_array = np.array(
+        np.rec.fromrecords(
+            df.values, names=df.dtypes.index.tolist()
+        )
+    )
+    arcpy.da.NumPyArrayToTable(in_array, out_table)
+    return out_table
 
 
 def multipolygonToPolygon(gdf):
@@ -342,7 +439,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     disag_fields = sum_fields + groupby_fields
 
     # Set up the output feature class (copy features from agg_fc)
-    out_ws, out_fc = os.path.split(output_fc)
+    out_ws, out_fc = path.split(output_fc)
     # out_ws, out_fc = output_fc.rsplit(r"\", 1)
     arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
 
@@ -402,13 +499,3 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         # Delete output fc
         arcpy.Delete_management(output_fc)
         raise
-
-
-if __name__ == "__main__":
-    arcpy.env.overwriteOutput = True
-    sumToAggregateGeo(
-        disag_fc=r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Safety_Security\Crash_Data"
-                 r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
-        sum_fields=["SPEED_LIM"], groupby_fields=["CITY"],
-        agg_fc=r"K:\Projects\MiamiDade\PMT\Basic_features.gdb\Basic_features_SPFLE\SMART_Plan_Station_Areas",
-        agg_id_field="Id", output_fc=r"C:\Users\V_RPG\Desktop\bike_speed_agg")
