@@ -1,6 +1,6 @@
 """
 Created: October 2020
-@Author: Brian Froeb
+@Author: Brian Froeb & Alex Bell
 
 ...
 ...
@@ -438,70 +438,70 @@ if __name__ == "__main__":
        
          LODES = pd.merge(LODES, race_data, how = 'inner', on = 'GEOID10')
      
-         ## Transit calculate mode shares at block group level then assign those shares to parcels and multiply by population.
-         ## Drove (alone + motocycle), Carpooled, Transit, Non Moto (bike + ped), Work From Home, other, Total Commutes
+        #  ## Transit calculate mode shares at block group level then assign those shares to parcels and multiply by population.
+        #  ## Drove (alone + motocycle), Carpooled, Transit, Non Moto (bike + ped), Work From Home, other, Total Commutes
        
-         transit_variables = ['B08301_001E', 'B08301_003E', 'B08301_004E', 'B08301_010E', 
-                             'B08301_017E', 'B08301_021E', 'B08301_018E', 'B08301_019E', 
-                             'B08301_020E', 'B08301_016E']
+        #  transit_variables = ['B08301_001E', 'B08301_003E', 'B08301_004E', 'B08301_010E', 
+        #                      'B08301_017E', 'B08301_021E', 'B08301_018E', 'B08301_019E', 
+        #                      'B08301_020E', 'B08301_016E']
        
-         transit_data = census.download('acs5', 2014, 
-                                      census.censusgeo([('state', '12'), ('county', '086'), 
-                                                        ('block group', '*')]), 
-                                      var = transit_variables)
+        #  transit_data = census.download('acs5', 2014, 
+        #                               census.censusgeo([('state', '12'), ('county', '086'), 
+        #                                                 ('block group', '*')]), 
+        #                               var = transit_variables)
        
-         transit_data['Drove']     = ((transit_data['B08301_003E'] + 
-                                       transit_data['B08301_017E']) / 
-                                      transit_data['B08301_001E'])
+        #  transit_data['Drove']     = ((transit_data['B08301_003E'] + 
+        #                                transit_data['B08301_017E']) / 
+        #                               transit_data['B08301_001E'])
        
-         transit_data['Carpooled'] = (transit_data['B08301_004E'] / 
-                                      transit_data['B08301_001E'])
+        #  transit_data['Carpooled'] = (transit_data['B08301_004E'] / 
+        #                               transit_data['B08301_001E'])
        
-         transit_data['Transit']   = (transit_data['B08301_010E'] / 
-                                      transit_data['B08301_001E'])
+        #  transit_data['Transit']   = (transit_data['B08301_010E'] / 
+        #                               transit_data['B08301_001E'])
        
-         transit_data['NonMotor']  = ((transit_data['B08301_018E'] +
-                                       transit_data['B08301_019E']) / 
-                                      transit_data['B08301_001E'])
+        #  transit_data['NonMotor']  = ((transit_data['B08301_018E'] +
+        #                                transit_data['B08301_019E']) / 
+        #                               transit_data['B08301_001E'])
        
-         transit_data['WFH']       = (transit_data['B08301_021E'] / 
-                                      transit_data['B08301_001E'])
+        #  transit_data['WFH']       = (transit_data['B08301_021E'] / 
+        #                               transit_data['B08301_001E'])
        
-         transit_data['Other']     = ((transit_data['B08301_020E'] + 
-                                       transit_data['B08301_016E']) / 
-                                      transit_data['B08301_001E'])
+        #  transit_data['Other']     = ((transit_data['B08301_020E'] + 
+        #                                transit_data['B08301_016E']) / 
+        #                               transit_data['B08301_001E'])
        
-         # preping for merge
-         transit_data = transit_data.reset_index()
+        #  # preping for merge
+        #  transit_data = transit_data.reset_index()
        
-         transit_data['index'] = transit_data['index'].astype(str)
+        #  transit_data['index'] = transit_data['index'].astype(str)
        
-         transit_data['State']  = '12' 
-         transit_data['County'] = '086'
+        #  transit_data['State']  = '12' 
+        #  transit_data['County'] = '086'
        
-         tract = re.compile('([0-9]{6})')
-         bg_number = re.compile('(block group:[0-9]{1})')
+        #  tract = re.compile('([0-9]{6})')
+        #  bg_number = re.compile('(block group:[0-9]{1})')
        
-         transit_data['tract']       = transit_data['index'].str.extract(tract)
-         transit_data['block_group'] = transit_data['index'].str.extract(bg_number)
-         transit_data['block_group'] = transit_data['index'].str.slice(-1)
+        #  transit_data['tract']       = transit_data['index'].str.extract(tract)
+        #  transit_data['block_group'] = transit_data['index'].str.extract(bg_number)
+        #  transit_data['block_group'] = transit_data['index'].str.slice(-1)
        
-         transit_data['GEOID'] = (transit_data['State'] + transit_data['County'] + 
-                                  transit_data['tract'] + transit_data['block_group'])
+        #  transit_data['GEOID'] = (transit_data['State'] + transit_data['County'] + 
+        #                           transit_data['tract'] + transit_data['block_group'])
        
-         transit_data = transit_data[['GEOID', 'Drove', 'Carpooled', 'Transit',
-                                    'NonMotor', 'WFH', 'Other']]
+        #  transit_data = transit_data[['GEOID', 'Drove', 'Carpooled', 'Transit',
+        #                             'NonMotor', 'WFH', 'Other']]
        
-         transit_data.rename(columns = {'GEOID' : 'GEOID10'},
-                            inplace = True)
+        #  transit_data.rename(columns = {'GEOID' : 'GEOID10'},
+        #                     inplace = True)
        
-         LODES = pd.merge(LODES, transit_data, how = 'inner', on = 'GEOID10')
+        #  LODES = pd.merge(LODES, transit_data, how = 'inner', on = 'GEOID10')
          
-         LODES = pd.DataFrame(LODES.drop(columns = 'geometry'))
+        #  LODES = pd.DataFrame(LODES.drop(columns = 'geometry'))
          
-         For_Model_Path = r'K:/Projects/MiamiDade/PMT/Data/Modeling/For_Model'
-         For_Out_File   = f'Block_Groups_{year}.csv'
-         LODES.to_csv(f'{For_Model_Path}/{For_Out_File}', index=False)
+        #  For_Model_Path = r'K:/Projects/MiamiDade/PMT/Data/Modeling/For_Model'
+        #  For_Out_File   = f'Block_Groups_{year}.csv'
+        #  LODES.to_csv(f'{For_Model_Path}/{For_Out_File}', index=False)
          
     else:
         Block_Groups = pd.merge(Shape, Block_Groups,
