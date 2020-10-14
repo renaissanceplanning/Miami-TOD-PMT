@@ -25,7 +25,7 @@ import arcpy
 # The DTYPE global variable initializes a dictionary that ensures expected
 # columns in csv files are read in as strings rather than numeric fields.
 # The names for these columns are set in `dl_acs_tables.py` and `dl_LODES.R`
-DTYPE = {"GEOID10": str, 
+DTYPE = {"GEOID10": str,
          "state": str,
          "county": str,
          "tract": str,
