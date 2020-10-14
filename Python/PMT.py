@@ -19,7 +19,7 @@ import re
 import json
 
 # %% CONSTANTS - FOLDERS
-SCRIPTS = Path(os.getcwd()).parents[0]
+SCRIPTS = Path(__file__).parents[1]
 ROOT = Path(SCRIPTS).parents[0]
 DATA = os.path.join(ROOT, "Data")
 RAW = os.path.join(DATA, "raw")
@@ -46,7 +46,75 @@ def makePath(in_folder, *subnames):
     return os.path.join(in_folder, *subnames)
 
 
-def fetchJsonUrl(url, encoding="utf-8", is_spatial=False, crs="epsg:4326"):
+def jsonToFeatureClass(json_obj, out_fc, sr=4326):
+    """
+
+    Parameters
+    -----------
+    json_obj: dict
+    out_fc: Path
+    sr: Int, default=4326
+    """
+    # Stack features and attributes
+    prop_stack = []
+    geom_stack = []
+    for ft in json_obj["features"]:
+        attr_dict = ft["properties"]
+        df = pd.DataFrame([attr_dict.values()], columns=attr_dict.keys())
+        prop_stack.append(df)
+        geom = arcpy.AsShape(ft["geometry"], False)
+        geom_stack.append(geom)
+
+    # Create output fc
+    sr = arcpy.SpatialReference(sr)
+    geom_type = geom_stack[0].type.upper()
+    if arcpy.Exists(out_file):
+        if overwrite:
+            arcpy.Delete_management(out_file)
+        else:
+            raise RuntimeError(f"output {out_file} already exists")
+    out_path, out_name = os.path.split(out_file)
+    arcpy.CreateFeatureclass_management(out_path, out_name, geom_type,
+                                        spatial_reference=sr)
+    arcpy.AddField_management(out_file, "LINEID", "LONG")
+
+    # Add geometries
+    with arcpy.da.InsertCursor(out_file, ["SHAPE@", "LINEID"]) as c:
+        for i, geom in enumerate(geom_stack):
+            row = [geom, i]
+            c.insertRow(row)
+
+    # Create attributes dataframe
+    prop_df = pd.concat(prop_stack)
+    prop_df["LINEID"] = np.arange(len(prop_df))
+    for excl in exclude:
+        if excl in prop_df.columns.to_list():
+            prop_df.drop(columns=excl, inplace=True)
+    if arcpy.Describe(out_file).dataType.lower() == "shapefile":
+        prop_df.fillna(0.0, inplace=True)
+
+    # Extend table
+    print([f.name for f in arcpy.ListFields(out_file)])
+    print(prop_df.columns)
+    extendTableDf(out_file, "LINEID", prop_df, "LINEID")
+
+
+def jsonToTable(json_obj, out_file):
+    """
+
+    Parameters
+    -----------
+    json_obj: dict
+    out_file: Path
+    """
+    # convert to dataframe
+    gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
+    df = pd.DataFrame(gdf.drop(columns="geometry"))
+    return dfToTable(df, out_file)
+
+
+def fetchJsonUrl(url, out_file, encoding="utf-8", is_spatial=False,
+                 crs=4326, overwrite=False):
     """
     Retrieve a json/geojson file at the given url and convert to a
     data frame or geodataframe.
@@ -54,24 +122,29 @@ def fetchJsonUrl(url, encoding="utf-8", is_spatial=False, crs="epsg:4326"):
     Parameters
     -----------
     url: String
+    out_file: Path
     encoding: String, default="uft-8"
     is_spatial: Boolean, default=False
         If True, dump json to geodataframe
     crs: String
+    overwrite: Boolean
 
     Returns
     ---------
-    df: DataFrame of GeoDataFrame
-        A data frame representation of the json resource found at the url.
+    out_file: Path
     """
+    exclude = ["FID", "OID", "ObjectID", "SHAPE_Length", "SHAPE_Area"]
     http = urllib3.PoolManager()
     req = http.request("GET", url)
     req_json = json.loads(req.data.decode(encoding))
-    gdf = gpd.GeoDataFrame.from_features(
-            req_json["features"], crs=crs)
+    
     if is_spatial:
-        return gdf
+        jsonToFeatureClass(json_obj, out_fc, sr=4326)
+
     else:
+        prop_stack = []
+        
+        gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
         return pd.DataFrame(gdf.drop(columns="geometry"))
 
 
@@ -220,6 +293,29 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
                          in_array=in_array,
                          array_match_field=df_match_field,
                          **kwargs)
+
+
+def dfToTable(df, out_table):
+    """
+    Use a pandas data frame to export a arcgis table.
+
+    Parameters
+    -----------
+    df: DataFrame
+        The data frame whose columns will be added to `in_table`
+    out_table: Path
+
+    Returns
+    --------
+    out_table: Path
+    """
+    in_array = np.array(
+        np.rec.fromrecords(
+            df.values, names=df.dtypes.index.tolist()
+        )
+    )
+    arcpy.da.NumPyArrayToTable(in_array, out_table)
+    return out_table
 
 
 def multipolygonToPolygon(gdf):
