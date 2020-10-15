@@ -439,7 +439,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     disag_fields = sum_fields + groupby_fields
 
     # Set up the output feature class (copy features from agg_fc)
-    out_ws, out_fc = path.split(output_fc)
+    out_ws, out_fc = os.path.split(output_fc)
     # out_ws, out_fc = output_fc.rsplit(r"\", 1)
     arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
 
@@ -499,3 +499,12 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         # Delete output fc
         arcpy.Delete_management(output_fc)
         raise
+
+if __name__ == "__main__":
+    arcpy.env.overwriteOutput = True
+    sumToAggregateGeo(
+        disag_fc=r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Safety_Security\Crash_Data"
+                 r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
+        sum_fields=["SPEED_LIM"], groupby_fields=["CITY"],
+        agg_fc=r"K:\Projects\MiamiDade\PMT\Basic_features.gdb\Basic_features_SPFLE\SMART_Plan_Station_Areas",
+        agg_id_field="Id", output_fc=r"D:\Users\DE7\Desktop\agg_test.gdb\bike_speed_agg")
