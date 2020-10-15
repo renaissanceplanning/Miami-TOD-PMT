@@ -16,15 +16,12 @@ Sources inlcude:
 import os
 import geopandas as gpd
 import pandas as pd
+import time
 from pathlib import Path
 from PMT import (
-    SCRIPTS,
-    ROOT,
     DATA,
     RAW,
     CLEANED,
-    REF,
-    BASIC_FEATURES,
     makePath,
 )
 from crash_config import (
@@ -44,9 +41,9 @@ github = True
 
 # %% PATHING
 # define pathing
-script_path = os.path.realpath(__file__)
-script_folder = os.path.dirname(script_path)
-project_folder = os.path.dirname(script_folder)
+# script_path = os.path.realpath(__file__)
+# script_folder = os.path.dirname(script_path)
+# project_folder = os.path.dirname(script_folder)
 source_folder = makePath(
     RAW,
     "Safety_Security",
@@ -59,7 +56,7 @@ output_folder = makePath(
 )
 
 
-def rename_subset(geojson, usecols=USE, rename_dict=FIELDS_DICT, county=COUNTY):
+def rename_subset(geojson, crs, usecols=USE, rename_dict=FIELDS_DICT, county=COUNTY):
     """
     reads in geojson, drops unnecessary attributes and renames the kept attributes
     Parameters
@@ -80,7 +77,9 @@ def rename_subset(geojson, usecols=USE, rename_dict=FIELDS_DICT, county=COUNTY):
     drop_cols = [col for col in gdf.columns if col not in usecols]
     gdf.drop(drop_cols, axis=1, inplace=True)
     gdf.rename(columns=rename_dict, inplace=True)
-    return gdf[gdf["COUNTY"] == county]
+    gdf = gdf[gdf["COUNTY"] == county]
+    gdf.crs = crs
+    return gdf
 
 
 def split_date(gdf, date_field):
@@ -98,6 +97,7 @@ def split_date(gdf, date_field):
     """
     # convert unix time to da
     gdf[date_field] = gdf[date_field].apply(lambda x: str(x)[:10])
+    gdf[date_field] = gdf[date_field].apply(lambda x: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(int(x))))
     gdf[date_field] = pd.to_datetime(arg=gdf[date_field], infer_datetime_format=True)
     gdf["DAY"] = gdf[date_field].dt.day
     gdf["MONTH"] = gdf[date_field].dt.month
@@ -162,10 +162,10 @@ def clean_bike_ped_crashes(
     """
     bp_gdf = rename_subset(
         geojson=file_path,
+        crs=in_crs,
         usecols=usecols,
         rename_dict=FIELDS_DICT,
         county=county)
-    bp_gdf.crs = in_crs
 
     split_date(
         gdf=bp_gdf, date_field="DATE")
@@ -191,9 +191,10 @@ if __name__ == "__main__":
     if github:
         ROOT = r'K:\Projects\MiamiDade\PMT\Data'
         RAW = Path(ROOT, 'Raw')
-    data = Path(RAW, "Safety_Security", "Crash_Data").glob('*.geojson')
+        CLEANED = Path(ROOT, 'Cleaned')
+    data = Path(RAW, "Safety_Security", "Crash_Data", "bike_ped.geojson")
     out_path = Path(CLEANED, "Safety_Security", "Crash_Data")
-    out_name = "Miami_Dade_NonMotorist_CrashData_2012-2020.shp"
+    out_name = "Miami_Dade_NonMotorist_CrashData.shp"
     clean_bike_ped_crashes(file_path=data,
                            out_path=out_path,
                            out_name=out_name,
