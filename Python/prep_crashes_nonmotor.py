@@ -16,6 +16,7 @@ Sources inlcude:
 import os
 import geopandas as gpd
 import pandas as pd
+from pathlib import Path
 from PMT import (
     SCRIPTS,
     ROOT,
@@ -38,6 +39,8 @@ from crash_config import (
     SEVERITY_CODES,
     CITY_CODES,
 )
+
+github = True
 
 # %% PATHING
 # define pathing
@@ -184,4 +187,18 @@ def clean_bike_ped_crashes(
 
 
 if __name__ == "__main__":
-
+    # if running code from a local github repo branch
+    if github:
+        ROOT = r'K:\Projects\MiamiDade\PMT\Data'
+        RAW = Path(ROOT, 'Raw')
+    data = Path(RAW, "Safety_Security", "Crash_Data").glob('*.geojson')
+    out_path = Path(CLEANED, "Safety_Security", "Crash_Data")
+    out_name = "Miami_Dade_NonMotorist_CrashData_2012-2020.shp"
+    clean_bike_ped_crashes(file_path=data,
+                           out_path=out_path,
+                           out_name=out_name,
+                           usecols=USE,
+                           rename_dict=INCIDENT_TYPES,
+                           county=COUNTY,
+                           in_crs=IN_CRS,
+                           out_crs=OUT_CRS)
