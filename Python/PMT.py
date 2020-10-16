@@ -28,6 +28,7 @@ REF = os.path.join(DATA, "reference")
 BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 
+
 # %% FUNCTIONS
 def makePath(in_folder, *subnames):
     """
@@ -137,13 +138,13 @@ def fetchJsonUrl(url, out_file, encoding="utf-8", is_spatial=False,
     http = urllib3.PoolManager()
     req = http.request("GET", url)
     req_json = json.loads(req.data.decode(encoding))
-    
+
     if is_spatial:
         jsonToFeatureClass(json_obj, out_fc, sr=4326)
 
     else:
         prop_stack = []
-        
+
         gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
         return pd.DataFrame(gdf.drop(columns="geometry"))
 
@@ -168,7 +169,7 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns=[]):
     out_fc: Path
         Path to the file location for the copied features.
     """
-    #TODO: if out_fc will be in a geodatabase, use arcpy instead of gpd?
+    # TODO: if out_fc will be in a geodatabase, use arcpy instead of gpd?
 
     gdf = gpd.read_file(in_fc)
     if drop_columns:
@@ -216,11 +217,11 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         drop_columns = [[] for _ in fc_names]
     if not rename_columns:
         rename_columns = [{} for _ in fc_names]
-    
+
     # Iterate over input fc's
     all_features = []
     for fc_name, drop_cols, rename_cols in zip(
-        fc_names, drop_columns, rename_columns):
+            fc_names, drop_columns, rename_columns):
         # Read features
         in_fc = makePath(raw_dir, fc_name)
         gdf = gpd.read_file(in_fc)
@@ -228,7 +229,7 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         gdf.drop(columns=drop_cols, inplace=True)
         gdf.rename(columns=rename_cols, inplace=True)
         all_features.append(gdf)
-    
+
     # Concatenate features
     merged = pd.concat(all_features)
 
@@ -499,6 +500,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         # Delete output fc
         arcpy.Delete_management(output_fc)
         raise
+
 
 if __name__ == "__main__":
     arcpy.env.overwriteOutput = True
