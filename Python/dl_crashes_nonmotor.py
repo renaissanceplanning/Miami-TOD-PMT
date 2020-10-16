@@ -27,6 +27,9 @@ from esridump.dumper import EsriDumper
 import os
 from dl_config import ALL_CRASHES_SERVICE, PED_BIKE_QUERY
 from PMT import RAW
+from pathlib import Path
+
+github = True
 
 
 def dl_bike_ped_crashes(
@@ -94,8 +97,11 @@ def dl_bike_ped_crashes(
 
 
 if __name__ == "__main__":
-    out_path = RAW
-    out_name = "bike_ped.json"
+    if github:
+        ROOT = r'K:\Projects\MiamiDade\PMT\Data'
+        RAW = Path(ROOT, 'Raw')
+    out_path = Path(RAW, "Safety_Security", "Crash_Data")
+    out_name = "bike_ped.geojson"
     dl_bike_ped_crashes(
         all_crashes_url=ALL_CRASHES_SERVICE,
         fields='ALL',
