@@ -138,9 +138,9 @@ def dlRaceVars(year, acs_dataset="acs5", state="12",county="086"):
                                    race_data.Asian_Hispanic -
                                    race_data.Multi_Hispanic)
     # Use the census geo index to make geo tag cols
-    geo_cols = censusGeoIndexToColumns(mode_data.index, gen_geoid=True,
+    geo_cols = censusGeoIndexToColumns(race_data.index, gen_geoid=True,
                                        geoid="GEOID10")
-    race_data = pd.concat([geo_cols, mode_data], axis=1)
+    race_data = pd.concat([geo_cols, race_data], axis=1)
     
     return race_data.reset_index(drop=True)
 
@@ -189,7 +189,7 @@ def dlCommuteVars(year, acs_dataset="acs5", state="12",county="086"):
     # Fetch data
     mode_data = _fetchAcs(year, acs_dataset, state, county, table, columns)
     # Create Subtotals
-    mode_data["Drove"] = mode_data.Drove_alone + mode_data.Motorcyle
+    mode_data["Drove"] = mode_data.Drove_alone + mode_data.Motorcycle
     mode_data["NonMotor"] = mode_data.Bicycle + mode_data.Walk
     mode_data["AllOther"] = mode_data.Taxi + mode_data.Other
     # Calc shares
@@ -214,12 +214,18 @@ if __name__ == "__main__":
         # setup folders
         race_out = PMT.makePath(bg_path, f"ACS_{year}_race.csv")
         commute_out = PMT.makePath(bg_path, f"ACS_{year}_commute.csv")
-
-        race = dlRaceVars(year, acs_dataset="acs5", state="12", county="086",
-                          scale="block group")
-        commute = dlCommuteVars(year, acs_dataset="acs5", state="12",
-                                county="086", scale="block group")
+        print(f"Fetching race data ({race_out})")
+        try:
+            race = dlRaceVars(year, acs_dataset="acs5", state="12",
+                              county="086")
+            race.to_csv(race_out, index=False)
+        except:
+            print(f"ERROR DOWNLOADING RACE DATA ({year})")
         
-        # Dum to csv
-        race.to_csv(race_out)
-        commute.to_csv(commute_out)
+        print(f"Fetching commute data ({commute_out})")
+        try:
+            commute = dlCommuteVars(year, acs_dataset="acs5", state="12",
+                                    county="086")
+            commute.to_csv(commute_out, index=False)
+        except:
+            print(f"ERROR DOWNLOADING COMMUTE DATA ({year})")
