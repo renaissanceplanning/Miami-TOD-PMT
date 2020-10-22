@@ -24,7 +24,7 @@ from PMT import (
     CLEANED,
     makePath,
 )
-from crash_config import (
+from configs.config_crashes import (
     FIELDS_DICT,
     INCIDENT_TYPES,
     USE,
