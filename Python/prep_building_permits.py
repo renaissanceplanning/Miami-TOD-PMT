@@ -134,12 +134,14 @@ if __name__ == "__main__":
         Path.mkdir(out_path)
     out_name = "Miami_Dade_BuildingPermits.csv"
     raw_df = csv_to_df(csv_file=data, use_cols=USE, rename_dict=FIELDS_DICT)
+    raw_df['PARCEL_NO'] = raw_df['PARCEL_NO'].astype(np.str)
+    raw_df['PARCEL_NO'] = raw_df['PARCEL_NO'].apply(lambda x: x.zfill(13))
     raw_df["PED_ORIENTED"] = np.where(raw_df.CAT_CODE.str.contains(CAT_CODE_PEDOR), 1, 0)
     raw_df['CAT_CODE'] = np.where(raw_df.CAT_CODE.str.contains(CAT_CODE_PEDOR),
                                    raw_df.CAT_CODE.str[:-2],
                                    raw_df.CAT_CODE)
     lu_df = pd.read_csv(CAT_CODE_TBL)
-    merge = raw_df.merge(right=lu_df, how="outer", on='CAT_CODE')
+    merge = raw_df.merge(right=lu_df, how="inner", on='CAT_CODE')
     merge.to_csv(Path(out_path, out_name))
     print("done")
 
