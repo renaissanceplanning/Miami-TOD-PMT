@@ -25,24 +25,8 @@ from six import string_types
 import PMT
 import functools
 
-# %% TESTING SPECS
-
-# Testing specs
-# bbox for Miami-Dade county was pulled with the following code in R:
-# library(sf)
-# library(USAboundaries)
-# fl = us_counties(state="FL", resolution="high")
-# md = st_sf(fl[fl$name == "Miami-Dade",])
-# st_bbox(md)
-
-# study_area_polygons_path = None
-# bbox = {"south": 25.13807,
-#         "north": 25.97943,
-#         "west": -80.87327,
-#         "east": -80.11790} 
-# net_types = ["drive","walk","bike"]
-# pickle_save = True
-# save_directory = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\OSM_Networks"
+# %% GLOBALS
+SUFFIX = "_q3_2019"
 
 # %% FUNCTIONS
 def validateBBox(bbox):
@@ -94,7 +78,8 @@ def validateBBox(bbox):
 
 
 def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
-                     net_types=['drive','walk','bike'], pickle_save=False):
+                     net_types=['drive','walk','bike'], pickle_save=False,
+                     suffix=""):
     """
     Download an OpenStreetMap network within the area defined by a polygon
     feature class of a bounding box.
@@ -123,6 +108,9 @@ def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
     pickle_save: boolean, default=False
         If True, the downloaded OSM networks are saved as python `networkx`
         objects using the `pickle` module. See module notes for usage.
+    suffix: String, default=""
+        Downloaded datasets may optionally be stored in folders with a suffix
+        appended, differentiating networks by date, for example.
     
     Returns
     ---------
@@ -196,6 +184,7 @@ def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
     # Fetch network features
     mode_nets = {}
     for net_type in net_types:
+        net_folder = net_type + suffix
         print("OSMnx " + net_type + " network extraction")
         # 1. Completing the OSMnx query
         if use_polygons:
@@ -222,7 +211,7 @@ def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
             if pickle_save == True:
                 print("-- saving the extracted networks as pickle")
                 out_f = os.path.join(
-                    output_dir, net_type, "osmnx_graph_dict.p")
+                    output_dir, net_folder, "osmnx_graph_dict.p")
                 with open(out_f, "wb") as pickle_file:
                     pickle.dump(graphs, pickle_file)
                 print("---- saved to: " + out_f)
@@ -237,23 +226,32 @@ def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
         # Pickle if requested
         if pickle_save == True:
             print("-- saving the composed network as pickle")
-            out_f = os.path.join(output_dir, net_type, "osmnx_composed_net.p")
+            out_f = os.path.join(output_dir, net_folder, "osmnx_composed_net.p")
             with open(out_f, 'wb') as pickle_file:
                 pickle.dump(g, pickle_file)
             print("---- saved to: {}".format(out_f))
 
         # 2. Saving as shapefile
         print("-- saving network shapefile...")
-        out_f = os.path.join(output_dir, net_type)
-        ox.save_graph_shapefile(G=g, filepath=output_dir)
+        out_f = os.path.join(output_dir, net_folder)
+        ox.save_graph_shapefile(G=g, filepath=out_f)
         # need to change this directory
-        print("---- saved to: " + output_dir)
+        print("---- saved to: " + out_f)
             
         # 3. Add the final graph to the dictionary of networks
         mode_nets[net_type] = g
     return mode_nets
 
+# %% MAIN
+if __name__ == "__main__":
+    # Fetch current OSM walk and bike networks for Miami-Dade County
+    output_dir = PMT.makePath(PMT.RAW, "osm_networks")
+    sa_polys = PMT.makePath(PMT.RAW, "CensusGeo", "MiamiDadeBoundary.shp")
+    fetchOsmNetworks(output_dir, study_area_polygons_path=sa_polys, bbox=None,
+                     net_types=["walk", "bike"], pickle_save=False)
 
+
+# %% PREVIOUS
 # def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
 #                      net_types=['drive','walk','bike'], pickle_save=False):
     # """

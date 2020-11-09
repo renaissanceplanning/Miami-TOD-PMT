@@ -12,6 +12,7 @@ Future updates to this script may require a review of latest survey products
 and appropriate url structures to obtain more recent rates.
 """
 # %%
+import PMT
 import urllib3
 import os
 
@@ -34,8 +35,8 @@ if __name__ == "__main__":
     os.chdir('..')
     os.chdir('..')
     # Specify output files
-    res_file = r"data\raw\EIA_ResEnergy2015_ce4_9.xlsx"
-    com_file = r"data\raw\EIA_ComEnergy2015_pba3.xlsx"
+    res_file = PMT.makePath(PMT.RAW, "EIA_ResEnergy2015_ce4_9.xlsx")
+    com_file = PMT.makePath(PMT.RAW, "EIA_ComEnergy2015_pba3.xlsx")
     # Download and save
     fetchEnergyRates(res_url, res_file)
     fetchEnergyRates(com_url, com_file)

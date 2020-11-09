@@ -20,25 +20,31 @@ import geopandas as gpd
 from six import string_types
 from collections.abc import Iterable
 import arcpy
+import os
+import re
 
 # %% GLOBALS
 # The DTYPE global variable initializes a dictionary that ensures expected
 # columns in csv files are read in as strings rather than numeric fields.
 # The names for these columns are set in `dl_acs_tables.py` and `dl_LODES.R`
 DTYPE = {"GEOID10": str,
+         "GEOID": str,
          "state": str,
          "county": str,
          "tract": str,
-         "block group": str}
+         "block group": str,
+         "createdate": str}
 
 
 # %% FUNCTIONS
 def joinBGData(in_fc, in_fc_id, join_tables, on_fields, out_fc, dtype={},
-                    **kwargs):
+               **kwargs):
+    #TODO: handle column naming collisions and update docstring
     """
     Starting with block group features and a collection of raw data tables
     (from ACS, LODES, etc.), join attributes in a single cleaned feature
-    class.
+    class. If `join_tables` have common column_names, the values from the
+    last table joined will appear in the output feature class.
 
     Parameters
     -----------
@@ -68,16 +74,31 @@ def joinBGData(in_fc, in_fc_id, join_tables, on_fields, out_fc, dtype={},
             f"Expected string or iterable for `on_fields`, got {type(on_fields)}")
     
     # Read the data
-    gdf = gpd.read_file(in_fc)
+    ##gdf = gpd.read_file(in_fc)
 
     # Read input tables
-    for join_table, on_field in zip(join_tables, on_fields):
-        df = pd.read_csv(join_table, dtype=dtype, **kwargs)
-        # - Merge to gdf
-        gdf = gdf.merge(df, how="left", left_on=in_fc_id, right_on=on_field)
+    # Update to use arcpy
+    # for join_table, on_field in zip(join_tables, on_fields):
+    #     df = pd.read_csv(join_table, dtype=dtype, **kwargs)
+    #     # - Merge to gdf
+    #     gdf = gdf.merge(df, how="left", left_on=in_fc_id, right_on=on_field)
     
-    # Export output
-    gdf.to_file(out_fc)
+    # # Export output
+    # gdf.to_file(out_fc)
+
+    # Push input features to output fc
+    print("...copying geometries")
+    out_folder, out_name = os.path.split(out_fc)
+    arcpy.FeatureClassToFeatureClass_conversion(in_fc, out_folder, out_name)
+
+    # Extend with csv tables
+    print("...joining attributes")
+    for join_table, on_field in zip(join_tables, on_fields):
+        print(f"... ...{join_table}")
+        df = pd.read_csv(join_table, dtype=dtype, **kwargs)
+        cols = df.columns.to_list()
+        df.columns = [re.sub("[^a-zA-Z0-9_]", "_", c) for c in cols]
+        PMT.extendTableDf(out_fc, in_fc_id, df, on_field, append_only=False)
 
     return out_fc
 
@@ -104,13 +125,14 @@ def prepBlockGroups(raw_dir, out_gdb, years, overwrite=False, dtype={}):
             arcpy.Delete_management(out_gdb)
         else:
             raise RuntimeError(f"out_gdb `{out_gdb}` already exists")
-    out_folder, out_name = out_gdb.rsplit("\\", 1)
+    out_folder, out_name = os.path.split(out_gdb)
     arcpy.CreateFileGDB_management(out_folder, out_name)
     
     # Push data for each year
     bg_path = PMT.makePath(raw_dir, "BlockGroups")
     
     for year in years:
+        print(year)
         bg_features = PMT.makePath(bg_path, "CensusBG.shp")
         LODES_table = PMT.makePath(bg_path, f"LODES_{year}_jobs.csv")
         race_table = PMT.makePath(bg_path, f"ACS_{year}_race.csv")
@@ -121,26 +143,26 @@ def prepBlockGroups(raw_dir, out_gdb, years, overwrite=False, dtype={}):
         #  modeling.
         join_tables = []
         on_fields = []
-        jobs_source = "EXTRAP"
-        dem_source = "EXTRAP"
+        jobs_source = '"EXTRAP"'
+        dem_source = '"EXTRAP"'
         # - Jobs
         if arcpy.Exists(LODES_table):
             join_tables.append(LODES_table)
             on_fields.append("GEOID10")
-            jobs_source = "LODES"
+            jobs_source = '"LODES"'
         # - Demographic data
         if arcpy.Exists(race_table):
             # If the race table was found, the commute table should be there too
             join_tables += [race_table, mode_table]
             on_fields += ["GEOID10", "GEOID10"]
-            dem_source = "ACS"
+            dem_source = '"ACS"'
         # If any join data are found, run the joinBGData function
         out_fc = PMT.makePath(out_gdb, f"BlockGroups_{year}")
         if join_tables:
             out_fc = joinBGData(bg_features, "GEOID10", join_tables,
-                                on_fields, out_fc, dtype={})
+                                on_fields, out_fc, dtype=dtype)
         else:
-            out_fc = copyFeatures(bg_features, out_fc)
+            out_fc = PMT.copyFeatures(bg_features, out_fc)
         
         # Add a column to the output feature class to indicate extapolation
         #  requirements

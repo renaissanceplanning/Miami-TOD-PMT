@@ -153,15 +153,18 @@ def makeParcelGDB(folder, gdb_name="parcels", overwrite=False):
     out_gdb: Path
         The path to the newly created output gdb
     """
+    if gdb_name[-4:] != ".gdb":
+        gdb_name = gdb_name + ".gdb"
     # check if it exists
     out_gdb = PMT.makePath(folder, gdb_name)
     if arcpy.Exists(out_gdb):
         if overwrite:
+            print(f"Deleting existing data {out_gdb}")
             arcpy.Delete_management(out_gdb)
         else:
             raise RuntimeError("GDB already exists {}".format(out_gdb))
     # make gdb
-    arcpy.CreateFileGDB(folder, gdb_name)
+    arcpy.CreateFileGDB_management(folder, gdb_name)
 
     return out_gdb
 
@@ -195,38 +198,44 @@ def cleanParcels(in_fc, in_csv, out_fc, fc_par_field="PARCELNO",
         Keyword arguments for reading csv data into pandas (dtypes, e.g.)
     """
     # Repair geom and remove null geoms
-    arcpy.RepairGeometry(in_fc, delete_null="DELETE_NULL")
+    print("...repair geometry")
+    arcpy.RepairGeometry_management(in_fc, delete_null="DELETE_NULL")
     # Dissolve polygons
+    print("...dissolve parcel polygons")
     arcpy.Dissolve_management(in_fc, out_fc, dissolve_field=fc_par_field,
                               statistics_fields="{} COUNT".format(fc_par_field),
                               multi_part="SINGLE_PART")
     # Read csv files
+    print("...read csv tables")
     par_df = pd.read_csv(in_csv, **kwargs)
     # Rename columns if needed
     if csv_renames:
+        print("...renaming columns")
         par_df.rename(csv_renames, axis=1, inplace=True)
     # Add columns to dissolved features
+    print("...joining attributes to features")
     PMT.extendTableDf(out_fc, fc_par_field, par_df, csv_par_field)
 
 
 # %% MAIN
 if __name__ == "__main__":
-    #Create output gdb
+    # Create output gdb
+    print(f"making ouptut gdb at {PMT.CLEANED}\\parcels.gdb")
     out_gdb = makeParcelGDB(PMT.CLEANED, gdb_name="parcels", overwrite=True)
     
     # Clean parcels and join attributes
-    years = [2014, 2015, 2016, 2017, 2018, 2019]
-    for year in years:
+    for year in PMT.YEARS:
+        print(year)
         in_fc = PMT.makePath(
             PMT.RAW, "Parcels", "Miami_{}.shp".format(year))
         in_csv = PMT.makePath(
-            PMT.RAW, "Parcels", "NAL_{}_23_Dade_F.shp".format(year))
+            PMT.RAW, "Parcels", "NAL_{}_23Dade_F.csv".format(year))
         out_fc = PMT.makePath(out_gdb, "Miami_{}".format(year))
         if year == 2019:
             renames = COLS19
         else:
             renames = {}
-        csv_kwargs = {"dtypes": {"PARCEL_ID": str, "CENSUS_BK": str}}
-        cleanParcels(in_fc, in_csv, out_fc, fc_par_field="PARCEL_NO",
-                    csv_par_field="PACEL_ID", csv_renames=renames,
+        csv_kwargs = {"dtype": {"PARCEL_ID": str, "CENSUS_BK": str}}
+        cleanParcels(in_fc, in_csv, out_fc, fc_par_field="PARCELNO",
+                    csv_par_field="PARCEL_ID", csv_renames=renames,
                     **csv_kwargs)
