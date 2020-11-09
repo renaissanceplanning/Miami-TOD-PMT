@@ -345,18 +345,18 @@ download_LODES = function(version = 7,
 #   w = which(yrs == x)
 #   cat(paste0("\n(", w, "/", lg, ")"), "Jobs for", x, "\n")
 #   d = paste0("Data/Processed_Data/LODES/", x)
-#   lodes = download_LODES(version = 7,
-#                          state = "FL",
-#                          file = "wac",
-#                          part = NULL,
-#                          segment = "S000",
-#                          type = "JT00",
-#                          year = x,
-#                          lodes_variables = NULL,
-#                          geography = TRUE,
-#                          geography_variables = NULL,
-#                          aggregate = "block group",
-#                          save_dirs = NULL)
+  # lodes = download_LODES(version = 7,
+  #                        state = "FL",
+  #                        file = "wac",
+  #                        part = NULL,
+  #                        segment = "S000",
+  #                        type = "JT00",
+  #                        year = x,
+  #                        lodes_variables = NULL,
+  #                        geography = TRUE,
+  #                        geography_variables = NULL,
+  #                        aggregate = "block group",
+  #                        save_dirs = NULL)
 #   
 #   cat("Formatting LODES data...\n")
 #   lodes_fm = lodes$AGGED %>%
@@ -387,3 +387,29 @@ download_LODES = function(version = 7,
 #   return(TRUE)
 # })
 # 
+
+lodes = lapply(2014:2017, function(x){
+  cat(x)
+  download_LODES(version = 7,
+                         state = "FL",
+                         file = "wac",
+                         part = NULL,
+                         segment = "S000",
+                         type = "JT00",
+                         year = x,
+                         lodes_variables = NULL,
+                         geography = TRUE,
+                         geography_variables = NULL,
+                         aggregate = "block group",
+                         save_dirs = NULL)
+})
+agged = lapply(lodes, function(x){
+  x$AGGED
+})
+agged = lapply(agged, function(x){
+  names(x)[1] = "GEOID10"
+  return(x)
+})
+write.csv(agged[[4]],
+          "K:/Projects/MiamiDade/PMT/Data/Raw/BlockGroups/LODES_2017_jobs.csv",
+          row.names = FALSE)
