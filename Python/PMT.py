@@ -412,6 +412,37 @@ def multipolygonToPolygon(gdf):
     return poly_df
 
 
+def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False,
+                     null_value=0):
+    """
+    Convenience function to dump polygon features to centroids and
+    save as a new feature class.
+
+    Parameters
+    -------------
+    in_fc: Path
+    out_fc: Path
+    fields: [String,...], default="*"
+    skip_nulls: Boolean, default=False
+    null_value: Integer, default=0
+    """
+    sr = arcpy.Describe(in_fc).spatialReference
+    if fields == "*":
+        fields = arcpy.ListFields(in_fc)
+        fields = [f for f in fields if f.type != "Geometry"]
+        fields = [f for f in fields if "shape" not in f.name.lower()]
+        fields = [f for f in fields if "objectid" not in f.name.lower()]
+        fields = [f.name for f in fields]
+    elif isinstance(fields, string_types):
+        fields = [fields]
+    fields.append("SHAPE@XY")
+    a = arcpy.da.FeatureClassToNumPyArray(in_fc, fields, skip_nulls=skip_nulls,
+                                          null_value=null_value)
+    arcpy.da.NumPyArrayToFeatureClass(a, out_fc, "SHAPE@XY",
+                                      spatial_reference=sr)
+    return out_fc
+
+
 def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                       agg_id_field, output_fc, overlap_type="INTERSECT",
                       agg_funcs=np.sum, disag_wc=None, agg_wc=None,
@@ -510,6 +541,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     if arcpy.Exists(output_fc):
         arcpy.Delete_management(output_fc)
     arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
+    print(output_fc)
     sr = arcpy.Describe(agg_fc).spatialReference.exportToString()
 
     # Try, except to rollback
@@ -575,11 +607,11 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         # gdfToFeatureClass(gdf, output_fc, sr=sr)
 
     except:
-        arcpy.AddWarning("Error encountered, rolling back changes")
+        raise
+    finally:
         # delete all temp layers
         arcpy.Delete_management("__disag_fc__")
         arcpy.Delete_management("__agg_fc__")
         arcpy.Delete_management("__disag_subset__")
         # Delete output fc
         arcpy.Delete_management(output_fc)
-        raise

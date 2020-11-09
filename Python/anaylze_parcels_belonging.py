@@ -87,7 +87,7 @@ if __name__ == "__main__":
       boundary_fc = PMT.makePath(PMT.CLEANED, "UrbanDevelopmentBoundary.shp")
       station_areas = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Station_Areas")
       corridors = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Corridors")
-      for year in PMT.YEARS[-2:]:
+      for year in PMT.YEARS:
          fds = PMT.makePath(PMT.ROOT, f"PMT_{year}.gdb", "parcels")
          print(fds)
          tagInBoundary(boundary_fc, fds,
@@ -95,7 +95,7 @@ if __name__ == "__main__":
                        boundary_field="INBOUNDARY", overlap_type="HAVE_THEIR_CENTER_IN")
          tagInBoundary(station_areas, fds,
                        in_string="SA", not_in_string="NSA",
-                       boundary_field="INSTATION", overlap_type="INTERSECT")
+                       boundary_field="INSTATION", overlap_type="HAVE_THEIR_CENTER_IN")
          tagInBoundary(corridors, fds,
                        in_string="C", not_in_string="NC",
-                       boundary_field="INCORRIDOR", overlap_type="INTERSECT")
+                       boundary_field="INCORRIDOR", overlap_type="HAVE_THEIR_CENTER_IN")

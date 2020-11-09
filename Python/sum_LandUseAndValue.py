@@ -13,11 +13,11 @@ import numpy as np
 # %% GLOBALS
 SUM_FIELDS = [
     "JV",
-    "JV_CHNG",
-    "AV_SD",
-    "AV_NSD",
-    "TV_SD",
-    "TV_NSD",
+    #"JV_CHNG",
+    #"AV_SD",
+    #"AV_NSD",
+    #"TV_SD",
+    #"TV_NSD",
     #"JV_HMSTD",
     #"AV_HMSTD",
     #"JV_NON_HMSTD_RESD",
@@ -36,7 +36,7 @@ SUM_FIELDS = [
     #"AV_HIST_SIGNF",
     #"JV_WRKNG_WTRFNT",
     #"AV_WRKNG_WTRFNT",
-    "NCONST_VAL",
+    #"NCONST_VAL",
     "LND_VAL",
     "LND_SQFOOT",
     #"CONST_CLASS",
@@ -78,11 +78,11 @@ def sumLandUseAndValue(station_polys,
 if __name__ == "__main__":
     station_areas = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Station_Areas")
     corridors = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Corridors")
-    groupby_fields=["INBOUNDARY", "INSTATION", "INCORRIDOR", "GN_VA_LU"]
+    groupby_fields=["INSTATION", "INCORRIDOR", "RES_NRES"]
     # Summarize trend
     trends_sa = []
     trends_cor = []
-    for year in PMT.YEARS[-2:]:
+    for year in PMT.YEARS:
         print(year)
         out_gdb = PMT.makePath(PMT.ROOT, f"PMT_{year}.gdb")
         parcels = PMT.makePath(out_gdb, "parcels", "land_use_and_value")
@@ -91,26 +91,26 @@ if __name__ == "__main__":
                            parcels,
                            sum_fields=SUM_FIELDS,
                            output_gdb=out_gdb,
-                           stn_id_field="Name",
+                           stn_id_field="Id",
                            corridor_id_field="Corridor",
                            groupby_fields=groupby_fields,
                            parcel_id="PARCELNO")
         stn_sum_fc = PMT.makePath(
-            output_gdb, "StationAreas", "land_use_and_value_sa")
+            out_gdb, "StationAreas", "land_use_and_value_sa")
         cor_sum_fc = PMT.makePath(
-            output_gdb, "Corridors", "land_use_and_value_cor")
+            out_gdb, "Corridors", "land_use_and_value_cor")
         trends_sa.append(stn_sum_fc)
         trends_cor.append(cor_sum_fc)
     
     print("Merging trend tables for station areas")
     trend_sa_fc = PMT.makePath(
         PMT.ROOT, "PMT_Trend.gdb", "StationAreas", "land_use_and_value_sa")
-    arcpy.Merge_managment(trends_sa, trend_sa_fc)
+    arcpy.Merge_management(trends_sa, trend_sa_fc)
     
     print("Merging trend tables for corridors")
     trend_cor_fc = PMT.makePath(
         PMT.ROOT, "PMT_Trend.gdb", "Corridors", "land_use_and_value_cor")
-    arcpy.Merge_managment(trends_cor, trend_cor_fc)
+    arcpy.Merge_management(trends_cor, trend_cor_fc)
     
     # Summarize near term
 
