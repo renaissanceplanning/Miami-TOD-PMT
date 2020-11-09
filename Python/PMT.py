@@ -11,7 +11,7 @@ import numpy as np
 import urllib3
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry.polygon import Polygon
+from shapely.geometry.polygon import Polygon as POLY
 import os
 from pathlib import Path
 from six import string_types
@@ -19,14 +19,15 @@ import re
 import json
 
 # %% CONSTANTS - FOLDERS
-SCRIPTS = Path(__file__).parents[1]
+SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
 ROOT = Path(SCRIPTS).parents[0]
 DATA = os.path.join(ROOT, "Data")
 RAW = os.path.join(DATA, "raw")
 CLEANED = os.path.join(DATA, "cleaned")
 REF = os.path.join(DATA, "reference")
-BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb")
+BASIC_FEATURES = os.path.join(ROOT, "Basic_features.gdb", "Basic_features_SPFLE")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
+SNAPSHOT_YEAR = 2019
 
 # %% FUNCTIONS
 def makePath(in_folder, *subnames):
@@ -46,14 +47,50 @@ def makePath(in_folder, *subnames):
     return os.path.join(in_folder, *subnames)
 
 
+def gdfToFeatureClass(gdf, out_fc, sr=4326):
+    """
+    Creates a feature class or shapefile from a geopandas GeoDataFrame.
+
+    Parameters
+    ------------
+    gdf: GeoDataFrame
+    out_fc: Path
+    sr: spatial reference, default=4326
+        A spatial reference specification. Authority/factory code, WKT, WKID,
+        ESRI name, path to .prj file, etc.
+
+    Returns
+    ---------
+    out_fc: Path
+
+    SeeAlso
+    ---------
+    jsonToFeatureClass
+    """
+    j = json.loads(gdf.to_json())
+    jsonToFeatureClass(j, out_fc, sr=sr)
+
+
 def jsonToFeatureClass(json_obj, out_fc, sr=4326):
     """
+    Creates a feature class or shape file from a json object.
 
     Parameters
     -----------
     json_obj: dict
     out_fc: Path
-    sr: Int, default=4326
+    sr: spatial reference, default=4326
+        A spatial reference specification. Authority/factory code, WKT, WKID,
+        ESRI name, path to .prj file, etc.
+
+    Returns
+    --------
+    out_fc: Path
+
+    See Also
+    ---------
+    gdfToFeatureClass
+    jsonToTable
     """
     # Stack features and attributes
     prop_stack = []
@@ -68,18 +105,18 @@ def jsonToFeatureClass(json_obj, out_fc, sr=4326):
     # Create output fc
     sr = arcpy.SpatialReference(sr)
     geom_type = geom_stack[0].type.upper()
-    if arcpy.Exists(out_file):
+    if arcpy.Exists(out_fc):
         if overwrite:
-            arcpy.Delete_management(out_file)
+            arcpy.Delete_management(out_fc)
         else:
-            raise RuntimeError(f"output {out_file} already exists")
-    out_path, out_name = os.path.split(out_file)
+            raise RuntimeError(f"output {out_fc} already exists")
+    out_path, out_name = os.path.split(out_fc)
     arcpy.CreateFeatureclass_management(out_path, out_name, geom_type,
                                         spatial_reference=sr)
-    arcpy.AddField_management(out_file, "LINEID", "LONG")
+    arcpy.AddField_management(out_fc, "LINEID", "LONG")
 
     # Add geometries
-    with arcpy.da.InsertCursor(out_file, ["SHAPE@", "LINEID"]) as c:
+    with arcpy.da.InsertCursor(out_fc, ["SHAPE@", "LINEID"]) as c:
         for i, geom in enumerate(geom_stack):
             row = [geom, i]
             c.insertRow(row)
@@ -90,22 +127,31 @@ def jsonToFeatureClass(json_obj, out_fc, sr=4326):
     for excl in exclude:
         if excl in prop_df.columns.to_list():
             prop_df.drop(columns=excl, inplace=True)
-    if arcpy.Describe(out_file).dataType.lower() == "shapefile":
+    if arcpy.Describe(out_fc).dataType.lower() == "shapefile":
         prop_df.fillna(0.0, inplace=True)
 
     # Extend table
-    print([f.name for f in arcpy.ListFields(out_file)])
+    print([f.name for f in arcpy.ListFields(out_fc)])
     print(prop_df.columns)
-    extendTableDf(out_file, "LINEID", prop_df, "LINEID")
+    return extendTableDf(out_fc, "LINEID", prop_df, "LINEID")
 
 
 def jsonToTable(json_obj, out_file):
     """
+    Creates an ArcGIS table from a json object.
 
     Parameters
     -----------
     json_obj: dict
     out_file: Path
+
+    Returns
+    --------
+    out_file: Path
+
+    SeeAlso
+    ---------
+    jsonToFeatureClass
     """
     # convert to dataframe
     gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
@@ -148,7 +194,7 @@ def fetchJsonUrl(url, out_file, encoding="utf-8", is_spatial=False,
         return pd.DataFrame(gdf.drop(columns="geometry"))
 
 
-def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns=[]):
+def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
     """
     Copy features from a raw directory to a cleaned directory.
     During copying, columns may be dropped or renamed.
@@ -168,14 +214,28 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns=[]):
     out_fc: Path
         Path to the file location for the copied features.
     """
-    #TODO: if out_fc will be in a geodatabase, use arcpy instead of gpd?
+    _unmapped_types_ = ["Geometry", "OID", "GUID"]
+    field_mappings = arcpy.FieldMappings()
+    fields = arcpy.ListFields(in_fc)
+    keep_fields = []
+    for f in fields:
+        if f.name not in drop_columns and f.type not in _unmapped_types_:
+            keep_fields.append(f.name)
+    for kf in keep_fields:
+        fm = arcpy.FieldMap()
+        fm.addInputField(in_fc, kf)
+        out_field = fm.outputField
+        out_fname = rename_columns.get(kf, kf)
+        out_field.name = out_fname
+        out_field.aliasName = out_fname
+        fm.outputField = out_field
+        field_mappings.addFieldMap(fm)
 
-    gdf = gpd.read_file(in_fc)
-    if drop_columns:
-        gdf.drop(columns=drop_columns, inplace=True)
-    if rename_columns:
-        gdf.rename(columns=rename_columns, inplace=True)
-    gdf.to_file(out_fc)
+    out_path, out_name = os.path.split(out_fc)
+    arcpy.FeatureClassToFeatureClass_conversion(in_fc, out_path, out_name,
+                                                field_mapping=field_mappings)
+
+    return out_fc
 
 
 def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
@@ -334,7 +394,7 @@ def multipolygonToPolygon(gdf):
     poly_df = gpd.GeoDataFrame(columns=gdf.columns)
     # Iterate over input rows
     for idx, row in gdf.iterrows():
-        if type(row.geometry) == Polygon:
+        if type(row.geometry) == POLY:
             # Append existing simple polygons to the output
             poly_df = poly_df.append(row, ignore_index=True)
         else:
@@ -355,7 +415,7 @@ def multipolygonToPolygon(gdf):
 def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                       agg_id_field, output_fc, overlap_type="INTERSECT",
                       agg_funcs=np.sum, disag_wc=None, agg_wc=None,
-                      *args, **kwargs):
+                      flatten_disag_id=None, *args, **kwargs):
     """
     Summarizes values for features in an input feature class based on their
     relationship to larger geographic units. For example, summarize dwelling
@@ -398,6 +458,10 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     agg_wc: String, default=None
         A where clause for selecting aggregation features to include in the
         summarization process.
+    flatten_disag_id: String, default=None
+        If given, the disag features are assumed to contain redundant data,
+        such as multiple rows showing the same parcel. The mean value by
+        this field is used prior to summarization to aggregate features.
     args:
         Positional arguments to pass to `agg_funcs`
     kwargs:
@@ -437,20 +501,32 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     if isinstance(groupby_fields, string_types):
         groupby_fields = [groupby_fields]
     disag_fields = sum_fields + groupby_fields
+    if flatten_disag_id is not None:
+        disag_fields.append(flatten_disag_id)
 
     # Set up the output feature class (copy features from agg_fc)
-    out_ws, out_fc = path.split(output_fc)
+    out_ws, out_fc = os.path.split(output_fc)
     # out_ws, out_fc = output_fc.rsplit(r"\", 1)
+    if arcpy.Exists(output_fc):
+        arcpy.Delete_management(output_fc)
     arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
+    sr = arcpy.Describe(agg_fc).spatialReference.exportToString()
 
     # Try, except to rollback
     try:
         sum_rows = []
+        # shapes = []
         # Iterate over agg features
         agg_fields = [agg_id_field, "SHAPE@"]
         with arcpy.da.SearchCursor(output_fc, agg_fields) as agg_c:
+        # with arcpy.da.SearchCursor(agg_fc, agg_fields) as agg_c:
             for agg_r in agg_c:
                 agg_id, agg_shape = agg_r
+                # shapes.append(
+                #     POLY(
+                #         [(pt.X, pt.Y) for pt in agg_shape.getPart()[0]]
+                #     )
+                # )
                 # Select disag features there
                 arcpy.SelectLayerByLocation_management(
                     disag_fc, overlap_type, agg_shape,
@@ -458,8 +534,13 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                 # Dump to data frame
                 df = pd.DataFrame(
                     arcpy.da.TableToNumPyArray(
-                        disag_fc, disag_fields)
+                        disag_fc, disag_fields, skip_nulls=False, null_value=0)
                 )
+                df.fillna(0, inplace=True)
+                # Flatten
+                if flatten_disag_id is not None:
+                    gfields = groupby_fields + [flatten_disag_id]
+                    df = df.groupby(gfields).mean().reset_index()
                 # Groupby and apply agg funcs
                 if groupby_fields:
                     gb = df.groupby(groupby_fields)
@@ -473,6 +554,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                     df_unstack = df_sum.unstack().fillna(0)
                 df_unstack.index = colMultiIndexToNames(df_unstack.index)
                 sum_row = df_unstack.to_frame().T
+                #sum_row = df_sum.reset_index()
 
                 # Assign agg feature id
                 # TODO: confirm agg_id_field does not collide with sum_row cols
@@ -482,13 +564,15 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                 sum_rows.append(sum_row)
         # Bind all summary rows
         sum_data = pd.concat(sum_rows).fillna(0)
-
+        # sum_data["geometry"] = shapes
         # Rename cols to eliminate special characters
         cols = sum_data.columns.to_list()
-        sum_data.columns = [re.sub("[^a-zA-Z0-9_]", "_", c) for c in cols]
+        sum_data.columns = [re.sub(r"[^A-Za-z0-9 ]+", "_", c) for c in cols]
 
         # Join to output table
         extendTableDf(output_fc, agg_id_field, sum_data, agg_id_field)
+        # gdf = gpd.GeoDataFrame(sum_data, geometry="geometry", crs=sr)
+        # gdfToFeatureClass(gdf, output_fc, sr=sr)
 
     except:
         arcpy.AddWarning("Error encountered, rolling back changes")
