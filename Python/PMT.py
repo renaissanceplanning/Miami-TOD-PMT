@@ -358,12 +358,11 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
 
 def dfToTable(df, out_table):
     """
-    Use a pandas data frame to export a arcgis table.
+    Use a pandas data frame to export an arcgis table.
 
     Parameters
     -----------
     df: DataFrame
-        The data frame whose columns will be added to `in_table`
     out_table: Path
 
     Returns
@@ -377,6 +376,33 @@ def dfToTable(df, out_table):
     )
     arcpy.da.NumPyArrayToTable(in_array, out_table)
     return out_table
+
+def dfToPoints(df, out_fc, shape_fields, spatial_reference):
+    """
+    Use a pandas data frame to export an arcgis point feature class.
+
+    Parameters
+    -----------
+    df: DataFrame
+    out_fc: Path
+    shape_fields: [String,...]
+        Columns to be used as shape fields (x, y)
+    spatial_reference: SpatialReference
+        A spatial reference to use when creating the output features.
+
+    Returns
+    --------
+    out_fc: Path
+    """
+    in_array = np.array(
+        np.rec.fromrecords(
+            df.values, names=df.dtypes.index.tolist()
+        )
+    )
+    arcpy.da.NumPyArrayToFeatureClass(in_array, out_fc,
+                                      shape_fields=shape_fields,
+                                      spatial_reference=spatial_reference)
+    return out_fc
 
 
 def multipolygonToPolygon(gdf):
