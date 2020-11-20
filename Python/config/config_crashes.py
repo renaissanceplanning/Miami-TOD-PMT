@@ -2,6 +2,7 @@ from collections import OrderedDict
 
 FIELDS_DICT = dict(
     [
+        ("geometry", "geometry"),
         ("CRASH_DATE", "DATE"),
         ("DAYOWEEK", "WEEK_DAY"),
         ("LATITUDE", "LAT"),
@@ -21,8 +22,8 @@ FIELDS_DICT = dict(
 USE = FIELDS_DICT.keys()
 DROPS = ["LAT", "LONG", "DATE", "BIKE_TYPE", "PED_TYPE",]
 # CRS
-IN_CRS = "EPSG:4326"  # WGS84 latitude/longitude
-OUT_CRS = "EPSG:6437"  # NAD83(2011) / Florida East meters
+IN_CRS = 4326  # WGS84 latitude/longitude
+OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 # Data subset
 COUNTY = "MIAMI-DADE"
 

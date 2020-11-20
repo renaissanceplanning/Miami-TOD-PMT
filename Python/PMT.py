@@ -29,6 +29,7 @@ BASIC_FEATURES = os.path.join(ROOT, "Basic_features.gdb", "Basic_features_SPFLE"
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
 
+
 # %% FUNCTIONS
 def makePath(in_folder, *subnames):
     """
@@ -183,13 +184,13 @@ def fetchJsonUrl(url, out_file, encoding="utf-8", is_spatial=False,
     http = urllib3.PoolManager()
     req = http.request("GET", url)
     req_json = json.loads(req.data.decode(encoding))
-    
+
     if is_spatial:
         jsonToFeatureClass(json_obj, out_fc, sr=4326)
 
     else:
         prop_stack = []
-        
+
         gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
         return pd.DataFrame(gdf.drop(columns="geometry"))
 
@@ -276,11 +277,11 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         drop_columns = [[] for _ in fc_names]
     if not rename_columns:
         rename_columns = [{} for _ in fc_names]
-    
+
     # Iterate over input fc's
     all_features = []
     for fc_name, drop_cols, rename_cols in zip(
-        fc_names, drop_columns, rename_columns):
+            fc_names, drop_columns, rename_columns):
         # Read features
         in_fc = makePath(raw_dir, fc_name)
         gdf = gpd.read_file(in_fc)
@@ -288,7 +289,7 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
         gdf.drop(columns=drop_cols, inplace=True)
         gdf.rename(columns=rename_cols, inplace=True)
         all_features.append(gdf)
-    
+
     # Concatenate features
     merged = pd.concat(all_features)
 
@@ -641,3 +642,14 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         arcpy.Delete_management("__disag_subset__")
         # Delete output fc
         arcpy.Delete_management(output_fc)
+        raise
+
+
+if __name__ == "__main__":
+    arcpy.env.overwriteOutput = True
+    sumToAggregateGeo(
+        disag_fc=r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Safety_Security\Crash_Data"
+                 r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
+        sum_fields=["SPEED_LIM"], groupby_fields=["CITY"],
+        agg_fc=r"K:\Projects\MiamiDade\PMT\Basic_features.gdb\Basic_features_SPFLE\SMART_Plan_Station_Areas",
+        agg_id_field="Id", output_fc=r"D:\Users\DE7\Desktop\agg_test.gdb\bike_speed_agg")
