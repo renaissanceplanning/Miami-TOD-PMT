@@ -20,11 +20,11 @@ def analyze_blockgroup_allocation(parcels_path,
                                   parcels_living_area_field="TOT_LVG_AREA"):
     
     """
-    Allocated block group data to parcels using relative abundances of
+    Allocate block group data to parcels using relative abundances of
     parcel building square footage
     
     Parameters 
-    --------------
+    ----------
     parcels_path: Path 
         path to shape of parcel polygons, containing at a minimum a unique ID
         field, land use field, and total living area field (Florida DOR)
@@ -47,7 +47,7 @@ def analyze_blockgroup_allocation(parcels_path,
         
     
     Returns
-    ---------------
+    -------
     path of location at which the allocation results are saved. 
     Saving will be completed as part of the function. The allocation estimates
     will be joined to the original parcels shape
@@ -68,6 +68,7 @@ def analyze_blockgroup_allocation(parcels_path,
                      parcels_id_field,
                      parcels_land_use_field,
                      parcels_living_area_field,
+                     "Shape_Area",
                      "SHAPE@X",
                      "SHAPE@Y"]
     # 3. parcel spatial reference (for explicit definition of spatial
@@ -87,18 +88,18 @@ def analyze_blockgroup_allocation(parcels_path,
                               field_is_required = "NON_REQUIRED")
     # 2. define sequential numbers function
     # Thanks to: https://support.esri.com/en/technical-article/000011137
-    # indent error when run as function?
-    codeblock = """
-    val = 0 
-    def processID(): 
-        global val 
-        start = 1 
-        if (val == 0):  
-            val = start
-        else:  
-            val += 1  
-        return val
-     """
+    codeblock = 'val = 0 \ndef processID(): \n    global val \n    start = 1 \n    if (val == 0):  \n        val = start\n    else:  \n        val += 1  \n    return val'
+    # codeblock = """
+    # val = 0 
+    # def processID(): 
+    #     global val 
+    #     start = 1 
+    #     if (val == 0):  
+    #         val = start
+    #     else:  
+    #         val += 1  
+    #     return val
+    #  """
     # 3. calculate the field
     arcpy.CalculateField_management(in_table = parcels_path,
                                     field = "ProcessID",
@@ -130,6 +131,7 @@ def analyze_blockgroup_allocation(parcels_path,
                  parcels_id_field, 
                  parcels_land_use_field, 
                  parcels_living_area_field,
+                 "Shape_Area",
                  'GEOID10',
                  'CNS01', 'CNS02', 'CNS03', 'CNS04', 'CNS05', 
                  'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10', 
@@ -152,7 +154,7 @@ def analyze_blockgroup_allocation(parcels_path,
     # parcels, which we'll do on the process ID field. So, we'll initialize
     # the process by creating a new parcels feature class containig only
     # ProcessID and the provided parcel ID field.
-    print("-- initializing a mew feature class for allocation results...")
+    print("-- initializing a new feature class for allocation results...")
     # Thanks to: https://gis.stackexchange.com/questions/229187/copying-only-certain-fields-columns-from-shapefile-into-new-shapefile-using-mode
     fkeep = ["ProcessID", parcels_id_field]
     fmap = arcpy.FieldMappings()
@@ -164,7 +166,7 @@ def analyze_blockgroup_allocation(parcels_path,
                 fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
     arcpy.conversion.FeatureClassToFeatureClass(in_features = parcels_path, 
                                                 out_path = save_gdb_location,
-                                                out_name = "socioeconomic_and_demographic2",
+                                                out_name = "socioeconomic_and_demographic3",
                                                 field_mapping = fmap)
     
     # With spatial processing complete, we can delete our intermediates. This
@@ -174,7 +176,7 @@ def analyze_blockgroup_allocation(parcels_path,
     arcpy.Delete_management(pcentroids_path)
     arcpy.Delete_management(pbgjoin_path)
     arcpy.DeleteField_management(in_table = parcels_path,
-                                 drop_field = "ProcessID")
+                                 drop_field = "ProcessID")            
     
     # ------------------------------------------------------------------------
     
@@ -187,17 +189,20 @@ def analyze_blockgroup_allocation(parcels_path,
     # 1. if a column to be allocated has a value < 0, push up to 0. We can
     # also apply this to Total Living Area, because we set all NAs to -1,
     # and NA values are parcels with 0 living area
+    # Note that none ~should~ have -1 except Total Living Area, but we'll do
+    # all just to be safe
     to_clip = ['CNS01', 'CNS02', 'CNS03', 'CNS04', 'CNS05', 
-                'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10', 
-                'CNS11', 'CNS12', 'CNS13', 'CNS14', 'CNS15', 
-                'CNS16', 'CNS17', 'CNS18', 'CNS19', 'CNS20',        
-                'Total_Hispanic', 'White_Hispanic', 'Black_Hispanic', 
-                'Asian_Hispanic', 'Multi_Hispanic', 'Other_Hispanic',
-                'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp', 
-                'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp',       
-                'Drove', 'Carpool', 'Transit', 
-                'NonMotor', 'Work_From_Home', 'AllOther',
-                parcels_living_area_field]
+               'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10', 
+               'CNS11', 'CNS12', 'CNS13', 'CNS14', 'CNS15', 
+               'CNS16', 'CNS17', 'CNS18', 'CNS19', 'CNS20',        
+               'Total_Hispanic', 'White_Hispanic', 'Black_Hispanic', 
+               'Asian_Hispanic', 'Multi_Hispanic', 'Other_Hispanic',
+               'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp', 
+               'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp',       
+               'Drove', 'Carpool', 'Transit', 
+               'NonMotor', 'Work_From_Home', 'AllOther',
+               parcels_living_area_field,
+               "Shape_Area"]
     for var in to_clip:
         df[f'{var}'] = df[f'{var}'].clip(lower = 0)
     # 2. replace -1 in DOR_UC with NA
@@ -235,6 +240,45 @@ def analyze_blockgroup_allocation(parcels_path,
         'Population' : (((df[pluf] >= 1) & (df[pluf] <= 9)) | ((df[pluf] >= 100) & (df[pluf] <= 102)))
     }
     
+    # Note that our activity-land use matches aren't guaranteed because they
+    # are subjectively defined. To that end, we need backups in case a block
+    # group is entirely missing all possible land uses for an activity. So, we
+    # set up masks for 'all non-res' (all land uses relevant to any 
+    # non-NAICS-1-or-2 job type) and 'all developed' ('all non-res' + any
+    # residential land uses). The 'all non-res' will be used if a land use
+    # isn't present for a given activity; the 'all developed' will be used
+    # if 'all non-res' fails
+    # Non-res:
+    non_res_lu = [86, 87, 88, 89,
+                  27, 28,
+                  21, 22, 33, 39,
+                  30, 31, 32, 33, 34, 35, 36, 37, 38, 82,
+                  73, 85,
+                  72, 73, 84,
+                  89,
+                  17, 18, 19,
+                  17, 18, 19,
+                  17, 18, 19,
+                  23, 24,
+                  17, 18, 19,
+                  48, 49, 20,
+                  11, 12, 13, 14, 15, 16,
+                  29,
+                  41, 42]
+    non_res_lu = np.unique(non_res_lu).tolist()
+    all_non_res = {
+        'NR': (df[pluf].isin(non_res_lu))
+    }
+    # All-developed:
+    all_dev = non_res_lu + [1,2,3,4,5,6,7,8,9,100,101,102]
+    all_dev = {
+        'AD': (df[pluf].isin(all_dev))
+    }
+    # A fourth level we'll use (if we need to) is simply all total
+    # living area in the block group, but we don't need a mask for that.
+    # If this fails (which it rarely should), we revert to land area, which
+    # we know will work (all parcels have area right?)
+    
     # Next, we'll total parcels by block group (this is just a simple operation
     # to give our living area totals something to join to)
     print("-- initializing living area sums...")
@@ -253,10 +297,57 @@ def analyze_blockgroup_allocation(parcels_path,
     # 2. get count of total living area (w.r.t. land use mask) for each
     # job type
     plaf = parcels_living_area_field
+    pldaf = "Shape_Area"
+    
     for var in lodes_vars:
         area = df[lu_mask[var]].groupby(['GEOID10'])[plaf].agg(['sum'])
         area.rename(columns = {'sum' : f'{var}_Area'}, 
-                    inplace = True) 
+                    inplace = True)
+        area = area[area[f'{var}_Area'] > 0]
+        area = area.reset_index()
+        area[f'{var}_How'] = "lu_mask"
+        missing = list(set(tot_bg.GEOID10) - set(area.GEOID10))
+        if(len(missing) > 0):
+            lev1 = df[all_non_res["NR"]]
+            lev1 = lev1[lev1.GEOID10.isin(missing)]
+            area1 = lev1.groupby(['GEOID10'])[plaf].agg(['sum'])
+            area1.rename(columns = {'sum' : f'{var}_Area'}, 
+                         inplace = True)
+            area1 = area1[area1[f'{var}_Area'] > 0]
+            area1 = area1.reset_index()
+            area1[f'{var}_How'] = "non_res"
+            area = pd.concat([area, area1])
+            missing1 = list(set(tot_bg.GEOID10) - set(area.GEOID10))
+            if(len(missing1) > 0):
+                lev2 = df[all_dev["AD"]]
+                lev2 = lev2[lev2.GEOID10.isin(missing1)]
+                area2 = lev2.groupby(['GEOID10'])[plaf].agg(['sum'])
+                area2.rename(columns = {'sum' : f'{var}_Area'}, 
+                             inplace = True)
+                area2 = area2[area2[f'{var}_Area'] > 0]
+                area2 = area2.reset_index()
+                area2[f'{var}_How'] = "all_dev"
+                area = pd.concat([area, area2])
+                missing2 = list(set(tot_bg.GEOID10) - set(area.GEOID10))
+                if(len(missing2) > 0):
+                    lev3 = df[df.GEOID10.isin(missing2)]
+                    area3 = lev3.groupby(['GEOID10'])[plaf].agg(['sum'])
+                    area3.rename(columns = {'sum' : f'{var}_Area'}, 
+                                 inplace = True)
+                    area3 = area3[area3[f'{var}_Area'] > 0]
+                    area3 = area3.reset_index()
+                    area3[f'{var}_How'] = "living_area"
+                    area = pd.concat([area, area3])
+                    missing3 = list(set(tot_bg.GEOID10) - set(area.GEOID10))
+                    if(len(missing3) > 0):
+                        lev4 = df[df.GEOID10.isin(missing3)]
+                        area4 = lev4.groupby(['GEOID10'])[pldaf].agg(['sum'])
+                        area4.rename(columns = {'sum' : f'{var}_Area'}, 
+                                     inplace = True)
+                        area4 = area4.reset_index()
+                        area4[f'{var}_How'] = "land_area"
+                        area = pd.concat([area, area4])
+        area = area.reset_index(drop=True)
         tot_bg = pd.merge(tot_bg, area,
                           how = 'left', 
                           on = 'GEOID10')
@@ -266,14 +357,49 @@ def analyze_blockgroup_allocation(parcels_path,
     area = df[lu_mask['Population']].groupby(['GEOID10'])[plaf].agg(['sum'])
     area.rename(columns = {'sum' : 'Population_Area'}, 
                 inplace = True) 
+    area = area[area['Population_Area'] > 0]
+    area = area.reset_index()
+    area['Population_How'] = "lu_mask"
+    missing1 = list(set(tot_bg.GEOID10) - set(area.GEOID10))
+    if(len(missing1) > 0):
+        lev2 = df[all_dev["AD"]]
+        lev2 = lev2[lev2.GEOID10.isin(missing1)]
+        area2 = lev2.groupby(['GEOID10'])[plaf].agg(['sum'])
+        area2.rename(columns = {'sum' : 'Population_Area'}, 
+                     inplace = True)
+        area2 = area2[area2['Population_Area'] > 0]
+        area2 = area2.reset_index()
+        area2['Population_How'] = "all_dev"
+        area = pd.concat([area, area2])
+        missing2 = list(set(tot_bg.GEOID10) - set(area.GEOID10))
+        if(len(missing2) > 0):
+            lev3 = df[df.GEOID10.isin(missing2)]
+            area3 = lev3.groupby(['GEOID10'])[plaf].agg(['sum'])
+            area3.rename(columns = {'sum' : 'Population_Area'}, 
+                         inplace = True)
+            area3 = area3[area3['Population_Area'] > 0]
+            area3 = area3.reset_index()
+            area3['Population_How'] = "living_area"
+            area = pd.concat([area, area3])
+            missing3 = list(set(tot_bg.GEOID10) - set(area.GEOID10))
+            if(len(missing3) > 0):
+                lev4 = df[df.GEOID10.isin(missing3)]
+                area4 = lev4.groupby(['GEOID10'])[pldaf].agg(['sum'])
+                area4.rename(columns = {'sum' : 'Population_Area'}, 
+                             inplace = True)
+                area4 = area4.reset_index()
+                area4['Population_How'] = "land_area"
+                area = pd.concat([area, area4])
+    area = area.reset_index(drop=True)
     tot_bg = pd.merge(tot_bg, area, 
                       how = 'left', 
                       on = 'GEOID10')
     
     # Now, we format and re-merge with our original parcel data
     print("-- merging living area totals with parcel-level data...")
-    # 1. fill table with NAs
-    tot_bg = tot_bg.fillna(0)
+    # 1. fill table with NAs -- no longer needed because NAs are eliminated
+    # by nesting structure
+    # tot_bg = tot_bg.fillna(0)
     # 2. merge back to original data
     df = pd.merge(df, tot_bg,
                   how = 'left', 
@@ -284,18 +410,71 @@ def analyze_blockgroup_allocation(parcels_path,
     # estimates of activities by multiplying the block group activity total
     # by the parcel-level proportions
     
+    # For allocation, we need a two step process, depending on how the area
+    # was calculated for the activity. If "{var}_How" is land_area, then
+    # allocation needs to be relative to land area; otherwise, it needs to be
+    # relative to living area. To do this, we'll set up mask dictionaries
+    # similar to the land use mask
+    print("-- setting up allocation logic...")
+    lu = {}
+    nr = {}
+    ad = {}
+    lvg_area = {}
+    lnd_area = {}
+    for v in lu_mask.keys():
+        lu[v] = (df[f'{v}_How'] == "lu_mask")
+        nr[v] = (df[f'{v}_How'] == "non_res")
+        ad[v] = (df[f'{v}_How'] == "all_dev")
+        lvg_area[v] = (df[f'{v}_How'] == "living_area")
+        lnd_area[v] = (df[f'{v}_How'] == "land_area")
+    
     # First up, we'll allocate jobs
-    print("-- allocating jobs...")
-    # 1. for each job variable, calculate the proportion, then allocate
-    for var in lodes_vars:
-        df.loc[lu_mask[var], f'{var}_Par_Prop'] = (
-            df['TOT_LVG_AREA'][lu_mask[var]] / df[f'{var}_Area'][lu_mask[var]]
+    print("-- allocating jobs and population...")
+    # 1. for each job variable, calculate the proportion, then allocate     
+    for var in lu_mask.keys():
+        # First for lu mask
+        df.loc[lu[var] & lu_mask[var], f'{var}_Par_Prop'] = (
+            df[plaf][lu[var] & lu_mask[var]] / df[f'{var}_Area'][lu[var] & lu_mask[var]]
         )  
-        df[f'{var}_PAR'] = 0
-        df.loc[lu_mask[var], f'{var}_PAR'] = (
-            df[f'{var}_Par_Prop'][lu_mask[var]] * df[var][lu_mask[var]]
+        # Then for non res
+        df.loc[nr[var] & all_non_res["NR"], f'{var}_Par_Prop'] = (
+            df[plaf][nr[var] & all_non_res["NR"]] / df[f'{var}_Area'][nr[var] & all_non_res["NR"]]
+        )
+        # Then for all dev
+        df.loc[ad[var] & all_dev["AD"], f'{var}_Par_Prop'] = (
+            df[plaf][ad[var] & all_dev["AD"]] / df[f'{var}_Area'][ad[var] & all_dev["AD"]]
+        )
+        # Then for living area
+        df.loc[lvg_area[var], f'{var}_Par_Prop'] = (
+            df[plaf][lvg_area[var]] / df[f'{var}_Area'][lvg_area[var]]
         ) 
-    # 2. then total employment is the sum of all these
+        # Then for land area
+        df.loc[lnd_area[var] , f'{var}_Par_Prop'] = (
+            df[pldaf][lnd_area[var]] / df[f'{var}_Area'][lnd_area[var]]
+        ) 
+        # Now fill NAs with 0 for proportions
+        df[f'{var}_Par_Prop'] = df[f'{var}_Par_Prop'].fillna(0)
+        
+        # Now allocate (note that for pop, we're using the population ratios
+        # for all racial subsets)
+        if var != "Population":
+            df[f'{var}_PAR'] = df[f'{var}_Par_Prop'] * df[var]
+        else:
+            race_vars = ['Total_Hispanic', 'White_Hispanic', 'Black_Hispanic', 
+                         'Asian_Hispanic', 'Multi_Hispanic', 'Other_Hispanic', 
+                         'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp', 
+                         'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp']
+            for rv in race_vars:
+                df[f'{rv}_PAR'] = df['Population_Par_Prop'] * df[rv]
+    
+    # If what we did worked, all the proportions should sum to 1. This will
+    # help us identify if there are any errors
+    v = [f'{var}_Par_Prop' for var in lodes_vars + ["Population"]]
+    x = df.groupby(["GEOID10"])[v].apply(lambda x: x.sum())
+    x[v].apply(lambda x: [min(x), max(x)])
+    
+    # Now we can sum up totals
+    print("-- totaling allocated jobs and population...")
     df['Total_Employment'] = (
         df['CNS01_PAR'] + df['CNS02_PAR'] + df['CNS03_PAR'] + 
         df['CNS04_PAR'] + df['CNS05_PAR'] + df['CNS06_PAR'] + 
@@ -305,40 +484,37 @@ def analyze_blockgroup_allocation(parcels_path,
         df['CNS16_PAR'] + df['CNS17_PAR'] + df['CNS18_PAR'] + 
         df['CNS19_PAR'] + df['CNS20_PAR']
     )
-    
-    # Now, we'll allocate population
-    print("-- allocating population...")
-    # 1. calculate the proportion for population
-    df.loc[lu_mask['Population'], 'Pop_Par_Prop'] = (
-        df['TOT_LVG_AREA'][lu_mask['Population']] / df['Population_Area'][lu_mask['Population']]
-    )
-    # 2. we use the pop proportion for a lot of variables. define them
-    race_vars = ['Total_Hispanic', 'White_Hispanic', 'Black_Hispanic', 
-                 'Asian_Hispanic', 'Multi_Hispanic', 'Other_Hispanic', 
-                 'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp', 
-                 'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp']
-    # 3. allocate the variables for which we use the pop proportion
-    for var in race_vars:
-        df[f'{var}_PAR'] = 0
-        df.loc[lu_mask['Population'], f'{var}_PAR'] = (
-            df['Pop_Par_Prop'][lu_mask['Population']] * df[var][lu_mask['Population']]
-        )
-    # 4. manually calculate total pop
     df['Total_Population'] = (
         df['Total_Non_Hisp_PAR'] + df['Total_Hispanic_PAR']
     )
     
     # Finally, we'll allocate transportation usage
     print("-- allocating commutes...")
-    # 1. transit is going to be based on total pop. define transit variables
+    # Commutes will be allocated relative to total population, so total by
+    # the block group and calculate the parcel share
+    tp_props = df.groupby("GEOID10")["Total_Population"].sum().reset_index()
+    tp_props.columns = ["GEOID10","TP_Agg"]
+    geoid_edit = tp_props[tp_props.TP_Agg == 0].GEOID10
+    df = pd.merge(df, tp_props,
+                  how = 'left', 
+                  on = 'GEOID10')
+    df["TP_Par_Prop"] = df['Total_Population'] / df['TP_Agg']
+    # If there are any 0s (block groups with 0 population) replace with
+    # the population area population, in case commutes are predicted where
+    # population isn't
+    df.loc[df.GEOID10.isin(geoid_edit), "TP_Par_Prop"] = df["Population_Par_Prop"][df.GEOID10.isin(geoid_edit)]
+    # Now we can allocate commutes
     transit_vars = ['Drove', 'Carpool', 'Transit', 
                     'NonMotor', 'Work_From_Home', 'AllOther']
-    # 2. allocate transit variables
     for var in transit_vars:
-        df[f'{var}_PAR'] = 0
-        df.loc[lu_mask['Population'], f'{var}_PAR'] = (
-            df[var][lu_mask['Population']] * df['Total_Population'][lu_mask['Population']]
-        )
+        df[f'{var}_PAR'] = df["TP_Par_Prop"] * df[var]
+        
+    # And, now we can sum up totals
+    print("-- totaling allocated commutes...")
+    df['Total_Commutes'] = (
+        df['Drove_PAR'] + df['Carpool_PAR'] + df['Transit_PAR'] + 
+        df['NonMotor_PAR'] + df['Work_From_Home_PAR'] + df['AllOther_PAR']
+    )
       
     # ------------------------------------------------------------------------
     
@@ -365,6 +541,7 @@ def analyze_blockgroup_allocation(parcels_path,
                'Total_Non_Hisp_PAR', 
                'White_Non_Hisp_PAR', 'Black_Non_Hisp_PAR', 'Asian_Non_Hisp_PAR', 
                'Multi_Non_Hisp_PAR', 'Other_Non_Hisp_PAR', 
+               'Total_Commutes',
                'Drove_PAR', 'Carpool_PAR', 'Transit_PAR', 
                'NonMotor_PAR', 'Work_From_Home_PAR', 'AllOther_PAR']
     df = df[to_keep]
@@ -378,7 +555,7 @@ def analyze_blockgroup_allocation(parcels_path,
     df_et = np.array(df_et)
     # 2. use ExtendTable to modify the parcels data
     allocation_path = os.path.join(save_gdb_location, 
-                                   "socioeconomic_and_demographic2")
+                                   "socioeconomic_and_demographic3")
     arcpy.da.ExtendTable(in_table = allocation_path,
                          table_match_field = "ProcessID",
                          in_array = df_et,
@@ -401,10 +578,19 @@ def analyze_blockgroup_allocation(parcels_path,
 
 
 # %% MAIN
-if __name__ == "__main__":
-    parcels_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Parcels.gdb/Miami_2019"
-    bg_for_alloc_path = "K:/Projects/MiamiDade/PMT/PMT_2019.gdb/BlockGroups/blockgroup_for_alloc2"
-    save_gdb_location = "K:/Projects/MiamiDade/PMT/PMT_2019.gdb/Parcels"
+# if __name__ == "__main__":
+for year in [2016,2017,2018,2019]:
+    print("")
+    print(year)
+    parcels_path = os.path.join("K:/Projects/MiamiDade/PMT/Data/Cleaned",
+                                "Parcels.gdb",
+                                '_'.join(["Miami", str(year)]))
+    bg_for_alloc_path = os.path.join("K:/Projects/MiamiDade/PMT",
+                                     ''.join(["PMT_", str(year), ".gdb"]),
+                                     "BlockGroups/blockgroup_for_alloc2")
+    save_gdb_location = os.path.join("K:/Projects/MiamiDade/PMT",
+                                     ''.join(["PMT_", str(year), ".gdb"]),
+                                     "Parcels")
     parcels_id_field = "PARCELNO"
     parcels_land_use_field = "DOR_UC"
     parcels_living_area_field = "TOT_LVG_AREA"
