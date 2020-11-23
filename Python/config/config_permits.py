@@ -8,6 +8,7 @@ config_path = Path(__file__).parent
 # category code table
 CAT_CODE_PEDOR = "PD"
 CAT_CODE_TBL = Path(config_path, "road_impact_fee_cat_codes.csv")
+DOR_CODE_TBL = Path(config_path, "Land_Use_Recode.csv")
 
 # status code dict
 STATUS_DICT = dict(

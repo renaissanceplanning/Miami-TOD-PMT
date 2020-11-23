@@ -27,7 +27,8 @@ from config.config_permits import (
     IN_CRS,
     OUT_CRS,
     CAT_CODE_PEDOR,
-    CAT_CODE_TBL
+    CAT_CODE_TBL,
+    DOR_CODE_TBL
 )
 
 github = True
@@ -76,7 +77,7 @@ def split_date(gdf, date_field):
     gdf: GeoDataFrame
         GeoDataFrame with a date field
     date_field: column name
-GeoDataFrame    Returns
+    GeoDataFrame    Returns
     -------
         GeoDataFrame reformatted to include split day, month and year
     """
@@ -143,6 +144,7 @@ if __name__ == "__main__":
     parcels = gpd.read_file(parcel_layer)
     parcel_pts = parcels.copy()
     parcel_pts['geometry'] = parcel_pts['geometry'].centroid
+    del parcels
 
     # read permit data to dataframe and reformat
     print('- reading in permit data')
@@ -175,6 +177,8 @@ if __name__ == "__main__":
 
     # add landuse codes
     lu_df = pd.read_csv(CAT_CODE_TBL)
+    dor_df = pd.read_csv(DOR_CODE_TBL)
+    lu_df = lu_df.merge(right=dor_df, how="inner", on="DOR_UC")
     permit_df = raw_df.merge(right=lu_df, how="inner", on='CAT_CODE')
     print('...land use codes set')
     permit_df.drop(columns=DROPS, inplace=True)
@@ -185,8 +189,4 @@ if __name__ == "__main__":
     permit_points = gpd.GeoDataFrame(permit_points, geometry="geometry")
     permit_points.to_file(Path(out_path, out_name))
     print(f"...data written here {out_path}")
-
-
-    #TODO: sort out these use codes --> 832-00 (potentially equates to 932-00), 9999-00, 944-00
-    #TODO:  they dont appear in the CAT_CODES Table
 
