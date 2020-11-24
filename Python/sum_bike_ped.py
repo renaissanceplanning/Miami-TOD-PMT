@@ -1,88 +1,111 @@
 """
-Created: October 2020
-@Author: Alex Bell
+Created: November 2020
+@Author: Charles Rudder
 
 ...
 """
 
 # %% IMPORTS
+from config.config_project import (
+    SCRIPTS, BASIC_FEATURES, YEARS, ROOT
+)
 import PMT
 import arcpy
+from pathlib import Path
 import numpy as np
 
-# %% GLOBALS
-SUM_FIELDS = [
+# %% Debug setting
+GITHUB = True
 
-]
+# %% GLOBALS
+SUM_FIELDS = ["INJSEVER", "TRANS_TYPE"]
+SUM_AREAS = ["SMART_Plan_Station_Areas", "SMART_Plan_Corridors"]
+GROUPBYS = ["INSTATION", "INCORRIDOR", "RES_NRES"]
+ID_FIELD = 'NAME'
+
 
 # %% FUNCTIONS
-def sumLandUseAndValue(station_polys,
-                       corridor_polys,
-                       parcels,
-                       sum_fields,
-                       output_gdb,
-                       stn_id_field="Name",
-                       corridor_id_field="Name",
-                       groupby_fields=["INBOUNDARY", "INSTATION", "INCORRIDOR", "DIV_CLASS"],
-                       parcel_id="PARCELNO",
-                       *args, **kwargs):
-    """
-    """
+def sum_bike_ped_crashes(
+        station_polys,
+        corridor_polys,
+        crash_points,
+        sum_fields,
+        output_gdb,
+        stn_id_field="Name",
+        corridor_id_field="Name",
+        groupby_fields=["MONTH"],
+        *args,
+        **kwargs,
+):
+    """"""
     # Aggregate to corridors
     print("...aggregating to corridors")
-    cor_sum_fc = PMT.makePath(output_gdb, "Corridors", "land_use_and_value_cor")
-    PMT.sumToAggregateGeo(parcels, sum_fields, groupby_fields, corridor_polys,
-                          corridor_id_field, cor_sum_fc, overlap_type="INTERSECT",
-                          agg_funcs=np.sum, flatten_disag_id=parcel_id, *args,
-                          **kwargs)
+    cor_sum_fc = str(Path(output_gdb, "Corridors", "bike_peds_crash_sum"))
+    PMT.sumToAggregateGeo(
+        disag_fc=crash_points,
+        sum_fields=sum_fields,
+        groupby_fields=groupby_fields,
+        agg_fc=corridor_polys,
+        agg_id_field=corridor_id_field,
+        output_fc=cor_sum_fc,
+        overlap_type="INTERSECT",
+        agg_funcs=np.sum,
+        *args,
+        **kwargs,
+    )
     # Aggregate to station areas
     print("...aggegating to station areas")
-    stn_sum_fc = PMT.makePath(output_gdb, "StationAreas", "land_use_and_value_sa")
-    PMT.sumToAggregateGeo(parcels, sum_fields, groupby_fields, station_polys,
-                          stn_id_field, stn_sum_fc, overlap_type="INTERSECT",
-                          agg_funcs=np.sum, flatten_disag_id=parcel_id, *args,
-                          **kwargs)
+    stn_sum_fc = str(Path(output_gdb, "StationAreas", "bike_peds_crash_sum"))
+    PMT.sumToAggregateGeo(
+        disag_fc=crash_points,
+        sum_fields=sum_fields,
+        groupby_fields=groupby_fields,
+        agg_fc=station_polys,
+        agg_id_field=stn_id_field,
+        output_fc=stn_sum_fc,
+        overlap_type="INTERSECT",
+        agg_funcs=np.sum,
+        *args,
+        **kwargs,
+    )
+    return cor_sum_fc, stn_sum_fc
 
 
-#%% MAIN
+# %% MAIN
 if __name__ == "__main__":
-    station_areas = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Station_Areas")
-    corridors = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Corridors")
-    groupby_fields=["INSTATION", "INCORRIDOR", "RES_NRES"]
-    # Summarize trend
+    if GITHUB:
+        ROOT = r'K:\Projects\MiamiDade\PMT'
+        BASIC_FEATURES = Path(ROOT, "Basic_features.gdb", "Basic_features_SPFLE")
+
     trends_sa = []
     trends_cor = []
-    for year in PMT.YEARS:
+    for year in YEARS:
         print(year)
-        out_gdb = PMT.makePath(PMT.ROOT, f"PMT_{year}.gdb")
-        parcels = PMT.makePath(out_gdb, "parcels", "land_use_and_value")
-        sumLandUseAndValue(station_areas,
-                           corridors,
-                           parcels,
-                           sum_fields=SUM_FIELDS,
-                           output_gdb=out_gdb,
-                           stn_id_field="Id",
-                           corridor_id_field="Corridor",
-                           groupby_fields=groupby_fields,
-                           parcel_id="PARCELNO")
-        stn_sum_fc = PMT.makePath(
-            out_gdb, "StationAreas", "land_use_and_value_sa")
-        cor_sum_fc = PMT.makePath(
-            out_gdb, "Corridors", "land_use_and_value_cor")
+        stn_areas = str(Path(BASIC_FEATURES, "SMART_Plan_Station_Areas"))
+        corrs = str(Path(BASIC_FEATURES, "SMART_Plan_Corridors"))
+        out_gdb = Path(ROOT, f"PMT_{year}.gdb")
+        all_crashes = Path(out_gdb, "SafetySecurity", "bike_ped_crashes")
+        cor_sum_fc, stn_sum_fc = sum_bike_ped_crashes(
+            station_polys=stn_areas,
+            corridor_polys=corrs,
+            crash_points=all_crashes,
+            sum_fields=SUM_FIELDS,
+            output_gdb=out_gdb,
+            stn_id_field="Id",
+            corridor_id_field="Corridor",
+            groupby_fields=GROUPBYS,
+        )
         trends_sa.append(stn_sum_fc)
         trends_cor.append(cor_sum_fc)
-    
-    print("Merging trend tables for station areas")
-    trend_sa_fc = PMT.makePath(
-        PMT.ROOT, "PMT_Trend.gdb", "StationAreas", "land_use_and_value_sa")
-    arcpy.Merge_management(trends_sa, trend_sa_fc)
-    
-    print("Merging trend tables for corridors")
-    trend_cor_fc = PMT.makePath(
-        PMT.ROOT, "PMT_Trend.gdb", "Corridors", "land_use_and_value_cor")
-    arcpy.Merge_management(trends_cor, trend_cor_fc)
-    
-    # Summarize near term
 
+        print("Merging trend tables for station areas")
+        trend_sa_fc = str(Path(
+            ROOT, "PMT_Trend.gdb", "StationAreas", "bike_ped_crashes_sa"
+        ))
+        arcpy.Merge_management(inputs=trends_sa, output=trend_sa_fc)
 
-    # Summarize long term
+        print("Merging trend tables for corridors")
+        trend_cor_fc = str(Path(
+            ROOT, "PMT_Trend.gdb", "Corridors", "bike_ped_crashes_cor"
+        ))
+        arcpy.Merge_management(inputs=trends_cor, output=trend_cor_fc)

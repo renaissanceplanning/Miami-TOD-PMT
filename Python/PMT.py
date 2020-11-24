@@ -377,6 +377,7 @@ def dfToTable(df, out_table):
     arcpy.da.NumPyArrayToTable(in_array, out_table)
     return out_table
 
+
 def dfToPoints(df, out_fc, shape_fields, spatial_reference):
     """
     Use a pandas data frame to export an arcgis point feature class.
@@ -548,10 +549,12 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     #  - Apply where clauses to input layers
     if disag_wc:
         disag_fc = arcpy.MakeFeatureLayer_management(
-            disag_fc, "__disag_subset__", disag_wc)
+            in_features=disag_fc, out_layer="__disag_subset__", where_clause=disag_wc
+        )
     if agg_wc:
         arcpy.SelectLayerByAttribute_management(
-            agg_fc, "SUBSET_SELECTION", agg_wc)
+            in_layer_or_view=agg_fc, selection_type="SUBSET_SELECTION", where_clause=agg_wc
+        )
 
     #  - Disag field references
     if isinstance(sum_fields, string_types):
@@ -578,7 +581,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         # Iterate over agg features
         agg_fields = [agg_id_field, "SHAPE@"]
         with arcpy.da.SearchCursor(output_fc, agg_fields) as agg_c:
-        # with arcpy.da.SearchCursor(agg_fc, agg_fields) as agg_c:
+            # with arcpy.da.SearchCursor(agg_fc, agg_fields) as agg_c:
             for agg_r in agg_c:
                 agg_id, agg_shape = agg_r
                 # shapes.append(
@@ -588,7 +591,9 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                 # )
                 # Select disag features there
                 arcpy.SelectLayerByLocation_management(
-                    disag_fc, overlap_type, agg_shape,
+                    in_layer=disag_fc,
+                    overlap_type=overlap_type,
+                    select_features=agg_shape,
                     selection_type="NEW_SELECTION")
                 # Dump to data frame
                 df = pd.DataFrame(
@@ -613,7 +618,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                     df_unstack = df_sum.unstack().fillna(0)
                 df_unstack.index = colMultiIndexToNames(df_unstack.index)
                 sum_row = df_unstack.to_frame().T
-                #sum_row = df_sum.reset_index()
+                # sum_row = df_sum.reset_index()
 
                 # Assign agg feature id
                 # TODO: confirm agg_id_field does not collide with sum_row cols
