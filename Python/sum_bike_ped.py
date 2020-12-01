@@ -20,7 +20,7 @@ GITHUB = True
 # %% GLOBALS
 SUM_FIELDS = ["INJSEVER", "TRANS_TYPE"]
 SUM_AREAS = ["SMART_Plan_Station_Areas", "SMART_Plan_Corridors"]
-GROUPBYS = ["INSTATION", "INCORRIDOR", "RES_NRES"]
+GROUPBYS = []#"INSTATION", "INCORRIDOR", "RES_NRES"]
 ID_FIELD = 'NAME'
 
 
@@ -32,12 +32,11 @@ def sum_bike_ped_crashes(
         sum_fields,
         output_gdb,
         stn_id_field="Name",
-        corridor_id_field="Name",
+        corridor_id_field="Corridor",
         groupby_fields=["MONTH"],
         *args,
         **kwargs,
 ):
-    """"""
     # Aggregate to corridors
     print("...aggregating to corridors")
     cor_sum_fc = str(Path(output_gdb, "Corridors", "bike_peds_crash_sum"))
@@ -83,8 +82,8 @@ if __name__ == "__main__":
         print(year)
         stn_areas = str(Path(BASIC_FEATURES, "SMART_Plan_Station_Areas"))
         corrs = str(Path(BASIC_FEATURES, "SMART_Plan_Corridors"))
-        out_gdb = Path(ROOT, f"PMT_{year}.gdb")
-        all_crashes = Path(out_gdb, "SafetySecurity", "bike_ped_crashes")
+        out_gdb = str(Path(ROOT, f"PMT_{year}.gdb"))
+        all_crashes = str(Path(out_gdb, "SafetySecurity", "bike_ped_crashes"))
         cor_sum_fc, stn_sum_fc = sum_bike_ped_crashes(
             station_polys=stn_areas,
             corridor_polys=corrs,
