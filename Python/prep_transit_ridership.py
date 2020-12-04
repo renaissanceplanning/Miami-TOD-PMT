@@ -1,3 +1,14 @@
+"""
+Created: November 2020
+@Author: Alex Bell
+
+Provides a simple function to read transit ridership data from an Excel file
+and generate a shape file version of the records with only key fields
+included.
+
+If run as "main", ridership records for stop locations in Miami-Dade County for
+2019 are read, cleaned, and exported.
+"""
 
 
 # %% IMPORTS
