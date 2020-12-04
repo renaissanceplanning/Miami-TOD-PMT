@@ -1,85 +1,138 @@
 # -*- coding: utf-8 -*-
 
-import geopandas as gpd
-import numpy as np
+# Future considerations:
+#
+# Do we want to make some sort of adjustment for removed land?
+# I.e. you get penalized for the proportion of "irrelevant" land uses
+# (other, ag, misc, vacant)
+# But maybe this is mis-informed... because technically the presence of
+# these land uses does improve diversity, and we just don't care about
+# them in this particular calculation.
+#
+# Do we want to make soe sort of adjustment for total building area?
+# I.e. we expect that the more square footage you have, the more diverse
+# you should be
+# But, this would be tough to calibrate. And it also diminishes the integrity
+# of these as truly comparable "diversity" metrics... i.e. not having a lot
+# of square footage and thus being less diverse (more likely) is itself a
+# complete picture of diversity, and statistics that adjust for size begin to
+# ask "how diverse do we EXPECT you to be", not "how diverse are you"
+
+
+# %% IMPORTS
+
+import arcpy
 import pandas as pd
-import itertools
-import math
-from scipy import stats
+import numpy as np
 import os
-import sys
-import arcpy #I need to install arcpy
+import re
 
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
+# %% FUNCTIONS
 
-"""
-Function name:
-land_use_diversity
+def analyze_lu_diversity(parcels_path,
+                         parcels_id_field,
+                         parcels_land_use_field,
+                         save_gdb_location,
+                         on_field = None,
+                         aggregate_geometry_path = None,
+                         aggregate_geometry_id_field = None,
+                         buffer_diversity = 0,
+                         relevant_land_uses = ["auto", "civic", "education",
+                                               "entertainment", "grocery",
+                                               "healthcare", "industrial", 
+                                               "lodging", "mf", "office",
+                                               "restaurant", "sf", "shopping"],
+                         how = ["simpson", "shannon", "berger-parker", 
+                                "enp", "chi-squared"],
+                         chisq_props = None,
+                         regional_adjustment = True,
+                         regional_constants = None):
     
-Description:
-Calculates various land use diversity metrics within buffered areas of
-provided geometries 
-
-Inputs:
-parcel_polygons_path: string, path to shapefile of parcel polygons (the
-                      level at which diversity will be calculated)
-parcel_attributes_path: string, path to .csv of parcel attributes
-within_radius: int or float, buffer radius (in units of parcel polygons CRS)
-               inside of which land use will be assessed for each parcel
-id_field: string, field in parcel attributes defining a unique ID for parcels
-on_field: string, field in parcel attributes defining the variable over which 
-          diversity will be assessed
-          See notes for elaboration
-land_use_field: string of field in parcel attributes defining parcel land use
-relevant_land_uses: list, strings of land uses deemed relevant for assessment
-                    of land use diversity (allows for filtering of non-active
-                    land uses, if desired)
-                    All elements in this list must be present in the land use
-                    field
-                    Default None, use all land uses in the land use field
-how: list, strings containing any or all of "simpson", "shannon",
-     "berger-parker", "enp" ,"chi-squared", defining the types of diversity
-     that will be calculated
-     Default is a list containing all options
-     See notes for metric descriptions
-chisq_props: dictionary, with keys being all relevant land uses, and values
-             being desired proportions of each land use. Values must sum to 1
-             Default None, all relevant land uses get equal proportions
-chunks: int, number of chunks to analyze the data in. Must be >= 1
-        Default 1, no chunking
-regional_adjustment: bool, should the parcel-level diversity measures be
-                     adjusted according to the regional measures?
-                     Default is True, each metric will be divided by the
-                     regional value for that metric (both un-adjusted and
-                     adjusted measures will be returned)
-save_directory: string, path to desired save directory
-                Default None, no save completed
-gdb_location: string, path to desired gdb save location
-              Default None, no save to gdb completed
-              If provided, save_directory must also be provided (to make
-              shp to gdb conversion possible)
+    """
+    calculates land use diversity within aggregate geometries using parcels
     
-Notes:
-1. on_field determines how a parcel will be weighted in a diversity measure.
-   For example, if we wanted parcels to be weighted on their land area, we'd
-   provided a field in which land area is held. If we want each parcel to carry
-   the same weight (i.e. a 1-to-1 correspondence between parcel and land use,
-   on_field would be a column of ones)
-2. The diversity measures are defined as followed:
+    Parameters
+    ----------
+    parcels_path: path
+        path to parcels [which provide the attributes for diversity calcs]
+    parcels_id_field: str
+        id field for the parcels
+    parcels_land_use_field: str
+        land use field for the parcels
+    save_gdb_location: path
+        path to .gdb or a feature dataset within a .gdb in which the diversity
+        results will be saved
+    on_field: str
+        field in the parcels over which diversity is assessed (e.g. land area,
+        building square footage, etc.)
+        default `None`, diversity will be assessed relative to a parcel count
+    aggregate_geometry_path: path
+        path to an aggregate geometry within which diversity will be calculated
+        (e.g. neighborhoods, street buffers, etc.). It is highly recommended
+        that this is provided
+        default `None`, parcels themselves will act as the aggregate geometry
+    aggregate_geometry_id_field: str
+        id field for the aggregate geometry. must be provided if
+        `aggregate_geometry_path` is provided
+        default `None`, this means the parcels are the aggregate geometry, so
+        the `parcels_id_field` acts as the `aggregate_geometry_id_field`
+    buffer_diversity: int
+        radius (in units of the CRS of the aggregate geometry) to buffer the
+        aggregate geometry for calculation of diversity. Not recommended if
+        an `aggregate_geometry_path` is provided; recommended if
+        `aggregate_geometry_path` is not provided (i.e. the parcels are the
+        aggregate geometry)
+        default `0`, no buffer
+    relevant_land_uses: list of str
+        land uses that should be considered for a diversity calculation. must
+        include only land uses present in the land use reclass table
+        "K:\Projects\MiamiDade\PMT\Data\Reference\Land_Use_Recode.csv"
+        the default list removes "vacant", "ag", "misc", and "other" from
+        consideration in diversity calculations
+    how: list of str
+        diversity metrics to calculate. may include any or all of "simpson",
+        "shannon", "berger-parker", "enp", and "chi-squared". See notes for
+        a description of metrics.
+        the default list includes all options, so all 5 metrics will be
+        calculated for each feature in the aggregate geometry
+    chisq_props: dict of floats
+        if "chi-squared" is in `how`, this parameter allows a user to set an
+        optimal distribution of land uses to be used in the calculation of 
+        chi-squared statistics. The keys must match `relevant_land_uses`
+        exactly, and the values must sum to 1. Will be ignored if "chi-squared"
+        is not in `how`
+        default `None`, the optimal distribution of land uses is assumed to
+        be an equal abundance of all `relevant_land_uses`
+    regional_adjustment: bool
+        should a regional adjustment be performed? If so, each diversity metric
+        for each feature of the aggregate geometry will be divided by the
+        regional (across all parcels) score for that diversity metric, to give
+        a sense how that feature performs relative to the whole area
+        default `True`, complete a regional adjustment
+    regional_constants: dict of floats
+        if `regional_adjustment` is `True`, this parameter allows a user to set
+        constants to which to compare the aggregate geometry diversity
+        metrics (as opposed to comparing to the calculated regional scores).
+        The keys must match `how` exactly, and the values must be between
+        0 and 1 (as all scores are adjusted to a 0-1 scale)
+        default `None`, complete the regional adjustment by calculating
+        regional scores
+        
+    Notes
+    -----
+    The diversity measures are defined as followed:
     1. Simpson index: mathematically, the probability that a random draw of
        one unit of land use A would be followed by a random draw of one unit
-       of land use B. Ranges from 0 (all land uses present in equal abundance)
-       to 1 (only one land use present)
+       of land use B. Ranges from 0 (only one land use present)
+       to 1 (all land uses present in equal abundance)
     2. Shannon index: borrowing from information theory, Shannon quantifies
        the uncertainty in predicting the land use of a random one unit draw.
        The higher the uncertainty, the higher the diversity. Ranges from 0
        (only one land use present) to -log(1/|land uses|) (all land uses
        present in equal abundance)
     3. Berger-Parker index: the maximum proportional abundance, giving a
-       measure of dominance. Ranges from 1/|land uses| (all land uses present
-       in equal abundance) to 1 (only one land use present). Lower values
+       measure of dominance. Ranges from 1 (only one land use present) to
+       1/|land uses| (all land uses present in equal abundance). Lower values
        indicate a more even spread, while high values indicate the dominance
        of one land use.
     4. Effective number of parties (ENP): a count of land uses, as weighted
@@ -87,390 +140,513 @@ Notes:
        it is relatively rare, and more if it is relatively common. Ranges from
        1 (only one land use present) to |land uses| (all land uses present in
        equal abunance)
-    5. Chi-squared goodness of fit: 1 - the p-value from a chi-squared goodness
-       of fit test, assuming an "optimal" land use distribution ("optimal" is
-       assumed to be equal abundance of all land uses, but can be specified by
-       the user). By using 1-p, if areas A and B have the same proportions of
-       land uses but area A has a larger total, area A will be considered
-       more diverse (i.e. this metric assumes diversity is more difficult to
-       achieve in more built-up areas). Ranges from 0 (all land uses present
+    5. Chi-squared goodness of fit: the ratio of an observed chi-squared
+       goodness of fit test statistic to a "worst case scenario" chi-squared
+       goodness of fit test statistic. The goodness of fit test requires the
+       definition of an "optimal" land use distribution ("optimal" is assumed 
+       to be equal abundance of all land uses, but can be specified by the
+       user). The "worst case scenario" defines the highest possible
+       chi-squared statistic that could be observed under the optimal land use
+       distribution. In practice, this "worst case scenario" is the equivalent
+       of the least likely land use [according to the optimal distribution]
+       comprising the entire area. Ranges from 0 (all land uses present
        in equal abundance) to 1 (only one land use present)
-
-    
-Returns:
-GeoDataFrame of the parcel polygons, attributed with:
-    1. Parcel ID
-    2. A column for each metric requested
-    3. A column for each adjusted metric, if regional adjustment is True
-
-@author: Aaron Weinstock
-"""
-
-# Testing specs
-parcel_polygons_path = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Parcels\Parcel_Geometry\Miami_2019.shp"
-parcel_attributes_path = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Parcels\Parcel_Attributes\Miami_2019_DOR.csv"
-within_radius = 1320
-id_field = "PARCELNO"
-on_field = "TOT_LVG_AREA"
-land_use_field = "DIV_CLASS"
-relevant_land_uses = ["sf",
-                      "mf",
-                      "industrial",
-                      "shopping",
-                      "auto",
-                      "office",
-                      "civic",
-                      "misc",
-                      "education",
-                      "restaurant",
-                      "lodging",
-                      "entertainment",
-                      "grocery",
-                      "healthcare"]
-how = ["simpson","shannon","berger-parker","enp","chi-squared"] # Lieberson? Gini?
-chisq_props = None
-chunks = 19
-regional_adjustment = True
-save_directory = None
-gdb_location = None
-
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-
-def land_use_diversity(parcel_polygons_path,
-                       parcel_attributes_path,
-                       within_radius,
-                       id_field,
-                       on_field,
-                       land_use_field,
-                       relevant_land_uses = None,
-                       how = ["simpson","shannon","berger-parker","enp","chi-squared"],
-                       chisq_props = None,
-                       chunks = 1,
-                       regional_adjustment = True,
-                       save_directory = None,
-                       gdb_location = None):
-    
-    # Validation of inputs (if not related to parcels) -----------------------
-    
-    # parcel_polygons_path: must be a string, valid path, and be a .shp
-    if type(parcel_polygons_path) is not str:
-        sys.exit("'parcel_polygons_path' must be a string pointing to a shapefile of parcel polygons")
-    if not os.path.exists(parcel_polygons_path):
-        sys.exit("'parcel_polygons_path' is not a valid path")
-    if parcel_polygons_path.split(".")[-1] != "shp":
-        sys.exit("'parcel_polygons_path' does not point to a shapefile")
         
-    # parcel_attributes_path: must be a string, valid path, and be a .cssv
-    if type(parcel_attributes_path) is not str:
-        sys.exit("'parcel_attributes_path' must be a string pointing to a .csv of parcel attributes")
-    if not os.path.exists(parcel_attributes_path):
-        sys.exit("'parcel_attributes_path' is not a valid path")
-    if parcel_attributes_path.split(".")[-1] != "csv":
-        sys.exit("'parcel_attributes_path' does not point to a .csv")
+    Returns
+    -------
+    1. a path to a diversity-enriched feature class of the aggregate geometry.
+    All diversity scores are normalized to a 0-1 scale (0 low, 1 high) 
+    relative to their functional minima and maxima. this feature class will be 
+    written to the `save_gdb_location`, and will be attributed with the 
+    following:
+        1. the `aggregate_geometry_id_field`
+        2. the diversity score for each metric in `how`
+        3. if `regional_adjustment` is `True`, the adjusted diversity score 
+        for each metric in how.
+    2. if `regional_adjustment` is `True` and `regional_constants` is `None`,
+    a path to a table of regional diversity scores. This table will be written 
+    to the `save_gdb_location` as well (or the main gdb, if `save_gdb_location` 
+    is a feature dataset). These scores are also normalized to [0,1]
     
-    # within_radius: must be a float or an int
-    if type(within_radius) not in [int, float]:
-        sys.exit("'within_radius' must be a number")
-        
-    # how: must be a string with specific entries
-    if type(how) is not list:
-        sys.exit("'how' must be a list of strings, including any or all of 'simpson', 'shannon', 'berger-parker', 'enp', and 'chi-squared'")
-    else:
-        vh = [h not in ["simpson","shannon","berger-parker","enp","chi-squared"] for h in how]
-        if any(vh) == True:
-            sys.exit("at least one entry in 'how' is not among 'simpson', 'shannon', 'berger-parker', 'enp', and 'chi-squared'")
+    @author: Aaron Weinstock
+    """
     
-    # chunks: must be a float or an int
-    if type(chunks) is not int:
-        sys.exit("'chunks' must be a integer")
-    if chunks < 1:
-        sys.exit("'chunks' must be greater than 1")
-        
-    # regional_adjustment: must be a boolean
-    if type(regional_adjustment) is not bool:
-        sys.exit("'regional_comparison' must be either 'True' or 'False'")
+    # Spatial processing -----------------------------------------------------
     
-    # save_directory
-    if save_directory is not None:
-        if type(save_directory) is not str:
-            sys.exit("'save_directory' must be a string of the desired save location")
-        if not os.path.exists(save_directory):
-            try: 
-                os.mkdir(save_directory)
-            except:
-                sys.exit("'save_directory' is not a valid directory (or otherwise cannot be created)")  
+    print("")
+    print("Spatial processing for diversity")
     
-    # gdb_location
-    if gdb_location is not None and save_directory is None:
-        sys.exit("if 'gdb_location' is provided, 'save_directory' must also be provided (so shp to gdb conversion can be performed)")
+    # First, we have to set up the process with a few input variables
+    print("-- setting up inputs for spatial processing...")
     
-    # Chunking setup ---------------------------------------------------------
+    # 1. field names we want to keep from parcels. if 'on_field' is None, that
+    # means we're going to do a count based diversity. for this, we'll create
+    # the field ourselves, so we don't call it from the parcels
+    parcel_fields = [parcels_land_use_field,
+                     "SHAPE@X",
+                     "SHAPE@Y"]
+    if on_field is not None:
+        parcel_fields = [on_field] + parcel_fields
     
-    print("Reading parcel geometries...")
-    # Read parcels geometry
-    parcels = gpd.read_file(parcel_polygons_path)
-    n = len(parcels.index)
-    parcels["BID"] = np.arange(n)
-    parcels = parcels[["BID",id_field,"geometry"]]
-    pgeo = parcels.geometry
-    parcels["geometry"] = parcels.geometry.centroid
+    # 2. parcel spatial reference (for explicit definition of spatial
+    # reference in arcpy operations
+    sr = arcpy.Describe(parcels_path).spatialReference
     
-    print("Setting up spatial index for parcels...")
-    # Set up a spatial index for the points
-    # (This will make intersecting a LOT faster)
-    spatial_index = parcels.sindex
+    # Now, recognizing that the ID for our aggregate geometry may not be 
+    # unique due to singlepart vs multipart issues, we should add a 
+    # ~definitively unique~ ID field of our own. We edit the aggregate geometry
+    # in place to do this, so we'll delete it once it has served its 
+    # purpose so we can maintain the integrity of the original data.
+    # If the aggregate geometry is not provided, the parcels themselves become
+    # our aggregate geometry
+    print("-- adding a definitively unique process ID to the aggregate geometry...")
+   
+    # 1. define sequential numbers function
+    # Thanks to: https://support.esri.com/en/technical-article/000011137
+    # indent error when run as function?
+    codeblock = 'val = 0 \ndef processID(): \n    global val \n    start = 1 \n    if (val == 0):  \n        val = start\n    else:  \n        val += 1  \n    return val\n'
+    # codeblock = """
+    # val = 0 
+    # def processID(): 
+    #     global val 
+    #     start = 1 
+    #     if (val == 0):  
+    #         val = start
+    #     else:  
+    #         val += 1  
+    #     return val
+    # """ 
+   
+    # 2. are the parcels the aggregate geometry?
+    if aggregate_geometry_path is None:
+        print("---- ** NOTE: parcels will act as the aggregate geometry **")
+        aggregate_geometry_id_field = parcels_id_field
+        aggregate_geometry_path = parcels_path
+   
+    # 3. create the field
+    arcpy.AddField_management(in_table = aggregate_geometry_path,
+                              field_name = "ProcessID",
+                              field_type = "LONG",
+                              field_is_required = "NON_REQUIRED")
+      
+    # 4. calculate the field
+    arcpy.CalculateField_management(in_table = aggregate_geometry_path,
+                                    field = "ProcessID",
+                                    expression = "processID()",
+                                    expression_type = "PYTHON3",
+                                    code_block = codeblock)
     
-    print("Buffering parcels to provided radius...")
-    # Buffer the centroids according to provided radius
-    pbuff = parcels
-    pbuff["geometry"] = parcels.geometry.buffer(within_radius)
+    # Ultimately, we'll want to merge our diversity results back to the
+    # aggregate geometry, which we'll do on the process ID field. So, we'll
+    # initialize the process by creating a new parcels feature class containing
+    # only ProcessID and the provided ID field.
+    print("-- initializing a new feature class for diversity results...")
+    # Thanks to: https://gis.stackexchange.com/questions/229187/copying-only-certain-fields-columns-from-shapefile-into-new-shapefile-using-mode
+    fkeep = ["ProcessID", aggregate_geometry_id_field]
+    fmap = arcpy.FieldMappings()
+    fmap.addTable(aggregate_geometry_path)
+    fields = {f.name: f for f in arcpy.ListFields(aggregate_geometry_path)}
+    for fname, fld in fields.items():
+        if fld.type not in ('OID', 'Geometry') and 'shape' not in fname.lower():
+            if fname not in fkeep:
+                fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
+    arcpy.conversion.FeatureClassToFeatureClass(in_features = aggregate_geometry_path, 
+                                                out_path = save_gdb_location,
+                                                out_name = "diversity_metrics",
+                                                field_mapping = fmap)
     
-    print("Reading and formatting parcel attributes...")
-    # Read parcels attributes and filter according to inputs
-    attr = pd.read_csv(parcel_attributes_path)
-    # This is only needed because DIV_CLASS isn't in our parcel attributes
-    # In general practice, we won't need this (i.e. this is a hard code)
+    # Now we're ready for the true spatial processing. We start by extracting
+    # parcel centroids to numpy array, then converting array to feature class
+    print("-- converting parcel polygons to parcel centroid points...")
+    parcels_array = arcpy.da.FeatureClassToNumPyArray(in_table = parcels_path,
+                                                      field_names = parcel_fields,
+                                                      spatial_reference = sr,
+                                                      null_value = -1)
+    arcpy.da.NumPyArrayToFeatureClass(in_array = parcels_array,
+                                      out_table = "in_memory\\centroids",
+                                      shape_fields = ["SHAPE@X", "SHAPE@Y"],
+                                      spatial_reference = sr)
+    
+    # Next, if a buffer is requested, this means diversity will be
+    # calculated within a buffered version of each feature in the aggregate
+    # geometry (which, remember, may be the parcels). I.e., our aggregate
+    # geometry becomes a buffered aggregate geometry. So, if requested, we
+    # create the buffer, and reset our aggregate geometry path
+    if buffer_diversity > 0:
+        print("-- buffering the aggregate geometry...")
+        arcpy.Buffer_analysis(in_features = aggregate_geometry_path,
+                              out_features = "in_memory\\buffer",
+                              buffer_distance_or_field = buffer_diversity)
+        aggregate_geometry_path = "in_memory\\buffer"
+    
+    # Now we need to identify parcels within each feature of the aggregate
+    # geometry. To do this, we intersect the parcel centroids with the
+    # aggregate geometry. This has the effect of tagging the parcels with the
+    # unique ProcessID, as well as filtering parcels that don't fall in any
+    # feature of the aggregate geometry
+    print("-- matching parcels to aggregate geometries...")
+    arcpy.Intersect_analysis(in_features = ["in_memory\\centroids", 
+                                            aggregate_geometry_path],
+                             out_feature_class = "in_memory\\intersect")
+    
+    # Finally, we have to select out the fields we want to work with for
+    # diversity calculations. At this point, we can easily create our data
+    # for summarization. Note that if we have no "on_field", this means
+    # we're working off a parcel count, so we add a field of 1s to simulate
+    # a count when we complete our summarizations
+    print("-- loading data for diversity calculations...")
+    ret_fields = ["ProcessID",
+                  aggregate_geometry_id_field,
+                  parcels_land_use_field]
+    if on_field is not None:
+        ret_fields = ret_fields + [on_field]
+    div_array = arcpy.da.FeatureClassToNumPyArray(in_table = "in_memory\\intersect",
+                                                  field_names = ret_fields,
+                                                  spatial_reference = sr,
+                                                  null_value = -1)
+    df = pd.DataFrame(div_array)
+    if on_field is None:
+        on_field = "count_field"
+        df[on_field] = 1
+    
+    # Now we have our data for allocation prepped -- great!
+    # The last step in spatial processing is now deleting the intermediates
+    # we created along the way
+    print("-- deleting intermediates...")
+    arcpy.Delete_management("in_memory\\centroids")
+    arcpy.Delete_management("in_memory\\intersect")
+    if arcpy.Exists("in_memory\\buffer"):
+        arcpy.Delete_management("in_memory\\buffer")
+    if aggregate_geometry_path != "in_memory\\buffer":
+        arcpy.DeleteField_management(in_table = aggregate_geometry_path,
+                                     drop_field = "ProcessID")
+    
+    # Diversity calculations -------------------------------------------------
+          
+    print("")
+    print("Diversity calculations")
+    
+    # First, we want to do a little formatting
+    print("-- formatting the input data...")
+    
+    # 1. Field name resetting. We do this to make our lives a little easier, 
+    # because we allow user input for nearly all of our fields
+    df = df.rename(columns={parcels_land_use_field: "LU_DEL",
+                            on_field: "ON"})
+    
+    # 2. Remove the cells that have no land use (i.e. the ones filled with -1)
+    # and the ones where our on field is 0 or null (i.e. the ones with value
+    # < 0, because it could be an observed 0 or a filled -1)
+    df = df[df.LU_DEL != -1]
+    df = df[df.ON > 0]
+    
+    # 3. Now we merge in our new land use definitions. We're hard coding
+    # it here because it's a constant for Miami-Dade, but if we ever want
+    # to functionalize this for use outside the PMT, we should consider
+    # optioning it out
     lu_rc = pd.read_csv(r"K:\Projects\MiamiDade\PMT\Data\Reference\Land_Use_Recode.csv")
     lu_rc = lu_rc[["DOR_UC","DIV_CLASS"]]
-    attr = attr.merge(lu_rc, how="left")
+    lu_rc = lu_rc.rename(columns={"DOR_UC": "LU_DEL",
+                                  "DIV_CLASS": "LU"})
+    df = df.merge(lu_rc, how="left")
+    df = df.drop(columns="LU_DEL")
     
-    # Validate inputs related to attributes
-    attr_cols = attr.columns.to_list()
-    if id_field not in attr_cols:
-        sys.exit("the provided 'id_field' is not in the parcel attributes")
-    if on_field not in attr_cols:
-        sys.exit("the provided 'on_field' is not in the parcel attributes")
-    if land_use_field not in attr_cols:
-        sys.exit("the provided 'land_use_field' is not in the parcel attributes")
+    # 4. Finally, we filter to only the land uses of interest
     if relevant_land_uses is not None:
-        vlu = [lu not in attr[land_use_field].to_list() for lu in relevant_land_uses]
-        if any(vlu) == True:
-            sys.exit("at least one entry in 'relevant_land_uses' is not in the land use field")
-    else:
-        relevant_land_uses = np.unique(attr[land_use_field]).tolist()
-    if chisq_props is not None:
-        if type(chisq_props) is not dict:
-            sys.exit("if 'chisq_probs' is provided, it must be a dictionary")
-        if sorted(chisq_props.keys()) != sorted(relevant_land_uses):
-            sys.exit("if 'chisq_probs' is provided, its keys must match the elements of 'relevant_land_uses' exactly")
-        if sum(chisq_props.values()) != 1:
-            sys.exit("the values in 'chisq_props' must sum to 1")
-        props = pd.DataFrame({"LU": chisq_props.keys(),
-                              "ChiP": chisq_props.values()})
-    else:
-        chisq_props = dict()
-        nlu = len(relevant_land_uses)
-        for lu in relevant_land_uses:
-            chisq_props[lu] = 1/nlu                
-        props = pd.DataFrame({"LU": chisq_props.keys(),
-                              "ChiP": chisq_props.values()})       
+        df = df[df.LU.isin(relevant_land_uses)]
     
-    # Format
-    attr["PIDX"] = np.arange(n)
-    attr = attr[["PIDX",land_use_field, on_field]]
-    attr.columns = ["PIDX","LU","ON"]
-    attr = attr.fillna(0)
-    attr = attr[attr.LU.isin(relevant_land_uses)]
-    attr = attr[attr.ON > 0]
-
-    print("Initializing chunking...\n")
-    # Set up chunking
-    chunk_ids = np.arange(chunks) 
-    each = math.ceil(n / chunks)
-    chk = np.repeat(chunk_ids, each)
-    chk = chk[:n]
-    pbuff["Chunk"] = chk
+    # Now we'll do a bit of pre-summarization to give us the components we
+    # need for the diversity calculations. These include a "total" (sum of
+    # all 'on_field' in the aggregate geometry) and a "percent" (proportion
+    # of 'on_field' in each land use in the aggregate geometry)
+    print("-- calculating summary values for aggregate geometries...")
+    divdf = df.groupby(["ProcessID","LU"])[["ON"]].agg("sum").reset_index()
+    tot = divdf.groupby("ProcessID")[["ON"]].agg("sum").reset_index().rename(columns={"ON":"Total"})
+    divdf = divdf.merge(tot, how="left")
+    divdf = divdf.assign(Percent = divdf["ON"] / divdf["Total"])
     
-    # Loop through chunks and calculate diversity ----------------------------
-        
-    chunked_diversity = []
+    # We can now reference this table to calculate our diversity metrics
+    print("-- calculating diversity metrics...")
+    diversity_metrics = []
+    nlu = len(relevant_land_uses)
     
-    for i in chunk_ids:
-        print(''.join(["Chunk ", str(i+1), "/", str(chunks)]))
-        
-        print("-- Performing intersection...")
-        # Subset to appropriate chunk
-        pbuff_chunked = pbuff[pbuff.Chunk == i]
-        bids = pbuff_chunked["BID"]
-        pbuff_chunked = pbuff_chunked.geometry
-        
-        # Perform the intersection
-        pidx = []
-        # j = 1
-        for pb in pbuff_chunked:
-            # print(j)
-            # j += 1
-            pidx.append(list(spatial_index.intersection(pb.bounds)))
-        
-        print("-- Formatting data and merging with attributes...")
-        # DataFrame of parcel centroids (PIDX) within parcel buffers (BID)
-        # (We merge on PIDX, summarize on BID)
-        lens = [len(x) for x in pidx]
-        pd_bid = [np.repeat(b, l) for b,l in zip(bids, lens)]
-        pd_bid = np.concatenate(pd_bid)
-        pd_idx = list(itertools.chain.from_iterable(pidx))
-        pidx = pd.DataFrame({"PIDX":pd_idx, "BID":pd_bid})
-        
-        # Merging
-        pidx = pidx.merge(attr, how="inner")
-        pidx = pidx.drop(columns="PIDX")    
-        
-        # Getting counts
-        by_lu_and_bid = pidx.groupby(["BID","LU"]).sum().reset_index()
-        by_bid = pidx.drop(columns="LU").groupby("BID").sum().reset_index().rename(columns={"ON":"TOTAL"})
-        pidx = by_lu_and_bid.merge(by_bid, how="left")
-        pidx = pidx.assign(P = pidx["ON"] / pidx["TOTAL"])
-        
-        print("-- Calculating diversity indices...")
-        diversity_metrics = [] 
-        # Diversity calculations  
-        if "simpson" in how:
-            print("---- Simpson")
-            mc = pidx.assign(SIN = pidx["ON"] * (pidx["ON"]-1))
-            mc = mc.assign(SID = mc["TOTAL"] * (mc["TOTAL"]-1))
-            diversity = mc.groupby("BID").apply(lambda x: sum(x.SIN) / np.unique(x.SID)[0]).reset_index()
-            diversity.columns = ["BID","Simpson"]
-            diversity_metrics.append(diversity)
-        
-        if "shannon" in how:
-            print("---- Shannon")
-            mc = pidx.assign(PLP = mc["P"] * np.log(mc["P"]))
-            diversity = mc.groupby("BID").apply(lambda x: sum(x.PLP) * -1).reset_index()
-            diversity.columns = ["BID","Shannon"]
-            diversity_metrics.append(diversity)
-        
-        if "berger-parker" in how:
-            print("---- Berger-Parker")
-            diversity = pidx.groupby("BID").apply(lambda x: max(x.P)).reset_index()
-            diversity.columns = ["BID","BergerParker"]
-            diversity_metrics.append(diversity)
-            
-        if "enp" in how:
-            print("---- Effective number of parties")
-            mc = pidx.assign(P2 = mc["P"] ** 2)
-            diversity = mc.groupby("BID").apply(lambda x: 1 / sum(x.P2)).reset_index()
-            diversity.columns = ["BID","ENP"]
-            diversity_metrics.append(diversity)
-            
-        if "chi-squared" in how:
-            print("---- Chi-squared goodness of fit")
-            d = dict()
-            ub = np.unique(pidx.BID)
-            d["BID"] = np.repeat(ub, len(relevant_land_uses))
-            d["LU"] = relevant_land_uses * len(ub)
-            lu_dummies = pd.DataFrame(d)
-            mc = lu_dummies.merge(pidx, how="left")
-            mc = mc.fillna({"ON":0, "TOTAL":0})
-            mc = mc.merge(props, how="left")
-            mc = mc.drop(columns="TOTAL")
-            mc = mc.merge(by_bid, how="left")
-            mc = mc.assign(EXP = mc["ChiP"] * mc["TOTAL"])
-            diversity = mc.groupby("BID").apply(lambda x: 1 - stats.chisquare(x.ON, x.EXP)[1]).reset_index()
-            diversity.columns = ["BID","ChiSquared"]
-            diversity_metrics.append(diversity)
-        
-        print("-- Formatting results...")
-        # Merge up
-        diversity_metrics = [df.set_index("BID") for df in diversity_metrics]
-        diversity_metrics = pd.concat(diversity_metrics, axis=1)
-        chunked_diversity.append(diversity_metrics)
-        print("-- Done with chunk " + str(i+1))
-        
-    # Merge back with original parcels ---------------------------------------
+    # 1. Simpson 
+    if "simpson" in how:
+        print("---- Simpson")
+        mc = divdf.assign(SIN = divdf["ON"] * (divdf["ON"]-1))
+        mc = mc.assign(SID = mc["Total"] * (mc["Total"]-1))
+        diversity = mc.groupby("ProcessID").apply(lambda x: sum(x.SIN) / np.unique(x.SID)[0]).reset_index()
+        diversity.columns = ["ProcessID","Simpson"]
+        # Adjust to 0-1 scale
+        diversity["Simpson"] = 1 - diversity["Simpson"]
+        diversity_metrics.append(diversity)
     
-    print("\nMerging diversity results with parcels data...")
-    # Merge chunked results into single dataframe
-    chunked_diversity = [df.reset_index() for df in chunked_diversity]
-    chunked_diversity = pd.concat(chunked_diversity)
+    # 2. Shannon 
+    if "shannon" in how:
+        print("---- Shannon")
+        mc = divdf.assign(PLP = divdf["Percent"] * np.log(divdf["Percent"]))
+        diversity = mc.groupby("ProcessID").apply(lambda x: sum(x.PLP) * -1).reset_index()
+        diversity.columns = ["ProcessID","Shannon"]
+        # Adjust to 0-1 scale
+        diversity["Shannon"] = diversity["Shannon"] / (-1 * np.log(1/nlu))
+        diversity_metrics.append(diversity)
     
-    # Merge back with original parcels
-    pdiv = parcels.merge(chunked_diversity, how="left")
-    pdiv = pdiv.fillna({"Simpson": 1,
-                        "Shannon": 0,
-                        "BergerParker": 1,
-                        "ENP": 1,
-                        "ChiSquared": 1})
-    
-    # Format
-    colorder = chunked_diversity.columns.tolist()
-    colorder.append("geometry")
-    colorder.insert(0, id_field)
-    pdiv = pdiv[colorder]
-    pdiv = pdiv.sort_values("BID")
-    pdiv["geometry"] = pgeo
-    pdiv = pdiv.drop(columns="BID")
+    # 3. Berger-Parker 
+    if "berger-parker" in how:
+        print("---- Berger-Parker")
+        diversity = divdf.groupby("ProcessID").apply(lambda x: max(x.Percent)).reset_index()
+        diversity.columns = ["ProcessID","BergerParker"]
+        # Adjust to 0-1 scale
+        diversity["BergerParker"] = 1 - diversity["BergerParker"]
+        diversity_metrics.append(diversity)
         
-    # Area wide metrics (as a point of comparison) ---------------------------
+    # 4. ENP
+    if "enp" in how:
+        print("---- Effective number of parties (ENP)")
+        mc = divdf.assign(P2 = divdf["Percent"] ** 2)
+        diversity = mc.groupby("ProcessID").apply(lambda x: 1 / sum(x.P2)).reset_index()
+        diversity.columns = ["ProcessID","ENP"]
+        # Adjust to 0-1 scale
+        diversity["ENP"] = (diversity["ENP"] - 1) / (nlu - 1)
+        diversity_metrics.append(diversity)
     
+    # 5. Chi-squared goodness of fit
+    if "chi-squared" in how:
+        print("---- Chi-squared goodness of fit")
+        if chisq_props is not None:
+            props = pd.DataFrame({"LU": list(chisq_props.keys()),
+                                  "ChiP": list(chisq_props.values())})
+        else:
+            chisq_props = dict()
+            for lu in relevant_land_uses:
+                chisq_props[lu] = 1/nlu                
+            props = pd.DataFrame({"LU": list(chisq_props.keys()),
+                                  "ChiP": list(chisq_props.values())})
+        d = dict()
+        ub = np.unique(divdf.ProcessID)
+        d["ProcessID"] = np.repeat(ub, len(relevant_land_uses))
+        d["LU"] = relevant_land_uses * len(ub)
+        lu_dummies = pd.DataFrame(d)
+        on = divdf[["ProcessID","LU","ON"]].drop_duplicates()
+        totals = divdf[["ProcessID","Total"]].drop_duplicates()
+        mc = lu_dummies.merge(on, how="left").merge(totals, how="left")
+        mc = mc.fillna({"ON":0})
+        mc = mc.merge(props, how="left")
+        mc = mc.assign(EXP = mc["ChiP"] * mc["Total"])
+        mc = mc.assign(Chi2 = (mc["ON"] - mc["EXP"])**2 / mc["EXP"])
+        mc = mc.assign(WCS = (mc["Total"] - mc["EXP"])**2 / mc["EXP"] - mc["EXP"])
+        diversity = mc.groupby("ProcessID").apply(lambda x: sum(x.Chi2) / (sum(x.EXP) + max(x.WCS))).reset_index()
+        diversity.columns = ["ProcessID","ChiSquared"]
+        # Adjust to 0-1 scale
+        diversity["ChiSquared"] = 1 - diversity["ChiSquared"]
+        diversity_metrics.append(diversity)
+    
+    # Now that we've calculated all our metrics, we just need to merge
+    # into a single data frame for reporting
+    print("-- formatting diversity results...")
+    diversity_metrics = [df.set_index("ProcessID") for df in diversity_metrics]
+    diversity_metrics = pd.concat(diversity_metrics, axis=1)
+    diversity_metrics = diversity_metrics.reset_index()
+    
+    # Regional comparisons ---------------------------------------------------
+    
+    # Do we want the region score across ALL parcels?
+    # Or across parcels within our aggregate geometries?
+    # For now, we use the first... i.e. the "region adjustment" is relative
+    # to all area of the context of the aggregate geometries
+    
+    # If regional comparison is requested, we calculate each diversity index
+    # at the regional level, and adjust the aggregate geometry scores by
+    # a ratio of geom score : region score. If regional constants are provided,
+    # we do the same sort of adjustment, but use the provided constants as
+    # opposed to doing the calculations here.
     if regional_adjustment == True:
-        print("Calculating diversity indices over the whole region...")
-        # Get regional totals
-        aw = attr.drop(columns="PIDX").groupby("LU").sum().reset_index()
-        aw.columns = ["LU","ON"]
-        aw["TOTAL"] = sum(aw.ON)
-        aw = aw.assign(P = aw["ON"] / aw["TOTAL"])
+        print("")
+        print("Regional adjustment to diversity")
         
-        # Calculate relevant diversity indices
-        area_div = dict()
-        if "simpson" in how:
-            area_div["Simpson"] = sum(aw.ON * (aw.ON-1)) / (aw.TOTAL[0] * (aw.TOTAL[0] - 1))
-        if "shannon" in how:
-            area_div["Shannon"] = -1 * sum(aw.P * np.log(aw.P))
-        if "berger-parker" in how:
-            area_div["BergerParker"] = max(aw.P)
-        if "enp" in how:
-            area_div["ENP"] = 1 / sum(aw.P ** 2)
-        if "chi-squared" in how:
-            aw = aw.merge(props, how="left")
-            aw = aw.assign(EXP = aw["TOTAL"] * aw["ChiP"])
-            area_div["ChiSquared"] = 1 - stats.chisquare(aw.ON, aw.EXP)[1]
+        if regional_constants is not None:
+            # Set our adjustment dictionary to the provided constants if
+            # constants are provided
+            area_div = regional_constants
+        else:
+            # We need to do our own calculations since no constants are given.
+            # Like before, we first need to get summary values. But now, we're
+            # calculating them over the whole region, not the individual
+            # aggregate geometries. NOTE THAT THE "WHOLE REGION" HERE MEANS
+            # ALL PARCELS, so we reference back to the parcels_array from
+            # spatial processing
+            print("-- calculating summary values for region...")
+            
+            # We'll need to format and summarize the parcels in the same
+            # way we did with those in our aggregate geometries
+            pdf = pd.DataFrame(parcels_array)
+            pdf = pdf.rename(columns={on_field:"ON",
+                                      parcels_land_use_field:"LU_DEL"})
+            pdf = pdf[["ON","LU_DEL"]]
+            pdf = pdf[pdf.LU_DEL != -1]
+            pdf = pdf[pdf.ON > 0]
+            pdf = pdf.merge(lu_rc, how="left")
+            pdf = pdf.drop(columns="LU_DEL")
+            if relevant_land_uses is not None:
+                pdf = pdf[pdf.LU.isin(relevant_land_uses)]
         
-        print("Adjusting parcel diversity measures by the regional measure...")
-        # Add adjusted metric to dataframe
+            # Now we can summarize
+            reg = pdf.groupby("LU")[["ON"]].agg("sum").reset_index()
+            reg["Total"] = sum(reg.ON)
+            reg = reg.assign(Percent = reg["ON"] / reg["Total"])
+            
+            # Now, we calculate each diversity metric for the whole region
+            print("-- calculating regional diversity...")
+            area_div = dict()
+            
+            # 1. Simpson
+            if "simpson" in how:
+                print("---- Simpson")
+                area_div["Simpson"] = sum(reg.ON * (reg.ON-1)) / (reg.Total[0] * (reg.Total[0] - 1))
+                area_div["Simpson"] = 1 - area_div["Simpson"]
+            
+            # 2. Shannon
+            if "shannon" in how:
+                print("---- Shannon")
+                area_div["Shannon"] = -1 * sum(reg.Percent * np.log(reg.Percent))
+                area_div["Shannon"] = area_div["Shannon"] / (-1 * np.log(1/nlu))
+                
+            # 3. Berger-Parker
+            if "berger-parker" in how:
+                print("---- Berger-Parker")
+                area_div["BergerParker"] = max(reg.Percent)
+                area_div["BergerParker"] = 1 - area_div["BergerParker"]
+            
+            # 4. ENP
+            if "enp" in how:
+                print("---- Effective number of parties (ENP)")
+                area_div["ENP"] = 1 / sum(reg.Percent ** 2)
+                area_div["ENP"] = (area_div["ENP"] - 1) / (nlu - 1)
+            
+            # 5. Chi-squared goodness of fit
+            if "chi-squared" in how:
+                print("---- Chi-squared goodness of fit")
+                csr = props.merge(reg, how="left")
+                csr = csr.assign(EXP = csr["Total"] * csr["ChiP"])
+                csr = csr.assign(Chi2 = (csr["ON"] - csr["EXP"])**2 / csr["EXP"])
+                csr = csr.assign(WCS = (csr["Total"] - csr["EXP"])**2 / csr["EXP"] - csr["EXP"])
+                area_div["ChiSquared"] = sum(csr.Chi2) / (sum(csr.EXP) + max(csr.WCS))
+                area_div["ChiSquared"] = 1 - area_div["ChiSquared"]
+            
+        # Now, we can calculate our "adjusted" diversities by dividing the
+        # aggregate geometry value for a metric by the regional value for
+        # a metric
+        print("-- adjusting diversity by regional score...")
         for key in area_div.keys():
-            ncol = pdiv.shape[1]
             value = area_div[key]
             name = '_'.join([key, "Adj"])
-            pdiv.insert(ncol-1, name, pdiv[key] / value)
-        # Columns in the wrong order
+            diversity_metrics[name] = diversity_metrics[key] / value
         
-        # Reformat area wide indices to dataframe for writing   
+        # Finally, if we did a regional adjustment, we'll want to write
+        # out the region results as well. We'll do this as a simple table,
+        # so just create a dataframe
         area_div = pd.DataFrame(area_div, index=[0]).reset_index(drop=True)
+    
+    # Writing results --------------------------------------------------------
+    
+    print("")
+    print("Writing results")
+    
+    # For saving, we join the diversity metrics back to the ID shape we
+    # initialized during spatial processing
+    print("-- merging diversity results back to the aggregate geometries...")
+    
+    # 1. convert pandas df to numpy array for use with arcpy ExtendTable
+    df_et = np.rec.fromrecords(recList = diversity_metrics.values, 
+                               names = diversity_metrics.dtypes.index.tolist())
+    df_et = np.array(df_et)
+    
+    # 2. use ExtendTable to modify the parcels data
+    diversity_path = os.path.join(save_gdb_location, 
+                                   "diversity_metrics")
+    arcpy.da.ExtendTable(in_table = diversity_path,
+                         table_match_field = "ProcessID",
+                         in_array = df_et,
+                         array_match_field = "ProcessID")
+    
+    # 3. delete the ProcessID field from the diversity feature class
+    arcpy.DeleteField_management(in_table = diversity_path,
+                                 drop_field = "ProcessID")
+    
+    # If we did a regional adjustment, we also need to write the region
+    # metrics table. If the adjustment was done by constant, we won't write
+    # (because the user should know these values); we only write if we
+    # did the region calculation. The same process for writing is used as 
+    # above, except we use "array to table" instead of "extend table"
+    # One change is that tables can't be written to feature datasets. So,
+    # if the save_gdb_location is a feature dataset, we need to set its
+    # resident gdb as the save location
+    if regional_adjustment == True and regional_constants is None:
+        print("-- writing table of regional diversity results...")
+        reg_tt = np.rec.fromrecords(recList = area_div.values,
+                                    names = area_div.dtypes.index.tolist())
+        reg_tt = np.array(reg_tt)
+        gdb_main = re.search("^(.*?)\.gdb", save_gdb_location)[0]
+        region_path = os.path.join(gdb_main, 
+                                   "regional_diversity")
+        arcpy.da.NumPyArrayToTable(in_array = reg_tt,
+                                    out_table = region_path)
+    
+    # ------------------------------------------------------------------------
+    
+    print("")
+    print("Done!")
+    print("Diversity results saved to: " + diversity_path)
+    if regional_adjustment == True:
+        print("Regional diversity saved to: " + region_path)
+    print("")
+    if regional_adjustment == True and regional_constants is None:
+        return({"Diversity_FC": diversity_path,
+                "Region_Table": region_path})
+    else:
+        return(diversity_path)
         
-    # Saving -----------------------------------------------------------------
+        
+# %% MAIN
+if __name__ == "__main__":
+    # 1. Define the year
+    year = 2019
     
-    if save_directory is not None:
-        print("Saving...")
-        save_path_parcel = os.path.join(save_directory, "Parcel_Diversity_Indices.shp")
-        save_path_region = os.path.join(save_directory, "Region_Diversity_Indices.csv")
-        pdiv.to_file(save_path_parcel)
-        area_div.to_csv(save_path_region)
-        print("-- saved parcel measures to: " + save_path_parcel)
-        print("-- saved region measures to: " + save_path_region)
+    # 2. Define the function inputs
+    parcels_path = os.path.join("K:/Projects/MiamiDade/PMT/Data/Cleaned",
+                                "Parcels.gdb",
+                                '_'.join(["Miami",str(year)]))
+    parcels_id_field = "PARCELNO"
+    parcels_land_use_field = "DOR_UC"
+    save_gdb_location = os.path.join("K:/Projects/MiamiDade/PMT/Data",
+                                     ''.join(["PMT_",str(year),".gdb"]),
+                                     "StationAreas")
+    on_field = "TOT_LVG_AREA"
+    aggregate_geometry_path = os.path.join("K:/Projects/MiamiDade/PMT",
+                                           "Basic_features.gdb",
+                                           "Basic_features_SPFLE",
+                                           "SMART_Plan_Station_Areas")
+    aggregate_geometry_id_field = "Name"
+    buffer_diversity = 0
+    relevant_land_uses = ["auto", "civic", "education", "entertainment", 
+                          "grocery", "healthcare", "industrial", "lodging", 
+                          "mf", "office", "restaurant", "sf", "shopping"]
+    how = ["simpson", "shannon", "berger-parker", "enp", "chi-squared"]
+    chisq_props = None
+    regional_adjustment = True
+    regional_constants = None
     
-    # GDB writing ------------------------------------------------------------
-    
-    if gdb_location is not None:
-        print("Copying result to geodatabase...")
-        try:
-            arcpy.FeatureClassToGeodatabase_conversion(save_path_parcel,
-                                                       gdb_location)
-        except:
-            print("-- gdb write failed: maybe the gdb wasn't a valid path?")
-    
-    # Done -------------------------------------------------------------------
-    
-    print("Done!\n")
-    return dict({"Parcel_Diversity": pdiv,
-                 "Region_Diversity": area_div})
-
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-    
-    
-    
-    
-    
+    # 3. Call the function
+    analyze_lu_diversity(parcels_path = parcels_path,
+                         parcels_id_field = parcels_id_field,
+                         parcels_land_use_field = parcels_land_use_field,
+                         save_gdb_location = save_gdb_location,
+                         on_field = on_field,
+                         aggregate_geometry_path = aggregate_geometry_path,
+                         aggregate_geometry_id_field = aggregate_geometry_id_field,
+                         buffer_diversity = buffer_diversity,
+                         relevant_land_uses = relevant_land_uses,
+                         how = how,
+                         chisq_props = chisq_props,
+                         regional_adjustment = regional_adjustment,
+                         regional_constants = regional_constants)   

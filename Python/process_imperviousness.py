@@ -14,10 +14,10 @@ summarized_save_directory = "C:/Users/rpg_f.FL3/Downloads/ITry"
 
 def process_imperviousness(source_file_directory,
                            year,
-                           transform_epsg=None,
                            zone_geometries_path,
                            raw_save_directory,
                            cleaned_save_directory,
+                           transform_epsg=None,
                            summarized_save_directory=None):
     """
     fully process percent impervious by zone geometry, including
