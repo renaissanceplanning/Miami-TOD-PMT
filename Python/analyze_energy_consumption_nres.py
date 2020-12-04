@@ -2,7 +2,12 @@
 Created: October 2020
 @Author: Alex Bell
 
+Provides a simple function to estimate energy consumption from non-residential
+buildings based on building type (land use) and square footage.
 
+If run as "main", estimates non-residential energy consumption for all
+Miami-Dade County parcels for each year PMT analysis year. Results are appended
+to the "parcels/land_use_and_value" features in each year's geodatabase.
 """
 
 # %% IMPORTS
@@ -14,6 +19,34 @@ import pandas as pd
 def estimateParcelNresEnergy(energy_table, energy_lu_field, energy_sqft_field,
                              parcel_fc, parcel_lu_field, parcel_sqft_field):
     """
+    Using a table of non-residential energy consumption rates and a parcel
+    feature class, estimate non-residential energy consumption based on
+    parcel land use and building area.
+
+    Parameters
+    -----------
+    energy_table: Path
+        A csv file containing energy consumption rates
+        (btu per square foot) based on building type.
+    energy_lu_field: String
+        The field in `energy_table` that defines building types or land uses.
+    energy_sqft_field: String
+        The field in `energy_table` that records BTU per square foot rates
+        for each building type.
+    parcel_fc: Path
+        A feature class of parcels
+    parcel_lu_field: String
+        The field in `parcel_fc` that defines each parcel's land use (values
+        correspond to those in `energy_lu_field`).
+    parcel_sqft_field: String
+        The field in `parcel_fc` that records the total floor area of
+        buildings on the parcel.
+
+    Returns
+    --------
+    parcel_fc: Path
+        `parcel_fc` is modified in place such that a new field `NRES_BTU` is
+        added and populated based on building type and floor area.
     """
     # Read in csv table
     energy = pd.read_csv(energy_table)
@@ -35,6 +68,8 @@ def estimateParcelNresEnergy(energy_table, energy_lu_field, energy_sqft_field,
             factor = sel.iloc[0]
             r[-1] = sqft * factor
             c.updateRow(r)
+    
+    return parcel_fc
 
 
 # %% MAIN
