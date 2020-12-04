@@ -48,7 +48,7 @@ from dl_osm_networks import validateBBox
 # save_directory = None
 
 # %% FUNCTIONS
-def fetchOsmBuildings(output_dir, study_area_polygons_path=None, bbox=None
+def fetchOsmBuildings(output_dir, study_area_polygons_path=None, bbox=None,
                       full_data=False, tags="all", transform_epsg=None):
     """
     Uses an Overpass query to fetch the OSM building polygons within a
@@ -140,7 +140,7 @@ def fetchOsmBuildings(output_dir, study_area_polygons_path=None, bbox=None
     print("Setting up data for OSM querying...")
     if use_polygons:
         # Read in the study area shape (will be used for bbox)
-        sa = gpd.read_file(study_area_polygon_path)
+        sa = gpd.read_file(study_area_polygons_path)
         # If the study area is not in WGS84, transform it (necessary for OSM)
         wgs84 = CRS.from_user_input(value=4326)
         study_area_crs = sa.crs

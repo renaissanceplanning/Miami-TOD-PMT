@@ -585,10 +585,10 @@ for year in [2016,2017,2018,2019]:
     parcels_path = os.path.join("K:/Projects/MiamiDade/PMT/Data/Cleaned",
                                 "Parcels.gdb",
                                 '_'.join(["Miami", str(year)]))
-    bg_for_alloc_path = os.path.join("K:/Projects/MiamiDade/PMT",
+    bg_for_alloc_path = os.path.join("K:/Projects/MiamiDade/PMT/Data",
                                      ''.join(["PMT_", str(year), ".gdb"]),
-                                     "BlockGroups/blockgroup_for_alloc2")
-    save_gdb_location = os.path.join("K:/Projects/MiamiDade/PMT",
+                                     "BlockGroups/blockgroup_for_alloc")
+    save_gdb_location = os.path.join("K:/Projects/MiamiDade/PMT/Data",
                                      ''.join(["PMT_", str(year), ".gdb"]),
                                      "Parcels")
     parcels_id_field = "PARCELNO"
