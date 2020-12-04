@@ -25,11 +25,11 @@ Miami-Dade County to the RAW data folder and named bike_ped.json
 import json
 from esridump.dumper import EsriDumper
 import os
-from dl_config import ALL_CRASHES_SERVICE, PED_BIKE_QUERY
+from config.config_crashes import (ALL_CRASHES_SERVICE, PED_BIKE_QUERY)
 from PMT import RAW
 from pathlib import Path
 
-github = True
+GITHUB = True
 
 
 def dl_bike_ped_crashes(
@@ -97,10 +97,10 @@ def dl_bike_ped_crashes(
 
 
 if __name__ == "__main__":
-    if github:
+    if GITHUB:
         ROOT = r'K:\Projects\MiamiDade\PMT\Data'
-        RAW = Path(ROOT, 'Raw')
-    out_path = Path(RAW, "Safety_Security", "Crash_Data")
+        RAW = str(Path(ROOT, 'Raw'))
+    out_path = str(Path(RAW, "Safety_Security", "Crash_Data"))
     out_name = "bike_ped.geojson"
     dl_bike_ped_crashes(
         all_crashes_url=ALL_CRASHES_SERVICE,
