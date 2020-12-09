@@ -14,6 +14,7 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
 4) _Clone the existing ArcGIS python environment_
     ``` 
     conda create --clone arcgispro-py3 --name %LocalAppData%\ESRI\conda\envs\pmt_tools
+    
     * (this may take some time, so be patient)
     ```
 4) _Activate the newly created environment_
