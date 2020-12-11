@@ -25,7 +25,7 @@ DATA = os.path.join(ROOT, "Data")
 RAW = os.path.join(DATA, "raw")
 CLEANED = os.path.join(DATA, "cleaned")
 REF = os.path.join(DATA, "reference")
-BASIC_FEATURES = os.path.join(ROOT, "Basic_features.gdb", "Basic_features_SPFLE")
+BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb", "Basic_features_SPFLE")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
 
@@ -46,6 +46,32 @@ def makePath(in_folder, *subnames):
     Returns: Path
     """
     return os.path.join(in_folder, *subnames)
+
+
+def checkOverwriteOutput(output, overwrite):
+    """
+    A helper function that checks if an output file exists and
+    deletes the file if an overwrite is expected.
+
+    Parameters
+    -------------
+    output: Path
+        The file to be checked/deleted
+    overwrite: Boolean
+        If True, `output` will be deleted if it already exists.
+        If False, raises `RuntimeError`.
+    
+    Raises
+    -------
+    RuntimeError:
+        If `output` exists and `overwrite` is False.
+    """
+    if arcpy.Exists(output):
+        if overwrite:
+            print(f"... ... deleting existing file {output}")
+            arcpy.Delete_management(output)
+        else:
+            raise RuntimeError(f"Output file {output} already exists")
 
 
 def gdfToFeatureClass(gdf, out_fc, sr=4326):
