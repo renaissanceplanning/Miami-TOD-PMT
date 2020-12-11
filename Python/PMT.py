@@ -22,12 +22,15 @@ import json
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
 ROOT = Path(SCRIPTS).parents[0]
 DATA = os.path.join(ROOT, "Data")
-RAW = os.path.join(DATA, "raw")
-CLEANED = os.path.join(DATA, "cleaned")
-REF = os.path.join(DATA, "reference")
-BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb", "Basic_features_SPFLE")
+RAW = os.path.join(DATA, "Raw")
+CLEANED = os.path.join(DATA, "Cleaned")
+REF = os.path.join(DATA, "Reference")
+BASIC_FEATURES = os.path.join(ROOT, "Basic_features.gdb", "Basic_features_SPFLE")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
+
+WGS_84 = arcpy.SpatialReference(4326)
+FL_SPF = arcpy.SpatialReference(2881)  # Florida_East_FIPS_0901_Feet
 
 
 # %% FUNCTIONS
@@ -138,8 +141,9 @@ def jsonToFeatureClass(json_obj, out_fc, sr=4326):
         else:
             raise RuntimeError(f"output {out_fc} already exists")
     out_path, out_name = os.path.split(out_fc)
-    arcpy.CreateFeatureclass_management(out_path, out_name, geom_type,
-                                        spatial_reference=sr)
+    arcpy.CreateFeatureclass_management(
+        out_path, out_name, geom_type, spatial_reference=sr
+    )
     arcpy.AddField_management(out_fc, "LINEID", "LONG")
 
     # Add geometries
@@ -186,8 +190,9 @@ def jsonToTable(json_obj, out_file):
     return dfToTable(df, out_file)
 
 
-def fetchJsonUrl(url, out_file, encoding="utf-8", is_spatial=False,
-                 crs=4326, overwrite=False):
+def fetchJsonUrl(
+    url, out_file, encoding="utf-8", is_spatial=False, crs=4326, overwrite=False
+):
     """
     Retrieve a json/geojson file at the given url and convert to a
     data frame or geodataframe.
@@ -259,14 +264,16 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
         field_mappings.addFieldMap(fm)
 
     out_path, out_name = os.path.split(out_fc)
-    arcpy.FeatureClassToFeatureClass_conversion(in_fc, out_path, out_name,
-                                                field_mapping=field_mappings)
+    arcpy.FeatureClassToFeatureClass_conversion(
+        in_fc, out_path, out_name, field_mapping=field_mappings
+    )
 
     return out_fc
 
 
-def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
-                  drop_columns=[], rename_columns=[]):
+def mergeFeatures(
+    raw_dir, fc_names, clean_dir, out_fc, drop_columns=[], rename_columns=[]
+):
     """
     Combine feature classes from a raw folder in a single feature class in
     a clean folder.
@@ -306,8 +313,7 @@ def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc,
 
     # Iterate over input fc's
     all_features = []
-    for fc_name, drop_cols, rename_cols in zip(
-            fc_names, drop_columns, rename_columns):
+    for fc_name, drop_cols, rename_cols in zip(fc_names, drop_columns, rename_columns):
         # Read features
         in_fc = makePath(raw_dir, fc_name)
         gdf = gpd.read_file(in_fc)
@@ -370,16 +376,14 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
     None
         `in_table` is modified in place
     """
-    in_array = np.array(
-        np.rec.fromrecords(
-            df.values, names=df.dtypes.index.tolist()
-        )
+    in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
+    arcpy.da.ExtendTable(
+        in_table=in_table,
+        table_match_field=table_match_field,
+        in_array=in_array,
+        array_match_field=df_match_field,
+        **kwargs,
     )
-    arcpy.da.ExtendTable(in_table=in_table,
-                         table_match_field=table_match_field,
-                         in_array=in_array,
-                         array_match_field=df_match_field,
-                         **kwargs)
 
 
 def dfToTable(df, out_table):
@@ -395,16 +399,12 @@ def dfToTable(df, out_table):
     --------
     out_table: Path
     """
-    in_array = np.array(
-        np.rec.fromrecords(
-            df.values, names=df.dtypes.index.tolist()
-        )
-    )
+    in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
     arcpy.da.NumPyArrayToTable(in_array, out_table)
     return out_table
 
 
-def dfToPoints(df, out_fc, shape_fields, spatial_reference):
+def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=True):
     """
     Use a pandas data frame to export an arcgis point feature class.
 
@@ -421,14 +421,35 @@ def dfToPoints(df, out_fc, shape_fields, spatial_reference):
     --------
     out_fc: Path
     """
-    in_array = np.array(
-        np.rec.fromrecords(
-            df.values, names=df.dtypes.index.tolist()
+    temp_fc = r"memory\temp_points"
+    out_path, out_fc = os.path.split(out_fc)
+    in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
+    if spatial_reference != WGS_84:
+        arcpy.da.NumPyArrayToFeatureClass(
+            in_array=in_array,
+            out_table=temp_fc,
+            shape_fields=shape_fields,
+            spatial_reference=spatial_reference,
         )
-    )
-    arcpy.da.NumPyArrayToFeatureClass(in_array, out_fc,
-                                      shape_fields=shape_fields,
-                                      spatial_reference=spatial_reference)
+        arcpy.Project_management(
+            in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=FL_SPF
+        )
+    else:
+        if arcpy.Exists(out_fc):
+            if overwrite:
+                arcpy.Delete_management(out_fc)
+            else:
+                raise RuntimeError(f"output {out_fc} already exists")
+        arcpy.da.NumPyArrayToFeatureClass(
+            in_array=in_array,
+            out_table=temp_fc,
+            shape_fields=shape_fields,
+            spatial_reference=spatial_reference,
+        )
+        arcpy.FeatureClassToFeatureClass_conversion(
+            in_features=temp_fc, out_path=out_path, out_name=out_fc
+        )
+    del temp_fc
     return out_fc
 
 
@@ -466,8 +487,7 @@ def multipolygonToPolygon(gdf):
     return poly_df
 
 
-def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False,
-                     null_value=0):
+def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
     """
     Convenience function to dump polygon features to centroids and
     save as a new feature class.
@@ -490,17 +510,28 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False,
     elif isinstance(fields, string_types):
         fields = [fields]
     fields.append("SHAPE@XY")
-    a = arcpy.da.FeatureClassToNumPyArray(in_fc, fields, skip_nulls=skip_nulls,
-                                          null_value=null_value)
-    arcpy.da.NumPyArrayToFeatureClass(a, out_fc, "SHAPE@XY",
-                                      spatial_reference=sr)
+    a = arcpy.da.FeatureClassToNumPyArray(
+        in_fc, fields, skip_nulls=skip_nulls, null_value=null_value
+    )
+    arcpy.da.NumPyArrayToFeatureClass(a, out_fc, "SHAPE@XY", spatial_reference=sr)
     return out_fc
 
 
-def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
-                      agg_id_field, output_fc, overlap_type="INTERSECT",
-                      agg_funcs=np.sum, disag_wc=None, agg_wc=None,
-                      flatten_disag_id=None, *args, **kwargs):
+def sumToAggregateGeo(
+    disag_fc,
+    sum_fields,
+    groupby_fields,
+    agg_fc,
+    agg_id_field,
+    output_fc,
+    overlap_type="INTERSECT",
+    agg_funcs=np.sum,
+    disag_wc=None,
+    agg_wc=None,
+    flatten_disag_id=None,
+    *args,
+    **kwargs,
+):
     """
     Summarizes values for features in an input feature class based on their
     relationship to larger geographic units. For example, summarize dwelling
@@ -509,7 +540,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     Summarizations are recorded for each aggregation feature. If any groupby
     fields are provided or multiple agg funcs are provided, summary values are
     reported in multiple columns corresponding to the groupby values or agg
-    function names. Note that special characters in observed values are 
+    function names. Note that special characters in observed values are
     replaced with underscores. This may result in unexpected name collisions.
 
     Parameters
@@ -560,7 +591,7 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
     # Handle inputs
     #  - Confirm agg features are polygons
     desc = arcpy.Describe(agg_fc)
-    if desc.shapeType != u"Polygon":
+    if desc.shapeType != "Polygon":
         raise TypeError("Aggregation features must be polygons")
     sr = desc.spatialReference
 
@@ -579,7 +610,9 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
         )
     if agg_wc:
         arcpy.SelectLayerByAttribute_management(
-            in_layer_or_view=agg_fc, selection_type="SUBSET_SELECTION", where_clause=agg_wc
+            in_layer_or_view=agg_fc,
+            selection_type="SUBSET_SELECTION",
+            where_clause=agg_wc,
         )
 
     #  - Disag field references
@@ -620,11 +653,13 @@ def sumToAggregateGeo(disag_fc, sum_fields, groupby_fields, agg_fc,
                     in_layer=disag_fc,
                     overlap_type=overlap_type,
                     select_features=agg_shape,
-                    selection_type="NEW_SELECTION")
+                    selection_type="NEW_SELECTION",
+                )
                 # Dump to data frame
                 df = pd.DataFrame(
                     arcpy.da.TableToNumPyArray(
-                        disag_fc, disag_fields, skip_nulls=False, null_value=0)
+                        disag_fc, disag_fields, skip_nulls=False, null_value=0
+                    )
                 )
                 df.fillna(0, inplace=True)
                 # Flatten
@@ -680,7 +715,10 @@ if __name__ == "__main__":
     arcpy.env.overwriteOutput = True
     sumToAggregateGeo(
         disag_fc=r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Safety_Security\Crash_Data"
-                 r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
-        sum_fields=["SPEED_LIM"], groupby_fields=["CITY"],
+        r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
+        sum_fields=["SPEED_LIM"],
+        groupby_fields=["CITY"],
         agg_fc=r"K:\Projects\MiamiDade\PMT\Basic_features.gdb\Basic_features_SPFLE\SMART_Plan_Station_Areas",
-        agg_id_field="Id", output_fc=r"D:\Users\DE7\Desktop\agg_test.gdb\bike_speed_agg")
+        agg_id_field="Id",
+        output_fc=r"D:\Users\DE7\Desktop\agg_test.gdb\bike_speed_agg",
+    )
