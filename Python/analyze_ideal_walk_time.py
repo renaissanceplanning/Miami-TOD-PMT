@@ -17,7 +17,7 @@ import PMT
 import arcpy
 import pandas as pd
 import numpy as np
-from analyze_walk_time import CODE_BLOCK, _addField, 
+from analyze_walk_time import CODE_BLOCK, _addField
 
 
 
