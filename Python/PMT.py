@@ -25,7 +25,7 @@ DATA = os.path.join(ROOT, "Data")
 RAW = os.path.join(DATA, "Raw")
 CLEANED = os.path.join(DATA, "Cleaned")
 REF = os.path.join(DATA, "Reference")
-BASIC_FEATURES = os.path.join(ROOT, "Basic_features.gdb", "Basic_features_SPFLE")
+BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb", "Basic_features_SPFLE")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
 
@@ -421,7 +421,7 @@ def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=True):
     --------
     out_fc: Path
     """
-    temp_fc = r"memory\temp_points"
+    temp_fc = r"in_memory\temp_points"
     out_path, out_fc = os.path.split(out_fc)
     in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
     if spatial_reference != WGS_84:
