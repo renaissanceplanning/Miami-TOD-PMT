@@ -39,7 +39,6 @@ from config.config_crashes import (
 
 GITHUB = True
 
-
 source_folder = makePath(
     RAW,
     "Safety_Security",
