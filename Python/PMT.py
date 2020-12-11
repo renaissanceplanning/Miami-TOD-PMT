@@ -51,7 +51,7 @@ def makePath(in_folder, *subnames):
     return os.path.join(in_folder, *subnames)
 
 
-def checkOverwriteOutput(output, overwrite):
+def checkOverwriteOutput(output, overwrite=False):
     """
     A helper function that checks if an output file exists and
     deletes the file if an overwrite is expected.
@@ -101,7 +101,7 @@ def gdfToFeatureClass(gdf, out_fc, sr=4326):
     jsonToFeatureClass(j, out_fc, sr=sr)
 
 
-def jsonToFeatureClass(json_obj, out_fc, sr=4326):
+def jsonToFeatureClass(json_obj, out_fc, sr=4326, overwrite=False):
     """
     Creates a feature class or shape file from a json object.
 
@@ -135,11 +135,8 @@ def jsonToFeatureClass(json_obj, out_fc, sr=4326):
     # Create output fc
     sr = arcpy.SpatialReference(sr)
     geom_type = geom_stack[0].type.upper()
-    if arcpy.Exists(out_fc):
-        if overwrite:
-            arcpy.Delete_management(out_fc)
-        else:
-            raise RuntimeError(f"output {out_fc} already exists")
+    if overwrite:
+        checkOverwriteOutput(output=out_fc, overwrite=overwrite)
     out_path, out_name = os.path.split(out_fc)
     arcpy.CreateFeatureclass_management(
         out_path, out_name, geom_type, spatial_reference=sr
@@ -404,7 +401,7 @@ def dfToTable(df, out_table):
     return out_table
 
 
-def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=True):
+def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=False):
     """
     Use a pandas data frame to export an arcgis point feature class.
 
@@ -431,15 +428,14 @@ def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=True):
             shape_fields=shape_fields,
             spatial_reference=spatial_reference,
         )
+        # arcpy.CopyFeatures_management(
+        #     in_features=temp_fc, out_feature_class=out_fc,
         arcpy.Project_management(
             in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=FL_SPF
         )
     else:
-        if arcpy.Exists(out_fc):
-            if overwrite:
-                arcpy.Delete_management(out_fc)
-            else:
-                raise RuntimeError(f"output {out_fc} already exists")
+        if overwrite:
+            checkOverwriteOutput(output=out_fc, overwrite=overwrite)
         arcpy.da.NumPyArrayToFeatureClass(
             in_array=in_array,
             out_table=temp_fc,
@@ -449,7 +445,7 @@ def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=True):
         arcpy.FeatureClassToFeatureClass_conversion(
             in_features=temp_fc, out_path=out_path, out_name=out_fc
         )
-    del temp_fc
+    arcpy.Delete_management(in_data=temp_fc)
     return out_fc
 
 

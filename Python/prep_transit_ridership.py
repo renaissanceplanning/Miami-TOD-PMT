@@ -1,13 +1,11 @@
 """
 Created: November 2020
-@Author: Alex Bell
+@Author: Alex Bell, Charles Rudder
 
 Provides a simple function to read transit ridership data from an Excel file
 and generate a shape file version of the records with only key fields
 included.
 
-If run as "main", ridership records for stop locations in Miami-Dade County for
-2019 are read, cleaned, and exported.
 """
 
 # %% IMPORTS
@@ -49,8 +47,6 @@ LONG = "LONG"
 
 
 # %% FUNCTIONS
-
-
 def read_transit_xls(xls_path, sheet=None, head_row=None, rename_dict=None):
     """
     XLS File Desc: Sheet 1 contains header and max rows for a sheet (65536),
@@ -104,7 +100,7 @@ if __name__ == "__main__":
         FIELDS_DICT[f"ON_{file_tag}"] = "ON"
         FIELDS_DICT[f"OFF_{file_tag}"] = "OFF"
         try:
-            arcpy.AddMessage((f'...reformatting ridership data'))
+            arcpy.AddMessage(f'...reformatting ridership data')
             cleaned_df = read_transit_xls(xls_path=xls_file, rename_dict=FIELDS_DICT)
             arcpy.AddMessage(f'...writing formatted data to {PMT.CLEANED}')
             cleaned_df.to_csv(out_clean_table)
