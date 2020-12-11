@@ -51,6 +51,32 @@ def makePath(in_folder, *subnames):
     return os.path.join(in_folder, *subnames)
 
 
+def checkOverwriteOutput(output, overwrite):
+    """
+    A helper function that checks if an output file exists and
+    deletes the file if an overwrite is expected.
+
+    Parameters
+    -------------
+    output: Path
+        The file to be checked/deleted
+    overwrite: Boolean
+        If True, `output` will be deleted if it already exists.
+        If False, raises `RuntimeError`.
+    
+    Raises
+    -------
+    RuntimeError:
+        If `output` exists and `overwrite` is False.
+    """
+    if arcpy.Exists(output):
+        if overwrite:
+            print(f"... ... deleting existing file {output}")
+            arcpy.Delete_management(output)
+        else:
+            raise RuntimeError(f"Output file {output} already exists")
+
+
 def gdfToFeatureClass(gdf, out_fc, sr=4326):
     """
     Creates a feature class or shapefile from a geopandas GeoDataFrame.
