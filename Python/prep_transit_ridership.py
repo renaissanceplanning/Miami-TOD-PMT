@@ -23,7 +23,6 @@ TABLES = {
     2018: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1811_2019_APR_standard_format.XLS",
     2019: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS",
 }
-SR = arcpy.SpatialReference(4326)
 
 FIELDS_DICT = {
     "ADAY": "DAY_OF_WEEK",
@@ -92,21 +91,32 @@ if __name__ == "__main__":
     for year in YEARS:
         print(year)
         # setup loop vars
-        out_clean_table = PMT.makePath(PMT.CLEANED, "Transp", f"transit_ridership_{year}.csv")
-        out_fc = PMT.makePath(PMT.DATA, f"PMT_{year}.gdb", "Transport", "transit_ridership")
+        out_clean_table = PMT.makePath(
+            PMT.CLEANED, "Transp", f"transit_ridership_{year}.csv"
+        )
+        out_fc = PMT.makePath(
+            PMT.DATA, f"PMT_{year}.gdb", "Transport", "transit_ridership"
+        )
         xls_file = PMT.makePath(data_path, TABLES[year])
         # define on/off attribute per file
         file_tag = "_".join(TABLES[year].split("_")[7:10])
         FIELDS_DICT[f"ON_{file_tag}"] = "ON"
         FIELDS_DICT[f"OFF_{file_tag}"] = "OFF"
         try:
-            arcpy.AddMessage(f'...reformatting ridership data')
+            arcpy.AddMessage(f"...reformatting ridership data")
             cleaned_df = read_transit_xls(xls_path=xls_file, rename_dict=FIELDS_DICT)
-            arcpy.AddMessage(f'...writing formatted data to {PMT.CLEANED}')
+            arcpy.AddMessage(f"...writing formatted data to {PMT.CLEANED}")
             cleaned_df.to_csv(out_clean_table)
-            arcpy.AddMessage(f'...converting coordinates to point feature class')
-            PMT.dfToPoints(df=cleaned_df, out_fc=out_fc, shape_fields=[LONG, LAT], spatial_reference=SR)
-            arcpy.AddMessage(f'...{year} done')
+            arcpy.AddMessage(f"...converting coordinates to point feature class")
+            PMT.dfToPoints(
+                df=cleaned_df,
+                out_fc=out_fc,
+                shape_fields=[LONG, LAT],
+                from_sr=4326,
+                to_sr=2881,
+                overwrite=True,
+            )
+            arcpy.AddMessage(f"...{year} done")
             del FIELDS_DICT[f"ON_{file_tag}"], FIELDS_DICT[f"OFF_{file_tag}"]
         except KeyError:
             print("-- No data found")

@@ -401,7 +401,8 @@ def dfToTable(df, out_table):
     return out_table
 
 
-def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=False):
+def dfToPoints(df, out_fc, shape_fields,
+               from_sr, to_sr, overwrite=False):
     """
     Use a pandas data frame to export an arcgis point feature class.
 
@@ -418,33 +419,39 @@ def dfToPoints(df, out_fc, shape_fields, spatial_reference, overwrite=False):
     --------
     out_fc: Path
     """
-    temp_fc = r"memory\temp_points"
-    out_path, out_fc = os.path.split(out_fc)
-    in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
-    if spatial_reference != WGS_84:
-        arcpy.da.NumPyArrayToFeatureClass(
-            in_array=in_array,
-            out_table=temp_fc,
-            shape_fields=shape_fields,
-            spatial_reference=spatial_reference,
+    # set paths
+    temp_fc = r"in_memory\temp_points"
+
+    # coerce sr to Spatial Reference object
+    from_sr = arcpy.SpatialReference(from_sr)
+    to_sr = arcpy.SpatialReference(to_sr)
+
+    # build array from dataframe
+    in_array = np.array(
+        np.rec.fromrecords(
+            df.values, names=df.dtypes.index.tolist()
         )
-        # arcpy.CopyFeatures_management(
-        #     in_features=temp_fc, out_feature_class=out_fc,
+    )
+    # write to temp feature class
+    arcpy.da.NumPyArrayToFeatureClass(
+        in_array=in_array,
+        out_table=temp_fc,
+        shape_fields=shape_fields,
+        spatial_reference=from_sr,
+    )
+    # reproject if needed, otherwise dump to output location
+    if from_sr != to_sr:
         arcpy.Project_management(
-            in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=FL_SPF
+            in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=to_sr
         )
     else:
+        out_path, out_fc = os.path.split(out_fc)
         if overwrite:
             checkOverwriteOutput(output=out_fc, overwrite=overwrite)
-        arcpy.da.NumPyArrayToFeatureClass(
-            in_array=in_array,
-            out_table=temp_fc,
-            shape_fields=shape_fields,
-            spatial_reference=spatial_reference,
-        )
         arcpy.FeatureClassToFeatureClass_conversion(
             in_features=temp_fc, out_path=out_path, out_name=out_fc
         )
+    # clean up temp_fc
     arcpy.Delete_management(in_data=temp_fc)
     return out_fc
 
