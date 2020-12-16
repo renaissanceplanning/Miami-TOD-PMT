@@ -133,7 +133,7 @@ def build_time_period_gdbs(folder_path):
 
 if __name__ == "__main__":
     arcpy.env.overwriteOutput = True
-    out_path = r"C:\Users\V_RPG\OneDrive - Renaissance Planning Group\SHARE\PMT_PROJECT\Data\Temp"
+    out_path = r"C:\Users\V_RPG\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\Temp"
 
     build_year_gdb(folder_path=out_path)
     build_time_period_gdbs(folder_path=out_path)
