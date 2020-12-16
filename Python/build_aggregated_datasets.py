@@ -13,20 +13,6 @@ import tempfile
 import numpy as np
 import pandas as pd
 
-init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
-init_features_id_field = "GEOID10"
-years = [2014, 2015, 2016, 2017, 2018, 2019]
-inputs_path_format = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Parcels.gdb/Miami_{Year}"
-fields = {"NO_RES_UNTS": 0, "TOT_LVG_AREA": 0, "LND_SQFOOT": 0, "JV": 0, "TV_NSD": 0}
-shape_type = "polygon"
-save_path_format = "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Each_block"
-other_fields = {"field": {"GN_VA_LU": "Other"},
-                "reference_path": "K:/Projects/MiamiDade/PMT/Data/Reference/Land_Use_Recode.csv",
-                "ref_data_match": {"DOR_UC": {"DOR_UC": 999}},
-                "shape_type": "table",
-                "save_path": "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Blocks_floor_area_by_use"}
-other_combos = None
-
 # %% Function
 
 # Addressing pathing -- relativizing paths in main using PMT constants
@@ -143,106 +129,107 @@ def build_aggregated_datasets(init_features_path,
     
     # 1. 'other_fields' parameter
     # ---------------------------
-    if type(other_fields) is not list:
-        other_fields = [other_fields]
-    r = np.arange(len(other_fields))
-    missing_df = []
-    
-    # Are there any missing keys?
-    for i in r: 
-        d = other_fields[i]
+    if other_fields is not None:
+        if type(other_fields) is not list:
+            other_fields = [other_fields]
+        r = np.arange(len(other_fields))
+        missing_df = []
         
-        # Missing issues
-        needed_keys = ["field", "reference_path", "ref_data_match", 
-                       "shape_type", "save_path"]
-        present_keys = list(d.keys())
-        missing = [p in needed_keys for p in present_keys]
-        
-        # Format
-        issues = pd.DataFrame({"Entry": np.repeat(i, 5),
-                               "Key": needed_keys,
-                               "Missing": missing})
-        missing_df.append(issues)
-    
-    # If there are any missing, break the function and return
-    missing_df = pd.concat(missing_df)
-    missing_df = missing_df[missing_df.Missing == False]
-    
-    if len(missing_df.index) > 0:
-        print(missing_df)
-        raise ValueError("At least one necessary key is missing from a 'fields' entry; see above for reference")
-    else:       
-        # If nothing is missing, we can deal with other issues
-        issues_df = []
-        
-        for i in r:
+        # Are there any missing keys?
+        for i in r: 
             d = other_fields[i]
             
-            # field
-            field_issues = []
-            if type(d["field"]) is not dict:
-                field_issues = field_issues.append("not a dict")
-            else:
-                if type(list(d["field"].keys())[0]) is not str:
-                    field_issues = field_issues.append("key is not a str")
-            field_issues = '; '.join(field_issues)
+            # Missing issues
+            needed_keys = ["field", "reference_path", "ref_data_match", 
+                           "shape_type", "save_path"]
+            present_keys = list(d.keys())
+            missing = [p in needed_keys for p in present_keys]
             
-            # reference_path
-            reference_issues = []
-            if type(d["reference_path"]) is not str:
-                reference_issues.append("not a str")
-            reference_issues = '; '.join(reference_issues)
-            
-            # ref_data_match
-            match_issues = []
-            if type(d["ref_data_match"]) is not dict:
-                match_issues.append("not a dict")
-            else:
-                if type(list(d["ref_data_match"].keys())[0]) is not str:
-                    match_issues.append("key is not a str")
-                if type(list(d["ref_data_match"].values())[0]) is not dict:
-                    match_issues.append("value is not a dict")
-                else:
-                    if type(list(list(d["ref_data_match"].values())[0].keys())[0]) is not str:
-                        match_issues.append("value key is not a str")
-            match_issues = '; '.join(match_issues)
-            
-            # shape_type
-            shape_issues = []
-            if type(d["shape_type"]) is not str:
-                shape_issues.append("not a str")
-            else:
-                if d["shape_type"] not in ["point","polygon","table"]:
-                    shape_issues.append("not 'point', 'polygon' or 'table'")
-            shape_issues = '; '.join(shape_issues)
-                
-            # save_path
-            save_issues = []
-            if type(d["save_path"]) is not str:
-                save_issues.append("not a str")
-            else:
-                if not bool(re.search("{Year}", d["save_path"])):
-                    save_issues.append("no fixed-string wild card for year")
-            save_issues = '; '.join(save_issues)
-                    
-            # Format results
+            # Format
             issues = pd.DataFrame({"Entry": np.repeat(i, 5),
                                    "Key": needed_keys,
-                                   "Issues": [field_issues,
-                                              reference_issues,
-                                              match_issues,
-                                              shape_issues,
-                                              save_issues]})
-            issues_df.append(issues)
+                                   "Missing": missing})
+            missing_df.append(issues)
         
-        # If there are any issues, break the function and return
-        issues_df = pd.concat(issues_df)
-        issues_df = issues_df[issues_df.Issues != ""]
+        # If there are any missing, break the function and return
+        missing_df = pd.concat(missing_df)
+        missing_df = missing_df[missing_df.Missing == False]
         
-        if len(missing_df.index) > 1:
-            print(issues_df)
-            raise ValueError("At least one value in one 'fields' entry is in error; see above for reference")
-    
+        if len(missing_df.index) > 0:
+            print(missing_df)
+            raise ValueError("At least one necessary key is missing from a 'fields' entry; see above for reference")
+        else:       
+            # If nothing is missing, we can deal with other issues
+            issues_df = []
+            
+            for i in r:
+                d = other_fields[i]
+                
+                # field
+                field_issues = []
+                if type(d["field"]) is not dict:
+                    field_issues = field_issues.append("not a dict")
+                else:
+                    if type(list(d["field"].keys())[0]) is not str:
+                        field_issues = field_issues.append("key is not a str")
+                field_issues = '; '.join(field_issues)
+                
+                # reference_path
+                reference_issues = []
+                if type(d["reference_path"]) is not str:
+                    reference_issues.append("not a str")
+                reference_issues = '; '.join(reference_issues)
+                
+                # ref_data_match
+                match_issues = []
+                if type(d["ref_data_match"]) is not dict:
+                    match_issues.append("not a dict")
+                else:
+                    if type(list(d["ref_data_match"].keys())[0]) is not str:
+                        match_issues.append("key is not a str")
+                    if type(list(d["ref_data_match"].values())[0]) is not dict:
+                        match_issues.append("value is not a dict")
+                    else:
+                        if type(list(list(d["ref_data_match"].values())[0].keys())[0]) is not str:
+                            match_issues.append("value key is not a str")
+                match_issues = '; '.join(match_issues)
+                
+                # shape_type
+                shape_issues = []
+                if type(d["shape_type"]) is not str:
+                    shape_issues.append("not a str")
+                else:
+                    if d["shape_type"] not in ["point","polygon","table"]:
+                        shape_issues.append("not 'point', 'polygon' or 'table'")
+                shape_issues = '; '.join(shape_issues)
+                    
+                # save_path
+                save_issues = []
+                if type(d["save_path"]) is not str:
+                    save_issues.append("not a str")
+                else:
+                    if not bool(re.search("{Year}", d["save_path"])):
+                        save_issues.append("no fixed-string wild card for year")
+                save_issues = '; '.join(save_issues)
+                        
+                # Format results
+                issues = pd.DataFrame({"Entry": np.repeat(i, 5),
+                                       "Key": needed_keys,
+                                       "Issues": [field_issues,
+                                                  reference_issues,
+                                                  match_issues,
+                                                  shape_issues,
+                                                  save_issues]})
+                issues_df.append(issues)
+            
+            # If there are any issues, break the function and return
+            issues_df = pd.concat(issues_df)
+            issues_df = issues_df[issues_df.Issues != ""]
+            
+            if len(missing_df.index) > 1:
+                print(issues_df)
+                raise ValueError("At least one value in one 'fields' entry is in error; see above for reference")
+        
     # 2. 'other_combos' parameter
     # ---------------------------
     
@@ -271,10 +258,12 @@ def build_aggregated_datasets(init_features_path,
     # an iterable
     if type(years) is not list:
         years = [years]
-    if type(other_fields) is not list:
-        other_fields = [other_fields]
-    if type(other_combos) is not list:
-        other_combos = [other_combos]
+    if other_fields is not None:
+        if type(other_fields) is not list:
+            other_fields = [other_fields]
+    if other_combos is not None:
+        if type(other_combos) is not list:
+            other_combos = [other_combos]
     
     # 3. Set up the fields to read from the inputs by combining the fields
     # with entries in other_fields
@@ -539,7 +528,11 @@ def build_aggregated_datasets(init_features_path,
                           right_on = grouping_fields,
                           how = "left")
             mg = mg.fillna(0)
-            mg = mg.sort_values(init_features_id_field).reset_index(drop=True)
+            if sd["field"][0] is None:
+                sort_by = init_features_id_field
+            else:
+                sort_by = [init_features_id_field] + sd["field"]
+            mg = mg.sort_values(sort_by).reset_index(drop=True)
             mg["ProcessID"] = np.arange(1, len(mg.index)+1)
             
             # Now we need to account for the fact that the file we're saving
@@ -548,15 +541,30 @@ def build_aggregated_datasets(init_features_path,
             # have more work to do (enumerated in line)
             
             if arcpy.Exists(sd["path"]):
-                print("---- file already exists; merging in new fields")
+                print("---- file already exists")
                 
-                # Identify the new fields that need to merge in
+                # Identifying any fields that exist in the data already -- 
+                # we assume that if they exist but they're being calculated
+                # again, this means we want to update them. So, to make the
+                # extend table work, we need to delete those fields from the
+                # existing dataset
                 existing_fields = [f.name for f in arcpy.ListFields(sd["path"])]
                 current_fields = mg.columns.tolist()
-                merge_fields = ["ProcessID"] + list(set(current_fields) - set(existing_fields))
-                mg = mg[merge_fields]
+                current_fields = [c for c in current_fields if c != "ProcessID"]
+                del_fields = [c for c in current_fields if c in existing_fields]
+                if len(del_fields) > 0:
+                    print("------ deleting existing fields that are being updated")
+                    del_df = [d for d in del_fields if d in grouping_fields]
+                    del_path = [d for d in del_fields if d not in grouping_fields]
+                    if len(del_df) > 0:
+                        mg = mg.drop(columns = del_df)
+                    if len(del_path) > 0:
+                        arcpy.DeleteField_management(in_table = sd["path"],
+                                                     drop_field = del_fields)
                 
-                # Execute the merge
+                # Now we are ready to execute the merge
+                print("------ merging in new fields")
+                
                 mg_et = np.rec.fromrecords(recList = mg.values, 
                                            names = mg.dtypes.index.tolist())
                 mg_et = np.array(mg_et)
@@ -573,6 +581,7 @@ def build_aggregated_datasets(init_features_path,
                 if sd["type"] == "table":
                     # Data is a table -- all we have to do is write
                     print("------ writing table")
+                    mg["Year"] = yr
                     mg_et = np.rec.fromrecords(recList = mg.values, 
                                            names = mg.dtypes.index.tolist())
                     mg_et = np.array(mg_et)
@@ -676,9 +685,9 @@ def build_aggregated_datasets(init_features_path,
                     # At this point, we can actually delete the init_id -- we
                     # don't need it, and it will be re-joined when we bring in
                     # the results (because they are aggregated by init_id)
-                    print("------ cleaning the results feature class")
+                    # print("------ cleaning the results feature class")
                     arcpy.DeleteField_management(in_table = sd["path"],
-                                                 drop_field = init_features_id_field)
+                                                  drop_field = init_features_id_field)
                     
                     # Finally, we can join up our results on ProcessID. We'll
                     # retain the ProcessID even after joining for future
@@ -702,255 +711,68 @@ def build_aggregated_datasets(init_features_path,
     print("")
     return(None)
             
-# -----------------------------------------------------------------------------
-    
-# # Creating the results feature class -------------------------------------
-
-# print("")
-# print("Creating a results feature class")
-
-# # First, we need to know how many times each feature will be repeated.
-# # There are 2 components to this: the number of years, and the number of
-# # unique values in each of the `other_fields`. We combine these two to get
-# # our repetition count
-# print("-- calculating number of feature repetitions")
-
-# # Number of years
-# if type(years) is not list:
-# years = [years]
-# rep_count = len(years)
-# field_values = {}
-# field_values["Year"] = years
-
-# # Other fields
-# if other_fields is not None:
-# for key, value in other_fields.items():
-# if bool(re.search("\.gdb", key)):
-#     dtype = arcpy.Describe(key).dataType
-#     if dtype == "FeatureClass":
-#         ar = arcpy.da.FeatureClassToNumPyArray(in_table = key,
-#                                                field_names = value,
-#                                                skip_nulls = True)
-#     else:
-#         ar = arcpy.da.TableToNumPyArray(in_table = key,
-#                                         field_names = value,
-#                                         skip_nulls = True)
-# elif bool(re.search("\.shp$", key)):
-#     ar = arcpy.da.FeatureClassToNumPyArray(in_table = key,
-#                                            field_names = value,
-#                                            skip_nulls = True)
-# elif bool(re.search("\.dbf$", key)):
-#     ar = arcpy.da.TableToNumPyArray(in_table = key,
-#                                     field_names = value,
-#                                     skip_nulls = True)
-# elif bool(re.search("\.csv$", key)):
-#     ar = pd.read_csv(key)
-#     ar = ar[value]
-#     ar = ar.dropna()
-# elif bool(re.search("\.xls", key)):
-#     ar = pd.read_excel(key)
-#     ar = ar[value]
-#     ar = ar.dropna()
-# else:
-#     print("** can't read " + key + "; will be ignored in repetition count**")
-#     continue
-# unique_values = np.unique(ar).tolist()
-# rep_count = rep_count * len(unique_values)
-# field_values[value] = unique_values
-
-# # Now, we need to initialize a template for the feature class we'll save
-# # our results to. It's a template for now, because ultimately we'll have
-# # to repeat rows to store data for the same geometry across multiple years
-# # and land uses. So, our template is just the geometries; once we know how
-# # many times we'll need to repeat each geometry, we can use this template
-# # to initialize a save feature class, and then delete the template. Our
-# # results are going to be at the level of the init_features, so our
-# # initialized feature class can just be a copied version of
-# # 'init_features_path' that retains 'init_features_id_field' and the
-# # polygon geometry (or point geometry, if requested)
-# # Thanks to: https://gis.stackexchange.com/questions/229187/copying-only-certain-fields-columns-from-shapefile-into-new-shapefile-using-mode
-# print("-- initializing a template")
-
-# gdb_path, save_name = os.path.split(save_feature_class_path)
-
-# if polygon == True:
-# fmap = arcpy.FieldMappings()
-# fmap.addTable(init_features_path)
-# fields = {f.name: f for f in arcpy.ListFields(init_features_path)}
-# for fname, fld in fields.items():
-# if fld.type not in ('OID', 'Geometry') and 'shape' not in fname.lower():
-#     if fname != init_features_id_field:
-#         fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
-# arcpy.conversion.FeatureClassToFeatureClass(in_features = init_features_path, 
-#                                         out_path = gdb_path,
-#                                         out_name = "template",
-#                                         field_mapping = fmap)
-# else:
-# init_fields = [init_features_id_field, "SHAPE@X", "SHAPE@Y"]
-# init_sr = arcpy.Describe(init_features_path).spatialReference
-# init_array = arcpy.da.FeatureClassToNumPyArray(in_table = init_features_path,
-#                                            field_names = init_fields,
-#                                            spatial_reference = init_sr)
-# arcpy.da.NumPyArrayToFeatureClass(in_array = init_array,
-#                               out_table = os.path.join(gdb_path, "template"),
-#                               shape_fields = ["SHAPE@X", "SHAPE@Y"],
-#                               spatial_reference = init_sr)
-# template_path = os.path.join(gdb_path,
-#                      "template")
-
-
-# # Next, we repeat the features in the template 'rep_count' times. We do
-# # this by creating a new feature class, and using search cursors to
-# # repeat the feature. Once we do this, we can also delete the template
-# print("-- repeating features in the template")
-
-# sr = arcpy.Describe(template_path).spatialReference
-# arcpy.CreateFeatureclass_management(out_path = gdb_path,
-#                             out_name = save_name, 
-#                             # geometry_type = "POLYGON", 
-#                             template = template_path,
-#                             has_m = "SAME_AS_TEMPLATE", 
-#                             has_z = "SAME_AS_TEMPLATE", 
-#                             spatial_reference = sr)
-# rep_fields = ["GEOID10","SHAPE@"]
-# with arcpy.da.SearchCursor(template_path, rep_fields) as curs_in:
-# with arcpy.da.InsertCursor(save_feature_class_path, rep_fields) as curs_out:
-# for row in curs_in:
-#     for i in range(rep_count):
-#         curs_out.insertRow(row)
-# arcpy.Delete_management(template_path)
-        
-# # The last step is adding a unique ID for joining our 'long' fields (years
-# # and any others). We just add a basic numeric to do this
-# print("-- adding a unique ID field for future joining")
-
-# codeblock = 'val = 0 \ndef processID(): \n    global val \n    start = 1 \n    if (val == 0):  \n        val = start\n    else:  \n        val += 1  \n    return val'
-# arcpy.AddField_management(in_table = save_feature_class_path,
-#                   field_name = "ProcessID",
-#                   field_type = "LONG",
-#                   field_is_required = "NON_REQUIRED")
-# arcpy.CalculateField_management(in_table = save_feature_class_path,
-#                         field = "ProcessID",
-#                         expression = "processID()",
-#                         expression_type = "PYTHON3",
-#                         code_block = codeblock)
-
-# # Creating a dataframe of 'long' fields ----------------------------------
-
-# print("")
-# print("Creating a dataframe of long fields")
-
-# # We can use meshgrid to get all unique combinations of our values of
-# # interest; these values are already stored in "field_values". We then
-# # repeat the entire table "n" times, where n is the number of unique
-# # features in our "init_features_path"; this ensures an exact match with
-# # the results feature class
-# print("-- mesh-gridding all combinations of long values")
-
-# vals = [*field_values.values()]
-# names = [*field_values.keys()]
-# ncol = len(names)
-# df = pd.DataFrame(np.array(np.meshgrid(*vals)).T.reshape(-1, ncol))
-# df.columns = names
-# df = df.sort_values(names).reset_index(drop=True)
-
-# n = int(arcpy.GetCount_management(init_features_path).getOutput(0))
-# df = pd.concat([df]*n).reset_index(drop=True)
-
-# # For joining, we then will want to add our unique identifier
-# print("-- adding a unique ID field for future joining")
-
-# unid = arcpy.da.FeatureClassToNumPyArray(in_table = save_feature_class_path,
-#                                  field_names = "ProcessID")
-# unid = unid.tolist()
-# df["ProcessID"] = unid
-
-# # Saving -----------------------------------------------------------------
-
-# print("")
-# print("Finalizing results feature class")
-
-# # All we need to do here is join the long data frame to the results 
-# # feature class. We can do this on ProcessID
-# print("-- joining long fields to save feature class")
-
-# df_et = np.rec.fromrecords(recList = df.values, 
-#                    names = df.dtypes.index.tolist())
-# df_et = np.array(df_et)
-# arcpy.da.ExtendTable(in_table = save_feature_class_path,
-#              table_match_field = "ProcessID",
-#              in_array = df_et,
-#              array_match_field = "ProcessID")
-# arcpy.DeleteField_management(in_table = save_feature_class_path,
-#                      drop_field = "ProcessID")
-
-# # Done -------------------------------------------------------------------
-
-# print("")
-# print("Done!")
-# print("Feature class for historical data saved to: " + save_feature_class_path)
-# print("")
-# return(save_feature_class_path)   
-    
-    
 # %% Main
 
 if __name__ == "__main__":
-    # Snapshot
-    init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
-    init_features_id_field = "GEOID10"
-    years = [2019]
-    save_feature_class_path = "K:/Projects/MiamiDade/PMT/Data/PMT_snapshot.gdb/Blocks/each_block"
-    polygon = True
-    other_fields = None
     
-    # Snapshot, with land use
-    init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
-    init_features_id_field = "GEOID10"
-    years = [2019]
-    save_feature_class_path = "K:/Projects/MiamiDade/PMT/Data/PMT_snapshot.gdb/Blocks/blocks_floor_area_by_use"
-    polygon = False
-    other_fields = {"K:/Projects/MiamiDade/PMT/Data/Reference/Land_Use_Recode.csv": "GN_VA_LU"}
-    
-    # Snapshot, with mode
-    init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
-    init_features_id_field = "GEOID10"
-    years = [2019]
-    save_feature_class_path = "K:/Projects/MiamiDade/PMT/Data/PMT_snapshot.gdb/Blocks/blocks_by_mode_choice"
-    polygon = False
-    # other_fields = {"K:/Projects/MiamiDade/PMT/Data/Reference/Land_Use_Recode.csv": "GN_VA_LU"}
-    # Where do you get modes?
-    
-    # Trend
+    # Parcels data: living area, parcel area, res units, market value, taxable value
     init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
     init_features_id_field = "GEOID10"
     years = [2014, 2015, 2016, 2017, 2018, 2019]
-    save_feature_class_path = "K:/Projects/MiamiDade/PMT/Data/PMT_trend.gdb/Blocks/blocks_by_year"
-    polygon = False
-    other_fields = None
-    
-    # Trend, with land use
-    init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
-    init_features_id_field = "GEOID10"
-    years = [2014, 2015, 2016, 2017, 2018, 2019]
-    save_feature_class_path = "K:/Projects/MiamiDade/PMT/Data/PMT_trend.gdb/Blocks/blocks_floor_area_by_use_by_year"
-    polygon = False
-    other_fields = {"K:/Projects/MiamiDade/PMT/Data/Reference/Land_Use_Recode.csv": "GN_VA_LU"}
-    
-    # Trend, with mode
-    init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
-    init_features_id_field = "GEOID10"
-    years = [2019]
-    save_feature_class_path = "K:/Projects/MiamiDade/PMT/Data/PMT_trend.gdb/Blocks/blocks_by_mode_choice_by_year"
-    polygon = False
-    # other_fields = {"K:/Projects/MiamiDade/PMT/Data/Reference/Land_Use_Recode.csv": "GN_VA_LU"}
-    # Where do you get modes?
+    inputs_path_format = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Parcels.gdb/Miami_{Year}"
+    fields = {"NO_RES_UNTS": 0, "TOT_LVG_AREA": 0, "LND_SQFOOT": 0, "JV": 0, "TV_NSD": 0}
+    shape_type = "polygon"
+    save_path_format = "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Each_block"
+    other_fields = {"field": {"GN_VA_LU": "Other"},
+                    "reference_path": "K:/Projects/MiamiDade/PMT/Data/Reference/Land_Use_Recode.csv",
+                    "ref_data_match": {"DOR_UC": {"DOR_UC": 999}},
+                    "shape_type": "table",
+                    "save_path": "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Blocks_floor_area_by_use"}
+    other_combos = None
     
     # Run
-    prep_aggregated_featureclass(init_features_path = init_features_path,
-                                 init_features_id_field = init_features_id_field,
-                                 years = years,
-                                 save_feature_class_path = save_feature_class_path,
-                                 polygon = polygon,
-                                 other_fields = other_fields)
+    build_aggregated_datasets(init_features_path = init_features_path,
+                              init_features_id_field = init_features_id_field,
+                              inputs_path_format = inputs_path_format,
+                              years = years,
+                              fields = fields,
+                              shape_type = shape_type,
+                              save_path_format = save_path_format,
+                              other_fields = other_fields,
+                              other_combos = other_combos)
+    
+    # Allocation data: jobs (and by cluster), pop (and by eth), commutes (and by type)
+    init_features_path = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Blocks.gdb/Blocks_2019"
+    init_features_id_field = "GEOID10"
+    years = [2014, 2015, 2016, 2017, 2018, 2019]
+    inputs_path_format = "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Parcels/socioeconomic_and_demographic"
+    shape_type = "polygon"
+    save_path_format = "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Each_block"
+    other_fields = {"field": {"GN_VA_LU": "Other"},
+                    "reference_path": "K:/Projects/MiamiDade/PMT/Data/Reference/Land_Use_Recode.csv",
+                    "ref_data_match": {"DOR_UC": {"DOR_UC": 999}},
+                    "shape_type": "table",
+                    "save_path": "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Blocks_floor_area_by_use"}
+    other_combos = None
+    # Grab fields for this from the shape because there's lots
+    fn = [f.name for f in arcpy.ListFields("K:/Projects/MiamiDade/PMT/Data/PMT_2014.gdb/Parcels/socioeconomic_and_demographic")]
+    fn = [f for f in fn if f not in 
+          ["OBJECTID","Shape","PARCELNO","Shape_Length","Shape_Area","GEOID10","DOR_UC","TOT_LVG_AREA"]]
+    fields = {}
+    for f in fn:
+        fields[f] = 0
+    del fn
+    
+    # Run
+    build_aggregated_datasets(init_features_path = init_features_path,
+                              init_features_id_field = init_features_id_field,
+                              inputs_path_format = inputs_path_format,
+                              years = years,
+                              fields = fields,
+                              shape_type = shape_type,
+                              save_path_format = save_path_format,
+                              other_fields = other_fields,
+                              other_combos = other_combos)
+    
+    
     

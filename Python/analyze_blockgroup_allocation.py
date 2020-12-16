@@ -166,7 +166,7 @@ def analyze_blockgroup_allocation(parcels_path,
                 fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
     arcpy.conversion.FeatureClassToFeatureClass(in_features = parcels_path, 
                                                 out_path = save_gdb_location,
-                                                out_name = "socioeconomic_and_demographic3",
+                                                out_name = "socioeconomic_and_demographic",
                                                 field_mapping = fmap)
     
     # With spatial processing complete, we can delete our intermediates. This
@@ -527,7 +527,9 @@ def analyze_blockgroup_allocation(parcels_path,
     # initialized with this already!
     print("-- selecting columns of interest...")
     to_keep = ["ProcessID",
-               'GEOID10',   
+               parcels_living_area_field,
+               parcels_land_use_field,
+               'GEOID10',  
                'Total_Employment', 
                'CNS01_PAR', 'CNS02_PAR', 'CNS03_PAR', 'CNS04_PAR',
                'CNS05_PAR', 'CNS06_PAR', 'CNS07_PAR', 'CNS08_PAR', 
@@ -555,7 +557,7 @@ def analyze_blockgroup_allocation(parcels_path,
     df_et = np.array(df_et)
     # 2. use ExtendTable to modify the parcels data
     allocation_path = os.path.join(save_gdb_location, 
-                                   "socioeconomic_and_demographic3")
+                                   "socioeconomic_and_demographic")
     arcpy.da.ExtendTable(in_table = allocation_path,
                          table_match_field = "ProcessID",
                          in_array = df_et,
@@ -578,26 +580,26 @@ def analyze_blockgroup_allocation(parcels_path,
 
 
 # %% MAIN
-# if __name__ == "__main__":
-for year in [2016,2017,2018,2019]:
-    print("")
-    print(year)
-    parcels_path = os.path.join("K:/Projects/MiamiDade/PMT/Data/Cleaned",
-                                "Parcels.gdb",
-                                '_'.join(["Miami", str(year)]))
-    bg_for_alloc_path = os.path.join("K:/Projects/MiamiDade/PMT/Data",
-                                     ''.join(["PMT_", str(year), ".gdb"]),
-                                     "BlockGroups/blockgroup_for_alloc")
-    save_gdb_location = os.path.join("K:/Projects/MiamiDade/PMT/Data",
-                                     ''.join(["PMT_", str(year), ".gdb"]),
-                                     "Parcels")
-    parcels_id_field = "PARCELNO"
-    parcels_land_use_field = "DOR_UC"
-    parcels_living_area_field = "TOT_LVG_AREA"
-    analyze_blockgroup_allocation(parcels_path = parcels_path,
-                                  bg_for_alloc_path = bg_for_alloc_path,
-                                  save_gdb_location = save_gdb_location,
-                                  parcels_id_field = "PARCELNO",
-                                  parcels_land_use_field = "DOR_UC",
-                                  parcels_living_area_field = "TOT_LVG_AREA")   
+if __name__ == "__main__":
+    for year in [2015,2016,2017,2018,2019]:
+        print("")
+        print(year)
+        parcels_path = os.path.join("K:/Projects/MiamiDade/PMT/Data/Cleaned",
+                                    "Parcels.gdb",
+                                    '_'.join(["Miami", str(year)]))
+        bg_for_alloc_path = os.path.join("K:/Projects/MiamiDade/PMT/Data",
+                                         ''.join(["PMT_", str(year), ".gdb"]),
+                                         "BlockGroups/blockgroup_for_alloc")
+        save_gdb_location = os.path.join("K:/Projects/MiamiDade/PMT/Data",
+                                         ''.join(["PMT_", str(year), ".gdb"]),
+                                         "Parcels")
+        parcels_id_field = "PARCELNO"
+        parcels_land_use_field = "DOR_UC"
+        parcels_living_area_field = "TOT_LVG_AREA"
+        analyze_blockgroup_allocation(parcels_path = parcels_path,
+                                      bg_for_alloc_path = bg_for_alloc_path,
+                                      save_gdb_location = save_gdb_location,
+                                      parcels_id_field = parcels_id_field,
+                                      parcels_land_use_field = parcels_land_use_field,
+                                      parcels_living_area_field = parcels_living_area_field)   
     
