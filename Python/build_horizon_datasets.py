@@ -43,8 +43,8 @@ def build_snapshot_dataset(inputs_path,
     # 2. Copy the inputs to the save_path
     print("Copying inputs to location for snapshot data")
     
-    arcpy.CopyFeatures_management(in_features = inputs_path,
-                                  out_features = save_path)
+    arcpy.Copy_management(in_data = inputs_path,
+                          out_data = save_path)
     
     # Then we're done!
     print("Done!")
@@ -145,10 +145,60 @@ def build_trend_dataset(inputs_paths,
     arcpy.Merge_management(inputs = inputs_paths,
                            output = save_path)
     
+    # 4. Update the process ID field -- when we merge these all together,
+    # process ID is no longer unique, because it's 1:nrow in each individual
+    # file. So, we need to reset process ID to be 1:nrow of the merged file
+    print("Updating the 'ProcessID' field to retain uniqueness")
+    
+    codeblock = 'val = 0 \ndef processID(): \n    global val \n    start = 1 \n    if (val == 0):  \n        val = start\n    else:  \n        val += 1  \n    return val'
+    arcpy.CalculateField_management(in_table = save_path,
+                                    field = "ProcessID",
+                                    expression = "processID()",
+                                    expression_type = "PYTHON3",
+                                    code_block = codeblock)    
+    
     # Then we're done!
     print("Done!")
     print("Trend data saved to: " + save_path)
     print("")
     return(save_path)
+
+# %% Main
+
+if __name__ == "__main__":
+    
+    # Each block
+    # ----------
+    
+    # Snapshot
+    inputs_path = "K:/Projects/MiamiDade/PMT/Data/PMT_2019.gdb/Each_block"
+    save_path = "K:/Projects/MiamiDade/PMT/Data/PMT_Snapshot.gdb/blocks/Each_block"
+    build_snapshot_dataset(inputs_path = inputs_path,
+                           save_path = save_path)
+    
+    # Trend
+    inputs_paths = "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Each_block"
+    save_path = "K:/Projects/MiamiDade/PMT/Data/PMT_Trend.gdb/blocks/Blocks_by_year"
+    years = [2014, 2015, 2016, 2017, 2018, 2019]
+    build_trend_dataset(inputs_paths = inputs_paths,
+                        save_path = save_path,
+                        years = years)
+    
+    # Block floor area by land use
+    # ----------------------------
+    
+    # Snapshot
+    inputs_path = "K:/Projects/MiamiDade/PMT/Data/PMT_2019.gdb/Blocks_floor_area_by_use"
+    save_path = "K:/Projects/MiamiDade/PMT/Data/PMT_Snapshot.gdb/Blocks_floor_area_by_use"
+    build_snapshot_dataset(inputs_path = inputs_path,
+                            save_path = save_path)
+    
+    # Trend
+    inputs_paths = "K:/Projects/MiamiDade/PMT/Data/PMT_{Year}.gdb/Blocks_floor_area_by_use"
+    save_path = "K:/Projects/MiamiDade/PMT/Data/PMT_Trend.gdb/Blocks_floor_area_by_use_by_year"
+    years = [2014, 2015, 2016, 2017, 2018, 2019]
+    build_trend_dataset(inputs_paths = inputs_paths,
+                        save_path = save_path,
+                        years = years)
         
         
