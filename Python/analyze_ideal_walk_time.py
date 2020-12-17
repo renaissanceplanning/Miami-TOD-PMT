@@ -27,7 +27,7 @@ RADIUS = "7920 Feet"
 
 # %% FUNCTIONS
 def idealWalkTime(parcels_fc, parcel_id_field, target_fc, target_name_field,
-                  radius, out_field, overlap_type="HAVE_THEIR_CENTER_IN",
+                  radius, target_name, overlap_type="HAVE_THEIR_CENTER_IN",
                   sr=None, assumed_mph=3):
     """
     Estimate walk time between parcels and target features (stations, parks,
@@ -62,6 +62,12 @@ def idealWalkTime(parcels_fc, parcel_id_field, target_fc, target_name_field,
         `nearest_{target_name}`, `min_time_{target_name}`,
         `n_{target_name}`, `bin_{target_name}`
     """
+    # output_fields
+    nearest_field = f"nearest_{target_name}"
+    min_time_field = f"min_time_{target_name}"
+    n_field = f"n_{target_name}"
+    bin_field = f"bin_{target_name}"
+
     # Set spatial reference
     if sr is None:
         sr = arcpy.Describe(parcels_fc).spatialReference
@@ -114,10 +120,16 @@ def idealWalkTime(parcels_fc, parcel_id_field, target_fc, target_name_field,
         par_count = gb.size()
         par_nearest = gb["minutes"].idxmin()
         sum_df = pd.concat([par_nearest, par_min, par_count], axis=1)
-        sum_df.columns = [f"nearest_{target_name}",
-                          f"min_time_{target_name}",
-                          f"n_{target_name}"]
+        sum_df.columns = [nearest_field, min_time_field, n_field]
         sum_df.reset_index(inplace=True)
+
+        # Clean output fc columns
+        del_fields = [nearest_field, min_time_field, n_field]
+        for del_field in del_fields:
+            check = arcpy.ListFields(parcels_fc, del_field)
+            if check:
+                print(f"... ... deleting field {del_field}")
+                arcpy.DeleteField_management(parcels_fc, del_field)
 
         # Join to parcels
         print("... extending output table")
@@ -126,9 +138,10 @@ def idealWalkTime(parcels_fc, parcel_id_field, target_fc, target_name_field,
         
         # Add bin field
         print("... classifying")
-        _addField(parcel_fc, bin_field, "TEXT", field_length=20)
+        bin_field = f"bin_{target_name}"
+        _addField(parcels_fc, bin_field, "TEXT", field_length=20)
         arcpy.CalculateField_management(
-            parcel_fc, bin_field, f"assignBin(!{min_time_field}!)",
+            parcels_fc, bin_field, f"assignBin(!{min_time_field}!)",
             expression_type="PYTHON3", code_block=CODE_BLOCK
         )
     except:
@@ -141,7 +154,7 @@ def idealWalkTime(parcels_fc, parcel_id_field, target_fc, target_name_field,
 # %% MAIN
 if __name__ == "__main__":
     parcel_id_field = "PARCELNO"
-    for year in PMT.YEARS[:1]:
+    for year in PMT.YEARS:
         print(year)
         year_gdb = PMT.makePath(PMT.DATA, f"PMT_{year}.gdb")
         # Layer references

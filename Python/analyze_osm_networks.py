@@ -426,7 +426,7 @@ if __name__ == "__main__":
     solved = []
     solved_years = []
     for year in PMT.YEARS:
-        fd = PMT.makePath(PMT.ROOT, f"PMT_{year}.gdb", "Networks")
+        fd = PMT.makePath(PMT.DATA, f"PMT_{year}.gdb", "Networks")
         # Networks
         net_suffix = NET_BY_YEAR[year]
         if net_suffix in solved:
