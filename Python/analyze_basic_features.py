@@ -154,7 +154,8 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     sel_df = long_df[long_df.InCor != 0].copy()
     long_out_fc = PMT.makePath(bf_gdb, long_stn_fc)
     PMT.checkOverwriteOutput(long_out_fc, overwrite)
-    PMT.dfToPoints(sel_df, long_out_fc, ["SHAPE@X", "SHAPE@Y"], spatial_reference=sr)
+    PMT.dfToPoints(sel_df, long_out_fc, ["SHAPE@X", "SHAPE@Y"],
+                   from_sr=sr, to_sr=sr, overwrite=True)
 
     arcpy.env.workspace = old_ws
 
@@ -181,6 +182,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     stn_cor_field: String, default="Corridor
     overwrite: Boolean, default=False
     """
+
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = bf_gdb
 
@@ -197,18 +199,21 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     # - Add fields    
     arcpy.AddField_management(out_fc, "Name", "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, "Corridor", "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, "RowID", "LONG")
 
     # Add all corridors with name="(Entire corridor)", corridor=cor_name_field
     print("... adding corridor polygons")
-    out_fields = ["SHAPE@", "Name", "Corridor"]
+    out_fields = ["SHAPE@", "Name", "Corridor", "RowID"]
     cor_fields = ["SHAPE@", cor_name_field]
     cor_polys = {}
+    i = 0
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
         with arcpy.da.SearchCursor(corridors_fc, cor_fields) as sc:
             for sr in sc:
+                i += 1
                 # Add row for the whole corridor
                 poly, corridor = sr
-                out_row = [poly, "(Entire corridor)", corridor]
+                out_row = [poly, "(Entire corridor)", corridor, i]
                 ic.insertRow(out_row)
                 # Keep the polygons in a dictionary for use later
                 cor_polys[corridor] = poly
@@ -220,10 +225,11 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
         with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
             for sr in sc:
+                i += 1
                 # Add row for each station/corridor combo
                 point, stn_name, corridor = sr
                 poly = point.buffer(buff_dist)
-                out_row = [poly, stn_name, corridor]
+                out_row = [poly, stn_name, corridor, i]
                 ic.insertRow(out_row)
                 # Merge station polygons by corridor in a dict for later use
                 cor_poly = cor_stn_polys.get(corridor, None)
@@ -238,13 +244,15 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
         for corridor in cor_stn_polys.keys():
             # Combined station areas
+            i += 1
             all_stn_poly = cor_stn_polys[corridor]
-            out_row = [all_stn_poly, "(All stations)", corridor]
+            out_row = [all_stn_poly, "(All stations)", corridor, i]
             ic.insertRow(out_row)
             # Non-station areas
+            i += 1
             cor_poly = cor_polys[corridor]
             non_stn_poly = cor_poly.difference(all_stn_poly)
-            out_row = [non_stn_poly, "(Outside station areas)", corridor]
+            out_row = [non_stn_poly, "(Outside station areas)", corridor, i]
             ic.insertRow(out_row)
 
     arcpy.env.workspace = old_ws

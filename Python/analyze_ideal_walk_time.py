@@ -154,7 +154,7 @@ def idealWalkTime(parcels_fc, parcel_id_field, target_fc, target_name_field,
 # %% MAIN
 if __name__ == "__main__":
     parcel_id_field = "PARCELNO"
-    for year in PMT.YEARS[:1]:
+    for year in PMT.YEARS:
         print(year)
         year_gdb = PMT.makePath(PMT.DATA, f"PMT_{year}.gdb")
         # Layer references

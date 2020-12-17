@@ -223,6 +223,42 @@ def fetchJsonUrl(
         return pd.DataFrame(gdf.drop(columns="geometry"))
 
 
+def iterRowsAsChunks(in_table, chunksize=1000):
+    """
+    A generator to iterate over chunks of a table for arcpy processing.
+    This method cannot be reliably applied to a table view of feature
+    layer with a current selection as it alters selections as part
+    of the chunking process.
+
+    Parameters
+    ------------
+    in_table: Table View or Feature Layer
+    chunksize: Integer, default=1000
+
+    Returns
+    --------
+    in_table: Table View of Feature Layer
+        `in_table` is returned with iterative selections applied
+    """
+    # Get OID field
+    oid_field = arcpy.Describe(in_table).OIDFieldName
+    # List all rows by OID
+    with arcpy.da.SearchCursor(in_table, "OID@") as c:
+        all_rows = [r[0] for r in c]
+    # Iterate
+    n = len(all_rows)
+    for i in range(0, n, chunksize):
+        expr_ref = arcpy.AddFieldDelimiters(in_table, oid_field)
+        expr = " AND ".join(
+            [expr_ref + f">{i}",
+             expr_ref + f"<={i + chunksize}"
+            ]
+        )
+        arcpy.SelectLayerByAttribute_management(
+            in_table, "NEW_SELECTION", expr
+        )
+        yield in_table
+
 def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
     """
     Copy features from a raw directory to a cleaned directory.
@@ -383,7 +419,7 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
     )
 
 
-def dfToTable(df, out_table):
+def dfToTable(df, out_table, overwrite=False):
     """
     Use a pandas data frame to export an arcgis table.
 
@@ -391,6 +427,7 @@ def dfToTable(df, out_table):
     -----------
     df: DataFrame
     out_table: Path
+    overwrite: Boolean, default=False
 
     Returns
     --------
@@ -412,8 +449,12 @@ def dfToPoints(df, out_fc, shape_fields,
     out_fc: Path
     shape_fields: [String,...]
         Columns to be used as shape fields (x, y)
-    spatial_reference: SpatialReference
-        A spatial reference to use when creating the output features.
+    from_sr: SpatialReference
+        The spatial reference definition for the coordinates listed
+        in `shape_field`
+    to_sr: SpatialReference
+        The spatial reference definition for the output features.
+    overwrite: Boolean, default=False
 
     Returns
     --------
@@ -423,8 +464,19 @@ def dfToPoints(df, out_fc, shape_fields,
     temp_fc = r"in_memory\temp_points"
 
     # coerce sr to Spatial Reference object
-    from_sr = arcpy.SpatialReference(from_sr)
-    to_sr = arcpy.SpatialReference(to_sr)
+    # Check if it is a spatial reference already
+    try:
+        # sr objects have .type attr with one of two values
+        check_type = from_sr.type
+        type_i = ["Projected", "Geographic"].index(check_type)
+    except:
+        from_sr = arcpy.SpatialReference(from_sr)
+    try:
+        # sr objects have .type attr with one of two values
+        check_type = to_sr.type
+        type_i = ["Projected", "Geographic"].index(check_type)
+    except:
+        to_sr = arcpy.SpatialReference(to_sr)
 
     # build array from dataframe
     in_array = np.array(
