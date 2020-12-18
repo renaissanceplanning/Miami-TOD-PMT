@@ -104,14 +104,14 @@ def build_year_gdb(folder_path):
 
     # build year gdbs
     for year in range(2014, 2020):
-        arcpy.AddMessage(f'...creating PMT yearly GDB for {year}')
+        arcpy.AddMessage(f"...creating PMT yearly GDB for {year}")
         gdb = f"{list(gdbs.keys())[1]}".replace("Year", str(year))
         fds = gdbs["PMT_Year"]["feature_datasets"].keys()
         gdb_path = arcpy.CreateFileGDB_management(
             out_folder_path=folder_path, out_name=gdb
         )
         for fd in fds:
-            arcpy.AddMessage(f'\t- adding FeatureDataset: {fd}')
+            arcpy.AddMessage(f"\t- adding FeatureDataset: {fd}")
             arcpy.CreateFeatureDataset_management(
                 out_dataset_path=gdb_path, out_name=fd, spatial_reference=sr
             )
@@ -123,7 +123,7 @@ def build_time_period_gdbs(folder_path):
 
     # build time period gdb
     for gdb in list(gdbs.keys())[2:]:
-        fds = gdbs[gdb]['feature_datasets'].keys()
+        fds = gdbs[gdb]["feature_datasets"].keys()
         gdb_path = arcpy.CreateFileGDB_management(
             out_folder_path=folder_path, out_name=gdb
         )
@@ -135,7 +135,9 @@ def build_time_period_gdbs(folder_path):
 
 if __name__ == "__main__":
     arcpy.env.overwriteOutput = True
-    out_path = r"C:\Users\V_RPG\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\Temp"
+    out_path = (
+        r"C:\Users\V_RPG\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\Temp"
+    )
 
     # build_year_gdb(folder_path=out_path)
     build_time_period_gdbs(folder_path=out_path)

@@ -17,10 +17,9 @@ import pandas as pd
 import os
 from analyze_osm_networks import NetLoader, _listAccumulationAttributes
 
-
 # %% GLOBALS
 KEEP_FIELDS = [
-    "PARCELNO", 
+    "PARCELNO",
     "ASMNT_YR",
     "DOR_UC",
     "JV",
@@ -32,7 +31,7 @@ KEEP_FIELDS = [
     "TOT_LVG_AREA",
     "NO_BULDNG",
     "NO_RES_UNTS"
-    ]
+]
 
 NET_BY_YEAR = {
     2014: "_q3_2019",
@@ -94,7 +93,7 @@ def initParcelWalkTimeFC(clean_parcels, out_fc, keep_fields,
             raise RuntimeError(f"Output fc {out_fc} already exists")
     # Prepare field mappings
     FM = arcpy.FieldMappings()
-    #FM.addTable(clean_parcels)
+    # FM.addTable(clean_parcels)
     for kf in keep_fields:
         fm = arcpy.FieldMap()
         try:
@@ -175,12 +174,13 @@ def parcelWalkTimes(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     # Summarize
     print(f"... summarizing by {parcel_id_field}, {ref_name_field}")
     sum_tbl = "in_memory\\par_wt_sj_sum"
-    statistics_fields=[[ref_time_field, "MIN"],[ref_time_field, "MEAN"]]
+    statistics_fields = [[ref_time_field, "MIN"], [ref_time_field, "MEAN"]]
     case_fields = [parcel_id_field, ref_name_field]
     sum_tbl = arcpy.Statistics_analysis(
         int_fc, sum_tbl, statistics_fields, case_fields)
     # Delete intersect features
     arcpy.Delete_management(int_fc)
+
     # Dump sum table to data frame
     print("... converting to data frame")
     sum_fields = [f"MEAN_{ref_time_field}"]
@@ -191,6 +191,7 @@ def parcelWalkTimes(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     int_df.columns = [parcel_id_field, ref_name_field, ref_time_field]
     # Delete summary table
     arcpy.Delete_management(sum_tbl)
+
     # Summarize
     print("... summarizing times")
     int_df = int_df.set_index(ref_name_field)
@@ -198,11 +199,13 @@ def parcelWalkTimes(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     which_name = gb.idxmin()
     min_time = gb.min()
     number = gb.size()
+
     # Extend table
     print("... extending output table")
     join_df = pd.concat([which_name, min_time, number], axis=1).reset_index()
     join_df.columns = [parcel_id_field, nearest_field, min_time_field, number_field]
     PMT.extendTableDf(parcel_fc, parcel_id_field, join_df, parcel_id_field)
+
     # Classify result
     print("... classifying")
     _addField(parcel_fc, bin_field, "TEXT", field_length=20)
@@ -212,16 +215,15 @@ def parcelWalkTimes(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     )
 
 
-
 # %% MAIN
 if __name__ == "__main__":
-    target_names = ["stn_walk", "park_walk"] #, "stn_bike", "park_bike"]
+    target_names = ["stn_walk", "park_walk"]  # , "stn_bike", "park_bike"]
     ref_fcs = [
         "walk_to_stn_NON_OVERLAP",
         "walk_to_parks_NON_OVERLAP",
-        #"bike_to_stn_NON_OVERLAP",
-        #"bike_to_parks_NON_OVERLAP"
-        ]
+        # "bike_to_stn_NON_OVERLAP",
+        # "bike_to_parks_NON_OVERLAP"
+    ]
     parcel_id_field = "PARCELNO"
     ref_name_field = "Name"
     ref_time_field = "ToCumul_Minutes"
@@ -241,4 +243,3 @@ if __name__ == "__main__":
             ref_fc = PMT.makePath(net_fd, ref_fc)
             parcelWalkTimes(parcel_fc, parcel_id_field, ref_fc,
                             ref_name_field, ref_time_field, tgt_name)
-
