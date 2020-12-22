@@ -5,7 +5,6 @@ PED_BIKE_QUERY = {"where": "COUNTY_TXT = 'MIAMI-DADE' AND PEDESTRIAN_BICYCLIST_I
 
 FIELDS_DICT = dict(
     [
-        ("geometry", "geometry"),
         ("CRASH_DATE", "DATE"),
         ("DAYOWEEK", "WEEK_DAY"),
         ("LATITUDE", "LAT"),

@@ -14,12 +14,13 @@ Sources inlcude:
 """
 # %% IMPORTS
 import json
-import geopandas as gpd
+# import geopandas as gpd
 import pandas as pd
 import time
-from pathlib import Path
+import os
 from PMT import makePath
 import arcpy
+
 arcpy.env.overwriteOutput = True
 
 from config.config_project import SCRIPTS, DATA, RAW, CLEANED, YEARS
@@ -120,13 +121,13 @@ def combine_incidents(gdf, type_dict):
         gdf.loc[mask, "TRANS_TYPE"] = crash_text
 
 
-def clean_bike_ped_crashes(
-    input_path,
-    out_path,
-    usecols=USE,
-    rename_dict=INCIDENT_TYPES,
-    in_crs=IN_CRS,
-    out_crs=OUT_CRS,
+def clean_crashes_to_GDF(
+        input_path,
+        out_path,
+        usecols=USE,
+        rename_dict=INCIDENT_TYPES,
+        in_crs=IN_CRS,
+        out_crs=OUT_CRS,
 ):
     """
     ingests a file path to a raw geojson file to clean and format for use
@@ -177,24 +178,65 @@ def clean_bike_ped_crashes(
     bp_gdf.to_file(filename=out_path)
 
 
+def validate_json(json_file):
+    try:
+        return json.load(fp=json_file)
+    except ValueError as e:
+        message = f"invalid json file passed: {e}"
+        arcpy.AddMessage(message)
+        raise ValueError(message)
+
+
+def clean_bike_ped_crashes(
+        input_geojson, out_fc, where_clause=None,
+        use_cols=USE, rename_dict=FIELDS_DICT):
+    # validate data are json
+    if validate_json(json_file=input_geojson):
+        # define out pathing
+        out_path, out_fc = os.path.split(out_fc)
+        # convert json to temp feature class
+        temp_points = r"in_memory\\crash_points"
+        all_features = arcpy.JSONToFeatures_conversion(
+            in_json_file=input_geojson, out_features=temp_points,
+            geometry_type="POINT")
+        # reformat attributes and keep only useful
+        fields = [f.name for f in arcpy.ListFields(all_features)]
+        drop_fields = [f for f in fields if f not in use_cols]
+        for drop in drop_fields:
+            arcpy.DeleteField_management(
+                in_table=all_features, drop_field=drop)
+        # rename attributes
+        for name, rename in rename_dict.items():
+            arcpy.AlterField_management(
+                in_table=all_features, field=name,
+                new_field_name=rename, new_field_alias=rename)
+        # utilize where clause to split up points
+        arcpy.FeatureClassToFeatureClass_conversion(
+            in_features=all_features, out_path=out_path,
+            out_name=out_fc, where_clause=where_clause)
+
+
 if __name__ == "__main__":
     # if running code from a local github repo branch
     if GITHUB:
-        ROOT = r"K:\Projects\MiamiDade\PMT"
-        DATA = Path(ROOT, 'Data')
-        RAW = Path(DATA, "Raw")
-        CLEANED = Path(DATA, "Cleaned")
+        ROOT = r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT"
+        DATA = makePath(ROOT, 'Data')
+        RAW = makePath(DATA, "Raw")
+        CLEANED = makePath(DATA, "Cleaned")
 
-    data = Path(RAW, "Safety_Security", "Crash_Data", "bike_ped.geojson")
-    out_path = Path(CLEANED, "Safety_Security", "Crash_Data")
-    out_name = "Miami_Dade_NonMotorist_CrashData.shp"
-    cleaned_file = Path(out_path, out_name)
-    clean_bike_ped_crashes(input_path=data, out_path=cleaned_file, usecols=USE,
-                           rename_dict=INCIDENT_TYPES, in_crs=IN_CRS, out_crs=OUT_CRS, )
+    data = makePath(RAW, "Safety_Security", "Crash_Data", "bike_ped.geojson")
+    # out_path = makePath(CLEANED, "Safety_Security", "Crash_Data")
+    # out_name = "Miami_Dade_NonMotorist_CrashData.shp"
+    # cleaned_file = makePath(out_path, out_name)
+    # clean_bike_ped_crashes(input_path=data, out_path=cleaned_file, use_cols=USE,
+    #                        rename_dict=INCIDENT_TYPES, in_crs=IN_CRS, out_crs=OUT_CRS, )
     for year in YEARS:
-        out_gdb = Path(ROOT, f"PMT_{year}.gdb")
-        crashes = Path(out_gdb, "SafetySecurity")
-        year_wc = f'{arcpy.AddFieldDelimiters(cleaned_file, "YEAR")} = {year}'
-        arcpy.FeatureClassToFeatureClass_conversion(
-            in_features=str(cleaned_file), out_path=str(crashes), out_name="bike_ped_crashes", where_clause=year_wc)
+        if year == 2019:
+            out_gdb = makePath(DATA, f"PMT_{year}_ideal.gdb")
+            FDS = makePath(out_gdb, "Points")
+            out_fc = makePath(out_gdb, FDS, 'bike_ped_crashes')
+            year_wc = f"'YEAR' = {year}"
+            clean_bike_ped_crashes(input_geojson=data, out_fc=out_fc, where_clause=year_wc,
+                                   use_cols=USE, rename_dict=FIELDS_DICT)
+
 
