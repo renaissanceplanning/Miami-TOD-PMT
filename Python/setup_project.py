@@ -16,6 +16,35 @@ import os, sys
 # %% Globals
 FL_STATE_PLANE_FT_EPSG = 2881
 
+
+# class Field(object):
+#     def __init__(self, attribute, data_type):
+#         self.attribute = attribute
+#         self.data_type = data_type
+#
+#
+# class FeatureClass(Field):
+#     def __init__(self, feature_class, attributes, attribute, data_type):
+#         super().__init__(attribute, data_type)
+#         self.feature_class = feature_class
+#         self.attributes = attributes
+#
+#
+# class FeatureDataset(FeatureClass):
+#     def __init__(self, feature_dataset, feature_classes, sr, feature_class, attributes, attribute, data_type):
+#         super().__init__(feature_class, attributes, attribute, data_type)
+#         self.feature_dataset = feature_dataset
+#         self.feature_classes = feature_classes
+#         self.spatial_ref = sr
+#
+#
+# class GeoDB(object):
+#     def __init__(self, gdb_name, feature_datasets, feature_classes):
+#         self.gdb_name = gdb_name
+#         self.feature_datasets = feature_datasets
+#         self.feature_classes = feature_classes
+#
+
 GDB_CONFIG = {
     "geodatabases": {
         "PMT_BasicFeatures": {
@@ -37,45 +66,114 @@ GDB_CONFIG = {
         },
         "PMT_Year": {
             "feature_datasets": {
-                "CensusBlockGroups": {
-                    "feature_classes": ["BgEnrichment", "BgAllocation"]
-                },
-                "Buildings": {"feature_classes": []},
-                "Corridors": {"feature_classes": []},
                 "Networks": {
-                    "feature_classes": [
-                        "BikeToParks_Merge",
-                        "BikeToParks_NoMerge",
-                        "BikeToParks_NonOverlap",
-                        "BikeToParks_Overlap",
-                        "BikeToStn_Merge",
-                        "BikeToStn_NoMerge",
-                        "BikeToStn_NonOverlap",
-                        "BikeToStn_Overlap",
-                        "WalkToParks_Merge",
-                        "WalkToParks_NoMerge",
-                        "WalkToParks_NonOverlap",
-                        "WalkToParks_Overlap",
-                        "WalkToStn_Merge",
-                        "WalkToStn_NoMerge",
-                        "WalkToStn_NonOverlap",
-                        "WalkToStn_Overlap",
-                    ]
+                    "feature_classes": {
+                        "edges": {"attribute_map": [()]},
+                        "osm_ND_Junctions": {"attribute_map": [()]},
+                        "walk_to_parks_MERGE": {
+                            "attribute_map": [("To_Break", "TEXT")]
+                        },
+                        "walk_to_parks_NON_OVERLAP": {
+                            "attribute_map": [("ToCumul_Minutes", "TEXT")]
+                        },
+                        "walk_to_stn_MERGE": {"attribute_map": [("To_Break", "TEXT")]},
+                        "walk_to_stn_NON_OVERLAP": {
+                            "attribute_map": [("ToCumul_Minutes", "TEXT")]
+                        },
+                    }
                 },
-                "Parcels": {
-                    "feature_classes": [
-                        "ContiguityDevelopableArea",
-                        "LandUseAndValue",
-                        "SocioeconomicDemographics",
-                        "WalkTime",
-                    ]
+                "Points": {
+                    "feature_classes": {
+                        "BikePedCrashes": {
+                            "attribute_map": [
+                                ("WEEK_DAY", "TEXT"),
+                                ("INJSEVER", "TEXT"),
+                                ("TRANS_TYPE", "TEXT"),
+                            ]
+                        },
+                        "BuildingPermits": {
+                            "attribute_map": [
+                                ("FOLIO", "TEXT"),
+                                ("STATUS", "TEXT"),
+                                ("UNITS_VAL", "DOUBLE"),
+                                ("COST", "DOUBLE"),
+                                ("PED_ORIENT", "DOUBLE"),
+                            ]
+                        },
+                        "TransitRidership": {
+                            "attribute_map": [
+                                ("DAY_OF_WEEK", "TEXT"),
+                                ("ROUTE", "LONG"),
+                                ("DIRECTION", "TEXT"),
+                                ("ON", "DOUBLE"),
+                                ("OFF", "DOUBLE"),
+                            ]
+                        },
+                    }
                 },
-                "SafetySecurity": {"feature_classes": ["BikePedCrashes"]},
-                "SERPM": {"feature_classes": []},
-                "StationAreas": {"feature_classes": ["DiversityMetrics"]},
-                "Transport": {"feature_classes": ["TransitRidership"]},
+                "Polygons": {
+                    "feature_classes": {
+                        "BlockGroups": {
+                            "attribute_map": [("GEOID10", "TEXT"), ("YEAR", "LONG")]
+                        },
+                        "Blocks": {
+                            "attribute_map": [("GEOID10", "TEXT"), ("YEAR", "LONG")]
+                        },
+                        "MAZ": {"attribute_map": [("MAZ", "LONG")]},
+                        "Parcels": {
+                            "attribute_map": [
+                                ("FOLIO", "TEXT"),
+                                ("DOR_UC", "LONG"),
+                                ("NO_RES_UNTS", "DOUBLE"),
+                                ("TOT_LVG_AR", "DOUBLE"),
+                                ("JV", "DOUBLE"),
+                                ("TV_NSD", "DOUBLE"),
+                                ("LND_SQFOOT", "DOUBLE"),
+                            ]
+                        },
+                        "SummaryAreas": {
+                            "attribute_map": [
+                                ("Name", "TEXT"),
+                                ("Corridor", "TEXT"),
+                                ("RowID", "LONG"),
+                                ("YEAR", "LONG"),
+                            ]
+                        },
+                        "TAZ": {"attribute_map": [("TAZ", "TEXT"),]},
+                    }
+                },
             },
-            "tables": ["BlocksByFloorAreaByUse", "RegionalDiversity"],
+            "tables": {
+                "access_maz": {"attribute_map": [()]},
+                "EconDemo_parcels": {
+                    "attribute_map": [
+                        ("FOLIO", "TEXT"),
+                        ("TotalEmployment", "DOUBLE"),
+                        (),
+                    ]  # CNS{Sector}, JobsBySector
+                },
+                "Enrichment_blockgroups": {"attribute_map": [("GEOID10", "TEXT")]},
+                "LandUseCodes_parcels": {
+                    "attribute_map": [
+                        ("FOLIO", "TEXT"),
+                        ("GN_VA_LU", "TEXT"),
+                        ("RES_NRES", "TEXT"),
+                    ]
+                },
+                "WalkTime_parcels": {
+                    "attribute_map": [
+                        ("FOLIO", "TEXT"),
+                        ("MinTimeStn_walk", "DOUBLE"),
+                        ("MinTimePark_walk", "DOUBLE"),
+                        ("MinTimeStn_ideal", "DOUBLE"),
+                        ("MinTimePark_ideal", "DOUBLE"),
+                        ("BinStn_walk", "TEXT"),
+                        ("BinPark_walk", "TEXT"),
+                        ("BinStn_ideal", "TEXT"),
+                        ("BinPark_ideal", "TEXT"),
+                    ]
+                },
+            },
         },
         "PMT_Snapshot": {
             "feature_datasets": {"CensusBlocks": {"feature_classes": ["EachBlock"]}},
@@ -133,6 +231,7 @@ def build_time_period_gdbs(folder_path):
             )
 
 
+# def validate_year_gdb()
 if __name__ == "__main__":
     arcpy.env.overwriteOutput = True
     out_path = (
