@@ -13,7 +13,6 @@ FIELDS_DICT = dict(
         ("DHSCNTYCTY", "CITY"),
         ("PEDESTRIAN_RELATED_IND", "PED_TYPE"),
         ("BICYCLIST_RELATED_IND", "BIKE_TYPE"),
-        ("GEO_URBAN_RURAL_IND", "LANDUSE"),
         ("INJSEVER", "INJSEVER"),
         ("SPEED_LIMIT", "SPEED_LIM"),
         ("MOST_HARM_EVNT_CD", "HARM_EVNT"),

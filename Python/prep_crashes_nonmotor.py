@@ -18,7 +18,7 @@ import json
 import pandas as pd
 import time
 import os
-from PMT import makePath
+# from PMT import makePath
 import arcpy
 
 arcpy.env.overwriteOutput = True
@@ -40,12 +40,12 @@ from config.config_crashes import (
 
 GITHUB = True
 
-source_folder = makePath(
+source_folder = os.path.join(
     RAW,
     "Safety_Security",
     "Crash_Data",
 )
-output_folder = makePath(
+output_folder = os.path.join(
     CLEANED,
     "Safety_Security",
     "Crash_Data",
@@ -180,9 +180,11 @@ def clean_crashes_to_GDF(
 
 def validate_json(json_file):
     try:
-        return json.load(fp=json_file)
-    except ValueError as e:
-        message = f"invalid json file passed: {e}"
+        with open(json_file) as file:
+            arcpy.AddMessage('Valid JSON')
+            return json.load(file)
+    except json.decoder.JSONDecodeError as e:
+        message = f"Invalid json file passed: {e}"
         arcpy.AddMessage(message)
         raise ValueError(message)
 
@@ -196,46 +198,57 @@ def clean_bike_ped_crashes(
         out_path, out_fc = os.path.split(out_fc)
         # convert json to temp feature class
         temp_points = r"in_memory\\crash_points"
-        all_features = arcpy.JSONToFeatures_conversion(
-            in_json_file=input_geojson, out_features=temp_points,
-            geometry_type="POINT")
-        # reformat attributes and keep only useful
-        fields = [f.name for f in arcpy.ListFields(all_features)]
-        drop_fields = [f for f in fields if f not in use_cols]
-        for drop in drop_fields:
-            arcpy.DeleteField_management(
-                in_table=all_features, drop_field=drop)
-        # rename attributes
-        for name, rename in rename_dict.items():
-            arcpy.AlterField_management(
-                in_table=all_features, field=name,
-                new_field_name=rename, new_field_alias=rename)
-        # utilize where clause to split up points
-        arcpy.FeatureClassToFeatureClass_conversion(
-            in_features=all_features, out_path=out_path,
-            out_name=out_fc, where_clause=where_clause)
+        try:
+            all_features = arcpy.JSONToFeatures_conversion(
+                in_json_file=input_geojson, out_features=temp_points,
+                geometry_type="POINT")
+            # reformat attributes and keep only useful
+            fields = [f.name for f in arcpy.ListFields(all_features) if not f.required]
+            arcpy.AddMessage(fields)
+            drop_fields = [f for f in fields if f not in list(use_cols) + ['Shape']]
+            for drop in drop_fields:
+                arcpy.DeleteField_management(
+                    in_table=all_features, drop_field=drop)
+            # rename attributes
+            for name, rename in rename_dict.items():
+                arcpy.AlterField_management(
+                    in_table=all_features, field=name,
+                    new_field_name=rename, new_field_alias=rename)
+            # utilize where clause to split up points
+            arcpy.FeatureClassToFeatureClass_conversion(
+                in_features=all_features, out_path=out_path,
+                out_name=out_fc, where_clause=where_clause)
+        except Exception as e:
+            arcpy.AddMessage(e)
+            if arcpy.Exists(all_features):
+                arcpy.Delete_management(all_features)
 
 
 if __name__ == "__main__":
+    import setup_project
+
     # if running code from a local github repo branch
     if GITHUB:
-        ROOT = r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT"
-        DATA = makePath(ROOT, 'Data')
-        RAW = makePath(DATA, "Raw")
-        CLEANED = makePath(DATA, "Cleaned")
+        ROOT = r"K:\Projects\MiamiDade\PMT"
+        DATA = os.path.join(ROOT, 'Data')
+        RAW = os.path.join(DATA, "Raw")
+        CLEANED = os.path.join(DATA, "Cleaned")
+        TEST = os.path.join(DATA, "Temp")
 
-    data = makePath(RAW, "Safety_Security", "Crash_Data", "bike_ped.geojson")
+    data = os.path.join(RAW, "Safety_Security", "Crash_Data", "bike_ped.geojson")
     # out_path = makePath(CLEANED, "Safety_Security", "Crash_Data")
     # out_name = "Miami_Dade_NonMotorist_CrashData.shp"
     # cleaned_file = makePath(out_path, out_name)
     # clean_bike_ped_crashes(input_path=data, out_path=cleaned_file, use_cols=USE,
     #                        rename_dict=INCIDENT_TYPES, in_crs=IN_CRS, out_crs=OUT_CRS, )
+    year_gdb_config = setup_project.GDB_CONFIG['geodatabases']['PMT_Year']
+    # setup_project.build_year_gdb(TEST)
     for year in YEARS:
         if year == 2019:
-            out_gdb = makePath(DATA, f"PMT_{year}_ideal.gdb")
-            FDS = makePath(out_gdb, "Points")
-            out_fc = makePath(out_gdb, FDS, 'bike_ped_crashes')
-            year_wc = f"'YEAR' = {year}"
+            out_gdb = os.path.join(TEST, f"PMT_{year}.gdb")
+            FDS = os.path.join(out_gdb, "Points")
+            out_fc = os.path.join(out_gdb, FDS, 'bike_ped_crashes')
+            year_wc = f'"YEAR" = {year}'
             clean_bike_ped_crashes(input_geojson=data, out_fc=out_fc, where_clause=year_wc,
                                    use_cols=USE, rename_dict=FIELDS_DICT)
 
