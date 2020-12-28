@@ -25,7 +25,7 @@ DATA = os.path.join(ROOT, "Data")
 RAW = os.path.join(DATA, "Raw")
 CLEANED = os.path.join(DATA, "Cleaned")
 REF = os.path.join(DATA, "Reference")
-BASIC_FEATURES = os.path.join(DATA, "Basic_features.gdb", "Basic_features_SPFLE")
+BASIC_FEATURES = os.path.join(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
 
@@ -381,7 +381,9 @@ def colMultiIndexToNames(columns, separator="_"):
     flat_columns: pd.Index
     """
     if isinstance(columns, pd.MultiIndex):
-        columns = columns.to_series().apply(lambda col: separator.join(col))
+        columns = columns.to_series().apply(
+            lambda col: separator.join(col)
+            )
     return columns
 
 
@@ -415,7 +417,7 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
         table_match_field=table_match_field,
         in_array=in_array,
         array_match_field=df_match_field,
-        **kwargs,
+        **kwargs
     )
 
 

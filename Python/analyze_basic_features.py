@@ -15,10 +15,10 @@ from six import string_types
 
 # %% GLOBALS
 # Station params
-STATIONS_FC = "SMART_Plan_Stations"
+STATIONS_FC = "SMARTplanStations"
 STN_BUFF_DIST = "2640 Feet"
 STN_BUFF_METERS = 804.672
-STN_DISS_FIELDS = ["Id", "Name"]
+STN_DISS_FIELDS = ["Id", "Name", "Status"]
 STN_CORRIDOR_FIELDS = ["Beach",
                        "EastWest",
                        "Green",
@@ -30,16 +30,16 @@ STN_CORRIDOR_FIELDS = ["Beach",
                        "South"]
 
 # Alignment params
-ALIGNMENTS_FC = "SMART_Plan_Alignments"
+ALIGNMENTS_FC = "SMARTplanAlignments"
 ALIGN_DISS_FIELDS = "Corridor"
 ALIGN_BUFF_DIST = "2640 Feet"
 CORRIDOR_NAME_FIELD = "Corridor"
 
 # Outputs
-STN_AREAS_FC="Station_Areas"
+STN_AREAS_FC="StationAreas"
 CORRIDORS_FC="Corridors"
-LONG_STN_FC="Stations_Long"
-SUM_AREAS_FC = "Summary_Areas"
+LONG_STN_FC="StationsLong"
+SUM_AREAS_FC = "SummaryAreas"
 
 # Other
 RENAME_DICT = {
