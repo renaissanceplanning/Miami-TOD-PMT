@@ -1,220 +1,202 @@
 # -*- coding: utf-8 -*-
+"""
+Created on Tue Dec 22 09:49:14 2020
 
-#clip_geometry_path = r"C:\Users\rpg_f.FL3\Downloads\Impervious\MDC.shp"
-#impervious_zip_path = r"C:\Users\rpg_f.FL3\Downloads\Impervious\Imperviousness_2016.zip"
-#transform_epsg = None
-#save_directory = r"C:\Users\rpg_f.FL3\Downloads\Impervious"
+@author: AZ7
+"""
 
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
+# %% Imports
+
+import arcpy
+import os
+import zipfile
+import re
+
+# %% Functions
 
 def prep_imperviousness(impervious_zip_path,
                         clip_geometry_path,
                         save_directory,
-                        transform_epsg=None):
-    """
+                        transform_crs=None):
+    '''
     Clean a USGS impervious surface raster by:
         1. Clipping to the bounding box of a study area
         2. Transforming the clipped raster to a desired CRS
     
     Parameters 
-    --------------
+    ----------
     impervious_zip_path: Path 
-        .zip folder of downloaded imperviousness raster (see `dl_imperviousness`)
+        .zip folder of downloaded imperviousness raster (see the
+        `dl_imperviousness` function)
     clip_geometry_path: Path
-        .shp file of study area whose bounding box will be used to clip the raster
-    transform_epsg: Int
-        EPSG for desired raster transform
-        Default `None`, CRS of shape from `clip_geometry_path` will be used
-        for the transform
+        path of study area polygon(s) whose bounding box will be used to clip 
+        the raster
     save_directory: Path
         save location for the clipped and transformed raster
+    transform_epsg: Anything accepted by arcpy.SpatialReference(), optional
+        Identifier of spatial reference to which to transform the clipped
+        raster; can be any form accepted by arcpy.SpatialReference(), see
+        https://pro.arcgis.com/en/pro-app/latest/arcpy/classes/spatialreference.htm
+        Default `None`, CRS of shape from `clip_geometry_path` will be used
+        for the transform
     
     Returns
-    ---------------
-    No return; file will be clipped, transformed, and saved, and the save path
-    will be printed at the completion of saving
-    
-    Raises
-    ---------------
-    TypeError
-        If `impervious_zip_path` is not a string
-        If `clip_geometry_path` is not a string
-        If `transform_epsg` is not an int (or None)
-        If `save_directory` is not a string
-    FileNotFoundError:
-        If `impervious_zip_path` is not a valid path
-        If `clip_geometry_path` is not a valid path
-    ValueError
-        If `impervious_zip_path` does not point to a .zip
-        If `clip_geometry_path` does not point to a .shp
-        If `save_directory` does not exist and cannot be created
-    """
-    
-    # Imports ----------------------------------------------------------------
-    
-    import os
-    import zipfile
-    import re
-    import rasterio
-    from rasterio.warp import calculate_default_transform, reproject, Resampling
-    import geopandas as gpd
-    
-    # Validation of inputs ---------------------------------------------------
-    
-    # impervious_zip_path: 
-    # 1. must be a string
-    # 2. must be an existing file
-    # 3. must be .zip
-    if type(impervious_zip_path) is not str:
-        raise TypeError(''.join(["'impervious_zip_path' must be a string ",
-                                 "pointing to a .zip of an imperviousness ",
-                                 "raster"]))
-    if not os.path.exists(impervious_zip_path):
-        raise FileNotFoundError("'impervious_zip_path' is not a valid path")
-    if impervious_zip_path.split(".")[-1] != "zip":
-        raise ValueError("'impervious_zip_path' does not point to a .zip")
-    
-    # clip_geometry_path: 
-    # 1. must be a string
-    # 2. must be an existing file
-    # 3. must be .shp
-    if type(clip_geometry_path) is not str:
-        raise TypeError(''.join(["'clip_geometry_path' must be a string ",
-                                 "pointing to a .shp of a study area"]))
-    if not os.path.exists(clip_geometry_path):
-        raise FileNotFoundError("'clip_geometry_path' is not a valid path")
-    if clip_geometry_path.split(".")[-1] != "shp":
-        raise ValueError("'clip_geometry_path' does not point to a shapefile")
-    
-    # transform_epsg: 
-    # 1. must be an int
-    if transform_epsg is not None:
-        if type(transform_epsg) is not int:
-            raise TypeError("'transform_epsg' must be an int")
-    
-    # save directory: 
-    # 1. must be a string
-    # 2. must be an existing or creatable directory
-    if type(save_directory) is not str:
-        raise TypeError("'save_directory' must be a string")
-    if not os.path.exists(save_directory):
-        try: 
-            os.mkdir(save_directory)
-        except:
-            raise ValueError(''.join(["'save_directory' is not a valid ",
-                                      "directory (or otherwise cannot be ",
-                                      "created)"]))
-    
-    # Read -------------------------------------------------------------------
-    
-    print("Reading study area...")
-    # We need to:
-    # 1. Read the study area file
-    # 2. If a transform EPSG is given, transform to this CRS
-    # 3. Extract the bbox and CRS
-    geom = gpd.read_file(clip_geometry_path)
-    if transform_epsg is not None:
-        geom = geom.to_crs(epsg = transform_epsg)
-    write_crs = geom.crs
+    -------
+    File will be clipped, transformed, and saved to the save directory; the
+    save path will be returned upon completion
+    '''
 
-    # Clip (more specifically, read windowed raster) -------------------------
+    # 1. Unzip the raw raster
+    # -----------------------
+    print("")
+    print("1. Unzipping the imperviousness raster")
     
-    print("Setting up raster clipping geometry from study area bounds...")    
+    # Extract the raster from the zip
+    # Thanks: https://stackoverflow.com/questions/3451111/unzipping-files-in-python
+    print("1.1 extracting the raster (please be patient, may take 10-20 minutes)")
+    
+    with zipfile.ZipFile(impervious_zip_path, 'r') as z:
+        z.extractall(save_directory)
+       
     # Get the name of the raster from within the zip (the .img file)
+    print("1.2 identifying the raster file itself")
+    
     zipped_files = zipfile.ZipFile(impervious_zip_path, 'r').namelist()
     ras_path = [f for f in zipped_files if bool(re.search(".img$", f))][0]
+    unzipped_file = os.path.join(save_directory,
+                                 ras_path) 
     
-    # Obtain the raster CRS
-    zip_dir = open(impervious_zip_path, 'rb')
-    with rasterio.io.ZipMemoryFile(zip_dir) as zmf:
-        with zmf.open(ras_path) as rp:
-            imp_crs = rp.crs
+    # 2. Clip the unzipped raster
+    # ---------------------------
+    print("")
+    print("2. Clipping the unzipped raster to the clip geometry")
     
-    # Now we can do a windowed read
-    # 1. Transform geom to match the imperviousness CRS
-    # 2. Take the bbox of the study area
-    # 3. Set up a rasterio window from these coordinates
-    geom = geom.to_crs(imp_crs)
-    transformed_bbox = geom.total_bounds
-    zip_dir = open(impervious_zip_path, 'rb')
-    with rasterio.io.ZipMemoryFile(zip_dir) as zmf:
-        with zmf.open(ras_path) as rp:
-            cw = rp.window(*transformed_bbox)
+    # Set a file name to save to
+    print("2.1 setting a file name for the clipped raster")
     
-    print("Reading imperviousness raster within clipping geometry...")
-    # Read the raster within the window
-    zip_dir = open(impervious_zip_path, 'rb')
-    with rasterio.io.ZipMemoryFile(zip_dir) as zmf:
-        with zmf.open(ras_path) as rp:        
-            ras = rp.read(1, window = cw)
+    clipped_file = os.path.join(save_directory,
+                                "Clipped.img")
     
-    # Transform (more specifically, save, then transform, then resave) -------
+    # Get the raster crs -- if the polygon is not in the CRS of the raster,
+    # we'll need to transform prior to doing the clip
+    print("2.2 identifying the raster CRS")
     
-    print("Saving copy of clipped raster in original CRS...")
+    raster_crs = arcpy.Describe(unzipped_file).spatialReference
+    raster_crs_string = raster_crs.name
     
-    # Extract window transform
-    zip_dir = open(impervious_zip_path, 'rb')
-    with rasterio.io.ZipMemoryFile(zip_dir) as zmf:
-        with zmf.open(ras_path) as rp:    
-            ras_transform = rp.window_transform(cw)
+    # Grab clip geometry CRS to check if it's the same as the raster
+    print("2.3 checking if a transformation of the clip geometry is necessary")
     
-    # Set up save path for the copy
-    bp = os.path.basename(impervious_zip_path)
-    save_path_copy = os.path.join(save_directory,
-                                  '_'.join([bp.split(".zip")[0], 
-                                            "COPY.tif"]))
+    clip_crs = arcpy.Describe(clip_geometry_path).spatialReference
+    clip_crs_string = clip_crs.name
     
-    # Save copy
-    with rasterio.open(save_path_copy, 
-                       'w', 
-                       driver = 'GTiff',
-                       height = ras.shape[0], 
-                       width = ras.shape[1],
-                       count = 1, 
-                       dtype = str(ras.dtype),
-                       crs = imp_crs,
-                       transform = ras_transform) as wp:
-        wp.write(ras, 1)
+    # Transform the clip geometry if necessary
+    if clip_crs_string != raster_crs_string:
+        print("2.3.1 transforming the clip geometry to match the raster CRS")
         
-    print("Reprojecting copy to desired CRS (and re-saving)...")
+        project_file = os.path.join(save_directory,
+                                    "Project.shp")
+        arcpy.Project_management(in_dataset = clip_geometry_path,
+                                 out_dataset = project_file,
+                                 out_coor_system = raster_crs)
+        clip_geometry_path = project_file
     
-    # Set up save path for the reprojection
-    save_path_true = os.path.join(save_directory,
-                                  '_'.join([bp.split(".zip")[0], 
-                                            "Clipped.tif"]))
+    # Grab the bounding box of the clipping file
+    print("2.4 grabbing the bounding box for the raster clip")
     
-    # Open and get info, then save a reprojected version
-    with rasterio.open(save_path_copy) as src:
-        transform, width, height = calculate_default_transform(
-            src.crs, write_crs, src.width, src.height, *src.bounds
-        )
-        kwargs = src.meta.copy()
-        kwargs.update({'crs': write_crs,
-                       'transform': transform,
-                       'width': width,
-                       'height': height})
+    bbox = arcpy.Describe(clip_geometry_path).Extent
+    
+    # Clip raster by the extent
+    print("2.5 clipping the unzipped raster to the clip geometry bounds")
+    
+    arcpy.Clip_management(in_raster = unzipped_file,
+                          rectangle = "",
+                          out_raster = clipped_file,
+                          in_template_dataset = bbox.polygon,
+                          clipping_geometry = "ClippingGeometry")
+    
+    # Delete the unzipped file and the project file (if it exists)
+    print("2.6 deleting intermediates")
+    
+    for uzf in zipped_files:
+        ftd = os.path.join(save_directory,
+                           uzf)
+        arcpy.Delete_management(ftd)
+        
+    if arcpy.Exists(project_file):
+        arcpy.Delete_management(project_file)
+    
+    # 3. Transform the clipped raster
+    # -------------------------------
+    print("")
+    print("3. Transforming the clipped raster to the transform EPSG")
+    
+    # Set a path to save the output raster
+    print("3.1 setting a name for the transformed raster")
+    
+    transformed_name = os.path.basename(impervious_zip_path)
+    transformed_name = transformed_name.replace(".zip", "_Clipped.img")
+    transformed_file = os.path.join(save_directory,
+                                    transformed_name)
+    
+    # Set the spatial reference for the epsg
+    print("3.2 defining the CRS for the transform")
+    
+    if transform_epsg is None:
+        # Take the transform crs as the clip geometry crs
+        transform_sr = clip_crs
+    else:
+        # Set the crs from the provided
+        transform_sr = arcpy.SpatialReference(transform_epsg)
+    
+    # Reproject the raster (if the transform is unique from the raster itself)
+    
+    if transform_sr.name != raster_crs_string:
+        # Reprojection is required
+        print("3.3 reprojecting the clipped raster to the transform CRS")
+        
+        arcpy.ProjectRaster_management(in_raster = clipped_file,
+                                       out_raster = transformed_file,
+                                       out_coor_system = transform_sr,
+                                       resampling_type = "NEAREST")
+    else:
+        # The clip file is our final file, so rename if we're not transforming
+        print("3.3 requested transform is same as raster CRS; renaming clipped file")
+        
+        arcpy.Rename_management(in_file = clipped_file,
+                                out_file = transformed_file)
+    
+    # Delete the clipped file
+    if arcpy.Exists(clipped_file):
+        print("3.4 deleting intermediates")
+        arcpy.Delete_management(clipped_file)
+ 
+    # 4. Done
+    # -------
+    print("")
+    print("Done!")
+    print("Cleaned imperviousness raster saved to: " + transformed_file)
+    print("")
+    return(transformed_file)
+        
+# %% Main
 
-        with rasterio.open(save_path_true, 'w', **kwargs) as dst:
-            reproject(source = rasterio.band(src, 1),
-                      destination = rasterio.band(dst, 1),
-                      src_transform = src.transform,
-                      src_crs = src.crs,
-                      dst_transform = transform,
-                      dst_crs = write_crs,
-                      resampling = Resampling.nearest)
+if __name__ == "__main__":
+    # Set inputs
+    impervious_zip_path = r"K:\Projects\MiamiDade\PMT\Data\Raw\Imperviousness\Imperviousness_2016.zip"
+    clip_geometry_path = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\parcels.gdb\Miami_2019"
+    save_directory = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Imperviousness"
+    transform_epsg = None
     
-    # Deleting the copy file
-    os.remove(save_path_copy)
+    # Run the function
+    prep_imperviousness(impervious_zip_path = impervious_zip_path,
+                        clip_geometry_path = clip_geometry_path,
+                        save_directory = save_directory,
+                        transform_epsg = transform_epsg)
     
-    # Confirm save
-    print("-- saved to: " + save_path_true) 
+    
+    
 
-    # Done -------------------------------------------------------------------
-    
-    print("Done!\n")
-    return None
     
     
     

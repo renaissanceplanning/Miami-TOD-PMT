@@ -1,187 +1,210 @@
 # -*- coding: utf-8 -*-
+"""
+Created on Tue Dec 22 13:12:35 2020
 
-#impervious_path = r"C:\Users\rpg_f.FL3\Downloads\Impervious\Imperviousness_2016_Clipped.tif"
-#zone_geometries_path = r"C:\Users\rpg_f.FL3\Downloads\Impervious\MDC.shp"
-#save_directory = r"C:\Users\rpg_f.FL3\Downloads\Impervious"
+@author: Aaron Weinstock
+"""
 
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
+# rasterio to extract values instead of intersect method
+
+
+# %% Imports
+
+import arcpy
+import tempfile
+import os
+import pandas as pd
+import numpy as np
+
+# %% Function
 
 def analyze_imperviousness(impervious_path,
                            zone_geometries_path,
-                           save_directory=None):
-    """
+                           zone_geometries_id_field,
+                           save_gdb_location):
+    '''
     Summarize percent impervious surface cover in each of a collection of zones
     
     Parameters 
-    --------------
+    ----------
     impervious_path: Path 
-        .tif of clipped, transformed imperviousness raster (see 
-        `prep_imperviousness`)
+        path to clipped/transformed imperviousness raster (see the
+        `prep_imperviousness` function)
     zone_geometries_path: Path
-        .shp file of geometries in which imperviousness will be summarized
-    save_directory: Path
+        path to polygon geometries to which imperviousness will be summarized
+    zone_geometries_id_field: str
+        id field in the zone geometries
+    save_gdb_location: Path
         save location for zonal imperviousness summaries
-        Default `None`, no save performed
     
     Returns
-    ---------------
-    geopandas GeoDataFrame of `zone_geometries`, with percent impervious 
-    added as the column "PerImp" (at the last index)
-    
-    Raises
-    ---------------
-    TypeError
-        If `impervious_path` is not a string
-        If `zone_geometries_path` is not a string
-        If `save_directory` is not a string (or None)
-    FileNotFoundError:
-        If `impervious_path` is not a valid path
-        If `zone_geometries_path` is not a valid path
-    ValueError
-        If `impervious_zip_path` does not point to a .zip
-        If `clip_geometry_path` does not point to a .shp
-        If `save_directory` does not exist and cannot be created
-    """
-    
-    # Imports ----------------------------------------------------------------
-    
-    import os
-    import rasterio
-    import geopandas as gpd
-    from rasterstats import zonal_stats
-    
-    # Validation of inputs ---------------------------------------------------
-    
-    # impervious_zip_path: 
-    # 1. must be a string
-    # 2. must be an existing file
-    # 3. must be .zip
-    if type(impervious_path) is not str:
-        raise TypeError(''.join(["'impervious_path' must be a string ",
-                                 "pointing to a .tif of an imperviousness ",
-                                 "raster"]))
-    if not os.path.exists(impervious_path):
-        raise FileNotFoundError("'impervious_path' is not a valid path")
-    if impervious_path.split(".")[-1] != "tif":
-        raise ValueError("'impervious_path' does not point to a .tif")
-    
-    # zone_geometry_path: 
-    # 1. must be a string
-    # 2. must be an existing file
-    # 3. must be .shp
-    if type(zone_geometries_path) is not str:
-        raise TypeError(''.join(["'zone_geometries_path' must be a string ",
-                                 "pointing to a .shp of zone geometries"]))
-    if not os.path.exists(zone_geometries_path):
-        raise FileNotFoundError("'zone_geometries_path' is not a valid path")
-    if zone_geometries_path.split(".")[-1] != "shp":
-        raise ValueError("'zone_geometries_path' does not point to a shapefile")
+    -------
+    Table of zonal summaries will be saved to the save_gdb_location; the save
+    path will be returned
+    '''
+
+    # Matching imperviousness to zone geometries
+    # ------------------------------------------
+    print("")
+    print("1. Matching imperviousness to zone geometries")
         
-    # save directory: 
-    # 1. must be a string
-    # 2. must be an existing or creatable directory
-    if save_directory is not None:
-        if type(save_directory) is not str:
-            raise TypeError("'save_directory' must be a string")
-        if not os.path.exists(save_directory):
-            try: 
-                os.mkdir(save_directory)
-            except:
-                raise ValueError(''.join(["'save_directory' is not a valid ",
-                                          "directory (or otherwise cannot be ",
-                                          "created)"]))
+    # Set up an intermediates gdb
+    print("1.1. setting up an intermediates gdb")
     
-    # Read -------------------------------------------------------------------
+    temp_dir = tempfile.mkdtemp()
+    arcpy.CreateFileGDB_management(out_folder_path = temp_dir,
+                                   out_name = "Intermediates.gdb")
+    intmd_gdb = os.path.join(temp_dir, "Intermediates.gdb")
     
-    print("Reading impervious raster...")
+    # Convert raster to point (and grabbing cell size)
+    print("1.2. converting raster to point")
     
-    # Read the raster, and also get it's CRS and affine transform
-    with rasterio.open(impervious_path, "r") as rp:
-        A = rp.transform
-        raster_crs = rp.crs
-        ras = rp.read(1)
+    rtp_path = os.path.join(intmd_gdb,
+                            "raster_to_point")
+    arcpy.RasterToPoint_conversion(in_raster = impervious_path, 
+                                   out_point_features = rtp_path)
+    
+    # Intersect raster with zones
+    print("1.3. matching raster points to zones")
+    
+    intersection_path = os.path.join(intmd_gdb,
+                                     "intersection")
+    arcpy.Intersect_analysis(in_features = [rtp_path,
+                                            zone_geometries_path], 
+                             out_feature_class = intersection_path)
+    
+    # Load the intersection data
+    print("1.4. Loading raster/zone data")
+    
+    load_fields = [zone_geometries_id_field, "grid_code"]
+    df = arcpy.da.FeatureClassToNumPyArray(in_table = intersection_path,
+                                           field_names = load_fields)
+    df = pd.DataFrame(df)
+    # arcpy.Delete_management(intmd_gdb)
+    
+    # Values with 127 are nulls -- replace with 0
+    print("1.5. replacing null impervious values with 0")
+    
+    df['grid_code'] = df['grid_code'].replace(127, 0)
         
-    # Reset nodata values (> 100, these are non-modeled areas in the
-    # impervious surface raster) to 0
-    ras[ras > 100] = 0
+    # Summarizing to the zone level
+    # -----------------------------
+    print("")
+    print("2. Summarizing zonal imperviousness statistics")
+    
+    # Identify the raster cell size 
+    print("2.1 grabbing impervious raster cell size")
+    
+    cellx = arcpy.GetRasterProperties_management(in_raster = impervious_path,
+                                                 property_type = "CELLSIZEX")
+    celly = arcpy.GetRasterProperties_management(in_raster = impervious_path,
+                                                 property_type = "CELLSIZEY")
+    cs = float(cellx.getOutput(0)) * float(celly.getOutput(0))
+    
+    # # Summarize imperviousness to the zone only
+    # print("2.2 summarizing impervious percent")
+    
+    # mean_imp = df.groupby(zone_geometries_id_field)["grid_code"].agg([("Imperviousness","mean")])
+    # mean_imp = mean_imp.reset_index()
+    
+    # # Now, summarize all the area statistics
+    # print("2.3 summarizing impervious area")
+    
+    # df["Class"] = None
+    # df.loc[df.grid_code == 0, "Class"] = "NonDevArea"
+    # df.loc[df.grid_code.between(1, 19), "Class"] = "DevOSArea"
+    # df.loc[df.grid_code.between(20, 49), "Class"] = "DevLowArea"
+    # df.loc[df.grid_code.between(50, 79), "Class"] = "DevMedArea"
+    # df.loc[df.grid_code >= 80, "Class"] = "DevHighArea"
+    # df["Area"] = cs
+    # area_sum = pd.pivot_table(data = df,
+    #                           values = "Area",
+    #                           index = [zone_geometries_id_field],
+    #                           columns = ["Class"], 
+    #                           aggfunc = np.sum,
+    #                           fill_value = 0)
+    # area_sum = area_sum.reset_index()
+    
+    # # Now, all that's left is to join everything up
+    # print("2.4 joining percent and area summaries)
+    
+    # zonal = pd.merge(mean_imp,
+    #                  area_sum,
+    #                  left_on = zone_geometries_id_field,
+    #                  right_on = zone_geometries_id_field,
+    #                  how = "outer")
+    # zonal = zonal.reset_index()
+    # zonal = zonal.fillna(0)    
+               
+    # Groupby-summarise the variables of interest
+    print("2.2 calculating zonal summaries")
+    
+    zonal = df.groupby(zone_geometries_id_field)["grid_code"].agg([("IMP_PCT", np.mean),
+                                                                   ("TotalArea", lambda x: x.count() * cs),
+                                                                   ("NonDevArea", lambda x: x[x == 0].count() * cs), 
+                                                                   ("DevOSArea", lambda x: x[x.between(1, 19)].count() * cs), 
+                                                                   ("DevLowArea", lambda x: x[x.between(20, 49)].count() * cs), 
+                                                                   ("DevMedArea", lambda x: x[x.between(50, 79)].count() * cs),
+                                                                   ("DevHighArea", lambda x: x[x >= 80].count() * cs)])
+    zonal = zonal.reset_index()
+    
+    # Writing results
+    # ---------------
+    print("")
+    print("3. Writing results")
+    
+    # Set the save name
+    print("3.1 setting a save name/path")
+    
+    save_path = os.path.join(save_gdb_location,
+                             "Imperviousness_blocks")
+    
+    # Write the df to table
+    print("3.2 saving results to table")
+    
+    zonal_et = np.rec.fromrecords(recList = zonal.values, 
+                                  names = zonal.dtypes.index.tolist())
+    zonal_et = np.array(zonal_et)
+    arcpy.da.NumPyArrayToTable(in_array = zonal_et,
+                               out_table = save_path)
+    
+    # Done
+    # ----
+    print("")
+    print("Done!")
+    print("Imperviousness summary table saved to: " + save_path)
+    print("")
+    return(save_path)
+
+# %% Main
+
+if __name__ == "__main__":
+    
+    # This will create a table of imperviousness by block for 2019. Then, it
+    # will copy it to the 2014-2018 geodatabases (since neither the blocks or
+    # impervious raster changes in the span 2014-2019)
+    
+    # Inputs
+    impervious_path = 'K:\\Projects\\MiamiDade\\PMT\\Data\\Cleaned\\Imperviousness\\Imperviousness_2016_Clipped.img'
+    zone_geometries_path = 'K:\\Projects\\MiamiDade\\PMT\\Data\\Cleaned\\blocks.gdb\\Blocks_2019'
+    zone_geometries_id_field = 'GEOID10'
+    save_gdb_location = 'K:\\Projects\\MiamiDade\\PMT\\Data\\PMT_2019.gdb'
+    
+    # Function
+    first_run = analyze_imperviousness(impervious_path = impervious_path,
+                                       zone_geometries_path = zone_geometries_path,
+                                       zone_geometries_id_field = zone_geometries_id_field,
+                                       save_gdb_location = save_gdb_location)
+    
+    # Copy to other years
+    for year in [2014, 2015, 2016, 2017, 2018]:
+        yr = str(year)
+        print("Copying to " + yr + " geodatabase")
+        save_path = os.path.join("K:\\Projects\\MiamiDade\\PMT\\Data",
+                                 ''.join(["PMT_", yr, ".gdb"]),
+                                 "Imperviousness_blocks")
+        arcpy.Copy_management(in_data = first_run,
+                              out_data = save_path)
         
-    print("Reading zone geometries...")
     
-    # Read zone geometries
-    zg = gpd.read_file(zone_geometries_path)
-    
-    # If zone CRS != raster CRS, transform zone to match raster
-    if not zg.crs.equals(raster_crs):
-        print("-- transforming zone geometries to match CRS of raster...")
-        zg = zg.to_crs(raster_crs)
-    
-    # Zonal summary ----------------------------------------------------------
-    
-    print("Summarizing imperviousness to zones...")
-    
-    # Use zonal_stats to pull
-    zone_summary = zonal_stats(vectors = zg,
-                               raster = ras,
-                               affine = A,
-                               stats = "mean",
-                               nodata = 0)
-    
-    # Turn to list to add to dataframe
-    zone_summary = [zone["mean"] for zone in zone_summary]
-    
-    # Add back to dataframe
-    idx = len(zg.columns) - 1
-    zg.insert(idx, "PerImp", zone_summary)
-    
-    # Save -------------------------------------------------------------------
-    
-    if save_directory is not None:
-        print("Saving...")
-        
-        # Setting up file name
-        ras_bp = os.path.basename(impervious_path)
-        geo_bp = os.path.basename(zone_geometries_path)
-        save_path = os.path.join(save_directory,
-                                 ''.join([ras_bp, "_", geo_bp, ".shp"]))
-        
-        # Saving
-        zg.to_file(save_path)
-        print("-- saved to: " + save_path)
-    
-    # Done -------------------------------------------------------------------
-    
-    print("Done!\n")
-    return zg    
-    
-    
-    
-    
-    
-        
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
