@@ -18,48 +18,48 @@ import os
 # %% GLOBALS
 KEEP_FIELDS = [
     "PARCELNO", 
-    "ASMNT_YR",
-    "DOR_UC",
+    # "ASMNT_YR",
+    # "DOR_UC",
     "JV",
-    "JV_CHNG",
-    "JV_CHNG_CD",
-    "AV_SD",
-    "AV_NSD",
-    "TV_SD",
+    # "JV_CHNG",
+    # "JV_CHNG_CD",
+    # "AV_SD",
+    # "AV_NSD",
+    # "TV_SD",
     "TV_NSD",
-    "JV_HMSTD",
-    "AV_HMSTD",
-    "JV_NON_HMSTD_RESD",
-    "AV_NON_HMSTD_RESD",
-    "JV_RESD_NON_RESD",
-    "AV_RESD_NON_RESD",
-    "JV_CLASS_USE",
-    "AV_CLASS_USE",
-    "JV_H2O_RECHRGE",
-    "AV_H2O_RECHRGE",
-    "JV_CONSRV_LND",
-    "AV_CONSRV_LND",
-    "JV_HIST_COM_PROP",
-    "AV_HIST_COM_PROP",
-    "JV_HIST_SIGNF",
-    "AV_HIST_SIGNF",
-    "JV_WRKNG_WTRFNT",
-    "AV_WRKNG_WTRFNT",
+    # "JV_HMSTD",
+    # "AV_HMSTD",
+    # "JV_NON_HMSTD_RESD",
+    # "AV_NON_HMSTD_RESD",
+    # "JV_RESD_NON_RESD",
+    # "AV_RESD_NON_RESD",
+    # "JV_CLASS_USE",
+    # "AV_CLASS_USE",
+    # "JV_H2O_RECHRGE",
+    # "AV_H2O_RECHRGE",
+    # "JV_CONSRV_LND",
+    # "AV_CONSRV_LND",
+    # "JV_HIST_COM_PROP",
+    # "AV_HIST_COM_PROP",
+    # "JV_HIST_SIGNF",
+    # "AV_HIST_SIGNF",
+    # "JV_WRKNG_WTRFNT",
+    # "AV_WRKNG_WTRFNT",
     "NCONST_VAL",
-    "DEL_VAL",
+    # "DEL_VAL",
     "LND_VAL",
-    "LND_SQFOOT",
-    "CONST_CLASS",
-    "EFF_YR_BLT",
-    "ACT_YR_BLT",
-    "TOT_LVG_AREA",
-    "NO_BULDNG",
-    "NO_RES_UNTS"
+    # "LND_SQFOOT",
+    # "CONST_CLASS",
+    # "EFF_YR_BLT",
+    # "ACT_YR_BLT",
+    # "TOT_LVG_AREA",
+    # "NO_BULDNG",
+    # "NO_RES_UNTS"
     ]
 
 
 # %% FUNCTION
-def generalizeLandUseByParcel(parcel_fc, out_fc, ref_table,
+def generalizeLandUseByParcel(parcel_fc, out_table, ref_table,
                               field_mappings=None, par_code="DOR_UC",
                               join_code="DOR_UC", dtype={}, 
                               overwrite=False, **kwargs):
@@ -69,15 +69,11 @@ def generalizeLandUseByParcel(parcel_fc, out_fc, ref_table,
     ref_table = pd.read_csv(ref_table, dtype=dtype, **kwargs)
 
     # Copy parcel_fc to out_fc
-    if arcpy.Exists(out_fc):
-        if overwrite:
-            arcpy.Delete_management(out_fc)
-        else:
-            raise RuntimeError(f"Output {out_fc} already exists")
+    PMT.checkOverwriteOutput(out_table, overwrite=overwrite)
     print("...copying parcels to analysis gdb")
-    out_ws, out_name = os.path.split(out_fc)
-    arcpy.FeatureClassToFeatureClass_conversion(parcel_fc, out_ws, out_name,
-                                                field_mapping=field_mappings)
+    out_ws, out_name = os.path.split(out_table)
+    arcpy.TableToTable_conversion(parcel_fc, out_ws, out_name,
+                                  field_mapping=field_mappings)
     
     # Extend table
     print("...extending table")
