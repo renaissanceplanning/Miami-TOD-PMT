@@ -48,11 +48,13 @@ max_of_overlap = function(categories, levels, estimates, tolerance = 0.001){
 
 analyze_energy_consumption = function(cleaned_res_energy_consumption_path,
                                       parcels_path,
+                                      year,
                                       save_directory,
-                                      id_field = "PARCELNO",
+                                      id_field = "FOLIO",
                                       land_use_field = "DOR_UC",
                                       living_area_field = "TOT_LVG_AREA",
-                                      year_built_field = "ACT_YR_BLT"){
+                                      year_built_field = "ACT_YR_BLT",
+                                      res_units_field = "NO_RES_UNTS"){
   
   # Validation ----------------------------------------------------------------
   
@@ -118,10 +120,12 @@ analyze_energy_consumption = function(cleaned_res_energy_consumption_path,
   if(str_detect(parcels_path, "\\.gdb\\/")){
     layer = str_extract(parcels_path, "[^\\/]+$")
     gdb = str_split(parcels_path, paste0("/",layer))[[1]][1]
-    parcels = st_read(parcels_path,
-                      dsn = gdb)
+    parcels = st_read(layer,
+                      dsn = gdb,
+                      quiet = TRUE)
   } else{
-    parcels = st_read(parcels_path)
+    parcels = st_read(parcels_path,
+                      quiet = TRUE)
   }
   
   
@@ -136,18 +140,23 @@ analyze_energy_consumption = function(cleaned_res_energy_consumption_path,
     select(ID = !!sym(id_field),
            LU = !!sym(land_use_field),
            TLA = !!sym(living_area_field),
-           YR = !!sym(year_built_field)) %>%
+           YR = !!sym(year_built_field),
+           RU = !!sym(res_units_field)) %>%
+    replace_na(list(LU = 999,
+                    TLA = 0,
+                    YR = 0,
+                    RU = 0)) %>%
     data.table()
-  parcels = parcels %>% 
-    select(ID = !!sym(id_field))
+  # parcels = parcels %>% 
+  #   select(ID = !!sym(id_field))
   
   # Now we can create the variables!
   pdat[, "Division" := "South Atlantic"]
-  pdat[, "Housing unit" := case_when(LU %in% c() ~ "Apartments in buildings with 2-4 units",
-                                     LU %in% c() ~ "Apartments in buildings with 5 or more units",
-                                     LU %in% c() ~ "Mobile homes",
-                                     LU %in% c() ~ "Single-family attached",
-                                     LU %in% c() ~ "Single-family detached",
+  pdat[, "Housing unit" := case_when(!(LU %in% c("01","02")) & between(RU, 2, 4) ~ "Apartments in buildings with 2-4 units",
+                                     !(LU %in% c("01","02")) & RU >= 5 ~ "Apartments in buildings with 5 or more units",
+                                     LU == "02" ~ "Mobile homes",
+                                     LU == "01" & RU > 1 ~ "Single-family attached",
+                                     LU == "01" & RU == 1 ~ "Single-family detached",
                                      TRUE ~ "FAILED")]
   pdat[, "SQFT" := case_when(TLA <= 999 ~ "Fewer than 1,000",
                              between(TLA, 1000, 1499) ~ "1,000 to 1,499",
@@ -166,25 +175,45 @@ analyze_energy_consumption = function(cleaned_res_energy_consumption_path,
                              YR >= 2010 ~ "2010 to 2015",
                              TRUE ~ "FAILED")]
   
+  # We only want things that are actually residential, so we want to filter our
+  # data to only include RESIDENTIAL parcels
+  pdat = pdat[`Housing unit` != "FAILED"]
+  
   # Merging parcels and energy ------------------------------------------------
   
   cat("Merging parels and energy data...\n")
   
   # Now we can match back to the data we've gathered for energy
   pdat = pdat[, .(ID, Division, `Housing unit`, SQFT, Year)] %>%
-    merge(pdat, uc, all.x=TRUE) %>%
-    .[, .(ID, Energy)]
+    merge(., uc, by = c("Division", "Housing unit", "SQFT", "Year")) %>%
+    .[, .(ID, Energy)] %>%
+    setnames(c(id_field, "BTU_RES"))
   
-  parcels = left_join(parcels, pdat) %>%
-    select(ID, Energy, geometry)
-  names(parcels)[names(parcels) == "ID"] = id_field
+  pdat = merge(parcels %>% st_drop_geometry %>% select(id_field) %>% data.table,
+               pdat,
+               by = id_field,
+               all.x=TRUE)
+  pdat[is.na(pdat)] = 0
+  
+  # Spatialize if desired
+  # parcels = inner_join(parcels, pdat) %>%
+  #   select(ID, Energy, geometry)
+  # names(parcels)[names(parcels) == "ID"] = id_field
   
   # Save ----------------------------------------------------------------------
+  
+  cat("Saving...\n")
+  
+  save_path = file.path(save_directory,
+                        paste0("Res_Energy_", year, ".csv"))
+  write.csv(pdat,
+            save_path,
+            row.names=FALSE)
   
   # Done ----------------------------------------------------------------------
   
   cat("Done!\n")
-  return(parcels)
+  return(save_path)
 }
 
 # -----------------------------------------------------------------------------
@@ -266,22 +295,42 @@ mo_plot = function(categories, levels, estimates, tolerance){
   return(list(plot = p, data = dat, est = est))
 }
 
-n = sample(1:240, 1)
-x = mo_plot(categories = categories,
-            levels = uc[n,1:4] %>% unlist %>% unname %>% as.character(),
-            estimates = iv,
-            tolerance = 0.01)
+# n = sample(1:240, 1)
+# x = mo_plot(categories = categories,
+#             levels = uc[n,1:4] %>% unlist %>% unname %>% as.character(),
+#             estimates = iv,
+#             tolerance = 0.01)
 
 # -----------------------------------------------------------------------------
 # --------------------------------- For PMT -----------------------------------
 # -----------------------------------------------------------------------------
 
-cleaned_res_energy_consumption_path = file.path("K:/Projects/MiamiDade/PMT/",
+cleaned_res_energy_consumption_path = file.path("K:/Projects/MiamiDade/PMT",
                                                 "Data/Cleaned/Energy_Consumption",
                                                 "Residential_Energy_Consumption.csv")
-parcels_path = "K:/Projects/MiamiDade/PMT/PMT_2019.gdb/Miami_2019"
 save_directory = "K:/Projects/MiamiDade/PMT/Data/Cleaned/Energy_Consumption"
-id_field = "PARCELNO",
-land_use_field = "DOR_UC",
-living_area_field = "TOT_LVG_AREA",
+id_field = "FOLIO"
+land_use_field = "DOR_UC"
+living_area_field = "TOT_LVG_AREA"
 year_built_field = "ACT_YR_BLT"
+res_units_field = "NO_RES_UNTS"
+
+for(year in 2015:2018){
+  cat(year, "\n")
+  parcels_path = file.path("K:/Projects/MiamiDade/PMT/Data",
+                           paste0("IDEAL_PMT_", year, ".gdb"),
+                           "Parcels")
+  aec = analyze_energy_consumption(
+    cleaned_res_energy_consumption_path = cleaned_res_energy_consumption_path,
+    parcels_path = parcels_path,
+    year = year,
+    save_directory = save_directory,
+    id_field = id_field,
+    land_use_field = land_use_field,
+    living_area_field = living_area_field,
+    year_built_field = year_built_field,
+    res_units_field = res_units_field
+  )
+}
+
+
