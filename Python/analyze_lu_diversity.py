@@ -30,6 +30,7 @@ import arcpy
 import pandas as pd
 import numpy as np
 import os
+import re
 
 # %% FUNCTIONS
 
@@ -326,9 +327,7 @@ def analyze_lu_diversity(parcels_path,
         # Adjust to 0-1 scale
         diversity["Simpson"] = 1 - diversity["Simpson"]
         diversity_metrics.append(diversity)
-    
-    # YOU ARE HERE
-    
+        
     # 2. Shannon 
     if "shannon" in how:
         print("------> Shannon")
@@ -551,8 +550,7 @@ def analyze_lu_diversity(parcels_path,
                 "Region_Table": region_path})
     else:
         return(diversity_path)
-        
-        
+    
 # %% MAIN
 if __name__ == "__main__":
 
