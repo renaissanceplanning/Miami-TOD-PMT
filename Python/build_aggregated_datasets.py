@@ -5,13 +5,16 @@ Created on Mon Dec  7 11:07:07 2020
 @author: Aaron Weinstock
 """
 
-# %% Imports
+# %% IMPORTS
+import PMT
 import arcpy
 import re
 import os
 import tempfile
 import numpy as np
 import pandas as pd
+from six import string_types
+from collections.abc import Iterable
 
 # %% Function
 
@@ -20,7 +23,6 @@ import pandas as pd
 
 # Bring the iteration outside of the function, then all you need is one year,
 # then the consistency of processing if there across different scripts
-
 def build_aggregated_datasets(init_features_path,
                               init_features_id_field,
                               inputs_path_format,

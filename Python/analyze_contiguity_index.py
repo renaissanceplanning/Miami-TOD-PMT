@@ -14,6 +14,19 @@ import pandas as pd
 import os
 import time
 
+# %% GLOBALS
+CODEBLOCK = """
+    val=0
+    def processID():
+        global val
+        start=1
+        if (val==0):
+            val=start
+        else:
+            val+=1
+        return val"""
+
+
 # %% Functions
 
 def analyze_contiguity_index(parcels_path,
@@ -23,7 +36,6 @@ def analyze_contiguity_index(parcels_path,
                              chunks=20,
                              cell_size=40,
                              weights="nn"):
-    
     """
     calculte contiguity of developable area
     
@@ -96,12 +108,12 @@ def analyze_contiguity_index(parcels_path,
     ValueError, if weights are an invalid string or a dictionary with invalid
     keys (see Notes)
     """
-    
+
     # Weights setup ----------------------------------------------------------
-    
+
     print("")
     print("Checking weights")
-    
+
     # Before anything else, we need to make sure the weights are set up
     # properly; if not, we need to kill the function. We'll do that through
     # a series of logicals
@@ -143,9 +155,9 @@ def analyze_contiguity_index(parcels_path,
                                       "'weights' can only take 'rook', 'queen', or 'nn' as a string\n"]))
     elif type(weights) == dict:
         k = weights.keys()
-        missing = list(set(["top_left","top_center","top_right",
-                            "middle_left","self","middle_right",
-                            "bottom_left","bottom_center","bottom_right"]) - set(k))
+        missing = list(set(["top_left", "top_center", "top_right",
+                            "middle_left", "self", "middle_right",
+                            "bottom_left", "bottom_center", "bottom_right"]) - set(k))
         if len(missing) != 0:
             raise ValueError(''.join(["Necessary keys missing from 'weights'; ",
                                       "missing keys include: ",
@@ -155,13 +167,13 @@ def analyze_contiguity_index(parcels_path,
         raise ValueError(''.join(["'weights' must be a string or dictionary; ",
                                   "if string, it must be 'rook', 'queen', or 'nn', and "
                                   "if dictionary, it must have keys 'top_left','top_center','top_right','middle_left','self','middle_right','bottom_left','bottom_center','bottom_right'\n"]))
-    
+
     # After this, we can be confident that our weights are properly formatted
     # for how we plan to use them in contiguity
     print("Weights are good -- let's go!")
-    
+
     # Chunking setup ---------------------------------------------------------
-    
+
     print("")
     print("1. Set up for chunk processing of contiguity")
     
@@ -175,12 +187,13 @@ def analyze_contiguity_index(parcels_path,
     intmd_gdb = os.path.join(temp_dir, "Intermediates.gdb")
     
     
+
     # First, we're going to create our quadrats for chunking. To do this,
     # we need to start with the extent of our parcels
     print("1.2 extracting parcels extent")
     desc = arcpy.Describe(parcels_path)
     parcels_extent = desc.extent
-    
+
     # Next, we find the ratio of dimensions for our parcels. This will inform
     # how our quadrats get structured -- we'll pick the orientation that most
     # closely matches our height/width ratio
@@ -190,7 +203,7 @@ def analyze_contiguity_index(parcels_path,
     ymin = parcels_extent.YMin
     ymax = parcels_extent.YMax
     hw_ratio = (ymax - ymin) / (xmax - xmin)
-    
+
     # Now, we define out the orientation of our quadrats by identifying the
     # one that is closest to 'hw_ratio'. This gives us the number of rows
     # and columns for our quadrats
@@ -198,11 +211,12 @@ def analyze_contiguity_index(parcels_path,
     candidate_ontns = [[i, chunks//i] 
                         for i in range(1, chunks+1) 
                         if chunks % i == 0]
+
     ontn_matching = [abs(o[0] / o[1] - hw_ratio) for o in candidate_ontns]
     orientation = candidate_ontns[np.argmin(ontn_matching)]
     quadrat_nrows = orientation[0]
     quadrat_ncols = orientation[1]
-    
+
     # With the extent information and rows/columns, we can create our quadrats
     # by creating a fishnet over the parcels
     print("1.5 creating quadrats")
@@ -221,7 +235,7 @@ def analyze_contiguity_index(parcels_path,
         template = parcels_extent,
         geometry_type = "POLYGON"
     )
-    
+
     # The next step is identifying the quadrat in which each parcel falls.
     # This will give us a "chunk ID", which we can use to process the parcels
     # in chunks. We'll identify quadrat ownership using parcel centroids
@@ -234,12 +248,13 @@ def analyze_contiguity_index(parcels_path,
     # future merge back to the polygons
     print("1.6 extracting parcel centroids")
     parcels_fields = [parcels_id_field, "SHAPE@X", "SHAPE@Y"]
+
     parcels_sr = desc.spatialReference
     parcels_array = arcpy.da.FeatureClassToNumPyArray(
-        in_table = parcels_path,
-        field_names = parcels_fields,
-        spatial_reference = parcels_sr,
-        null_value = -1
+        in_table=parcels_path,
+        field_names=parcels_fields,
+        spatial_reference=parcels_sr,
+        null_value=-1
     )
     centroids_fc = os.path.join(intmd_gdb,
                                 "centroids")
@@ -249,7 +264,7 @@ def analyze_contiguity_index(parcels_path,
         shape_fields = ["SHAPE@X", "SHAPE@Y"],
         spatial_reference = parcels_sr
     )
-    
+
     # Next, we intersect the parcels centroids with the quadrats to
     # identify quadrat ownership -- the parcels will be enriched with the
     # quadrat FIDs, which can be used for chunk identification. We're now
@@ -307,13 +322,13 @@ def analyze_contiguity_index(parcels_path,
         array_match_field = parcels_id_field
     )
     arcpy.Delete_management("in_memory\\intersect")
-    
+
     # This completes our chunking setup -- next, we need to take our
     # chunked parcels and difference them with buildings to define
     # developable area    
-    
+
     # Differencing buildings and parcels -------------------------------------
-    
+
     print("")
     print("2. Differencing parcels and buildings")
     
@@ -341,7 +356,7 @@ def analyze_contiguity_index(parcels_path,
     )
     arcpy.Delete_management(union_fc)
     arcpy.Delete_management(difference)
-    
+
     # When we completed the differencing, we may have split some parcels
     # into 2. This is a problem for reporting, because contiguity of
     # developable area is the relevant for singlepart polygons only. For a
@@ -376,7 +391,7 @@ def analyze_contiguity_index(parcels_path,
         expression_type = "PYTHON3",
         code_block = codeblock
     )
-    
+
     # Finally, we can delete every field from 'difference_sp' except
     # ProcessID, PolyID, and ChunkID -- we do this because we're going to
     # be eating a LOT of memory in our contiguity calculations, so every
@@ -411,7 +426,7 @@ def analyze_contiguity_index(parcels_path,
         null_value = -1
     )
     ref_df = pd.DataFrame(ref_df)
-    
+
     # This completes our differencing -- we now are ready to calculate
     # contiguity, which we will do on "diff" relative to "PolyID". But,
     # because we want to take care of as much spatial processing in this
@@ -422,7 +437,7 @@ def analyze_contiguity_index(parcels_path,
     # contiguity (and developable area)
            
     # Chunk processing of contiguity -----------------------------------------
-    
+
     print("")
     print("3. Chunk processing contiguity and developable area")
     
@@ -432,12 +447,13 @@ def analyze_contiguity_index(parcels_path,
     chunk_ids = np.arange(2, chunks+1)
     ctgy = []
     
+
     # Now, we loop through the chunks to calculate contiguity:
-    
     for i in chunk_ids:
         sn = ".".join(["3", str(i)])
         print(''.join([sn, " Chunk ", str(i), " of ", str(chunks)]))
         
+
         # First, we need to select our chunk of interest, which we'll do
         # using select by attribute
         print(sn + ".1 selecting chunk")
@@ -447,7 +463,7 @@ def analyze_contiguity_index(parcels_path,
             selection_type = "NEW_SELECTION",
             where_clause = selection
         )
-        
+
         # Contiguity is calculated over a raster, so we need to rasterize
         # our chunk for processing
         print(sn + ".2 rasterizing chunk")
@@ -458,7 +474,7 @@ def analyze_contiguity_index(parcels_path,
                                          out_raster = rp,
                                          cell_size = cell_size)
         # arcpy.Delete_management(parcel_chunk)
-        
+
         # Now we can load the data as a numpy array for processing. This is
         # also the end of spatial processing within the chunk loop -- we deal
         # exclusively with the numpy array from here out in the loop
@@ -476,16 +492,16 @@ def analyze_contiguity_index(parcels_path,
         # care about that
         print(sn + ".4 calculating developable area by polygon")
         poly_ids, counts = np.unique(ras, return_counts=True)
-        area = pd.DataFrame.from_dict({"PolyID":poly_ids,
-                                       "Count":counts})
+        area = pd.DataFrame.from_dict({"PolyID": poly_ids,
+                                       "Count": counts})
         area = area[area.PolyID != -1]
         area["Developable_Area"] = area.Count * (cell_size ** 2) / 43560
         # ASSUMES FEET IS THE INPUT CRS, MIGHT WANT TO MAKE THIS AN
         # ACTUAL CONVERSION IF WE USE THIS OUTSIDE OF PMT. SEE THE
         # LINEAR UNITS CODE/NAME BOOKMARKS
         # spatial_reference.linearUnitName and .linearUnitCode
-        area = area.drop(columns = "Count")
-        
+        area = area.drop(columns="Count")
+
         # If the area dataframe is empty, this means we have no polygons
         # in the quadrat. This can happen because the quadrats are built
         # relative to the parcel *extent*, so not all quadrats will
@@ -633,7 +649,7 @@ def analyze_contiguity_index(parcels_path,
             ctgy.append(contiguity)
     
     # Contiguity results formatting ------------------------------------------
-        
+
     print("")
     print("4. Formatting polygon-level results")
     
@@ -649,10 +665,10 @@ def analyze_contiguity_index(parcels_path,
     print("4.2 filling table with missing polygons")
     ctgy = pd.merge(ref_df,
                     ctgy,
-                    left_on = "PolyID",
-                    right_on = "PolyID",
-                    how = "left")
-    
+                    left_on="PolyID",
+                    right_on="PolyID",
+                    how="left")
+
     # It's possible that a polygon winds up not represented because
     # (1) a building covers the whole polygon or (2) the polygon's developable
     # area was not caught by the cell configuration of the raster. Either way,
@@ -664,7 +680,6 @@ def analyze_contiguity_index(parcels_path,
                                 "Developable_Area":0})
     
     # Writing results --------------------------------------------------------
-    
     print("")
     print("5. Writing polygon-level results")
     # Because we can perform a number of different summaries to the parcel,
@@ -693,13 +708,12 @@ def analyze_contiguity_index(parcels_path,
 # ----------------------------------------------------------------------------
 # ----------------------------------------------------------------------------
 # ----------------------------------------------------------------------------
-    
+
 def analyze_contiguity_summary(full_results_table_path,
                                parcels_id_field,
                                save_gdb_location,
                                summary_funs = ["min", "max", "median", "mean"],
                                area_scaling = True):
-    
     """
     summarize contiguity/developable area results from 
     `analyze_contiguity_index` from sub-parcel to parcel
@@ -735,7 +749,7 @@ def analyze_contiguity_summary(full_results_table_path,
         4. {fun}-scaled area, for each of {fun}-summarized contiguity, if
         `area_scaling = True`
     """
-        
+
     # Summarizing up to the parcel -------------------------------------------
     print("")
     print("1. Summarizing contiguity and developable area to the parcels")
@@ -749,7 +763,7 @@ def analyze_contiguity_summary(full_results_table_path,
                                                    "Contiguity",
                                                    "Developable_Area"])
     df = pd.DataFrame(df)
-    
+
     # Now we want to summarize contiguity to the parcel. We'll do that using 
     # every function in 'summary_funs'.
     print("1.2 summarizing contiguity to the parcels")
@@ -762,14 +776,14 @@ def analyze_contiguity_summary(full_results_table_path,
         ci.columns = [parcels_id_field, var_name]
         ctgy_summary.append(ci)
         ctgy_variables.append(var_name)
-    
+
     # The results for each function are stored in a separate table, so we now
     # merge them into a single table
     print("1.3 formatting contiguity summary results")
     ctgy_summary = [df.set_index(parcels_id_field) for df in ctgy_summary]
     ctgy_summary = pd.concat(ctgy_summary, axis=1)
     ctgy_summary = ctgy_summary.reset_index()
-    
+
     # The only way to summarize developable area is by sum, so we'll take
     # care of that now.
     print("1.4 summarizing developable area to the parcels")
@@ -816,9 +830,9 @@ def analyze_contiguity_summary(full_results_table_path,
     
     # Now that our summaries are completed and missing values are filled,
     # we're ready to write our results
-    
+
     # Saving results ---------------------------------------------------------
-    
+
     print("")
     print("2. Writing summarized results")
     
@@ -836,7 +850,7 @@ def analyze_contiguity_summary(full_results_table_path,
                                out_table = save_path)
     
     # Done -------------------------------------------------------------------
-    
+
     print("")
     print("Done!")
     print("Parcel contiguity and developable area results saved to: " + 
@@ -893,6 +907,3 @@ if __name__ == "__main__":
         exec_time = round((end-start) / 60, 1)
         print(str(year) + " took " + str(exec_time) + " minutes to execute")
         print("")
-    
-    
-    

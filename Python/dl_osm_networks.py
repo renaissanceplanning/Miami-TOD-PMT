@@ -26,7 +26,7 @@ import PMT
 import functools
 
 # %% GLOBALS
-SUFFIX = "_q3_2019"
+SUFFIX = "_q3_2020"
 
 # %% FUNCTIONS
 def validateBBox(bbox):

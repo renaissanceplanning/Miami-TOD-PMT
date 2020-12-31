@@ -5,8 +5,7 @@ PED_BIKE_QUERY = {"where": "COUNTY_TXT = 'MIAMI-DADE' AND PEDESTRIAN_BICYCLIST_I
 
 FIELDS_DICT = dict(
     [
-        ("geometry", "geometry"),
-        ("CRASH_DATE", "DATE"),
+        ("CALENDAR_YEAR", "YEAR"),
         ("DAYOWEEK", "WEEK_DAY"),
         ("LATITUDE", "LAT"),
         ("LONGITUDE", "LONG"),
@@ -14,7 +13,6 @@ FIELDS_DICT = dict(
         ("DHSCNTYCTY", "CITY"),
         ("PEDESTRIAN_RELATED_IND", "PED_TYPE"),
         ("BICYCLIST_RELATED_IND", "BIKE_TYPE"),
-        ("GEO_URBAN_RURAL_IND", "LANDUSE"),
         ("INJSEVER", "INJSEVER"),
         ("SPEED_LIMIT", "SPEED_LIM"),
         ("MOST_HARM_EVNT_CD", "HARM_EVNT"),
@@ -23,7 +21,7 @@ FIELDS_DICT = dict(
 )
 
 USE = FIELDS_DICT.keys()
-DROPS = ["LAT", "LONG", "DATE", "BIKE_TYPE", "PED_TYPE",]
+DROPS = ["DATE", "BIKE_TYPE", "PED_TYPE",]
 # CRS
 IN_CRS = 4326  # WGS84 latitude/longitude
 OUT_CRS = 6437  # NAD83(2011) / Florida East meters
