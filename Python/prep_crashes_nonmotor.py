@@ -26,16 +26,16 @@ arcpy.env.overwriteOutput = True
 from config.config_project import SCRIPTS, DATA, RAW, CLEANED, YEARS
 
 from config.config_crashes import (
-    FIELDS_DICT,
-    INCIDENT_TYPES,
-    USE,
-    DROPS,
+    CRASH_FIELDS_DICT,
+    CRASH_INCIDENT_TYPES,
+    USE_CRASH,
+    DROP_CRASH,
     IN_CRS,
     OUT_CRS,
     COUNTY,
-    HARMFUL_CODES,
-    SEVERITY_CODES,
-    CITY_CODES,
+    CRASH_HARMFUL_CODES,
+    CRASH_SEVERITY_CODES,
+    CRASH_CITY_CODES,
 )
 
 GITHUB = True
@@ -124,8 +124,8 @@ def combine_incidents(gdf, type_dict):
 def clean_crashes(
         input_df,
         out_path,
-        usecols=USE,
-        rename_dict=INCIDENT_TYPES,
+        usecols=USE_CRASH,
+        rename_dict=CRASH_INCIDENT_TYPES,
         in_crs=IN_CRS,
         out_crs=OUT_CRS,
 ):
@@ -160,11 +160,11 @@ def clean_crashes(
     split_date(gdf=input_df, date_field="DATE")
     combine_incidents(gdf=input_df, type_dict=rename_dict)
     # recode integer coded attributes
-    input_df["CITY"] = input_df["CITY"].apply(lambda x: CITY_CODES.get(int(x), "None"))
-    input_df["HARM_EVNT"] = input_df["HARM_EVNT"].apply(lambda x: HARMFUL_CODES.get(int(x), "None"))
-    input_df["INJSEVER"] = input_df["INJSEVER"].apply(lambda x: SEVERITY_CODES.get(int(x), "None"))
+    input_df["CITY"] = input_df["CITY"].apply(lambda x: CRASH_CITY_CODES.get(int(x), "None"))
+    input_df["HARM_EVNT"] = input_df["HARM_EVNT"].apply(lambda x: CRASH_HARMFUL_CODES.get(int(x), "None"))
+    input_df["INJSEVER"] = input_df["INJSEVER"].apply(lambda x: CRASH_SEVERITY_CODES.get(int(x), "None"))
     # drop unneeded fields
-    input_df.drop(columns=DROPS, inplace=True)
+    input_df.drop(columns=DROP_CRASH, inplace=True)
     # write out to featureclass
     # build array from dataframe
     temp_fc = r"in_memory\temp_points"
@@ -198,7 +198,7 @@ def clean_crashes(
     arcpy.Delete_management(in_data=temp_fc)
 
 
-def clean_and_drop(feature_class, use_cols=USE, rename_dict=FIELDS_DICT):
+def clean_and_drop(feature_class, use_cols=USE_CRASH, rename_dict=CRASH_FIELDS_DICT):
     # reformat attributes and keep only useful
     fields = [f.name for f in arcpy.ListFields(feature_class) if not f.required]
     drop_fields = [f for f in fields if f not in list(use_cols) + ['Shape']]
@@ -222,7 +222,7 @@ def validate_json(json_file):
 
 def clean_bike_ped_crashes(
         in_fc, out_path, out_name, where_clause=None,
-        use_cols=USE, rename_dict=FIELDS_DICT):
+        use_cols=USE_CRASH, rename_dict=CRASH_FIELDS_DICT):
         # dump subset to new FC
         out_fc = os.path.join(out_path, out_name)
         arcpy.FeatureClassToFeatureClass_conversion(
@@ -237,11 +237,11 @@ def clean_bike_ped_crashes(
             for row in cur:
                 city, severity, event = row
                 if city is not None:
-                    row[0] = CITY_CODES[int(city)]
+                    row[0] = CRASH_CITY_CODES[int(city)]
                 if severity is not None:
-                    row[1] = SEVERITY_CODES[int(severity)]
+                    row[1] = CRASH_SEVERITY_CODES[int(severity)]
                 if event is not None:
-                    row[2] = HARMFUL_CODES[int(event)]
+                    row[2] = CRASH_HARMFUL_CODES[int(event)]
                 cur.updateRow(row)
 
         # combine bike and ped type into single attribute and drop original
@@ -293,7 +293,7 @@ if __name__ == "__main__":
                     out_name = 'BikePedCrashes'
                     year_wc = f'"CALENDAR_YEAR" = {year}'
                     clean_bike_ped_crashes(in_fc=all_features, out_path=FDS, out_name=out_name,
-                                           where_clause=year_wc, use_cols=USE, rename_dict=FIELDS_DICT)
+                                           where_clause=year_wc, use_cols=USE_CRASH, rename_dict=CRASH_FIELDS_DICT)
         except Exception as e:
             arcpy.AddMessage(e)
             if arcpy.Exists(all_features):

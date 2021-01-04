@@ -1,9 +1,11 @@
 from collections import OrderedDict
 
+# download configuration
 ALL_CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/'
 PED_BIKE_QUERY = {"where": "COUNTY_TXT = 'MIAMI-DADE' AND PEDESTRIAN_BICYCLIST_IND = 'Y'"}
 
-FIELDS_DICT = dict(
+# cleaning configuration
+CRASH_FIELDS_DICT = dict(
     [
         ("CALENDAR_YEAR", "YEAR"),
         ("DAYOWEEK", "WEEK_DAY"),
@@ -20,8 +22,8 @@ FIELDS_DICT = dict(
     ]
 )
 
-USE = FIELDS_DICT.keys()
-DROPS = ["DATE", "BIKE_TYPE", "PED_TYPE",]
+USE_CRASH = CRASH_FIELDS_DICT.keys()
+DROP_CRASH = ["DATE", "BIKE_TYPE", "PED_TYPE",]
 # CRS
 IN_CRS = 4326  # WGS84 latitude/longitude
 OUT_CRS = 6437  # NAD83(2011) / Florida East meters
@@ -29,13 +31,13 @@ OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 COUNTY = "MIAMI-DADE"
 
 # incident type dict
-INCIDENT_TYPES = {
+CRASH_INCIDENT_TYPES = {
     "BIKE_TYPE": "BIKE",
     "PED_TYPE": "PEDESTRIAN",
 }
 
 # CODED VALUE LOOKUP
-HARMFUL_CODES = OrderedDict(
+CRASH_HARMFUL_CODES = OrderedDict(
     [
         (1, "Overturn/Rollover"),
         (2, "Fire/Explosion"),
@@ -80,7 +82,7 @@ HARMFUL_CODES = OrderedDict(
 )
 
 # coded injury severity
-SEVERITY_CODES = dict(
+CRASH_SEVERITY_CODES = dict(
     [   
         (0, "No Data"),
         (1, "None"),
@@ -93,7 +95,7 @@ SEVERITY_CODES = dict(
 )
 
 # city codes
-CITY_CODES = dict(
+CRASH_CITY_CODES = dict(
     [
         (100, "None"),
         (129, "Aventura"),
