@@ -28,7 +28,7 @@ class Logger:
         logs a message and prints it to the screen
         """
         time = datetime.datetime.now().strftime("%I:%M %p")
-        self.log = "{0}\n{1} | {2}".format(self.log, time, msg)
+        self.log = f"{self.log}\n{time} | {msg}"
         if print_msg:
             print(msg)
 
@@ -55,7 +55,7 @@ class Logger:
             os.mkdir(self.log_folder)
 
         with open(self.log_file, mode="a") as f:
-            f.write("\n\n" + self.log)
+            f.write(f"\n\n{self.log}")
 
     def log_error(self):
         """
