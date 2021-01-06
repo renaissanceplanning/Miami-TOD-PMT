@@ -1,7 +1,8 @@
 from collections import OrderedDict
 
+'''Crash Configuration'''
 # download configuration
-ALL_CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/'
+CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/'
 PED_BIKE_QUERY = {"where": "COUNTY_TXT = 'MIAMI-DADE' AND PEDESTRIAN_BICYCLIST_IND = 'Y'"}
 
 # cleaning configuration
@@ -23,7 +24,7 @@ CRASH_FIELDS_DICT = dict(
 )
 
 USE_CRASH = CRASH_FIELDS_DICT.keys()
-DROP_CRASH = ["DATE", "BIKE_TYPE", "PED_TYPE",]
+DROP_CRASH = ["DATE", "BIKE_TYPE", "PED_TYPE", ]
 # CRS
 IN_CRS = 4326  # WGS84 latitude/longitude
 OUT_CRS = 6437  # NAD83(2011) / Florida East meters
@@ -83,7 +84,7 @@ CRASH_HARMFUL_CODES = OrderedDict(
 
 # coded injury severity
 CRASH_SEVERITY_CODES = dict(
-    [   
+    [
         (0, "No Data"),
         (1, "None"),
         (2, "Possible"),
@@ -169,3 +170,36 @@ CRASH_CITY_CODES = dict(
         (199, "FL International University"),
     ]
 )
+
+''' Census Configuration'''
+CENSUS_FTP_HOME = 'ftp://ftp2.census.gov/geo/tiger/TIGER2012/'
+CENSUS_SCALE = "block_group"
+CENSUS_GEO_TYPE = "tabblock"
+CENSUS_STATE = "12"
+CENSUS_COUNTY = "086"
+ACS_RACE_TABLE = "B03002"
+ACS_RACE_COLUMNS = {
+    "002E": "Total_Non_Hisp",
+    "012E": "Total_Hispanic",
+    "003E": "White_Non_Hisp",
+    "004E": "Black_Non_Hisp",
+    "006E": "Asian_Non_Hisp",
+    "009E": "Multi_Non_Hisp",
+    "013E": "White_Hispanic",
+    "014E": "Black_Hispanic",
+    "016E": "Asian_Hispanic",
+    "019E": "Multi_Hispanic"
+}
+ACS_MODE_TABLE = "B08301"
+ACS_MODE_COLUMNS = {
+    "001E": "Total_Commutes",
+    "003E": "Drove_alone",
+    "004E": "Carpool",
+    "010E": "Transit",
+    "016E": "Taxi",
+    "017E": "Motorcycle",
+    "018E": "Bicycle",
+    "019E": "Walk",
+    "020E": "Other",
+    "021E": "Work_From_Home"
+}

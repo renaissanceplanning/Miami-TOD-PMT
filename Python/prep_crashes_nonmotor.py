@@ -23,16 +23,15 @@ import arcpy
 
 arcpy.env.overwriteOutput = True
 
-from config.config_project import SCRIPTS, DATA, RAW, CLEANED, YEARS
+from config.config_project import RAW, CLEANED, YEARS
 
-from config.config_crashes import (
+from Python.download.download_config import (
     CRASH_FIELDS_DICT,
     CRASH_INCIDENT_TYPES,
     USE_CRASH,
     DROP_CRASH,
     IN_CRS,
     OUT_CRS,
-    COUNTY,
     CRASH_HARMFUL_CODES,
     CRASH_SEVERITY_CODES,
     CRASH_CITY_CODES,
@@ -260,7 +259,6 @@ def clean_bike_ped_crashes(
 
 
 if __name__ == "__main__":
-    import setup_project
 
     # if running code from a local github repo branch
     if GITHUB:

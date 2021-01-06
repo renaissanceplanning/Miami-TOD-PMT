@@ -22,7 +22,7 @@ If run as "main", walking and biking crashes features are downloaded for
 Miami-Dade County to the RAW data folder and named bike_ped.json
 
 """
-from config.config_crashes import (ALL_CRASHES_SERVICE, PED_BIKE_QUERY)
+from config.config_downloads import (CRASHES_SERVICE, PED_BIKE_QUERY, USE_CRASH)
 
 import json
 from esridump.dumper import EsriDumper
@@ -35,12 +35,8 @@ GITHUB = True
 
 
 def dl_bike_ped_crashes(
-        all_crashes_url=ALL_CRASHES_SERVICE,
-        fields='ALL',
-        where_clause=PED_BIKE_QUERY,
-        out_crs='4326',
-        out_path=RAW,
-        out_name="bike_ped_crashes_raw.geojson"):
+        all_crashes_url=None, fields='ALL', where_clause=None,
+        out_crs='4326', out_dir=None, out_name="crashes_raw.geojson"):
     """
     Reads in a feature service url and filters based on the query and
     saves geojson copy of the file to the specified output location
@@ -76,16 +72,15 @@ def dl_bike_ped_crashes(
         requested_fields = None
 
     # read data from feature server
-    dumper = EsriDumper(url=all_crashes_url,
-                        extra_query_args=where_clause,
-                        fields=requested_fields,
-                        outSR=out_crs)
+    # TODO: add validation for url, where clause and crs
+    features_dump = EsriDumper(url=all_crashes_url, extra_query_args=where_clause,
+                               fields=requested_fields, outSR=out_crs)
 
     # write out data from server to geojson
     out_file = os.path.join(out_path, out_name)
     with open(out_file, 'w') as dst:
         dst.write('{"type":"FeatureCollection","features":[\n')
-        feature_iter = iter(dumper)
+        feature_iter = iter(features_dump)
         try:
             feature = next(feature_iter)
             while True:
@@ -94,20 +89,19 @@ def dl_bike_ped_crashes(
                 dst.write(',\n')
         except StopIteration:
             dst.write('\n')
-
         dst.write(']}')
 
 
 if __name__ == "__main__":
     if GITHUB:
-        ROOT = r'K:\Projects\MiamiDade\PMT\Data'
+        ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
         RAW = str(Path(ROOT, 'Raw'))
     out_path = str(Path(RAW, "Safety_Security", "Crash_Data"))
     out_name = "bike_ped.geojson"
     dl_bike_ped_crashes(
-        all_crashes_url=ALL_CRASHES_SERVICE,
-        fields='ALL',
+        all_crashes_url=CRASHES_SERVICE,
+        fields=list(USE_CRASH),
         where_clause=PED_BIKE_QUERY,
         out_crs='4326',
-        out_path=out_path,
+        out_dir=out_path,
         out_name=out_name)
