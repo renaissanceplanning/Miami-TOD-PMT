@@ -5,18 +5,23 @@ Created: October 2020
 A collection of helper functions used throughout the PMT data acquisition,
 cleaning, analysis, and summarization processes.
 """
-
-import arcpy
+# %% imports
 import numpy as np
 import urllib3
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry.polygon import Polygon as POLY
+
 import os
 from pathlib import Path
 from six import string_types
+
 import re
 import json
+
+# import arcpy last as arc messes with global states on import likley changing globals in a way that doesnt allow
+# other libraries to locate their expected resources
+import arcpy
 
 # %% CONSTANTS - FOLDERS
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")

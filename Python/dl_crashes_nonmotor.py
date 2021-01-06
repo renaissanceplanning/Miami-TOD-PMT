@@ -22,12 +22,14 @@ If run as "main", walking and biking crashes features are downloaded for
 Miami-Dade County to the RAW data folder and named bike_ped.json
 
 """
+from config.config_crashes import (ALL_CRASHES_SERVICE, PED_BIKE_QUERY)
+
 import json
 from esridump.dumper import EsriDumper
 import os
-from config.config_crashes import (ALL_CRASHES_SERVICE, PED_BIKE_QUERY)
-from PMT import RAW
 from pathlib import Path
+
+from PMT import RAW
 
 GITHUB = True
 
