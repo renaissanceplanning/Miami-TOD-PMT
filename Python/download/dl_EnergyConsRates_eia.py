@@ -32,8 +32,8 @@ if __name__ == "__main__":
     res_url = r"https://www.eia.gov/consumption/residential/data/2015/c&e/ce4.9.xlsx"
     com_url = r"https://www.eia.gov/consumption/commercial/data/2012/c&e/xls/pba3.xlsx"
     # Navigate up two directories to be in the main PMT folder
-    os.chdir('..')
-    os.chdir('..')
+    os.chdir('../..')
+    os.chdir('../..')
     # Specify output files
     res_file = PMT.makePath(PMT.RAW, "EIA_ResEnergy2015_ce4_9.xlsx")
     com_file = PMT.makePath(PMT.RAW, "EIA_ComEnergy2015_pba3.xlsx")
