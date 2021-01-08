@@ -120,7 +120,7 @@ def fetchOsmBuildings(output_dir, study_area_polygons_path=None, bbox=None,
         # And we need a dummy value for n
         use_polygons = False
     # - Tags
-    if isinstance(tags, string):
+    if isinstance(tags, str):
         if tags != "all":
             tags = [tags]
     else:

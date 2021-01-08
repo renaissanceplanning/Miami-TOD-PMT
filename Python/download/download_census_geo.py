@@ -44,7 +44,7 @@ from __init__ import (STATE_ABBREV_LIST,
                       GEO_TYPES_LIST, DISABLE_AUTO_DOWNLOADS,
                       get_fips_code_for_state)
 
-FTP_HOME = 'ftp://ftp2.census.gov/geo/tiger/TIGER2012/'
+FTP_HOME = 'ftp://ftp2.census.gov/geo/tiger/TIGER2019/'
 
 
 def get_filename_list_from_ftp(target, state):
@@ -59,9 +59,9 @@ def get_filename_list_from_ftp(target, state):
         state_check = '_%s_' % get_fips_code_for_state(state)
         filename_list = filter(
             lambda filename:
-                state_check in filename or
-                ('_us_' in filename and
-                 '_us_zcta5' not in filename),
+            state_check in filename or
+            ('_us_' in filename and
+             '_us_zcta5' not in filename),
             filename_list
         )
 
@@ -150,6 +150,20 @@ def process_options(arglist=None):
     global options, args
     parser = optparse.OptionParser()
     parser.add_option(
+        '-d', '--download',
+        dest='download_dir',
+        help='folder path where files are downloaded, if nothing provided a dir will be created in the current '
+             'working directory',
+        default='downloaded_files'
+    )
+    parser.add_option(
+        '-e', '--extract',
+        dest='extract_dir',
+        help='folder path where files are extracted to, if nothing provided a dir will be created in the current '
+             'working directory',
+        default='extracted_files'
+    )
+    parser.add_option(
         '-s', '--state',
         dest='state',
         help='specific state to download',
@@ -167,7 +181,7 @@ def process_options(arglist=None):
         '-y', '--year',
         dest='year',
         help='specific year to download',
-        default='2012'
+        default='2019'
     )
 
     options, args = parser.parse_args(arglist)
@@ -176,30 +190,26 @@ def process_options(arglist=None):
 
 def main(args=None):
     """
-    >> python fetch_shapefiles.py
-    >> python fetch_shapefiles.py -s WA
-    >> python fetch_shapefiles.py -g place
-    >> python fetch_shapefiles.py -s WA -g place
     """
     if args is None:
         args = sys.argv[1:]
     options, args = process_options(args)
 
     # make sure we have the expected directories
-    for path in [DOWNLOAD_DIR, EXTRACT_DIR]:
+    for path in [options.download, options.extract]:
         if not isdir(path):
             os.makedirs(path)
 
     # get one geo_type or all geo_types
     if options.geo_type:
         get_one_geo_type(
-            geo_type = options.geo_type,
-            state = options.state,
+            geo_type=options.geo_type,
+            state=options.state,
             year=options.year
         )
     else:
         get_all_geo_types(
-            state = options.state,
+            state=options.state,
             year=options.year
         )
 

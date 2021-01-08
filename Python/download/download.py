@@ -1,20 +1,26 @@
 from download_config import (CRASHES_SERVICE, PED_BIKE_QUERY, USE_CRASH)
-from download_config import (CENSUS_FTP_HOME, CENSUS_SCALE,
-                             CENSUS_STATE, CENSUS_COUNTY, CENSUS_GEO_TYPE,
-                             ACS_RACE_TABLE, ACS_RACE_COLUMNS,
-                             ACS_MODE_TABLE, ACS_MODE_COLUMNS)
+from download_config import (CENSUS_SCALE, CENSUS_STATE, CENSUS_COUNTY, CENSUS_GEO_TYPES,
+                             ACS_RACE_TABLE, ACS_RACE_COLUMNS, ACS_MODE_TABLE, ACS_MODE_COLUMNS)
+from download_config import URBAN_GROWTH_OPENDATA_URL, IMPERVIOUS_URL, MIAMI_DADE_COUNTY_URL
+from download_config import PARKS_URL_DICT
 from download_census_geo import get_one_geo_type
+from download_osm import download_osm_networks, download_osm_buildings
 
 import json
 import os
 from pathlib import Path
+from urllib import request
+import re
+import requests
+from requests.exceptions import RequestException
 
 from esridump.dumper import EsriDumper
 import censusdata as census
 import pandas as pd
+import geopandas as gpd
 
 # PMT Functions
-from ..PMT import (makePath)
+from ..PMT import (makePath, fetch_json_to_file)
 
 # PMT globals
 from ..PMT import (RAW, CLEANED, YEARS)
@@ -231,12 +237,54 @@ def download_commute_vars(year, acs_dataset="acs5", state=CENSUS_STATE, county=C
     return mode_data.reset_index(drop=True)
 
 
+# download Imperviousness data
+def download_url(url, save_path):
+    if os.path.isdir(save_path):
+        filename = get_filename_from_header(url)
+        save_path = makePath(save_path, filename)
+    try:
+        request.urlretrieve(url, save_path)
+    except:
+        with request.urlopen(url) as download:
+            with open(save_path, 'wb') as out_file:
+                out_file.write(download.read())
+
+
+def get_filename_from_header(url):
+    """
+    grabs a filename provided in the url object header
+    Parameters
+    ----------
+    url - string, url path to file on server
+
+    Returns
+    -------
+    filename as string
+    """
+    try:
+        with requests.get(url) as r:
+            if "Content-Disposition" in r.headers.keys():
+                return re.findall("filename=(.+)", r.headers["Content-Disposition"])[0]
+            else:
+                return url.split("/")[-1]
+    except RequestException as e:
+        print(e)
+
+
+def download_direct_url(url):
+    import requests
+    r = requests.get(url)
+    
+
+request.urlretrieve()
 if __name__ == "__main__":
     if GITHUB:
         ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
         RAW = str(Path(ROOT, 'Raw'))
     # ALL RAW DATA that can be grabbed as single elements
-    # download bike/ped crashes
+    ''' download bike/ped crashes
+        - downloads filtered copy of the FDOT crash data for MD county as geojson
+    '''
     out_path = str(Path(RAW, "Safety_Security", "Crash_Data"))
     out_name = "bike_ped.geojson"
     download_bike_ped_crashes(
@@ -249,17 +297,24 @@ if __name__ == "__main__":
 
     # ALL RAW DATA that must be acquired as yearly chunks
     ###
-    ''' download census data '''
+    ''' download census data 
+        - downloads and unzips the census block group shapefile
+        - downloads and writes out to table the ACS race and commute data
+        - downloads LODES data to table
+    '''
     # download and extract census geographies
+    geo_types = ['tabblock', 'bg']
     dl_dir = makePath(RAW, "temp_downloads")
     ext_dir = makePath(RAW, "BlockGroups")
     for path in [dl_dir, ext_dir]:
         if not os.path.isdir(path):
             os.makedirs(path)
-    get_one_geo_type(geo_type=CENSUS_GEO_TYPE,
-                     download_dir=dl_dir,
-                     extract_dir=ext_dir,
-                     state=CENSUS_STATE, year='2019')
+    for geo_type in CENSUS_GEO_TYPES:
+        get_one_geo_type(geo_type=geo_type,
+                         download_dir=dl_dir,
+                         extract_dir=ext_dir,
+                         state=CENSUS_STATE, year='2019')
+    # download census tabular data
     bg_path = makePath(RAW, "BlockGroups")
     for year in YEARS:
         # setup folders
@@ -278,3 +333,42 @@ if __name__ == "__main__":
             commute.to_csv(commute_out, index=False)
         except:
             print(f"ERROR DOWNLOADING COMMUTE DATA ({year})")
+
+    ''' download urban growth boundary and county boundary
+        - downloads geojson from open data site in raw format
+    '''
+    out_ugb = makePath(RAW, "UrbanDevelopmentBoundary.geojson")
+    out_county = makePath(RAW, "Miami-Dade_Boundary.geojson")
+    for shape, out_file in zip([URBAN_GROWTH_OPENDATA_URL, MIAMI_DADE_COUNTY_URL],
+                               [out_ugb, out_county]):
+        fetch_json_to_file(url=URBAN_GROWTH_OPENDATA_URL,
+                           out_file=out_file,
+                           overwrite=True)
+
+    ''' download impervious surface data for 2016 (most recent vintage) 
+        - downloads just zip file of data, prep script will unzip and subset
+    '''
+    imperv_filename = IMPERVIOUS_URL.split("/")[-1]
+    imperv_zip = makePath(RAW, imperv_filename)
+    download_url(url=IMPERVIOUS_URL, save_path=imperv_zip)
+
+    ''' download park geometry with tabular data as geojson 
+        - downloads geojson for Municipal, County, and State/Fed 
+            parks including Facility points 
+        - current version downloads and converts to shapefile, this step will be skipped 
+            in next iteration of prep script 
+    '''
+    for file, url in PARKS_URL_DICT.items():
+        out_file = makePath(RAW, f"{file}.geojson")
+        download_url(url=url, save_path=out_file)
+
+    ''' download osm data - networks and buildings 
+        - downloads networks as nodes.shp and edges.shp
+        - downloads all buildings, subset to poly/multipoly features
+        - both functions will create the output folder if not there
+    '''
+    osm_data_dir = makePath(RAW, 'OSM_data')
+    aoi_gdf = gpd.read_file(filename=out_county)
+    poly = aoi_gdf.geometry[0]
+    download_osm_networks(output_dir=osm_data_dir, polygon=poly)
+    download_osm_buildings(output_dir=osm_data_dir, polygon=poly)

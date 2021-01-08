@@ -170,11 +170,10 @@ CRASH_CITY_CODES = dict(
         (199, "FL International University"),
     ]
 )
-
 ''' Census Configuration'''
 CENSUS_FTP_HOME = 'ftp://ftp2.census.gov/geo/tiger/TIGER2012/'
 CENSUS_SCALE = "block_group"
-CENSUS_GEO_TYPE = "tabblock"
+CENSUS_GEO_TYPES = ["tabblock", "bg"]
 CENSUS_STATE = "12"
 CENSUS_COUNTY = "086"
 ACS_RACE_TABLE = "B03002"
@@ -202,4 +201,21 @@ ACS_MODE_COLUMNS = {
     "019E": "Walk",
     "020E": "Other",
     "021E": "Work_From_Home"
+}
+
+''' Urban Growth Boundary Config '''
+URBAN_GROWTH_OPENDATA_URL = r"https://opendata.arcgis.com/datasets/a468dc11c02f4467ade836947627554b_0.geojson"
+
+''' County Boundary '''
+MIAMI_DADE_COUNTY_URL = r"https://opendata.arcgis.com/datasets/cec575982ea64ef7a11e587e532c6b6a_0.geojson"
+
+''' Impervious Surface data NLCD '''
+IMPERVIOUS_URL = r"https://s3-us-west-2.amazonaws.com/mrlc/NLCD_2016_Impervious_L48_20190405.zip"
+
+''' Parks Open Data URLS - from '''
+PARKS_URL_DICT = {
+    "Municipal_Parks": r"https://opendata.arcgis.com/datasets/16fe02a1defa45b28bf14a29fb5f0428_0.geojson",
+    "County_Parks": r"https://opendata.arcgis.com/datasets/aca1e6ff0f634be282d50cc2d534a832_0.geojson",
+    "Federal_State_Parks": r"https://opendata.arcgis.com/datasets/fa11a4c0a3554467b0fd5bc54edde4f9_0.geojson",
+    "Park_Facilities": r"https://opendata.arcgis.com/datasets/8c9528d3e1824db3b14ed53188a46291_0.geojson"
 }

@@ -1,11 +1,12 @@
-DOWNLOAD_DIR = 'downloaded_files'
-EXTRACT_DIR = 'extracted_files'
-CSV_DIR = 'generated_csv'
+# DOWNLOAD_DIR = 'downloaded_files'
+# EXTRACT_DIR = 'extracted_files'
+# CSV_DIR = 'generated_csv'
 
 GEO_TYPES_DICT = {
     'cd': 'Congressional Districts',
     'county': 'Counties',
     'tabblock': 'Census Blocks',
+    'bg': 'Block Groups',
     'elsd': 'Elementary School Districts',
     'place': 'Places',
     'scsd': 'Secondary School Districts',

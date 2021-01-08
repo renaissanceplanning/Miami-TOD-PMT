@@ -167,7 +167,7 @@ def process_imperviousness(source_file_directory,
     # Functions --------------------------------------------------------------
     
     # File locations for the functions we need
-    dl = os.path.join(source_file_directory, "download/dl_imperviousness.py")
+    dl = os.path.join(source_file_directory, "deprecated/dl_imperviousness.py")
     prep = os.path.join(source_file_directory, "prep_imperviousness.py") 
     analyze = os.path.join(source_file_directory, "analyze_imperviousness.py") 
     
