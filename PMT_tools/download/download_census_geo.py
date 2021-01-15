@@ -44,7 +44,7 @@ from __init__ import (STATE_ABBREV_LIST,
                       GEO_TYPES_LIST, DISABLE_AUTO_DOWNLOADS,
                       get_fips_code_for_state)
 
-FTP_HOME = 'ftp://ftp2.census.gov/geo/tiger/TIGER2019/'
+FTP_HOME = r"ftp://ftp2.census.gov/geo/tiger/TIGER2019/"
 
 
 def get_filename_list_from_ftp(target, state):

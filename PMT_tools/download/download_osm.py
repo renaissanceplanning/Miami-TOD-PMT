@@ -24,6 +24,7 @@
     networks in python. The networks are pickled as networkx graphs.
 """
 import os
+
 import osmnx as ox
 import networkx as nx
 import geopandas as gpd
@@ -33,9 +34,8 @@ from datetime import datetime
 import pickle
 from six import string_types
 import functools
-from ..PMT import EPSG_LL, EPSG_FLSPF
-from ..PMT import multipolygonToPolygon
-
+from PMT_tools.PMT import EPSG_LL, EPSG_FLSPF
+from PMT_tools.PMT import multipolygonToPolygon
 
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
@@ -304,10 +304,10 @@ def download_osm_buildings(output_dir,
 
     else:
         buildings_gdf = ox.geometries_from_bbox(north=bbox["north"],
-                                        south=bbox["south"],
-                                        east=bbox["east"],
-                                        west=bbox["west"],
-                                        tags={"building": True})
+                                                south=bbox["south"],
+                                                east=bbox["east"],
+                                                west=bbox["west"],
+                                                tags={"building": True})
     # drop non-polygon features and subset fields
     drop_cols = [col for col in buildings_gdf.columns if col not in fields]
     buildings_gdf.drop(columns=drop_cols, inplace=True).reset_index()

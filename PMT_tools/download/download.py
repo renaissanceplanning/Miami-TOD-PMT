@@ -1,29 +1,33 @@
+# global values configured for
 from download_config import (CRASHES_SERVICE, PED_BIKE_QUERY, USE_CRASH)
 from download_config import (CENSUS_SCALE, CENSUS_STATE, CENSUS_COUNTY, CENSUS_GEO_TYPES,
                              ACS_RACE_TABLE, ACS_RACE_COLUMNS, ACS_MODE_TABLE, ACS_MODE_COLUMNS)
 from download_config import URBAN_GROWTH_OPENDATA_URL, IMPERVIOUS_URL, MIAMI_DADE_COUNTY_URL
+from download_config import RESIDENTIAL_ENERGY_CONSUMPTION_URL, COMMERCIAL_ENERGY_CONSUMPTION_URL
 from download_config import PARKS_URL_DICT
+
+# helper functions from other modules
+from download_helper import download_file_from_url, validate_directory
 from download_census_geo import get_one_geo_type
+from download_census_lodes import download_aggregate_lodes
 from download_osm import download_osm_networks, download_osm_buildings
 
+# standard modules
 import json
 import os
 from pathlib import Path
-from urllib import request
-import re
-import requests
-from requests.exceptions import RequestException
 
+# specialized modules
 from esridump.dumper import EsriDumper
 import censusdata as census
 import pandas as pd
 import geopandas as gpd
 
 # PMT Functions
-from ..PMT import (makePath, fetch_json_to_file)
+from PMT_tools.PMT import (makePath, fetch_json_to_file)
 
 # PMT globals
-from ..PMT import (RAW, CLEANED, YEARS)
+from PMT_tools.PMT import (RAW, YEARS)
 
 GITHUB = True
 
@@ -238,55 +242,20 @@ def download_commute_vars(year, acs_dataset="acs5", state=CENSUS_STATE, county=C
 
 
 # download Imperviousness data
-def download_url(url, save_path):
-    if os.path.isdir(save_path):
-        filename = get_filename_from_header(url)
-        save_path = makePath(save_path, filename)
-    try:
-        request.urlretrieve(url, save_path)
-    except:
-        with request.urlopen(url) as download:
-            with open(save_path, 'wb') as out_file:
-                out_file.write(download.read())
 
 
-def get_filename_from_header(url):
-    """
-    grabs a filename provided in the url object header
-    Parameters
-    ----------
-    url - string, url path to file on server
 
-    Returns
-    -------
-    filename as string
-    """
-    try:
-        with requests.get(url) as r:
-            if "Content-Disposition" in r.headers.keys():
-                return re.findall("filename=(.+)", r.headers["Content-Disposition"])[0]
-            else:
-                return url.split("/")[-1]
-    except RequestException as e:
-        print(e)
-
-
-def download_direct_url(url):
-    import requests
-    r = requests.get(url)
-    
-
-request.urlretrieve()
 if __name__ == "__main__":
     if GITHUB:
         ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
-        RAW = str(Path(ROOT, 'Raw'))
+        RAW = str(Path(ROOT, 'DownloadTest'))
     # ALL RAW DATA that can be grabbed as single elements
     ''' download bike/ped crashes
         - downloads filtered copy of the FDOT crash data for MD county as geojson
     '''
-    out_path = str(Path(RAW, "Safety_Security", "Crash_Data"))
+    out_path = makePath(RAW, "Safety_Security")
     out_name = "bike_ped.geojson"
+    validate_directory(out_path)
     download_bike_ped_crashes(
         all_crashes_url=CRASHES_SERVICE,
         fields=list(USE_CRASH),
@@ -307,13 +276,13 @@ if __name__ == "__main__":
     dl_dir = makePath(RAW, "temp_downloads")
     ext_dir = makePath(RAW, "BlockGroups")
     for path in [dl_dir, ext_dir]:
-        if not os.path.isdir(path):
-            os.makedirs(path)
+        validate_directory(path)
     for geo_type in CENSUS_GEO_TYPES:
         get_one_geo_type(geo_type=geo_type,
                          download_dir=dl_dir,
                          extract_dir=ext_dir,
                          state=CENSUS_STATE, year='2019')
+    os.rmdir(dl_dir)
     # download census tabular data
     bg_path = makePath(RAW, "BlockGroups")
     for year in YEARS:
@@ -334,6 +303,14 @@ if __name__ == "__main__":
         except:
             print(f"ERROR DOWNLOADING COMMUTE DATA ({year})")
 
+    ''' download LODES data for job counts
+        - downloads lodes files by year and optionally aggregates to a coarser geographic area
+    '''
+    lodes_path = makePath(RAW, "LODES")
+    download_aggregate_lodes(output_directory=lodes_path, file_type="wac",
+                             state="fl", segment="S000", part="", job_type="JT00",
+                             year=2019, agg_geog=[])
+
     ''' download urban growth boundary and county boundary
         - downloads geojson from open data site in raw format
     '''
@@ -350,7 +327,7 @@ if __name__ == "__main__":
     '''
     imperv_filename = IMPERVIOUS_URL.split("/")[-1]
     imperv_zip = makePath(RAW, imperv_filename)
-    download_url(url=IMPERVIOUS_URL, save_path=imperv_zip)
+    download_file_from_url(url=IMPERVIOUS_URL, save_path=imperv_zip)
 
     ''' download park geometry with tabular data as geojson 
         - downloads geojson for Municipal, County, and State/Fed 
@@ -360,7 +337,7 @@ if __name__ == "__main__":
     '''
     for file, url in PARKS_URL_DICT.items():
         out_file = makePath(RAW, f"{file}.geojson")
-        download_url(url=url, save_path=out_file)
+        download_file_from_url(url=url, save_path=out_file)
 
     ''' download osm data - networks and buildings 
         - downloads networks as nodes.shp and edges.shp
@@ -372,3 +349,13 @@ if __name__ == "__main__":
     poly = aoi_gdf.geometry[0]
     download_osm_networks(output_dir=osm_data_dir, polygon=poly)
     download_osm_buildings(output_dir=osm_data_dir, polygon=poly)
+
+    ''' download energy consumption tables from EIA 
+        - pulls the raw commercial and residential energy consumption data for the South
+        - TODO: update the URL configuration to contain each region for modularity later
+    '''
+    commercial_energy_tbl = makePath(RAW, "commercial_energy_consumption_EIA.xlsx")
+    residential_energy_tbl = makePath(RAW, "residential_energy_consumption_EIA.xlsx")
+    for dl_url, tbl in zip([COMMERCIAL_ENERGY_CONSUMPTION_URL, RESIDENTIAL_ENERGY_CONSUMPTION_URL],
+                           [commercial_energy_tbl, residential_energy_tbl]):
+        download_file_from_url(url=dl_url, save_path=tbl)

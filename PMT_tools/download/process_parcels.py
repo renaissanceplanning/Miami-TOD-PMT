@@ -22,6 +22,9 @@ gis_url = "ftp://sdrftp03.dor.state.fl.us/Map%20Data/"
 tax_url = "ftp://sdrftp03.dor.state.fl.us/Tax%20Roll%20Data%20Files/"
 
 
+
+def find_all_downloads():
+
 # %% Functions
 def find_open_years():
     '''

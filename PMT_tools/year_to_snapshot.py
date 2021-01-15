@@ -58,14 +58,14 @@ class CollCollection(AggColumn):
 
     def defaultsDict(self):
         if isinstance(self.default, Iterable) and \
-            not isinstance(self.default, string_types):
+                not isinstance(self.default, string_types):
             return dict(zip(self.input_cols, self.default))
         else:
             return dict(
                 zip(self.input_cols,
                     [self.default for ic in self.input_cols]
                     )
-                )
+            )
 
 
 class Consolidation(CollCollection):
@@ -89,7 +89,7 @@ class Join(CollCollection):
         self.on_col = on_col
 
 
-#%% FUNCTIONS
+# %% FUNCTIONS
 def _validateAggSpecs(var, expected_type):
     e_type = expected_type.__name__
     # Simplest: var is the expected type
@@ -111,6 +111,7 @@ def _validateAggSpecs(var, expected_type):
                     f"Expected one or more {e_type} objects, got {bad_type}")
     # If no errors, return var (in original form or as list)
     return var
+
 
 def intersectFeatures(summary_fc, disag_fc):
     """
@@ -136,6 +137,7 @@ def intersectFeatures(summary_fc, disag_fc):
     # return intersect
     return int_fc
 
+
 def joinAttributes(to_table, to_id_field, from_table, from_id_field,
                    join_fields, null_value=0.0, renames={}):
     """
@@ -148,11 +150,12 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
     df = pd.DataFrame(
         arcpy.da.TableToNumPyArray(
             from_table, dump_fields, null_value=null_value
-            )
         )
+    )
     if renames:
         df.rename(columns=renames, inplace=True)
     PMT.extendTableDf(to_table, to_id_field, df, from_id_field)
+
 
 def summarizeAttributes(in_fc, group_fields, agg_cols,
                         consolidations=None, melt_col=None):
@@ -228,6 +231,7 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
 
     return sum_df
 
+
 def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
     cols = []
     new_names = []
@@ -243,15 +247,16 @@ def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
     renames = dict(zip(cols, new_names))
     return cols, renames
 
+
 def _createLongAccess(int_fc, id_field, activities, time_breaks, mode):
     # result is long on id_field, activity, time_break
     # TODO: update to use Column objects? (null handling, e.g.)
-    #--------------
+    # --------------
     # Dump int fc to data frame
     acc_fields, renames = _makeAccessColSpecs(activities, time_breaks, mode, include_average=False)
     if isinstance(id_field, string_types):
-        id_field = [id_field] #elif isinstance(Column)?
-    
+        id_field = [id_field]  # elif isinstance(Column)?
+
     all_fields = id_field + list(renames.values())
     df = pd.DataFrame(
         arcpy.da.TableToNumPyArray(int_fc, all_fields, null_value=0.0)
@@ -269,12 +274,13 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode):
             levels.append((a, tb))
             order.append(idx)
     header = pd.DataFrame(np.array(levels)[np.argsort(order)],
-                        columns=["Activity", "TimeBin"])
+                          columns=["Activity", "TimeBin"])
     mi = pd.MultiIndex.from_frame(header)
     df.columns = mi
     df.reset_index(inplace=True)
     # Melt
     return df.melt(id_vars=id_field)
+
 
 # %% MAIN
 if __name__ == "__main__":
@@ -285,13 +291,13 @@ if __name__ == "__main__":
     in_gdb = PMT.makePath(
         PMT.DATA, f"IDEAL_PMT_{SNAPSHOT_YEAR}.gdb"
     )
-    out_gdb_name =  f"{uuid.uuid4().hex}.gdb"
+    out_gdb_name = f"{uuid.uuid4().hex}.gdb"
     arcpy.CreateFileGDB_management(PMT.DATA, out_gdb_name)
     # out_gdb_name = "47ba6fd992f6463393c873c0b7a33fe8.gdb"
     out_gdb = PMT.makePath(PMT.DATA, out_gdb_name)
 
     # Copy spatial shells
-    #---------------------------
+    # ---------------------------
     # Networks, Points, and Polygons Feature Datasets
     for fds in ["Networks", "Points", "Polygons"]:
         print(f"... copying FDS {fds}")
@@ -300,7 +306,7 @@ if __name__ == "__main__":
         arcpy.Copy_management(source_fd, out_fd)
 
     # Join attributes from tables to features
-    #-------------------------------------------
+    # -------------------------------------------
     print("Joining tables")
     # Feature class specs
     # - blocks
@@ -362,7 +368,7 @@ if __name__ == "__main__":
     diversity = PMT.makePath(in_gdb, "Diversity_summaryareas")
     diversity_id = "RowID_"
 
-    #****************************************************
+    # ****************************************************
     # joins
     # - blocks
     joinAttributes(blocks, block_id, imperviousness, imperviousness_id, "*")
@@ -387,14 +393,14 @@ if __name__ == "__main__":
     joinAttributes(osm_nodes, osm_id, centrality, centrality_id, "*")
     # - Summary areas TODO: developable area/contiguity
     joinAttributes(sum_areas, sum_areas_id, diversity, diversity_id, "*")
-    #****************************************************
+    # ****************************************************
 
     ##
     ## Trend can start from here
     ##
 
     # Intersect features
-    #--------------------------
+    # --------------------------
     # Blocks || parcels
     print("Running intersections")
     print("... blocks and parcels")
@@ -413,9 +419,9 @@ if __name__ == "__main__":
     print("... summary areas and TAZs")
     int_st = intersectFeatures(sum_areas, tazs)
 
-    #++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # ++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Enrich features through summarization
-    #-----------------------------------------
+    # -----------------------------------------
     # Blocks from parcels
     print("Enriching tables")
     print("... blocks with parcel sums")
@@ -497,13 +503,13 @@ if __name__ == "__main__":
                                   "CNS19"])
     ]
     df = summarizeAttributes(int_sp, Column(sum_areas_id), agg_cols,
-                            consolidations=consolidate)
+                             consolidations=consolidate)
     PMT.extendTableDf(sum_areas, sum_areas_id, df, sum_areas_id)
 
     # Summary areas from MAZs
     print("... summary areas with MAZ averages")
     agg_cols = [AggColumn(maz_col, agg_method="mean") for
-                 maz_col in maz_walk_renames.values()]
+                maz_col in maz_walk_renames.values()]
     agg_cols += [AggColumn(maz_col, agg_method="mean") for
                  maz_col in maz_bike_renames.values()]
     df = summarizeAttributes(int_sm, Column(sum_areas_id), agg_cols)
@@ -513,7 +519,7 @@ if __name__ == "__main__":
     print("... summary areas with TAZ averages")
     # - Access cols
     agg_cols = [AggColumn(taz_col, agg_method="mean") for
-                 taz_col in taz_auto_renames.values()]
+                taz_col in taz_auto_renames.values()]
     agg_cols += [AggColumn(taz_col, agg_method="mean") for
                  taz_col in taz_tran_renames.values()]
     # - Trip stats cols
@@ -527,11 +533,11 @@ if __name__ == "__main__":
     ]
     df = summarizeAttributes(int_st, Column(sum_areas_id), agg_cols)
     PMT.extendTableDf(sum_areas, sum_areas_id, df, sum_areas_id)
-    #++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # ++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     # Elongate tables
-    #----------------------
-    print ("Building long tables")
+    # ----------------------
+    print("Building long tables")
     # Long on Land use
     print("... Summary area stats by land use")
     out_table = PMT.makePath(out_gdb, "AttrByLandUse")
@@ -654,7 +660,4 @@ if __name__ == "__main__":
         PMT.dfToTable(df, out_table)
 
     # Rename output
-    #arcpy.Rename_management(out_gdb, )
-
-
-
+    # arcpy.Rename_management(out_gdb, )

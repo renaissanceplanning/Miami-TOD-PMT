@@ -19,7 +19,7 @@ from six import string_types
 import os
 
 
-#%% GLOBALS
+# %% GLOBALS
 
 # Comparison methods:
 #   - __eq__() = equals [==]
@@ -32,6 +32,7 @@ import os
 class Comp():
     """
     """
+
     def __init__(self, comp_method, v):
         _comp_methods = {
             "==": "__eq__",
@@ -51,6 +52,7 @@ class Comp():
 class And():
     """
     """
+
     def __init__(self, criteria):
         self.criteria = criteria
 
@@ -87,13 +89,14 @@ class And():
 class Or():
     """
     """
+
     def __init__(self, vector, criteria):
         self.vector = vector
         if isinstance(criteria, Iterable):
-            self.criteria = criteria #TODO: validate criteria
+            self.criteria = criteria  # TODO: validate criteria
         else:
             self.criteria = [criteria]
-    
+
     def eval(self):
         return (
             np.logical_or.reduce(
@@ -101,11 +104,12 @@ class Or():
             )
         )
 
+
 LODES_CRIT = {
     "CNS_01_par": And([Comp(">=", 50), Comp("<=", 69)]),
     "CNS_02_par": Comp("==", 92),
     "CNS_03_par": Comp("==", 91),
-    "CNS_04_par": [Comp("==", 17),Comp("==", 19)],
+    "CNS_04_par": [Comp("==", 17), Comp("==", 19)],
     "CNS_05_par": [Comp("==", 41), Comp("==", 42)],
     "CNS_06_par": Comp("==", 29),
     "CNS_07_par": And([Comp(">=", 11), Comp("<=", 16)]),
@@ -128,7 +132,8 @@ LODES_CRIT = {
     ]
 }
 
-#%% FUNCTIONS
+
+# %% FUNCTIONS
 
 def enrichBlockGroups(bg_fc, parcels_fc, out_fc, bg_id_field="GEOID10",
                       par_id_field="PARCELNO", par_lu_field="DOR_UC",
@@ -149,9 +154,9 @@ def enrichBlockGroups(bg_fc, parcels_fc, out_fc, bg_id_field="GEOID10",
     par_id_field: String, default="PARCELNO"
     par_lu_field: String, default="DOR_UC"
     par_bld_area: String, default="TOT_LVG_AREA"
-    par_sum_fields: [String,...], default=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA]
-        If provided, these parcel fields will also be summed to the
-        block-group level.
+    par_sum_fields: List, [String,...], default=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA]
+        If provided, these parcel fields will also be summed to the block-group level.
+    overwrite: Bool, set to True will delete and recreate an existing output
     """
     # Prep output
     if arcpy.Exists(out_fc):
@@ -166,7 +171,7 @@ def enrichBlockGroups(bg_fc, parcels_fc, out_fc, bg_id_field="GEOID10",
     print("...copying block groups to output location")
     out_ws, out_name = os.path.split(out_fc)
     arcpy.FeatureClassToFeatureClass_conversion(bg_fc, out_ws, out_name)
-    
+
     # Make parcel feature layer
     parcel_fl = arcpy.MakeFeatureLayer_management(parcels_fc, "__parcels__")
     par_fields = [par_id_field, par_lu_field, par_bld_area]
@@ -178,7 +183,7 @@ def enrichBlockGroups(bg_fc, parcels_fc, out_fc, bg_id_field="GEOID10",
         bg_fields = ["SHAPE@", bg_id_field]
         bg_stack = []
         with arcpy.da.SearchCursor(
-            out_fc, bg_fields, spatial_reference=sr) as bgc:
+                out_fc, bg_fields, spatial_reference=sr) as bgc:
             for bgr in bgc:
                 bg_poly, bg_id = bgr
                 # Select parcels in this BG

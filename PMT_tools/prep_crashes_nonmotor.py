@@ -25,7 +25,7 @@ arcpy.env.overwriteOutput = True
 
 from config.config_project import RAW, CLEANED, YEARS
 
-from Python.download.download_config import (
+from PMT_tools.download.download_config import (
     CRASH_FIELDS_DICT,
     CRASH_INCIDENT_TYPES,
     USE_CRASH,
