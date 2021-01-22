@@ -5,18 +5,23 @@ Created: October 2020
 A collection of helper functions used throughout the PMT data acquisition,
 cleaning, analysis, and summarization processes.
 """
-
-import arcpy
+# %% imports
 import numpy as np
 import urllib3
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry.polygon import Polygon as POLY
+
 import os
 from pathlib import Path
 from six import string_types
+
 import re
 import json
+
+# import arcpy last as arc messes with global states on import likley changing globals in a way that doesnt allow
+# other libraries to locate their expected resources
+import arcpy
 
 # %% CONSTANTS - FOLDERS
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
@@ -29,8 +34,10 @@ BASIC_FEATURES = os.path.join(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
 
-WGS_84 = arcpy.SpatialReference(4326)
-FL_SPF = arcpy.SpatialReference(2881)  # Florida_East_FIPS_0901_Feet
+EPSG_LL = 4326
+EPSG_FLSPF = 2881
+WGS_84 = arcpy.SpatialReference(EPSG_LL)
+FL_SPF = arcpy.SpatialReference(EPSG_FLSPF)  # Florida_East_FIPS_0901_Feet
 
 
 # %% FUNCTIONS
@@ -185,6 +192,18 @@ def jsonToTable(json_obj, out_file):
     gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
     df = pd.DataFrame(gdf.drop(columns="geometry"))
     return dfToTable(df, out_file)
+
+
+def fetch_json_to_file(url, out_file, encoding="utf-8", overwrite=False):
+
+    http = urllib3.PoolManager()
+    req = http.request("GET", url)
+    req_json = json.loads(req.data.decode(encoding))
+    if overwrite:
+        checkOverwriteOutput(output=out_file, overwrite=overwrite)
+    with open(out_file, 'w') as dst:
+        json_txt = json.dumps(req_json)
+        dst.write(json_txt)
 
 
 def fetchJsonUrl(
@@ -508,6 +527,13 @@ def dfToPoints(df, out_fc, shape_fields,
     # clean up temp_fc
     arcpy.Delete_management(in_data=temp_fc)
     return out_fc
+
+
+def multipolygon_to_polygon_arc(file_path):
+    polygon_fcs = "in_memory\\polygons"
+    arcpy.MultipartToSinglepart_management(in_features=file_path,
+                                           out_feature_class=polygon_fcs)
+    return polygon_fcs
 
 
 def multipolygonToPolygon(gdf):

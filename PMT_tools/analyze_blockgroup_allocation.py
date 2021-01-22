@@ -11,7 +11,6 @@ import pandas as pd
 import numpy as np
 import os
 
-
 # %% GLOBALS
 CODEBLOCK = """
     val = 0 
@@ -24,6 +23,8 @@ CODEBLOCK = """
             val += 1  
         return val
      """
+
+
 # %% FUNCTIONS
 def analyze_blockgroup_allocation(parcels_path,
                                   bg_for_alloc_path,

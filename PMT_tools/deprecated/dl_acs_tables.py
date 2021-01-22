@@ -17,11 +17,11 @@ If run as "main", default years are downloaded using ACS 5-year estimates
 for Miami-Dade County.
 """
 
-
 # %% IMPORTS
 import PMT
 import censusdata as census
 import pandas as pd
+
 
 # %% FUNCTIONS
 def censusGeoIndexToColumns(index, gen_geoid=True, geoid="GEOID10"):
@@ -54,10 +54,10 @@ def censusGeoIndexToColumns(index, gen_geoid=True, geoid="GEOID10"):
         params = i.params()
         _df_ = pd.DataFrame(params)
         _df_ = pd.DataFrame(_df_[1].to_frame().T)
-        _df_.columns=columns
+        _df_.columns = columns
         idx_stack.append(_df_)
     geo_cols = pd.concat(idx_stack)
-    
+
     if gen_geoid:
         geo_cols[geoid] = geo_cols.values.sum(axis=1)
 
@@ -81,7 +81,7 @@ def _fetchAcs(year, acs_dataset, state, county, table, columns):
     return data
 
 
-def dlRaceVars(year, acs_dataset="acs5", state="12",county="086"):
+def dlRaceVars(year, acs_dataset="acs5", state="12", county="086"):
     """
     Downloads population race and ethnicity variables from available ACS data
     in table B03002.
@@ -110,8 +110,8 @@ def dlRaceVars(year, acs_dataset="acs5", state="12",county="086"):
         available)
     """
     # Set table and columns to fetch (with renaming specs for legibility)
-    scale="block_group"
-    table="B03002"
+    scale = "block_group"
+    table = "B03002"
     columns = {
         "002E": "Total_Non_Hisp",
         "012E": "Total_Hispanic",
@@ -141,11 +141,11 @@ def dlRaceVars(year, acs_dataset="acs5", state="12",county="086"):
     geo_cols = censusGeoIndexToColumns(race_data.index, gen_geoid=True,
                                        geoid="GEOID10")
     race_data = pd.concat([geo_cols, race_data], axis=1)
-    
+
     return race_data.reset_index(drop=True)
 
 
-def dlCommuteVars(year, acs_dataset="acs5", state="12",county="086"):
+def dlCommuteVars(year, acs_dataset="acs5", state="12", county="086"):
     """
     Downloads commute (journey to work) data from available ACS data
     in table B08301.
@@ -172,8 +172,8 @@ def dlCommuteVars(year, acs_dataset="acs5", state="12",county="086"):
         available)
     """
     # Set table and columns to fetch (with renaming specs for legibility)
-    scale="block_group"
-    table="B08301"
+    scale = "block_group"
+    table = "B08301"
     columns = {
         "001E": "Total_Commutes",
         "003E": "Drove_alone",
@@ -193,19 +193,20 @@ def dlCommuteVars(year, acs_dataset="acs5", state="12",county="086"):
     mode_data["NonMotor"] = mode_data.Bicycle + mode_data.Walk
     mode_data["AllOther"] = mode_data.Taxi + mode_data.Other
     # Calc shares
-    mode_data["SOV_Share"] = mode_data.Drove/mode_data.Total_Commutes
-    mode_data["HOV_Share"] = mode_data.Carpool/mode_data.Total_Commutes
-    mode_data["PT_Share"] = mode_data.Transit/mode_data.Total_Commutes
-    mode_data["NM_Share"] = mode_data.NonMotor/mode_data.Total_Commutes
-    mode_data["Oth_Share"] = mode_data.AllOther/mode_data.Total_Commutes
-    mode_data["WFH_Share"] = mode_data.Work_From_Home/mode_data.Total_Commutes
-    
+    mode_data["SOV_Share"] = mode_data.Drove / mode_data.Total_Commutes
+    mode_data["HOV_Share"] = mode_data.Carpool / mode_data.Total_Commutes
+    mode_data["PT_Share"] = mode_data.Transit / mode_data.Total_Commutes
+    mode_data["NM_Share"] = mode_data.NonMotor / mode_data.Total_Commutes
+    mode_data["Oth_Share"] = mode_data.AllOther / mode_data.Total_Commutes
+    mode_data["WFH_Share"] = mode_data.Work_From_Home / mode_data.Total_Commutes
+
     # Use the census geo index to make geo tag cols
     geo_cols = censusGeoIndexToColumns(mode_data.index, gen_geoid=True,
                                        geoid="GEOID10")
     mode_data = pd.concat([geo_cols, mode_data], axis=1)
-    
+
     return mode_data.reset_index(drop=True)
+
 
 # %%
 if __name__ == "__main__":
@@ -221,7 +222,7 @@ if __name__ == "__main__":
             race.to_csv(race_out, index=False)
         except:
             print(f"ERROR DOWNLOADING RACE DATA ({year})")
-        
+
         print(f"Fetching commute data ({commute_out})")
         try:
             commute = dlCommuteVars(year, acs_dataset="acs5", state="12",
