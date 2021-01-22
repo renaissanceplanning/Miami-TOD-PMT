@@ -3,10 +3,10 @@ from urllib import request
 import re
 import requests
 from requests.exceptions import RequestException
-from PMT_tools.PMT import makePath
+from PMT_tools.PMT import makePath, checkOverwriteOutput
 
 
-def download_file_from_url(url, save_path):
+def download_file_from_url(url, save_path, overwrite=False):
     """
     downloads file resources directly from a url endpoint to a folder
     Parameters
@@ -18,15 +18,20 @@ def download_file_from_url(url, save_path):
     -------
     None
     """
+
     if os.path.isdir(save_path):
         filename = get_filename_from_header(url)
         save_path = makePath(save_path, filename)
+    if overwrite:
+        checkOverwriteOutput(output=save_path, overwrite=overwrite)
+
     try:
         request.urlretrieve(url, save_path)
     except:
         with request.urlopen(url) as download:
             with open(save_path, 'wb') as out_file:
                 out_file.write(download.read())
+
 
 
 def get_filename_from_header(url):

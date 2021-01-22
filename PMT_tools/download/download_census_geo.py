@@ -52,7 +52,7 @@ def get_filename_list_from_ftp(target, state):
     filename_list = []
 
     for line in target_files:
-        filename = '%s%s' % (target, line.decode().split()[-1])
+        filename = f"{target}/{line.decode().split()[-1]}"
         filename_list.append(filename)
 
     if state:
@@ -79,7 +79,7 @@ def get_content_length(u):
 def download_files_in_list(filename_list, download_dir, force=False):
     downloaded_filename_list = []
     for file_location in filename_list:
-        filename = f"{download_dir}/{file_location.split('/')[-1]}"
+        filename = os.path.join(download_dir, file_location.split('/')[-1])
         if force or not os.path.exists(filename):
             # Only download if required.
             u = urllib2.urlopen(file_location)
@@ -109,8 +109,8 @@ def download_files_in_list(filename_list, download_dir, force=False):
 
 
 def extract_downloaded_file(filename, extract_dir, remove_on_error=True):
-    zip_dir = filename.replace('.zip', '').split('/')[-1]
-    target_dir = normpath(join(EXTRACT_DIR, zip_dir))
+    zip_dir = os.path.split(filename.replace(".zip", ""))[-1]
+    target_dir = normpath(join(extract_dir, zip_dir))
 
     print("Extracting: " + filename + " ...")
     try:

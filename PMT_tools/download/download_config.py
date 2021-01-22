@@ -172,9 +172,9 @@ CRASH_CITY_CODES = dict(
 )
 ''' Census Configuration'''
 CENSUS_FTP_HOME = 'ftp://ftp2.census.gov/geo/tiger/TIGER2012/'
-CENSUS_SCALE = "block_group"
+CENSUS_SCALE = "block group"
 CENSUS_GEO_TYPES = ["tabblock", "bg"]
-CENSUS_STATE = "12"
+CENSUS_STATE = "FL"
 CENSUS_COUNTY = "086"
 ACS_RACE_TABLE = "B03002"
 ACS_RACE_COLUMNS = {
@@ -226,6 +226,7 @@ COMMERCIAL_ENERGY_CONSUMPTION_URL = r"https://www.eia.gov/consumption/commercial
 
 ''' LODES Download '''
 LODES_URL = "https://lehd.ces.census.gov/data/lodes/LODES7"
+LODES_YEARS = [2014, 2015, 2016, 2017, 2018]
 LODES_FILE_TYPES = ["od", "rac", "wac"]
 LODES_STATES = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl",
                 "ga", "hi", "id", "il", "in", "ia", "ks", "ky", "la",
@@ -236,4 +237,4 @@ LODES_STATES = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl",
 LODES_WORKFORCE_SEGMENTS = ["S000", "SA01", "SA02", "SA03", "SE01", "SE02", "SE03", "SI01", "SI02", "SI03", ""]
 LODES_PART = ["main", "aux", ""]
 LODES_JOB_TYPES = ["JT00", "JT01", "JT02", "JT03", "JT04", "JT05"]
-LODES_AGG_GEOS = ["st", "cty", "trct", "bgrp", "cbsa", "zcta", ""]
+LODES_AGG_GEOS = ["st", "cty", "trct", "bgrp", "cbsa", "zcta"]

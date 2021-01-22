@@ -1,4 +1,4 @@
-from download_config import (LODES_URL, LODES_FILE_TYPES, LODES_STATES,
+from download_config import (LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES,
                              LODES_WORKFORCE_SEGMENTS, LODES_PART,
                              LODES_JOB_TYPES, LODES_AGG_GEOS)
 
@@ -35,10 +35,32 @@ def validate_string_inputs(value, valid_inputs):
         print("either the value supplied is not a string or valid_input was not a list")
 
 
+def validate_aggregate_geo_inputs(values, valid):
+    try:
+        if values:
+            # ensure you have a string or list
+            if isinstance(values, str):
+                values = [values]
+            elif isinstance(values, list):
+                values = values
+            else:
+                raise ValueError
+            # check values are part of valids
+            if isinstance(valid, list):
+                return all(value in valid for value in values)
+            else:
+                raise ValueError
+        else:
+            return False
+    except ValueError:
+        print("either the geo is not a string/list or not part of the valid set")
+
+
 def validate_year(year):
     if isinstance(year, int):
-        year = str(year)
-    return 1 <= len(year) <= 4
+        if year in LODES_YEARS:
+            year = str(year)
+            return 1 <= len(year) <= 4
 
 
 def validate_year_input(year, state):
@@ -66,9 +88,9 @@ def validate_lodes_download(file_type, state, segment, part, job_type, year, agg
     validates the download inputs to `dl_lodes`
     (`file_type`, `state`, `segment`, `part`, `job_type`, and `year`)
     """
-    string_list = [file_type, state, segment, part, job_type, agg_geos]
+    string_list = [file_type, state, segment, part, job_type]
     valids_list = [LODES_FILE_TYPES, LODES_STATES, LODES_WORKFORCE_SEGMENTS,
-                   LODES_PART, LODES_JOB_TYPES, LODES_AGG_GEOS]
+                   LODES_PART, LODES_JOB_TYPES]
     try:
         # validate year
         if validate_year_input(year=year, state=state):
@@ -88,12 +110,18 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
     """
     aggregate LODES data to desired geographic levels, and save the created
     files [to .csv.gz]
+    Parameters
+    ----------
+    geo_crosswalk_path - String; path to geographic crosswalk CSV
+    lodes_path - String; file path to gzipped lodes data file
+    file_type - String; shorthand for type of jobs summarization
+    agg_geo - String; shorthand for the geographic scale to aggregate data to
 
     Returns
     -------
-    dict of file paths for any aggregated data
+    string path to the aggregated data
     """
-    # TODO: add addtional function to handle OD joins, this only works for WAC, RAC
+    # TODO: add additional function to handle OD joins, this only works for WAC, RAC
     # so there's no message for mixed dtypes
     xwalk_dtype_dict = {"tabblk2010": "str", "st": "str", "cty": "str",
                         "trct": "str", "bgrp": "str", "cbsa": "str", "zcta": "str"}
@@ -133,8 +161,8 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
 
 
 def download_aggregate_lodes(output_directory, file_type, state,
-                             segment, part, job_type, year, agg_geog):
-    '''
+                             segment, part, job_type, year, agg_geog=None):
+    """
     - validate directory
     - if validate LODES request:
         - download LODES zip
@@ -146,7 +174,7 @@ def download_aggregate_lodes(output_directory, file_type, state,
     Returns
     -------
 
-    '''
+    """
     try:
         out_dir = validate_directory(directory=output_directory)
         if validate_lodes_download(file_type, state, segment, part, job_type, year, agg_geog):
@@ -161,17 +189,20 @@ def download_aggregate_lodes(output_directory, file_type, state,
             download_file_from_url(url=lodes_download_url, save_path=lodes_out_path)
 
         if agg_geog:
-            if isinstance(agg_geog, string_types):
-                agg_geog = [agg_geog]
-            for geog in agg_geog:
-                cross_fname = f"{state}_xwalk.csv.gz"
-                cross_out_path = makePath(out_dir, cross_fname)
-                crosswalk_url = f"{LODES_URL}/{state}/{state}_xwalk.csv.gz"
-                download_file_from_url(url=crosswalk_url, save_path=cross_out_path)
-                aggregate_lodes_data(geo_crosswalk_path=cross_out_path,
-                                     lodes_path=lodes_out_path,
-                                     file_type=file_type,
-                                     agg_geo=geog)
+            if validate_aggregate_geo_inputs(values=agg_geog, valid=LODES_AGG_GEOS):
+                if isinstance(agg_geog, string_types):
+                    agg_geog = [agg_geog]
+                for geog in agg_geog:
+                    cross_fname = f"{state}_xwalk.csv.gz"
+                    cross_out_path = makePath(out_dir, cross_fname)
+                    crosswalk_url = f"{LODES_URL}/{state}/{state}_xwalk.csv.gz"
+                    download_file_from_url(url=crosswalk_url, save_path=cross_out_path)
+                    aggregate_lodes_data(geo_crosswalk_path=cross_out_path,
+                                         lodes_path=lodes_out_path,
+                                         file_type=file_type,
+                                         agg_geo=geog)
+        else:
+            print("No aggregation requested")
     except:
         print("something failed")
 
@@ -187,7 +218,7 @@ if __name__ == "__main__":
     save_directory = "C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\Temp\LODES"
     aggregate_geo = "zcta"
 
-    main(output_directory=save_directory, file_type=file_type,
+    download_aggregate_lodes(output_directory=save_directory, file_type=file_type,
          state=state, segment=segment, part=part, job_type=job_type,
          year=year, agg_geog=aggregate_geo)
 

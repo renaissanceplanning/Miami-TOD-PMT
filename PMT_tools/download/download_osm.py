@@ -82,7 +82,7 @@ def validate_bbox(bbox):
 
 
 def validate_inputs(study_area_poly=None, bbox=None):
-    if not any(study_area_poly, bbox):
+    if not any([study_area_poly, bbox]):
         raise ValueError(
             "You must provide some sort of geometry type for osmnx download"
         )
