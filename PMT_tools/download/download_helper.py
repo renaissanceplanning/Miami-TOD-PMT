@@ -4,7 +4,7 @@ import re
 import requests
 from requests.exceptions import RequestException
 from PMT_tools.PMT import makePath, checkOverwriteOutput
-
+import arcpy
 
 def download_file_from_url(url, save_path, overwrite=False):
     """
@@ -31,7 +31,6 @@ def download_file_from_url(url, save_path, overwrite=False):
         with request.urlopen(url) as download:
             with open(save_path, 'wb') as out_file:
                 out_file.write(download.read())
-
 
 
 def get_filename_from_header(url):
@@ -65,3 +64,16 @@ def validate_directory(directory):
         except:
             error = "--> 'directory' does not exist and cannot be created"
             return error
+
+
+def validate_geodatabase(gdb_path):
+    if gdb_path.endswith(".gdb"):
+        if os.path.isdir(gdb_path):
+            return gdb_path
+        else:
+            try:
+                out_path, name = os.path.split(gdb_path)
+                arcpy.CreateFileGDB_management(out_folder_path=out_path, out_name=name[:-4])
+                return gdb_path
+            except:
+                error = "--> 'gdb' does not exist and cannot be created"

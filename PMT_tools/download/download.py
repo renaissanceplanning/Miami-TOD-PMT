@@ -1,5 +1,5 @@
-# global values configured for
-from download_config import (CRASHES_SERVICE, PED_BIKE_QUERY, USE_CRASH)
+# global values configured for downloading
+from download_config import (CRASHES_SERVICE, PED_BIKE_QUERY)
 from download_config import (CENSUS_SCALE, CENSUS_STATE, CENSUS_COUNTY, CENSUS_GEO_TYPES,
                              ACS_RACE_TABLE, ACS_RACE_COLUMNS, ACS_MODE_TABLE, ACS_MODE_COLUMNS)
 from download_config import URBAN_GROWTH_OPENDATA_URL, IMPERVIOUS_URL, MIAMI_DADE_COUNTY_URL
@@ -242,9 +242,6 @@ def download_commute_vars(year, acs_dataset="acs5", state=CENSUS_STATE, county=C
     return mode_data.reset_index(drop=True)
 
 
-# download Imperviousness data
-
-
 if __name__ == "__main__":
     if GITHUB:
         ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
@@ -253,92 +250,92 @@ if __name__ == "__main__":
     ''' download bike/ped crashes
         - downloads filtered copy of the FDOT crash data for MD county as geojson
     '''
-    # out_path = makePath(RAW, "Safety_Security")
-    # out_name = "bike_ped.geojson"
-    # validate_directory(out_path)
-    # download_bike_ped_crashes(
-    #     all_crashes_url=CRASHES_SERVICE,
-    #     fields=list(USE_CRASH),
-    #     where_clause=PED_BIKE_QUERY,
-    #     out_crs='4326',
-    #     out_dir=out_path,
-    #     out_name=out_name)
-    #
-    # # ALL RAW DATA that must be acquired as yearly chunks
-    # ###
-    # ''' download census data
-    #     - downloads and unzips the census block group shapefile
-    #     - downloads and writes out to table the ACS race and commute data
-    #     - downloads LODES data to table
-    # '''
-    # # download and extract census geographies
-    # geo_types = ['tabblock', 'bg']
-    # dl_dir = makePath(RAW, "temp_downloads")
-    # ext_dir = makePath(RAW, "BlockGroups")
-    # for path in [dl_dir, ext_dir]:
-    #     validate_directory(path)
-    # for geo_type in CENSUS_GEO_TYPES:
-    #     get_one_geo_type(geo_type=geo_type,
-    #                      download_dir=dl_dir,
-    #                      extract_dir=ext_dir,
-    #                      state=CENSUS_STATE, year='2019')
-    # rmtree(dl_dir)
-    # # download census tabular data
-    # bg_path = makePath(RAW, "BlockGroups")
-    # for year in YEARS:
-    #     # setup folders
-    #     race_out = makePath(bg_path, f"ACS_{year}_race.csv")
-    #     commute_out = makePath(bg_path, f"ACS_{year}_commute.csv")
-    #     print(f"Fetching race data ({race_out})")
-    #     try:
-    #         race = download_race_vars(year, acs_dataset="acs5", state="12", county="086")
-    #         race.to_csv(race_out, index=False)
-    #     except:
-    #         print(f"ERROR DOWNLOADING RACE DATA ({year})")
-    #
-    #     print(f"Fetching commute data ({commute_out})")
-    #     try:
-    #         commute = download_commute_vars(year, acs_dataset="acs5", state="12", county="086")
-    #         commute.to_csv(commute_out, index=False)
-    #     except:
-    #         print(f"ERROR DOWNLOADING COMMUTE DATA ({year})")
+    out_path = makePath(RAW, "Safety_Security")
+    out_name = "bike_ped.geojson"
+    validate_directory(out_path)
+    download_bike_ped_crashes(
+        all_crashes_url=CRASHES_SERVICE,
+        fields="ALL",
+        where_clause=PED_BIKE_QUERY,
+        out_crs='4326',
+        out_dir=out_path,
+        out_name=out_name)
 
-    # ''' download LODES data for job counts
-    #     - downloads lodes files by year and optionally aggregates to a coarser geographic area
-    # '''
-    # lodes_path = makePath(RAW, "LODES")
-    # for year in YEARS:
-    #     download_aggregate_lodes(output_directory=lodes_path, file_type="wac",
-    #                              state="fl", segment="S000", part="", job_type="JT00",
-    #                              year=year, agg_geog=["bgrp"])
+    # ALL RAW DATA that must be acquired as yearly chunks
+    ###
+    ''' download census data
+        - downloads and unzips the census block group shapefile
+        - downloads and writes out to table the ACS race and commute data
+        - downloads LODES data to table
+    '''
+    # download and extract census geographies
+    geo_types = ['tabblock', 'bg']
+    dl_dir = makePath(RAW, "temp_downloads")
+    ext_dir = makePath(RAW, "BlockGroups")
+    for path in [dl_dir, ext_dir]:
+        validate_directory(path)
+    for geo_type in CENSUS_GEO_TYPES:
+        get_one_geo_type(geo_type=geo_type,
+                         download_dir=dl_dir,
+                         extract_dir=ext_dir,
+                         state=CENSUS_STATE, year='2019')
+    rmtree(dl_dir)
+    # download census tabular data
+    bg_path = makePath(RAW, "BlockGroups")
+    for year in YEARS:
+        # setup folders
+        race_out = makePath(bg_path, f"ACS_{year}_race.csv")
+        commute_out = makePath(bg_path, f"ACS_{year}_commute.csv")
+        print(f"Fetching race data ({race_out})")
+        try:
+            race = download_race_vars(year, acs_dataset="acs5", state="12", county="086")
+            race.to_csv(race_out, index=False)
+        except:
+            print(f"ERROR DOWNLOADING RACE DATA ({year})")
 
-    # ''' download urban growth boundary and county boundary
-    #     - downloads geojson from open data site in raw format
-    # '''
-    # out_ugb = makePath(RAW, "UrbanDevelopmentBoundary.geojson")
+        print(f"Fetching commute data ({commute_out})")
+        try:
+            commute = download_commute_vars(year, acs_dataset="acs5", state="12", county="086")
+            commute.to_csv(commute_out, index=False)
+        except:
+            print(f"ERROR DOWNLOADING COMMUTE DATA ({year})")
+
+    ''' download LODES data for job counts
+        - downloads lodes files by year and optionally aggregates to a coarser geographic area
+    '''
+    lodes_path = makePath(RAW, "LODES")
+    for year in YEARS:
+        download_aggregate_lodes(output_directory=lodes_path, file_type="wac",
+                                 state="fl", segment="S000", part="", job_type="JT00",
+                                 year=year, agg_geog=["bgrp"])
+
+    ''' download urban growth boundary and county boundary
+        - downloads geojson from open data site in raw format
+    '''
+    out_ugb = makePath(RAW, "UrbanDevelopmentBoundary.geojson")
     out_county = makePath(RAW, "Miami-Dade_Boundary.geojson")
-    # for shape, out_file in zip([URBAN_GROWTH_OPENDATA_URL, MIAMI_DADE_COUNTY_URL],
-    #                            [out_ugb, out_county]):
-    #     download_file_from_url(url=URBAN_GROWTH_OPENDATA_URL,
-    #                        save_path=out_file,
-    #                        overwrite=True)
-    #
-    # ''' download impervious surface data for 2016 (most recent vintage)
-    #     - downloads just zip file of data, prep script will unzip and subset
-    # '''
-    # imperv_filename = IMPERVIOUS_URL.split("/")[-1]
-    # imperv_zip = makePath(RAW, imperv_filename)
-    # download_file_from_url(url=IMPERVIOUS_URL, save_path=imperv_zip, overwrite=True)
-    #
-    # ''' download park geometry with tabular data as geojson
-    #     - downloads geojson for Municipal, County, and State/Fed
-    #         parks including Facility points
-    #     - current version downloads and converts to shapefile, this step will be skipped
-    #         in next iteration of prep script
-    # '''
-    # for file, url in PARKS_URL_DICT.items():
-    #     out_file = makePath(RAW, f"{file}.geojson")
-    #     download_file_from_url(url=url, save_path=out_file, overwrite=True)
+    for shape, out_file in zip([URBAN_GROWTH_OPENDATA_URL, MIAMI_DADE_COUNTY_URL],
+                               [out_ugb, out_county]):
+        download_file_from_url(url=URBAN_GROWTH_OPENDATA_URL,
+                           save_path=out_file,
+                           overwrite=True)
+
+    ''' download impervious surface data for 2016 (most recent vintage)
+        - downloads just zip file of data, prep script will unzip and subset
+    '''
+    imperv_filename = IMPERVIOUS_URL.split("/")[-1]
+    imperv_zip = makePath(RAW, imperv_filename)
+    download_file_from_url(url=IMPERVIOUS_URL, save_path=imperv_zip, overwrite=True)
+
+    ''' download park geometry with tabular data as geojson
+        - downloads geojson for Municipal, County, and State/Fed
+            parks including Facility points
+        - current version downloads and converts to shapefile, this step will be skipped
+            in next iteration of prep script
+    '''
+    for file, url in PARKS_URL_DICT.items():
+        out_file = makePath(RAW, f"{file}.geojson")
+        download_file_from_url(url=url, save_path=out_file, overwrite=True)
 
     ''' download osm data - networks and buildings 
         - downloads networks as nodes.shp and edges.shp
