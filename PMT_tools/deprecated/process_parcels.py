@@ -21,13 +21,9 @@ import pyproj
 gis_url = "ftp://sdrftp03.dor.state.fl.us/Map%20Data/"
 tax_url = "ftp://sdrftp03.dor.state.fl.us/Tax%20Roll%20Data%20Files/"
 
-
-
-def find_all_downloads():
-
 # %% Functions
 def find_open_years():
-    '''
+    """
     identify years of availability for FDOR parcel data from their FTP data
     repository; parcel data includes both GIS data and NAL attributes.
 
@@ -42,7 +38,7 @@ def find_open_years():
             years in `both` (i.e. this is for all years in `both`):
                 gis_url: url to the GIS data archive for the year
                 nal_url: url to the NAL data archive for the year
-    '''
+    """
 
     # parsing the ftp sites
     # ---------------------

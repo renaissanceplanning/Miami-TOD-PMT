@@ -245,7 +245,6 @@ def download_commute_vars(year, acs_dataset="acs5", state=CENSUS_STATE, county=C
 # download Imperviousness data
 
 
-
 if __name__ == "__main__":
     if GITHUB:
         ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
@@ -361,3 +360,11 @@ if __name__ == "__main__":
     for dl_url, tbl in zip([COMMERCIAL_ENERGY_CONSUMPTION_URL, RESIDENTIAL_ENERGY_CONSUMPTION_URL],
                            [commercial_energy_tbl, residential_energy_tbl]):
         download_file_from_url(url=dl_url, save_path=tbl)
+
+# TODO: Currently the download tools all function as expected but are organized poorly. The __main__
+# TODO:function should be converted to an executable and the underlying scripts reorganized once again.
+# TODO:     - download_config.py (all global configuration variable)
+# TODO:     - download_helper.py (any non-specific functions or shared function between modules, ie simple downloaders)
+# TODO:     - download_census.py (geography, lodes, acs(race and commute))
+# TODO:     - download_osm.py (network geometry, buildings, potentially other)
+# TODO:     - download_parcels.py (pull parcel geometry by year and NAL data where available), currently parcel_ftp.py
