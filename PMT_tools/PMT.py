@@ -195,7 +195,6 @@ def jsonToTable(json_obj, out_file):
 
 
 def fetch_json_to_file(url, out_file, encoding="utf-8", overwrite=False):
-
     http = urllib3.PoolManager()
     req = http.request("GET", url)
     req_json = json.loads(req.data.decode(encoding))
@@ -207,7 +206,7 @@ def fetch_json_to_file(url, out_file, encoding="utf-8", overwrite=False):
 
 
 def fetchJsonUrl(
-    url, out_file, encoding="utf-8", is_spatial=False, crs=4326, overwrite=False
+        url, out_file, encoding="utf-8", is_spatial=False, crs=4326, overwrite=False
 ):
     """
     Retrieve a json/geojson file at the given url and convert to a
@@ -271,12 +270,13 @@ def iterRowsAsChunks(in_table, chunksize=1000):
         expr = " AND ".join(
             [expr_ref + f">{i}",
              expr_ref + f"<={i + chunksize}"
-            ]
+             ]
         )
         arcpy.SelectLayerByAttribute_management(
             in_table, "NEW_SELECTION", expr
         )
         yield in_table
+
 
 def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
     """
@@ -324,7 +324,7 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
 
 
 def mergeFeatures(
-    raw_dir, fc_names, clean_dir, out_fc, drop_columns=[], rename_columns=[]
+        raw_dir, fc_names, clean_dir, out_fc, drop_columns=[], rename_columns=[]
 ):
     """
     Combine feature classes from a raw folder in a single feature class in
@@ -402,7 +402,7 @@ def colMultiIndexToNames(columns, separator="_"):
     if isinstance(columns, pd.MultiIndex):
         columns = columns.to_series().apply(
             lambda col: separator.join(col)
-            )
+        )
     return columns
 
 
@@ -601,19 +601,19 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
 
 
 def sumToAggregateGeo(
-    disag_fc,
-    sum_fields,
-    groupby_fields,
-    agg_fc,
-    agg_id_field,
-    output_fc,
-    overlap_type="INTERSECT",
-    agg_funcs=np.sum,
-    disag_wc=None,
-    agg_wc=None,
-    flatten_disag_id=None,
-    *args,
-    **kwargs,
+        disag_fc,
+        sum_fields,
+        groupby_fields,
+        agg_fc,
+        agg_id_field,
+        output_fc,
+        overlap_type="INTERSECT",
+        agg_funcs=np.sum,
+        disag_wc=None,
+        agg_wc=None,
+        flatten_disag_id=None,
+        *args,
+        **kwargs,
 ):
     """
     Summarizes values for features in an input feature class based on their
@@ -798,7 +798,7 @@ if __name__ == "__main__":
     arcpy.env.overwriteOutput = True
     sumToAggregateGeo(
         disag_fc=r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Safety_Security\Crash_Data"
-        r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
+                 r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
         sum_fields=["SPEED_LIM"],
         groupby_fields=["CITY"],
         agg_fc=r"K:\Projects\MiamiDade\PMT\Basic_features.gdb\Basic_features_SPFLE\SMART_Plan_Station_Areas",

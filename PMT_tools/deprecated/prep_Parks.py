@@ -13,7 +13,7 @@ folder.
 
 # %% Imports
 import geopandas as gpd
-import PMT
+from PMT_tools.PMT import (makePath, mergeFeatures, copyFeatures, RAW, CLEANED)
 
 
 # %% FUNCTION
@@ -54,18 +54,18 @@ def cleanParks(raw_dir, poly_fcs, points_fc, clean_dir, out_poly,
         `{clean_dir}/{out_points}`
     """
     # Merge polygons
-    PMT.mergeFeatures(raw_dir, poly_fcs, clean_dir, out_poly,
+    mergeFeatures(raw_dir, poly_fcs, clean_dir, out_poly,
                       drop_columns=drop_columns, rename_columns=rename_columns)
     # Copy points
-    in_points = PMT.makePath(raw_dir, points_fc)
-    out_points = PMT.makePath(clean_dir, out_points)
-    PMT.copyFeatures(in_points, out_points)
+    in_points = makePath(raw_dir, points_fc)
+    out_points = makePath(clean_dir, out_points)
+    copyFeatures(in_points, out_points)
 
 
 # %% Apply
 if __name__ == "__main__":
-    raw_dir = PMT.makePath(PMT.RAW, "Parks")
-    clean_dir = PMT.makePath(PMT.CLEANED, "Parks")
+    raw_dir = makePath(RAW, "Parks")
+    clean_dir = makePath(CLEANED, "Parks")
 
     # Polygon specs
     poly_fcs = [

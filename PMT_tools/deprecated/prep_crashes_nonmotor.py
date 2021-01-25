@@ -119,7 +119,7 @@ def combine_incidents(gdf, type_dict):
         mask = gdf[crash_type] == "Y"
         gdf.loc[mask, "TRANS_TYPE"] = crash_text
 
-
+# intermediate work to create an Arcpy version of crash cleaning, likely unneeded as the
 def clean_crashes(
         input_df,
         out_path,
