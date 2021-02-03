@@ -40,17 +40,15 @@ ACS_MODE_COLUMNS = {
     "021E": "Work_From_Home"
 }
 
-''' Urban Growth Boundary Config '''
-URBAN_GROWTH_OPENDATA_URL = r"https://opendata.arcgis.com/datasets/a468dc11c02f4467ade836947627554b_0.geojson"
-
-''' County Boundary '''
-MIAMI_DADE_COUNTY_URL = r"https://opendata.arcgis.com/datasets/cec575982ea64ef7a11e587e532c6b6a_0.geojson"
-
-''' Impervious Surface data NLCD '''
-IMPERVIOUS_URL = r"https://s3-us-west-2.amazonaws.com/mrlc/NLCD_2016_Impervious_L48_20190405.zip"
-
-''' Parks Open Data URLS - from '''
-PARKS_URL_DICT = {
+''' All downloadable URLs 
+    - Impervious Surface data NLCD
+    - Urban Growth Boundary
+    - County Boundary
+    - Various Parks data'''
+DOWNLOAD_URL_DICT = {
+    "Imperviousness": r"https://s3-us-west-2.amazonaws.com/mrlc/NLCD_2016_Impervious_L48_20190405.zip",
+    "MD_Urban_Growth_Boundary": r"https://opendata.arcgis.com/datasets/a468dc11c02f4467ade836947627554b_0.geojson",
+    "Miami-Dade_County_Boundary": r"https://opendata.arcgis.com/datasets/cec575982ea64ef7a11e587e532c6b6a_0.geojson",
     "Municipal_Parks": r"https://opendata.arcgis.com/datasets/16fe02a1defa45b28bf14a29fb5f0428_0.geojson",
     "County_Parks": r"https://opendata.arcgis.com/datasets/aca1e6ff0f634be282d50cc2d534a832_0.geojson",
     "Federal_State_Parks": r"https://opendata.arcgis.com/datasets/fa11a4c0a3554467b0fd5bc54edde4f9_0.geojson",

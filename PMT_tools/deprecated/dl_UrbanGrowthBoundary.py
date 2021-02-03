@@ -7,8 +7,8 @@ for Miami-Dade county is downloaded from a default URL
 and saved to the "raw" data directory.
 """
 # %% MAIN
-import PMT
-from PMT import arcpy
+import PMT_tools.PMT as PMT
+from PMT_tools.PMT import arcpy
 import sys
 import traceback
 

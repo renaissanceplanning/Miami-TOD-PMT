@@ -1,5 +1,5 @@
 # %% IMPORTS
-import PMT
+
 import arcpy
 import os
 import tempfile
@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from six import string_types
 from collections.abc import Iterable
+import PMT
 
 # %% GLOBALS
 SNAPSHOT_YEAR = 2019

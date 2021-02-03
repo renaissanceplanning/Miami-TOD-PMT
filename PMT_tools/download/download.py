@@ -1,10 +1,9 @@
 # global values configured for downloading
-from download_config import (CRASHES_SERVICE, PED_BIKE_QUERY)
-from download_config import (CENSUS_SCALE, CENSUS_STATE, CENSUS_COUNTY, CENSUS_GEO_TYPES,
-                             ACS_RACE_TABLE, ACS_RACE_COLUMNS, ACS_MODE_TABLE, ACS_MODE_COLUMNS)
-from download_config import URBAN_GROWTH_OPENDATA_URL, IMPERVIOUS_URL, MIAMI_DADE_COUNTY_URL
-from download_config import RESIDENTIAL_ENERGY_CONSUMPTION_URL, COMMERCIAL_ENERGY_CONSUMPTION_URL
-from download_config import PARKS_URL_DICT
+from PMT_tools.config.download_config import (CRASHES_SERVICE, PED_BIKE_QUERY)
+from PMT_tools.config.download_config import (CENSUS_SCALE, CENSUS_STATE, CENSUS_COUNTY, CENSUS_GEO_TYPES,
+                                              ACS_RACE_TABLE, ACS_RACE_COLUMNS, ACS_MODE_TABLE, ACS_MODE_COLUMNS)
+from PMT_tools.config.download_config import DOWNLOAD_URL_DICT
+from PMT_tools.config.download_config import RESIDENTIAL_ENERGY_CONSUMPTION_URL, COMMERCIAL_ENERGY_CONSUMPTION_URL
 
 # helper functions from other modules
 from download_helper import download_file_from_url, validate_directory
@@ -25,12 +24,12 @@ import pandas as pd
 import geopandas as gpd
 
 # PMT Functions
-from PMT_tools.PMT import (makePath, checkOverwriteOutput)
+from PMT_tools.PMT import (makePath)
 
 # PMT globals
 from PMT_tools.PMT import (RAW, YEARS)
 
-GITHUB = True
+DEBUG = True
 
 
 # bike and pedestrian crashes
@@ -51,7 +50,7 @@ def download_bike_ped_crashes(
         a dictionary key of 'where' with the value being the intended filter
     out_crs: String
         EPSG code used to define output coordinates
-    out_path: Path
+    out_dir: Path
         Directory where file will be stored
     out_name: String
         The name of the output geojson file.
@@ -77,7 +76,7 @@ def download_bike_ped_crashes(
                                fields=requested_fields, outSR=out_crs)
 
     # write out data from server to geojson
-    out_file = os.path.join(out_path, out_name)
+    out_file = os.path.join(out_dir, out_name)
     with open(out_file, 'w') as dst:
         dst.write('{"type":"FeatureCollection","features":[\n')
         feature_iter = iter(features_dump)
@@ -242,14 +241,16 @@ def download_commute_vars(year, acs_dataset="acs5", state=CENSUS_STATE, county=C
     return mode_data.reset_index(drop=True)
 
 
-if __name__ == "__main__":
-    if GITHUB:
-        ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
-        RAW = str(Path(ROOT, 'DownloadTest'))
-    # ALL RAW DATA that can be grabbed as single elements
-    ''' download bike/ped crashes
+if DEBUG:
+    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
+    RAW = validate_directory(makePath(ROOT, 'PROCESSING_TEST', "RAW"))
+
+
+# ALL RAW DATA that can be grabbed as single elements
+def download_crashes():
+    """ download bike/ped crashes
         - downloads filtered copy of the FDOT crash data for MD county as geojson
-    '''
+    """
     out_path = makePath(RAW, "Safety_Security")
     out_name = "bike_ped.geojson"
     validate_directory(out_path)
@@ -261,17 +262,19 @@ if __name__ == "__main__":
         out_dir=out_path,
         out_name=out_name)
 
-    # ALL RAW DATA that must be acquired as yearly chunks
-    ###
-    ''' download census data
+
+# ALL RAW DATA that must be acquired as yearly chunks
+###
+def download_census():
+    """ download census data
         - downloads and unzips the census block group shapefile
         - downloads and writes out to table the ACS race and commute data
         - downloads LODES data to table
-    '''
+    """
     # download and extract census geographies
     geo_types = ['tabblock', 'bg']
     dl_dir = makePath(RAW, "temp_downloads")
-    ext_dir = makePath(RAW, "BlockGroups")
+    ext_dir = makePath(RAW, "CENSUS")
     for path in [dl_dir, ext_dir]:
         validate_directory(path)
     for geo_type in CENSUS_GEO_TYPES:
@@ -281,83 +284,100 @@ if __name__ == "__main__":
                          state=CENSUS_STATE, year='2019')
     rmtree(dl_dir)
     # download census tabular data
-    bg_path = makePath(RAW, "BlockGroups")
+    bg_path = makePath(RAW, "CENSUS")
     for year in YEARS:
         # setup folders
         race_out = makePath(bg_path, f"ACS_{year}_race.csv")
         commute_out = makePath(bg_path, f"ACS_{year}_commute.csv")
-        print(f"Fetching race data ({race_out})")
+        print(f"...Fetching race data ({race_out})")
         try:
             race = download_race_vars(year, acs_dataset="acs5", state="12", county="086")
             race.to_csv(race_out, index=False)
         except:
-            print(f"ERROR DOWNLOADING RACE DATA ({year})")
+            print(f"..ERROR DOWNLOADING RACE DATA ({year})")
 
-        print(f"Fetching commute data ({commute_out})")
+        print(f"...Fetching commute data ({commute_out})")
         try:
             commute = download_commute_vars(year, acs_dataset="acs5", state="12", county="086")
             commute.to_csv(commute_out, index=False)
         except:
-            print(f"ERROR DOWNLOADING COMMUTE DATA ({year})")
+            print(f"..ERROR DOWNLOADING COMMUTE DATA ({year})")
 
-    ''' download LODES data for job counts
+
+def download_LODES():
+    """ download LODES data for job counts
         - downloads lodes files by year and optionally aggregates to a coarser geographic area
-    '''
+    """
     lodes_path = makePath(RAW, "LODES")
-    for year in YEARS:
+    print("LODES:")
+    for year in [2019]:
         download_aggregate_lodes(output_directory=lodes_path, file_type="wac",
                                  state="fl", segment="S000", part="", job_type="JT00",
                                  year=year, agg_geog=["bgrp"])
 
-    ''' download urban growth boundary and county boundary
-        - downloads geojson from open data site in raw format
-    '''
-    out_ugb = makePath(RAW, "UrbanDevelopmentBoundary.geojson")
-    out_county = makePath(RAW, "Miami-Dade_Boundary.geojson")
-    for shape, out_file in zip([URBAN_GROWTH_OPENDATA_URL, MIAMI_DADE_COUNTY_URL],
-                               [out_ugb, out_county]):
-        download_file_from_url(url=URBAN_GROWTH_OPENDATA_URL,
-                           save_path=out_file,
-                           overwrite=True)
 
-    ''' download impervious surface data for 2016 (most recent vintage)
+def download_urls():
+    """
+    download impervious surface data for 2016 (most recent vintage)
         - downloads just zip file of data, prep script will unzip and subset
-    '''
-    imperv_filename = IMPERVIOUS_URL.split("/")[-1]
-    imperv_zip = makePath(RAW, imperv_filename)
-    download_file_from_url(url=IMPERVIOUS_URL, save_path=imperv_zip, overwrite=True)
-
-    ''' download park geometry with tabular data as geojson
+    download urban growth boundary and county boundary
+        - downloads geojson from open data site in raw format
+    download park geometry with tabular data as geojson
         - downloads geojson for Municipal, County, and State/Fed
             parks including Facility points
         - current version downloads and converts to shapefile, this step will be skipped
             in next iteration of prep script
-    '''
-    for file, url in PARKS_URL_DICT.items():
-        out_file = makePath(RAW, f"{file}.geojson")
+    """
+    for file, url in DOWNLOAD_URL_DICT.items():
+        _, ext = os.path.splitext(url)
+        if ext == ".zip":
+            out_file = makePath(RAW, f"{file}.zip")
+        elif ext == '.geojson':
+            out_file = makePath(RAW, f"{file}.geojson")
+        else:
+            print('downloader doesnt handle that extension')
+        print(f'Downloading {out_file}')
         download_file_from_url(url=url, save_path=out_file, overwrite=True)
 
-    ''' download osm data - networks and buildings 
+
+def download_osm_data():
+    """ download osm data - networks and buildings
         - downloads networks as nodes.shp and edges.shp
         - downloads all buildings, subset to poly/multipoly features
         - both functions will create the output folder if not there
-    '''
-    osm_data_dir = makePath(RAW, 'OSM_data')
-    aoi_gdf = gpd.read_file(filename=out_county)
-    poly = aoi_gdf.geometry[0]
-    download_osm_networks(output_dir=osm_data_dir, polygon=poly)
-    download_osm_buildings(output_dir=osm_data_dir, polygon=poly)
+    """
+    out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
+    osm_data_dir = makePath(RAW, 'OpenStreetMap')
+    data_crs = 4326
+    download_osm_networks(output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021")
+    download_osm_buildings(output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021")
 
-    ''' download energy consumption tables from EIA 
+
+def download_energy_consumption():
+    """ download energy consumption tables from EIA
         - pulls the raw commercial and residential energy consumption data for the South
         - TODO: update the URL configuration to contain each region for modularity later
-    '''
-    commercial_energy_tbl = makePath(RAW, "commercial_energy_consumption_EIA.xlsx")
-    residential_energy_tbl = makePath(RAW, "residential_energy_consumption_EIA.xlsx")
+    """
+    energy_dir = validate_directory(makePath(RAW, "ENERGY_CONSUMPTION"))
+    commercial_energy_tbl = makePath(energy_dir, "commercial_energy_consumption_EIA.xlsx")
+    residential_energy_tbl = makePath(energy_dir, "residential_energy_consumption_EIA.xlsx")
+    print("ENERGY CONSUMPTION REFERENCE:")
     for dl_url, tbl in zip([COMMERCIAL_ENERGY_CONSUMPTION_URL, RESIDENTIAL_ENERGY_CONSUMPTION_URL],
                            [commercial_energy_tbl, residential_energy_tbl]):
         download_file_from_url(url=dl_url, save_path=tbl)
 
+
+if __name__ == "__main__":
+    download_urls()
+    # download_osm_data()
+    # download_census()
+    # download_LODES()
+    # download_energy_consumption()
+    #
+    # download_crashes()
+
+
+# TODO: Add logging and print statements to procedures to better track progress
 # TODO: Currently the download tools all function as expected but are organized poorly. The __main__
 # TODO:function should be converted to an executable and the underlying scripts reorganized once again.
 # TODO:     - download_config.py (all global configuration variable)

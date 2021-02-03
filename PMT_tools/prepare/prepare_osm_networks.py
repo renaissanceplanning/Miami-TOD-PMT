@@ -20,13 +20,14 @@ folder are used to construct walk and bike networks.
 
 # %% IMPORTS
 import arcpy
-import PMT
+import PMT_tools.PMT as PMT
 from six import string_types
 import os
 import shutil
 
 # %% GLOBALS
-NET_VERSIONS = ["_q3_2019"]
+NET_VERSIONS = ["_q1_2021"]
+
 
 # %% FUNCTIONS
 def classifyBikability(bike_edges):
@@ -67,7 +68,7 @@ def classifyBikability(bike_edges):
     arcpy.SelectLayerByAttribute_management(be, "NEW_SELECTION",
                                             where_clause=wc)
     arcpy.CalculateField_management(be, "bikability", "4")
-    
+
     # Tag cycleways
     arcpy.AddField_management(bike_edges, "cycleway", "LONG")
     arcpy.CalculateField_management(bike_edges, "cycleway", "0")
@@ -164,20 +165,15 @@ def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
     """
     # Set appropriate output fc name
     if fc_name is None:
-        fc_name = osm_fc.rsplit('\\',1)[1]
-        fc_name = fc_name.rsplit('.', 1)[0]
+        fc_name, ext = os.path.splitext(os.path.split(osm_fc)[0])
     # Check if output already exists
     out_path = PMT.makePath(str(to_feature_dataset), fc_name)
-    if arcpy.Exists(out_path):
-        if overwrite:
-            arcpy.Delete_management(out_path)
-        else:
-            raise RuntimeError(
-                "Feature class {} already exists".format(out_path))
+    PMT.checkOverwriteOutput(output=out_path, overwrite=overwrite)
+
     # Transfer data
     print(f"...copying features {osm_fc} to {to_feature_dataset}")
-    return arcpy.FeatureClassToFeatureClass_conversion(
-        osm_fc, to_feature_dataset, fc_name, wc, field_mapping)
+    return arcpy.FeatureClassToFeatureClass_conversion(osm_fc, to_feature_dataset,
+                                                       fc_name, wc, field_mapping)
 
 
 def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
@@ -207,18 +203,15 @@ def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
     arcpy.na.CreateNetworkDatasetFromTemplate(
         template_xml, out_feature_dataset)
     print("...building network dataset")
-    arcpy.na.BuildNetwork(
-        os.path.join(
-            str(out_feature_dataset), str(net_name)
-        )
-    )
+    arcpy.na.BuildNetwork(in_network_dataset=PMT.makePath(out_feature_dataset, net_name))
+
     # save build errors
     print("...saving build errors")
-    out_gdb = os.path.split(str(out_feature_dataset))[0]
+    out_gdb, fds = os.path.split(out_feature_dataset)
     out_dir, out_name = os.path.split(out_gdb)
     temp_dir = os.environ.get("TEMP")
     if temp_dir:
-        shutil.copyfile(os.path.join(temp_dir, "BuildErrors.txt"), 
+        shutil.copyfile(os.path.join(temp_dir, "BuildErrors.txt"),
                         os.path.join(out_dir, f"BuildErrors_{out_name}.txt"))
 
 
@@ -246,8 +239,8 @@ def makeNetworkDatasetTemplate(from_nd, template_xml):
     makeNetworkDataset
     """
     print("...creating network dataset template")
-    return arcpy.na.CreateTemplateFromNetworkDataset_na(
-        network_dataset=from_nd, output_network_dataset_template=template_xml)
+    return arcpy.na.CreateTemplateFromNetworkDataset_na(network_dataset=from_nd,
+                                                        output_network_dataset_template=template_xml)
 
 
 # %% MAIN
@@ -264,7 +257,7 @@ if __name__ == "__main__":
         bike_name = f"bike{net_version}"
         bike_gdb = makeCleanNetworkGDB(net_path, gdb_name=bike_name)
         bike_fd = makeNetFeatureDataSet(bike_gdb, "osm", sr)
-        
+
         # Walk
         walk_name = f"walk{net_version}"
         walk_gdb = makeCleanNetworkGDB(net_path, gdb_name=walk_name)
@@ -274,7 +267,7 @@ if __name__ == "__main__":
         osm_raw = PMT.makePath(PMT.RAW, "osm_networks")
         bike_raw = PMT.makePath(osm_raw, bike_name, "edges.shp")
         walk_raw = PMT.makePath(osm_raw, walk_name, "edges.shp")
-        
+
         # Transfer features
         bike_edges = importOSMShape(bike_raw, bike_fd, overwrite=True)
         walk_edges = importOSMShape(walk_raw, walk_fd, overwrite=True)
@@ -283,7 +276,7 @@ if __name__ == "__main__":
         classifyBikability(bike_edges)
 
         # Build network datasets
-        bike_template=PMT.makePath(PMT.REF, "osm_bike_template.xml")
-        walk_template=PMT.makePath(PMT.REF, "osm_walk_template.xml")
+        bike_template = PMT.makePath(PMT.REF, "osm_bike_template.xml")
+        walk_template = PMT.makePath(PMT.REF, "osm_walk_template.xml")
         bike_net = makeNetworkDataset(bike_template, bike_fd, "osm_ND")
         walk_net = makeNetworkDataset(walk_template, walk_fd, "osm_ND")

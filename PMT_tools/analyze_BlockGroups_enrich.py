@@ -29,7 +29,7 @@ import os
 #   - __gt__() = greater than [>]
 #   - __ge__() = greater than or equal to [>=]
 
-class Comp():
+class Comp:
     """
     """
 
@@ -49,7 +49,7 @@ class Comp():
         return getattr(val, self.comp_method)(self.v)
 
 
-class And():
+class And:
     """
     """
 
@@ -86,7 +86,7 @@ class And():
         return np.logical_and.reduce(bools)
 
 
-class Or():
+class Or:
     """
     """
 
@@ -105,7 +105,7 @@ class Or():
         )
 
 
-LODES_CRIT = {
+LODES_CRITERIA = {
     "CNS_01_par": And([Comp(">=", 50), Comp("<=", 69)]),
     "CNS_02_par": Comp("==", 92),
     "CNS_03_par": Comp("==", 91),
@@ -232,11 +232,12 @@ def enrichBlockGroups(bg_fc, parcels_fc, out_fc, bg_id_field="GEOID10",
 
 # %% MAIN
 if __name__ == "__main__":
+    # TODO:
     # Define analysis specs
     bg_id_field = "GEOID10"
     par_lu_field = "DOR_UC"
     par_bld_area = "TOT_LVG_AREA"
-    sum_crit = LODES_CRIT
+    sum_crit = LODES_CRITERIA
     par_sum_fields = ["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA"]
     # For all years, enrich block groups with parcels
     for year in PMT.YEARS:

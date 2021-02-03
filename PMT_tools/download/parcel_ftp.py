@@ -589,15 +589,15 @@ def fdor_availability(df, year=None, county=None):
 
 
 # %% Run
+if __name__ == "__main__":
+    # Inputs
+    save_path = r"C:\github\Miami-TOD-PMT\PMT_tools\download\parcel_ftp_011121.csv"
+    # save_path = None
 
-# Inputs
-# save_path = r"K:\Projects\MiamiDade\PMT\Data\Reference\parcel_ftp_011121.csv"
-save_path = None
-
-# Run
-df = fdor_gis_and_tax(save_path=save_path)
-# df
-# md_current = fdor_availability(df = df,
-#                                year = 2020,
-#                                county = "Baker")
-# md_current.url.tolist()
+    # Run
+    df = fdor_gis_and_tax(save_path=save_path)
+    # df
+    # md_current = fdor_availability(df = df,
+    #                                year = 2020,
+    #                                county = "Baker")
+    # md_current.url.tolist()

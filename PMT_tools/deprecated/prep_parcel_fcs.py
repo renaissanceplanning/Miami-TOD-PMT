@@ -14,7 +14,7 @@ emerge. These are renamed to match values in the 14-18 time frame using
 the `COLS19` global dictionary.
 """
 
-#%% IMPORTS
+# %% IMPORTS
 import arcpy
 import pandas as pd
 import PMT
@@ -22,14 +22,14 @@ import PMT
 # %% GLOBALS
 USE_COLS = {
     2019: [
-            "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
-            "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AR", "NO_BULDNG",
-            "NO_RES_UNT", "ACT_YR_BLT"
+        "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
+        "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AR", "NO_BULDNG",
+        "NO_RES_UNT", "ACT_YR_BLT"
     ],
     "DEFAULT": [
-                "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
-                "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AREA", "NO_BULDNG",
-                "NO_RES_UNTS", "ACT_YR_BLT"
+        "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
+        "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AREA", "NO_BULDNG",
+        "NO_RES_UNTS", "ACT_YR_BLT"
     ]
 }
 
@@ -147,7 +147,7 @@ COLS = {
         'RS_ID': 'RS_ID',
         'MP_ID': 'MP_ID',
         'STATE_PAR_': 'STATE_PARCEL_ID'
-        }
+    }
 }
 
 
@@ -240,9 +240,8 @@ def cleanParcels(in_fc, in_csv, out_fc, fc_par_field="PARCELNO",
 # %% MAIN
 if __name__ == "__main__":
     # Create output gdb
-    #print(f"making ouptut gdb at {PMT.CLEANED}\\parcels.gdb")
-    
-    
+    # print(f"making ouptut gdb at {PMT.CLEANED}\\parcels.gdb")
+
     # Clean parcels and join attributes
     for year in PMT.YEARS[:1]:
         print(year)
@@ -259,6 +258,7 @@ if __name__ == "__main__":
         usecols = USE_COLS.get(year, USE_COLS["DEFAULT"])
         csv_kwargs = {"dtype": {"PARCEL_ID": str, "CENSUS_BK": str},
                       "usecols": usecols}
+        conversion = {"PARCEL_ID": '{:0>12}'.format}
         cleanParcels(in_fc, in_csv, out_fc, fc_par_field="PARCELNO",
-                    csv_par_field="PARCEL_ID", csv_renames=renames,
-                    **csv_kwargs)
+                     csv_par_field="PARCEL_ID", csv_renames=renames,
+                     **csv_kwargs)

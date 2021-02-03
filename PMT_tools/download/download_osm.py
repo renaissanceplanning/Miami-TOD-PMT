@@ -26,16 +26,16 @@
 import os
 
 import osmnx as ox
-import networkx as nx
 import geopandas as gpd
-import pandas as pd
 
 from datetime import datetime
 import pickle
+
 from six import string_types
-import functools
-from PMT_tools.PMT import EPSG_LL, EPSG_FLSPF
-from PMT_tools.PMT import multipolygonToPolygon
+
+from PMT_tools.download.download_helper import validate_directory
+from PMT_tools.PMT import EPSG_LL, EPSG_FLSPF, EPSG_WEB_MERC
+from PMT_tools.PMT import multipolygonToPolygon, makePath
 
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
@@ -81,29 +81,33 @@ def validate_bbox(bbox):
             raise ValueError(f"Invalid bounds provided - {problems}")
 
 
-def validate_inputs(study_area_poly=None, bbox=None):
+def calc_bbox(gdf):
+    bounds = gdf.total_bounds
+    return {'north': bounds[3],
+            'south': bounds[1],
+            'east': bounds[2],
+            'west': bounds[0]}
+
+
+def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
     if not any([study_area_poly, bbox]):
         raise ValueError(
-            "You must provide some sort of geometry type for osmnx download"
+            "You must provide a polygon or bbox for osmnx download"
         )
     if study_area_poly is not None:
-        print("Reading and formatting provided polygons for OSMnx extraction")
-        sa = gpd.read_file(study_area_poly)
-        # ensure data are multipolygon
-        sa = multipolygonToPolygon(sa)
-        # Buffer polygons (necessary for proper composition of OSMnx networks)
-        sa_proj = sa.to_crs(epsg=EPSG_FLSPF)
-        sa_buff = sa_proj.buffer(distance=5280).to_crs(epsg=EPSG_LL)
-        use_polygons = True
+        print("...Reading and formatting provided polygons for OSMnx extraction")
+        sa_gdf = gpd.read_file(study_area_poly)
+        # buffer aoi
+        sa_proj = sa_gdf.to_crs(epsg=EPSG_WEB_MERC)
+        # Buffer AOI ~1 mile (necessary for proper composition of OSMnx networks)
+        sa_buff = sa_proj.buffer(distance=1609.34).to_crs(epsg=EPSG_LL)
+        return calc_bbox(gdf=sa_buff)
     elif bbox is None:
         raise ValueError(
             "One of `study_area_polygons_path` or `bbox` must be provided")
     else:
         validate_bbox(bbox)
-        # And we need a dummy value for n
-        sa_buff = None
-        use_polygons = False
-    return sa_buff, use_polygons
+        return bbox
 
 
 def validate_network_types(network_types):
@@ -116,93 +120,57 @@ def validate_network_types(network_types):
         return [nt.lower() for nt in network_types]
 
 
-def download_osm_networks(output_dir,
-                          polygon=None,
-                          bbox=None,
-                          net_types=['drive', 'walk', 'bike'],
-                          pickle_save=False,
-                          suffix=""):
+def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
+                          net_types=['drive', 'walk', 'bike'], pickle_save=False, suffix=""):
     """
     Download an OpenStreetMap network within the area defined by a polygon
     feature class of a bounding box.
 
     Parameters
     ------------
-    output_dir: Path, Path to output directory. Each modal network (specified by
-        `net_types`) is saved to this directory within an epoynmous
-        folder  as a shape file. If `pickle_save` is True, pickled
-        graph objects are also stored in this directory in the
-        appropriate subfolders.
-    polygon: Path, default=None
-        Path to study area polygon(s) shapefile. If provided, the polygon
-        features define the area from which to fetch OSM features and `bbox`
-        is ignored. See module notes for performance and suggestions on usage.
-    bbox: dict, default=None
-        A dictionary with keys 'south', 'west', 'north', and 'east' of
-        EPSG:4326-style coordinates, defining a bounding box for the area
-        from which to fetch OSM features. Only required when
-        `study_area_polygon_path` is not provided. See module notes for
-        performance and suggestions on usage.
-    net_types: list, [String,...],
-               default=["drive", "walk", "bike"]
-        A list containing any or all of "drive", "walk", or "bike", specifying
-        the desired OSM network features to be downloaded.
-    pickle_save: boolean, default=False
-        If True, the downloaded OSM networks are saved as python `networkx`
-        objects using the `pickle` module. See module notes for usage.
-    suffix: String, default=""
-        Downloaded datasets may optionally be stored in folders with a suffix
-        appended, differentiating networks by date, for example.
+    output_dir: Path, Path to output directory. Each modal network (specified by `net_types`)
+            is saved to this directory within an epoynmous folder  as a shape file.
+            If `pickle_save` is True, pickled graph objects are also stored in this directory in the
+            appropriate subfolders.
+    polygon: Path, default=None; Path to study area polygon(s) shapefile. If provided, the polygon
+            features define the area from which to fetch OSM features and `bbox` is ignored.
+            See module notes for performance and suggestions on usage.
+    bbox: dict, default=None; A dictionary with keys 'south', 'west', 'north', and 'east' of
+            EPSG:4326-style coordinates, defining a bounding box for the area from which to
+            fetch OSM features. Only required when `study_area_polygon_path` is not provided.
+            See module notes for performance and suggestions on usage.
+    net_types: list, [String,...], default=["drive", "walk", "bike"]
+            A list containing any or all of "drive", "walk", or "bike", specifying
+            the desired OSM network features to be downloaded.
+    pickle_save: boolean, default=False; If True, the downloaded OSM networks are saved as
+            python `networkx` objects using the `pickle` module. See module notes for usage.
+    suffix: String, default=""; Downloaded datasets may optionally be stored in folders with
+            a suffix appended, differentiating networks by date, for example.
 
     Returns
     ---------
-    G: dict
-        A dictionary of networkx graph objects. Keys are mode names based on
-        `net_types`; values are graph objects.
+    G: dict; A dictionary of networkx graph objects. Keys are mode names based on
+            `net_types`; values are graph objects.
     """
     # Validation of inputs
-    # - ensure study polygon is singlepart
-    sa_buff, use_polygons = validate_inputs(study_area_poly=polygon, bbox=bbox)
+    # TODO: separate polygon and bbox validation
+    bounding_box = validate_inputs(study_area_poly=polygon, bbox=bbox, data_crs=data_crs)
 
     # - ensure Network types are valid and formatted correctly
     net_types = validate_network_types(network_types=net_types)
 
-    # - Output location
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    output_dir = validate_directory(output_dir)
 
     # Fetch network features
     mode_nets = {}
     for net_type in net_types:
-        net_folder = net_type + suffix
+        net_folder = f"{net_type}_{suffix}"
         print(f"OSMnx {net_type} network extraction")
-        # 1. Completing the OSMnx query
-        if use_polygons:
-            print("-- extracting sub-networks by provided polygons...")
-            n = len(sa_buff)
-            graphs = []
-            for i in range(n):
-                print("-- -- {} of {} polygons".format(i + 1, n))
-                poly = sa_buff.geometry.iloc[i]
-                graphs.append(
-                    ox.graph_from_polygon(
-                        poly, network_type=net_type, retain_all=True
-                    )
-                )
-            # Compose features
-            print("-- -- composing network")
-            if len(graphs) > 1:
-                g = functools.reduce(nx.compose(*graphs))
-            else:
-                g = graphs[0]
-        else:
-            print("-- extracting a composed network by bounding box...")
-            g = ox.graph_from_bbox(north=bbox["north"],
-                                   south=bbox["south"],
-                                   east=bbox["east"],
-                                   west=bbox["west"],
-                                   network_type=net_type,
-                                   retain_all=True)
+        print("-- extracting a composed network by bounding box...")
+        g = ox.graph_from_bbox(north=bounding_box["north"], south=bounding_box["south"],
+                               east=bounding_box["east"], west=bounding_box["west"],
+                               network_type=net_type, retain_all=True)
+
         # Pickle if requested
         if pickle_save:
             print("-- saving the composed network as pickle")
@@ -223,10 +191,8 @@ def download_osm_networks(output_dir,
     return mode_nets
 
 
-def download_osm_buildings(output_dir,
-                           polygon=None,
-                           bbox=None,
-                           fields=['osmid', 'building', 'name']):
+def download_osm_buildings(output_dir, polygon=None, bbox=None, data_crs=None,
+                           fields=['osmid', 'building', 'name', 'geometry'], suffix=""):
     """
     Uses an Overpass query to fetch the OSM building polygons within a
     specified bounding box or the bounding box of a provided shapefile.
@@ -235,31 +201,13 @@ def download_osm_buildings(output_dir,
     -----------
     output_dir: Path
         Path to output directory.
-    study_area_polygon_path: Path
-        Path to study area polygon(s) shapefile. If provided, the polygon
-        features define the area from which to fetch OSM features and `bbox`
-        is ignored. See module notes for performance and suggestions on usage.
     bbox: dict, default=None
         A dictionary with keys 'south', 'west', 'north', and 'east' of
         EPSG:4326-style coordinates, defining a bounding box for the area
         from which to fetch OSM features. Only required when
         `study_area_polygon_path` is not provided. See module notes for
         performance and suggestions on usage.
-    full_data: boolean, default=False
-        If True, buildings will be attributed with OSM ID, type, timestamp,
-        and all OSM tags that came with the data. Otherwise, buildings will
-        only include OSM ID, type, and timestamp (creation date) attributes.
-    tags: [String,...], default="all"
-        If `full_data` is True), this list of strings indicates the tags to
-        retain in the resulting feature attributes. If "all", all tags in the
-        data are returned. Ignored if `full_data` is False.
-    transform_epsg: Integer, default=None
-        Integer of valid EPSG code for transformation of buildings. If None and
-        study area used polygons were used to define the extent of the overpass
-        query, building features will be returned in the CRS of the study area
-        polygons. If None and bbox is used to fetch, buildings will be
-        returned in EPSG:4326, which is the OSM default.
-
+    fields:
     Returns
     ----------
     buildings_gdf: geodataframe
@@ -277,47 +225,31 @@ def download_osm_buildings(output_dir,
     """
 
     # Validation of inputs
-    # - ensure study polygon is singlepart
-    sa_buff, use_polygons = validate_inputs(study_area_poly=polygon, bbox=bbox)
+    # TODO: separate polygon and bbox validation
+    bounding_box = validate_inputs(study_area_poly=polygon, bbox=bbox, data_crs=data_crs)
 
     # - Output location
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    output_dir = validate_directory(makePath(output_dir, f"buildings_{suffix}"))
 
     # Data read in and setup -------------------------------------------------
-    print("Setting up data for OSM querying...")
-    if use_polygons:
-        n = len(sa_buff)
-        buildings = []
-        for i in range(n):
-            print(f"-- -- {i + 1} of {n} polygons")
-            poly = sa_buff.geometry.iloc[i]
-            buildings.append(
-                ox.geometries_from_polygon(polygon=poly, tags={"building": True})
-            )
-        # Compose features
-        print("-- -- composing buildings")
-        if len(buildings) > 1:
-            buildings_gdf = gpd.GeoDataFrame(pd.concat(buildings, ignore_index=True))
-        else:
-            buildings_gdf = buildings[0]
-
-    else:
-        buildings_gdf = ox.geometries_from_bbox(north=bbox["north"],
-                                                south=bbox["south"],
-                                                east=bbox["east"],
-                                                west=bbox["west"],
-                                                tags={"building": True})
+    print("...Pulling building data from Overpass API...")
+    buildings_gdf = ox.geometries_from_bbox(north=bounding_box["north"],
+                                            south=bounding_box["south"],
+                                            east=bounding_box["east"],
+                                            west=bounding_box["west"],
+                                            tags={"building": True})
     # drop non-polygon features and subset fields
-    drop_cols = [col for col in buildings_gdf.columns if col not in fields]
-    buildings_gdf.drop(columns=drop_cols, inplace=True).reset_index()
+    print("...Dropping non-polygon features and unneeded fields")
     buildings_gdf = buildings_gdf[buildings_gdf.geom_type.isin(['MultiPolygon', 'Polygon'])]
+    drop_cols = [col for col in buildings_gdf.columns if col not in fields]
+    buildings_gdf.drop(labels=drop_cols, axis=1, inplace=True)
+    buildings_gdf.reset_index()
 
     # Saving -----------------------------------------------------------------
-    print("Saving...")
+    print("...Saving...")
     dt = datetime.now().strftime("%Y%m%d%H%M%S")
     file_name = "OSM_Buildings_{}.shp".format(dt)
-    save_path = os.path.join(output_dir, file_name)
+    save_path = makePath(output_dir, file_name)
     buildings_gdf.to_file(save_path)
     print("-- saved to: " + save_path)
 

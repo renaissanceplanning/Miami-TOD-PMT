@@ -11,10 +11,12 @@ joined to block group features and exported to the `block_groups` gdb in
 the PMT's "cleaned" data folder. If the gdb already exists, it is deleted
 and replaced with the output of this script.
 
-
+###
+DEPRECATED as we now have a mechanism for joining data in the analysis steps
+###
 """
 # %% IMPORTS
-import PMT
+import PMT_tools.PMT as PMT
 import pandas as pd
 import geopandas as gpd
 from six import string_types
@@ -65,7 +67,7 @@ def joinBGData(in_fc, in_fc_id, join_tables, on_fields, out_fc, dtype={},
         join_tables = [join_tables]
     elif not isinstance(join_tables, Iterable):
         raise TypeError(
-            f"Expected string or iterable for `join_tables`, got {type(join_tabels)}")
+            f"Expected string or iterable for `join_tables`, got {type(join_tables)}")
     # - on_fields
     if isinstance(on_fields, string_types):
         on_fields = [on_fields for _ in join_tables]

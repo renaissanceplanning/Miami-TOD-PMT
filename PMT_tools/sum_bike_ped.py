@@ -6,8 +6,8 @@ Created: November 2020
 """
 
 # %% IMPORTS
-from config.config_project import (
-    SCRIPTS, BASIC_FEATURES, YEARS, ROOT
+from PMT_tools.config_project import (
+    BASIC_FEATURES, YEARS, ROOT
 )
 import PMT
 import arcpy

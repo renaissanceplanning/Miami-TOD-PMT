@@ -1,2 +1,1 @@
-from .download import download_config
-from .config import config_permits
+from .config import config_permits, download_config

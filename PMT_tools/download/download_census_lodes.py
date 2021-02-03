@@ -1,17 +1,16 @@
-from download_config import (LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES,
-                             LODES_WORKFORCE_SEGMENTS, LODES_PART,
-                             LODES_JOB_TYPES, LODES_AGG_GEOS)
+from PMT_tools.config.download_config import (LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES,
+                                              LODES_WORKFORCE_SEGMENTS, LODES_PART,
+                                              LODES_JOB_TYPES, LODES_AGG_GEOS)
 
 from download_helper import download_file_from_url, validate_directory
 
 import numpy as np
 import pandas as pd
 
-import os
 import re
+import os
 from datetime import datetime
 
-from collections.abc import Iterable
 from six import string_types
 
 from PMT_tools.PMT import makePath
@@ -79,6 +78,8 @@ def validate_year_input(year, state):
                 return True
             else:
                 raise ValueError
+        else:
+            raise ValueError
     except ValueError:
         print(f"invalid 'year' or 'year/state' combination")
 
@@ -186,9 +187,12 @@ def download_aggregate_lodes(output_directory, file_type, state,
             lodes_download_url = f"{LODES_URL}/{state}/{file_type}/{lodes_fname}"
             lodes_out_path = makePath(out_dir, lodes_fname)
             lodes_out_path = lodes_out_path.replace(".csv.gz", "_blk.csv.gz")
+            print(f"...downloading {lodes_fname} to {lodes_out_path}")
             download_file_from_url(url=lodes_download_url, save_path=lodes_out_path)
+        else:
+            lodes_out_path = ""
 
-        if agg_geog:
+        if agg_geog and lodes_out_path != "":
             if validate_aggregate_geo_inputs(values=agg_geog, valid=LODES_AGG_GEOS):
                 if isinstance(agg_geog, string_types):
                     agg_geog = [agg_geog]
@@ -196,13 +200,16 @@ def download_aggregate_lodes(output_directory, file_type, state,
                     cross_fname = f"{state}_xwalk.csv.gz"
                     cross_out_path = makePath(out_dir, cross_fname)
                     crosswalk_url = f"{LODES_URL}/{state}/{state}_xwalk.csv.gz"
-                    download_file_from_url(url=crosswalk_url, save_path=cross_out_path)
+                    if not os.path.exists(cross_out_path):
+                        print(f"...downloading {cross_fname} to {cross_out_path}")
+                        download_file_from_url(url=crosswalk_url, save_path=cross_out_path)
+                    print(f"...aggregating block group level data to {geog}")
                     aggregate_lodes_data(geo_crosswalk_path=cross_out_path,
                                          lodes_path=lodes_out_path,
                                          file_type=file_type,
                                          agg_geo=geog)
         else:
-            print("No aggregation requested")
+            print("No aggregation requested or there is no LODES data for this request")
     except:
         print("something failed")
 

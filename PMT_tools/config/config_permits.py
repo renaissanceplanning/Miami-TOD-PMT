@@ -6,12 +6,12 @@ from pathlib import Path
 config_path = Path(__file__).parent
 
 # category code table
-CAT_CODE_PEDOR = "PD"
+PERMITS_CAT_CODE_PEDOR = "PD"
 CAT_CODE_TBL = Path(config_path, "road_impact_fee_cat_codes.csv")
 DOR_CODE_TBL = Path(config_path, "Land_Use_Recode.csv")
 
 # status code dict
-STATUS_DICT = dict(
+PERMITS_STATUS_DICT = dict(
     [
         ("C", "Collected"),
         ("A", "Assessed"),
@@ -20,7 +20,7 @@ STATUS_DICT = dict(
     ]
 )
 
-FIELDS_DICT = dict(
+PERMITS_FIELDS_DICT = dict(
     [
         ("PROC_NUM", "PROC_NUM"),
         ("FOLIO_NUM", "PARCELNO"),
@@ -34,8 +34,8 @@ FIELDS_DICT = dict(
     ]
 )
 
-USE = FIELDS_DICT.keys()
-DROPS = ['CONST_COST', "ADMIN_COST", "CAT_CODE"]
+PERMITS_USE = PERMITS_FIELDS_DICT.keys()
+PERMITS_DROPS = ['CONST_COST', "ADMIN_COST", "CAT_CODE"]
 
 # CRS
 IN_CRS = 4326  # WGS84 latitude/longitude

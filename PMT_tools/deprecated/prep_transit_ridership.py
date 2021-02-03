@@ -9,8 +9,7 @@ included.
 """
 
 # %% IMPORTS
-import PMT
-from PMT import RAW, CLEANED, YEARS
+import PMT_tools.PMT as PMT
 import pandas as pd
 import arcpy
 
@@ -54,6 +53,8 @@ def read_transit_xls(xls_path, sheet=None, head_row=None, rename_dict=None):
     the sheets into a single data frame. The
     Parameters
     ----------
+    head_row
+    sheet
     xls_path: str
         String path to xls file
     rename_dict: dict
@@ -88,7 +89,7 @@ if __name__ == "__main__":
         RAW = PMT.makePath(DATA, "Raw")
         CLEANED = PMT.makePath(DATA, "Cleaned")
     data_path = PMT.makePath(RAW, "Transit", "TransitRidership_byStop")
-    for year in YEARS:
+    for year in PMT.YEARS:
         print(year)
         # setup loop vars
         out_clean_table = PMT.makePath(
