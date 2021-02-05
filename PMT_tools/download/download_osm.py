@@ -26,6 +26,7 @@
 import os
 
 import osmnx as ox
+ox.config()
 import geopandas as gpd
 
 from datetime import datetime

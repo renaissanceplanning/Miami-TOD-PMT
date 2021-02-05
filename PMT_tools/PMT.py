@@ -13,8 +13,10 @@ import pandas as pd
 from shapely.geometry.polygon import Polygon as POLY
 
 import os
+import tempfile
 from pathlib import Path
 from six import string_types
+from collections.abc import Iterable
 
 import re
 import json
@@ -42,7 +44,166 @@ SR_FL_SPF = arcpy.SpatialReference(EPSG_FLSPF)  # Florida_East_FIPS_0901_Feet
 SR_WEB_MERCATOR = arcpy.SpatialReference(EPSG_WEB_MERC)
 
 
+# %% UTILITY CLASSES
+''' column and aggregation classes '''
+class Column():
+    def __init__(self, name, default=0.0, rename=None):
+        self.name = name
+        self.default = default
+        self.rename = rename
+
+
+class AggColumn(Column):
+    def __init__(self, name, agg_method=sum, default=0.0, rename=None):
+        Column.__init__(self, name, default, rename)
+        self.agg_method = agg_method
+
+
+class CollCollection(AggColumn):
+    def __init__(self, name, input_cols, agg_method=sum, default=0.0):
+        AggColumn.__init__(self, name, agg_method, default)
+        self.input_cols = input_cols
+
+    def __setattr__(self, name, value):
+        if name == "input_cols":
+            valid = True
+            if isinstance(value, string_types):
+                valid = False
+            elif not isinstance(value, Iterable):
+                valid = False
+            elif len(value) <= 1:
+                valid = False
+            elif not isinstance(value[0], string_types):
+                valid = False
+            # Set property of raise error
+            if valid:
+                super().__setattr__(name, value)
+            else:
+                raise ValueError(
+                    f"Expected iterable of column names for `input_cols`")
+        else:
+            super().__setattr__(name, value)
+
+    def defaultsDict(self):
+        if isinstance(self.default, Iterable) and \
+                not isinstance(self.default, string_types):
+            return dict(zip(self.input_cols, self.default))
+        else:
+            return dict(
+                zip(self.input_cols,
+                    [self.default for ic in self.input_cols]
+                    )
+            )
+
+
+class Consolidation(CollCollection):
+    def __init__(self, name, input_cols, cons_method=sum,
+                 agg_method=sum, default=0.0):
+        CollCollection.__init__(self, name, input_cols, agg_method, default)
+        self.cons_method = cons_method
+
+
+class MeltColumn(CollCollection):
+    def __init__(self, label_col, val_col, input_cols,
+                 agg_method=sum, default=0.0):
+        CollCollection.__init__(self, val_col, input_cols, agg_method, default)
+        self.label_col = label_col
+        self.val_col = val_col
+
+
+class Join(CollCollection):
+    def __init__(self, on_col, input_cols, agg_method=sum, default=0.0):
+        CollCollection.__init__(self, None, input_cols, agg_method, default)
+        self.on_col = on_col
+
+
+    ''' comparison classes '''
+class Comp:
+    """
+    Comparison methods:
+      - __eq__() = equals [==]
+      - __ne__() = not equal to [!=]
+      - __lt__() = less than [<]
+      - __le__() = less than or equal to [<=]
+      - __gt__() = greater than [>]
+      - __ge__() = greater than or equal to [>=]
+    """
+
+    def __init__(self, comp_method, v):
+        _comp_methods = {
+            "==": "__eq__",
+            "!=": "__ne__",
+            "<": "__lt__",
+            "<=": "__le__",
+            ">": "__gt__",
+            ">=": "__ge__"
+        }
+        self.comp_method = _comp_methods[comp_method]
+        self.v = v
+
+    def eval(self, val):
+        return getattr(val, self.comp_method)(self.v)
+
+
+class And:
+    """
+    """
+
+    def __init__(self, criteria):
+        self.criteria = criteria
+
+    def __setattr__(self, name, value):
+        if name == "criteria":
+            criteria = []
+            if isinstance(value, Iterable):
+                for v in value:
+                    if not isinstance(v, Comp):
+                        raise TypeError(f"Expected Comp, got {type(v)}")
+                    criteria.append(v)
+            else:
+                if isinstance(value, Comp):
+                    criteria.append(value)
+                else:
+                    raise TypeError(f"Expected Criterion, got {type(value)}")
+            super().__setattr__(name, value)
+        else:
+            super().__setattr__(name, value)
+
+    def eval(self, *vals):
+        """
+        """
+        # Check
+        try:
+            v = vals[1]
+        except IndexError:
+            vals = [vals[0] for _ in self.criteria]
+        bools = [c.eval(v) for c, v in zip(self.criteria, vals)]
+
+        return np.logical_and.reduce(bools)
+
+
+class Or:
+    """
+    """
+
+    def __init__(self, vector, criteria):
+        self.vector = vector
+        if isinstance(criteria, Iterable):
+            self.criteria = criteria  # TODO: validate criteria
+        else:
+            self.criteria = [criteria]
+
+    def eval(self):
+        return (
+            np.logical_or.reduce(
+                [c.eval(self.vector) for c in self.criteria]
+            )
+        )
+
+
+
 # %% FUNCTIONS
+# TODO: Review all functions here and deprecate as makes sense
 def makePath(in_folder, *subnames):
     """
     Dynamically set a path (e.g., for iteratively referencing
@@ -80,10 +241,40 @@ def checkOverwriteOutput(output, overwrite=False):
     """
     if arcpy.Exists(output):
         if overwrite:
-            print(f"... ... deleting existing file {output}")
+            print(f"--- --- deleting existing file {output}")
             arcpy.Delete_management(output)
         else:
             raise RuntimeError(f"Output file {output} already exists")
+
+
+def intersectFeatures(summary_fc, disag_fc, disag_fields="*"):
+    """
+        creates a temporary intersected feature class for disaggregation of data
+    Parameters
+    ----------
+    summary_fc: String; path to path to polygon feature class with data to be disaggregated from
+    disag_fc: String; path to polygon feature class with data to be disaggregated to
+    disag_fields: [String,...]; list of fields to pass over to intersect function
+    Returns
+    -------
+    int_fc: String; path to temp intersected feature class
+    """
+    # Create a temporary gdb for storing the intersection result
+    temp_dir = tempfile.mkdtemp()
+    arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
+    int_gdb = makePath(temp_dir, "Intermediates.gdb")
+    # Convert disag features to centroids
+    disag_full_path = arcpy.Describe(disag_fc).catalogPath
+    disag_ws, disag_name = os.path.split(disag_full_path)
+    out_fc = makePath(int_gdb, disag_name)
+    disag_pts = polygonsToPoints(in_fc=disag_fc, out_fc=out_fc,
+                                 fields=disag_fields, skip_nulls=False, null_value=0)
+    # Run intersection
+    int_fc = makePath(int_gdb, f"int_{disag_name}")
+    arcpy.Intersect_analysis(in_features=[summary_fc, disag_pts], out_feature_class=int_fc)
+
+    # return intersect
+    return int_fc
 
 
 def gdfToFeatureClass(gdf, out_fc, new_id_field, exclude, sr=4326, overwrite=False):
@@ -528,8 +719,34 @@ def dfToPoints(df, out_fc, shape_fields,
     return out_fc
 
 
+def featureclass_to_df(in_fc, keep_fields="*", null_val=0):
+    """
+    converts feature class/feature layer to pandas DataFrame object, keeping only a subset of fields if provided
+    - drops all spatial data
+    Parameters
+    ----------
+    in_fc: String; path to a feature class
+    keep_fields: List or Tuple; field names to return in the dataframe,
+        "*" is default and will return all fields
+    null_val: value to be used for nulls found in the data
+
+    Returns
+    -------
+    pandas Dataframe
+    """
+    # setup fields
+    if keep_fields == "*":
+        keep_fields = [f.name for f in arcpy.ListFields(in_fc) if not f.required]
+    elif isinstance(keep_fields, string_types):
+        keep_fields = [keep_fields]
+    # process fc to array
+    in_fc_arr = arcpy.da.FeatureClassToNumPyArray(in_table=in_fc, field_names=keep_fields,
+                                                  skip_nulls=False, null_value=null_val)
+    return pd.DataFrame(in_fc_arr)
+
+
 def multipolygon_to_polygon_arc(file_path):
-    polygon_fcs = "in_memory\\polygons"
+    polygon_fcs = makePath("in_memory", "polygons")
     arcpy.MultipartToSinglepart_management(in_features=file_path, out_feature_class=polygon_fcs)
     return polygon_fcs
 
@@ -789,10 +1006,21 @@ def sumToAggregateGeo(
         raise
 
 
-def add_unique_id(feature_class, new_id_field):
+def add_unique_id(feature_class, new_id_field=None):
+    """
+    adds a unique incrementing integer value to a feature class and returns that name
+    Parameters
+    ----------
+    feature_class: String; path to a feature class
+    new_id_field: String; name of new id field, if none is provided, ProcessID is used
+
+    Returns
+    -------
+    new_id_field: String; name of new id field
+    """
     CODEBLOCK = """
         val = 0 
-        def processID(): 
+        def unique_ID(): 
             global val 
             start = 1 
             if (val == 0):  
@@ -801,9 +1029,12 @@ def add_unique_id(feature_class, new_id_field):
                 val += 1  
             return val
          """
+    if new_id_field is None:
+        new_id_field = "ProcessID"
     arcpy.CalculateField_management(in_table=feature_class, field=new_id_field,
-                                    expression="processID()", expression_type="PYTHON3",
+                                    expression="unique_ID()", expression_type="PYTHON3",
                                     code_block=CODEBLOCK, field_type="LONG")
+    return new_id_field
 
 
 if __name__ == "__main__":

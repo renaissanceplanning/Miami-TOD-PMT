@@ -8,86 +8,13 @@ import numpy as np
 import pandas as pd
 from six import string_types
 from collections.abc import Iterable
-import PMT
-
+from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
+import PMT_tools.PMT as PMT
 # %% GLOBALS
 SNAPSHOT_YEAR = 2019
-
 MODES = ["Auto", "Transit", "Walk", "Bike"]
 ACTIVITIES = ["TotalJobs", "ConsJobs", "HCJobs", "EnrollAdlt", "EnrollK12", "HH"]
 TIME_BREAKS = [15, 30, 45, 60]
-
-
-# %% CLASSES
-class Column():
-    def __init__(self, name, default=0.0, rename=None):
-        self.name = name
-        self.default = default
-        self.rename = rename
-
-
-class AggColumn(Column):
-    def __init__(self, name, agg_method=sum, default=0.0, rename=None):
-        Column.__init__(self, name, default, rename)
-        self.agg_method = agg_method
-
-
-class CollCollection(AggColumn):
-    def __init__(self, name, input_cols, agg_method=sum, default=0.0):
-        AggColumn.__init__(self, name, agg_method, default)
-        self.input_cols = input_cols
-
-    def __setattr__(self, name, value):
-        if name == "input_cols":
-            valid = True
-            if isinstance(value, string_types):
-                valid = False
-            elif not isinstance(value, Iterable):
-                valid = False
-            elif len(value) <= 1:
-                valid = False
-            elif not isinstance(value[0], string_types):
-                valid = False
-            # Set property of raise error
-            if valid:
-                super().__setattr__(name, value)
-            else:
-                raise ValueError(
-                    f"Expected iterable of column names for `input_cols`")
-        else:
-            super().__setattr__(name, value)
-
-    def defaultsDict(self):
-        if isinstance(self.default, Iterable) and \
-                not isinstance(self.default, string_types):
-            return dict(zip(self.input_cols, self.default))
-        else:
-            return dict(
-                zip(self.input_cols,
-                    [self.default for ic in self.input_cols]
-                    )
-            )
-
-
-class Consolidation(CollCollection):
-    def __init__(self, name, input_cols, cons_method=sum,
-                 agg_method=sum, default=0.0):
-        CollCollection.__init__(self, name, input_cols, agg_method, default)
-        self.cons_method = cons_method
-
-
-class MeltColumn(CollCollection):
-    def __init__(self, label_col, val_col, input_cols,
-                 agg_method=sum, default=0.0):
-        CollCollection.__init__(self, val_col, input_cols, agg_method, default)
-        self.label_col = label_col
-        self.val_col = val_col
-
-
-class Join(CollCollection):
-    def __init__(self, on_col, input_cols, agg_method=sum, default=0.0):
-        CollCollection.__init__(self, None, input_cols, agg_method, default)
-        self.on_col = on_col
 
 
 # %% FUNCTIONS
@@ -112,31 +39,6 @@ def _validateAggSpecs(var, expected_type):
                     f"Expected one or more {e_type} objects, got {bad_type}")
     # If no errors, return var (in original form or as list)
     return var
-
-
-def intersectFeatures(summary_fc, disag_fc):
-    """
-
-    """
-    # Create a temporary gdb for storing the intersection result
-    temp_dir = tempfile.mkdtemp()
-    arcpy.CreateFileGDB_management(out_folder_path=temp_dir,
-                                   out_name="Intermediates.gdb")
-    int_gdb = PMT.makePath(temp_dir, "Intermediates.gdb")
-
-    # Convert disag features to centroids
-    disag_full_path = arcpy.Describe(disag_fc).catalogPath
-    disag_ws, disag_name = os.path.split(disag_full_path)
-    out_fc = PMT.makePath(int_gdb, disag_name)
-    disag_pts = PMT.polygonsToPoints(
-        disag_fc, out_fc, fields="*", skip_nulls=False, null_value=0)
-
-    # Run intersection
-    int_fc = PMT.makePath(int_gdb, f"int_{disag_name}")
-    arcpy.Intersect_analysis([summary_fc, disag_pts], int_fc)
-
-    # return intersect
-    return int_fc
 
 
 def joinAttributes(to_table, to_id_field, from_table, from_id_field,
@@ -289,9 +191,7 @@ if __name__ == "__main__":
 
     # GDB's
     print("Creating snapshot GDB")
-    in_gdb = PMT.makePath(
-        PMT.DATA, f"IDEAL_PMT_{SNAPSHOT_YEAR}.gdb"
-    )
+    in_gdb = PMT.makePath(PMT.DATA, f"IDEAL_PMT_{SNAPSHOT_YEAR}.gdb")
     out_gdb_name = f"{uuid.uuid4().hex}.gdb"
     arcpy.CreateFileGDB_management(PMT.DATA, out_gdb_name)
     # out_gdb_name = "47ba6fd992f6463393c873c0b7a33fe8.gdb"
@@ -406,19 +306,19 @@ if __name__ == "__main__":
     print("Running intersections")
     print("... blocks and parcels")
     blocks = PMT.makePath(out_gdb, "Polygons", "Blocks")
-    int_bp = intersectFeatures(blocks, parcels)
+    int_bp = PMT.intersectFeatures(blocks, parcels)
     # Summary areas || parcels
     print("... summary areas and parcels")
-    int_sp = intersectFeatures(sum_areas, parcels)
+    int_sp = PMT.intersectFeatures(sum_areas, parcels)
     # Summary areas || Blocks
     print("... summary areas and Blocks")
-    int_sb = intersectFeatures(sum_areas, blocks)
+    int_sb = PMT.intersectFeatures(sum_areas, blocks)
     # Summary areas || MAZs
     print("... summary areas and MAZs")
-    int_sm = intersectFeatures(sum_areas, mazs)
+    int_sm = PMT.intersectFeatures(sum_areas, mazs)
     # Summary areas || TAZs
     print("... summary areas and TAZs")
-    int_st = intersectFeatures(sum_areas, tazs)
+    int_st = PMT.intersectFeatures(sum_areas, tazs)
 
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Enrich features through summarization

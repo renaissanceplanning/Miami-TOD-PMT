@@ -60,13 +60,17 @@ def process_normalized_geometries():
         for raw, cleaned, cols in zip([raw_block, raw_block_groups, raw_TAZ, raw_MAZ],
                                       [blocks, block_groups, TAZ, MAZ],
                                       ["GEOID10", "GEOID", TAZ, MAZ]):
+
             temp_file = r"in_memory\\temp_features"
             out_path = validate_feature_dataset(makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF)
+            logger.log_msg(f"...building normalized {cleaned} in {out_path}")
             out_data = makePath(out_path, cleaned)
             prep_feature_class(in_fc=raw, geom="POLYGON", out_fc=temp_file, use_cols=cols, rename_dict=None)
             lyr = arcpy.MakeFeatureLayer_management(in_features=temp_file, out_layer="lyr")
             arcpy.SelectLayerByLocation_management(in_layer=lyr, overlap_type="HAVE_THEIR_CENTER_IN",
                                                    select_features=county)
+            PMT.checkOverwriteOutput(output=out_data, overwrite=True)
+            logger.log_msg(f"... outputing geometries and {cols} only")
             arcpy.CopyFeatures_management(in_features=lyr, out_feature_class=out_data)
             arcpy.CalculateField_management(in_table=out_data, field="Year", expression=year,
                                             expression_type="PYTHON3", field_type="LONG")
@@ -203,7 +207,7 @@ def process_osm_networks():
 
 if __name__ == "__main__":
     # setup any basic normalized geometries
-    # process_normalized_geometries()
+    process_normalized_geometries()
 
     # copies downloaded parcel data and only minimally necessary attributes into yearly gdb
     # process_parcels()
@@ -227,7 +231,7 @@ if __name__ == "__main__":
     # process_imperviousness()
 
     # sets up the base network features
-    process_osm_networks()
+    # process_osm_networks()
 
 
 # TODO: incorporate a project setup script or at minimum a yearly build geodatabase function/logic
