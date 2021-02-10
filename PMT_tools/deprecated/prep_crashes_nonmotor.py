@@ -25,7 +25,7 @@ arcpy.env.overwriteOutput = True
 
 from config.config_project import RAW, CLEANED, YEARS
 
-from PMT_tools.download.download_config import (
+from PMT_tools.config.download_config import (
     CRASH_FIELDS_DICT,
     CRASH_INCIDENT_TYPES,
     USE_CRASH,
@@ -119,7 +119,7 @@ def combine_incidents(gdf, type_dict):
         mask = gdf[crash_type] == "Y"
         gdf.loc[mask, "TRANS_TYPE"] = crash_text
 
-
+# intermediate work to create an Arcpy version of crash cleaning, likely unneeded as the
 def clean_crashes(
         input_df,
         out_path,

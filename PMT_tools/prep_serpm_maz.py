@@ -15,10 +15,10 @@ from six import string_types
 # %% GLOBALS
 MODEL_YEARS = [2015, 2045]
 BASE_FIELDS = ["TAZ", "HH", "POP"]
-CONSOLIDATE_COLS={
+CONSOLIDATE_COLS = {
     "TotalJobs": [
         "emp_total"
-        ],
+    ],
     "Consumer": [
         "emp_retail",
         "emp_amusement",
@@ -26,21 +26,21 @@ CONSOLIDATE_COLS={
         "emp_restaurant_bar",
         "emp_personal_svcs_retail",
         "emp_state_local_gov_ent"
-        ],
+    ],
     "Education": [
         "emp_pvt_ed_k12",
         "emp_pvt_ed_post_k12_oth",
         "emp_public_ed"
-        ],
+    ],
     "HealthCare": [
         "emp_health"
-        ],
+    ],
     "IndLogist": [
         "emp_mfg_prod",
         "emp_mfg_office",
         "emp_whsle_whs",
         "emp_trans"
-        ],
+    ],
     "Office": [
         "emp_prof_bus_svcs",
         "emp_personal_svcs_office",
@@ -49,7 +49,7 @@ CONSOLIDATE_COLS={
         "emp_fed_gov_accts",
         "emp_st_lcl_gov_accts",
         "emp_cap_accts"
-        ],
+    ],
     "Other": [
         "emp_const_non_bldg_prod",
         "emp_const_non_bldg_office",
@@ -64,22 +64,21 @@ CONSOLIDATE_COLS={
         "emp_fed_non_mil",
         "emp_fed_mil",
         "emp_state_local_gov_blue"
-        ],
+    ],
     "Resource": [
         "emp_ag"
-        ],
+    ],
     "EnrollAdlt": [
         "collegeEnroll",
         "otherCollegeEnroll",
         "AdultSchEnrl"
-        ],
+    ],
     "EnrollK12": [
         "EnrollGradeKto8",
         "EnrollGrade9to12",
         "PrivateEnrollGradeKto8"
-        ]
+    ]
 }
-
 
 
 # %% FUNCTIONS
@@ -204,13 +203,14 @@ def summarizeMAZtoTAZ(se_table, maz_id_field, taz_id_field, out_table,
         clean_df = _consolidateCols(maz_df, bf, consolidate_cols)
     else:
         clean_df = maz_df.copy()
-    
+
     # group_by and export
     print("... storing summarized output table")
     sum_df = clean_df.groupby(taz_id_field).sum().reset_index()
     PMT.dfToTable(sum_df, out_table)
 
     return out_table
+
 
 def mazToCentroid(maz_fc, fields, out_fc, overwrite=False):
     """
@@ -249,6 +249,7 @@ def mazToCentroid(maz_fc, fields, out_fc, overwrite=False):
         a, out_fc, "SHAPE@XY", spatial_reference=sr)
     return out_fc
 
+
 # %% MAIN
 if __name__ == "__main__":
     maz_fc = PMT.makePath(PMT.RAW, "SERPM", "SERPM8MAZ_NAD83_170502.shp")
@@ -275,6 +276,3 @@ if __name__ == "__main__":
     maz_c_fc = out_fc[:]
     out_fc = PMT.makePath(PMT.CLEANED, "SERPM", "maz_centroids.shp")
     mazToCentroid(maz_c_fc, [fc_id_field], out_fc, overwrite=True)
-
-
-

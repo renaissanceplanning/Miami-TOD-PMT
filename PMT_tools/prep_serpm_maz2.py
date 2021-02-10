@@ -12,16 +12,11 @@ based on parcel data.
 
 
 # %% IMPORTS
-import PMT
-import arcpy
-import pandas as pd
-import numpy as np
-import os
-from year_to_snapshot import *
-
+from PMT_tools.year_to_snapshot import *
+from PMT_tools.PMT import makePath, RAW
 
 # %% GLOBALS
-MAZ_FC = PMT.makePath(PMT.RAW, "SERPM", "V7", "SEFlorida_MAZs_2010.shp")
+MAZ_FC = makePath(RAW, "SERPM", "V7", "SEFlorida_MAZs_2010.shp")
 MAZ_FC_ID = "MAZ2010"
 MAZ_TAZ = "REG_TAZ"
 _KEEP_COLS_ = [MAZ_FC_ID, MAZ_TAZ]
@@ -51,7 +46,7 @@ CONSOLIDATE = [
                               "CNS19"])
 ]
 # Base year SE data
-MAZ_SE = PMT.makePath(PMT.RAW, "SERPM", "V7", "maz_data.csv")
+MAZ_SE = makePath(RAW, "SERPM", "V7", "maz_data.csv")
 MAZ_SE_ID = "mgra"
 MAZ_SE_TAZ = "TAZ"
 BASE_FIELDS = [MAZ_SE_ID, MAZ_SE_TAZ]
@@ -128,7 +123,7 @@ CONSOLIDATE_COLS={
 def consolidateCols(df, base_fields, consolidate_cols):
     """
     """
-    if isinstance(base_fields, string_types):
+    if isinstance(base_fields, str):
         base_fields = [base_fields]
 
     clean_cols = base_fields + list(consolidate_cols.keys())
@@ -192,9 +187,11 @@ if __name__ == "__main__":
         gdb = PMT.makePath(PMT.DATA, f"IDEAL_PMT_{year}.gdb")
         par_fc = PMT.makePath(gdb, "Polygons", "Parcels")
         se_data = PMT.makePath(gdb, "EconDemog_parcels")
-        par_data = estimateMAZFromParcels(par_fc, PAR_ID_FIELD, out_fc,
-                                          "MAZ", "TAZ", se_data, SE_ID_FIELD,
-                                          AGG_COLS, CONSOLIDATE)
+        par_data = estimateMAZFromParcels(par_fc=par_fc, par_id_field=PAR_ID_FIELD,
+                                          maz_fc=out_fc, maz_id_field="MAZ",
+                                          taz_id_field="TAZ",
+                                          se_data=se_data, se_id_field=SE_ID_FIELD,
+                                          agg_cols=AGG_COLS, consolidations=CONSOLIDATE)
 
         # Fetch MAZ data (enrollments, etc.)
         print("... fetching other base-year MAZ data")

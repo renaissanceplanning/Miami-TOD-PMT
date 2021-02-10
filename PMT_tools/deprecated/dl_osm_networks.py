@@ -22,7 +22,7 @@ import networkx as nx
 import geopandas as gpd
 import pickle
 from six import string_types
-import PMT
+from PMT_tools.PMT import *
 import functools
 
 # %% GLOBALS
@@ -150,7 +150,7 @@ def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
         # Check for multipolygons and clean up if needed
         geom_types = [geom.type for geom in sa["geometry"]]
         if "MultiPolygon" in geom_types:
-            sa = PMT.multipolygonToPolygon(sa)
+            sa = multipolygonToPolygon(sa, 4326)
         # Buffer polygons (necessary for proper composition of OSMnx networks)
         sa_meters = sa.to_crs(epsg=6350)
         sa_meters["geometry"] = sa_meters.geometry.buffer(distance=1609)
@@ -245,8 +245,9 @@ def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
 # %% MAIN
 if __name__ == "__main__":
     # Fetch current OSM walk and bike networks for Miami-Dade County
-    output_dir = PMT.makePath(PMT.RAW, "osm_networks")
-    sa_polys = PMT.makePath(PMT.RAW, "CensusGeo", "MiamiDadeBoundary.shp")
+    RAW = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\PROCESSING_TEST\RAW'
+    output_dir = makePath(RAW, "OSM_data")
+    sa_polys = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
     fetchOsmNetworks(output_dir, study_area_polygons_path=sa_polys, bbox=None,
                      net_types=["walk", "bike"], pickle_save=False)
 

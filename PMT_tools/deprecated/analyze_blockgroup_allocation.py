@@ -26,12 +26,9 @@ CODEBLOCK = """
 
 
 # %% FUNCTIONS
-def analyze_blockgroup_allocation(parcels_path,
-                                  bg_for_alloc_path,
-                                  save_gdb_location,
-                                  parcels_id_field="PARCELNO",
-                                  parcels_land_use_field="DOR_UC",
-                                  parcels_living_area_field="TOT_LVG_AREA"):
+# TODO: perform a merge of bg and Jobs (LODES) and Population (RACE, and COMMUTE)
+def analyze_blockgroup_allocation(parcels_path, bg_for_alloc_path, save_gdb_location, parcels_id_field="PARCELNO",
+                                  parcels_land_use_field="DOR_UC", parcels_living_area_field="TOT_LVG_AREA"):
     """
     Allocate block group data to parcels using relative abundances of
     parcel building square footage
@@ -78,12 +75,8 @@ def analyze_blockgroup_allocation(parcels_path,
     pbgjoin_path = "in_memory\\join"
     # 2. field names we want to keep from parcels
     parcel_fields = ["ProcessID",
-                     parcels_id_field,
-                     parcels_land_use_field,
-                     parcels_living_area_field,
-                     "Shape_Area",
-                     "SHAPE@X",
-                     "SHAPE@Y"]
+                     parcels_id_field, parcels_land_use_field, parcels_living_area_field,
+                     "Shape_Area", "SHAPE@X", "SHAPE@Y"]
     # 3. parcel spatial reference (for explicit definition of spatial
     # reference in arcpy operations
     sr = arcpy.Describe(parcels_path).spatialReference
@@ -95,38 +88,26 @@ def analyze_blockgroup_allocation(parcels_path,
     # integrity of the original data.
     print("-- adding a definitively unique process ID to the parcel polygons...")
     # 1. create the field
-    arcpy.AddField_management(in_table=parcels_path,
-                              field_name="ProcessID",
-                              field_type="LONG",
-                              field_is_required="NON_REQUIRED")
     # 2. define sequential numbers function
     # Thanks to: https://support.esri.com/en/technical-article/000011137
     # codeblock = 'val = 0 \ndef processID(): \n    global val \n    start = 1 \n    if (val == 0):  \n        val = start\n    else:  \n        val += 1  \n    return val'
 
     # 3. calculate the field
-    arcpy.CalculateField_management(in_table=parcels_path,
-                                    field="ProcessID",
-                                    expression="processID()",
-                                    expression_type="PYTHON3",
-                                    code_block=CODEBLOCK)
+    arcpy.CalculateField_management(in_table=parcels_path, field="ProcessID", expression="processID()",
+                                    expression_type="PYTHON3", code_block=CODEBLOCK, field_type="LONG")
 
     # Now, we extract parcel centroids to numpy array, then convert array
     # to feature class (saved to 'pcentroids')
     print("-- converting parcel polygons to parcel centroid points...")
-    parcels_array = arcpy.da.FeatureClassToNumPyArray(in_table=parcels_path,
-                                                      field_names=parcel_fields,
-                                                      spatial_reference=sr,
-                                                      null_value=-1)
-    arcpy.da.NumPyArrayToFeatureClass(in_array=parcels_array,
-                                      out_table=pcentroids_path,
-                                      shape_fields=["SHAPE@X", "SHAPE@Y"],
-                                      spatial_reference=sr)
+    parcels_array = arcpy.da.FeatureClassToNumPyArray(in_table=parcels_path, field_names=parcel_fields,
+                                                      spatial_reference=sr, null_value=-1)
+    arcpy.da.NumPyArrayToFeatureClass(in_array=parcels_array, out_table=pcentroids_path,
+                                      shape_fields=["SHAPE@X", "SHAPE@Y"], spatial_reference=sr)
 
     # Then, we intersect parcels with block group for allocation data
     # to enrich the parcels with allocation info
     print("-- enriching parcels with block group for allocation data...")
-    arcpy.Intersect_analysis(in_features=[pcentroids_path, bg_for_alloc_path],
-                             out_feature_class=pbgjoin_path)
+    arcpy.Intersect_analysis(in_features=[pcentroids_path, bg_for_alloc_path], out_feature_class=pbgjoin_path)
 
     # Finally, we load our enriched data
     print("-- loading enriched parcel data...")
@@ -146,10 +127,8 @@ def analyze_blockgroup_allocation(parcels_path,
                  'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp',
                  'Drove', 'Carpool', 'Transit',
                  'NonMotor', 'Work_From_Home', 'AllOther']
-    df = arcpy.da.FeatureClassToNumPyArray(in_table=pbgjoin_path,
-                                           field_names=keep_vars,
-                                           spatial_reference=sr,
-                                           null_value=-1)
+    df = arcpy.da.FeatureClassToNumPyArray(in_table=pbgjoin_path, field_names=keep_vars,
+                                           spatial_reference=sr, null_value=-1)
     df = pd.DataFrame(df)
 
     # Now we have our data for allocation prepped -- great!
@@ -167,10 +146,8 @@ def analyze_blockgroup_allocation(parcels_path,
         if fld.type not in ('OID', 'Geometry') and 'shape' not in fname.lower():
             if fname not in fkeep:
                 fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
-    arcpy.conversion.FeatureClassToFeatureClass(in_features=parcels_path,
-                                                out_path=save_gdb_location,
-                                                out_name="socioeconomic_and_demographic",
-                                                field_mapping=fmap)
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path=save_gdb_location,
+                                                out_name="socioeconomic_and_demographic", field_mapping=fmap)
 
     # With spatial processing complete, we can delete our intermediates. This
     # includes two files, as well as the "ProcessID" field put in the
@@ -178,8 +155,7 @@ def analyze_blockgroup_allocation(parcels_path,
     print("-- deleting intermediates...")
     arcpy.Delete_management(pcentroids_path)
     arcpy.Delete_management(pbgjoin_path)
-    arcpy.DeleteField_management(in_table=parcels_path,
-                                 drop_field="ProcessID")
+    arcpy.DeleteField_management(in_table=parcels_path, drop_field="ProcessID")
 
     # ------------------------------------------------------------------------
 

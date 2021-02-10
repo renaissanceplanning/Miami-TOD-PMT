@@ -1,2 +1,2 @@
-from .download import download_config
-from .config import config_permits
+from .config import download_config
+from .deprecated import config_permits

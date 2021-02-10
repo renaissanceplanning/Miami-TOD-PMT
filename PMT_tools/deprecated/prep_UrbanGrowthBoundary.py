@@ -15,10 +15,11 @@ county into two polygons, which are stored in the "cleaned" directory.
 # %% IMPORTS
 import arcpy
 import numpy as np
-import PMT
+from PMT_tools.PMT import makePath, RAW, CLEANED
 
-#%% FUNCTION
-#TODO: add function or call to convert geojson file to feature class
+
+# %% FUNCTION
+# TODO: add function or call to convert geojson file to feature class
 def udbLineToPolygon(udb_fc, county_fc, out_fc):
     """
     Uses the urban development boundary line to bisect the county boundary
@@ -47,7 +48,7 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
     out_fc: Path
     """
     sr = arcpy.Describe(udb_fc).spatialReference
-    #Prepare ouptut feature class
+    # Prepare ouptut feature class
     out_path, out_name = out_fc.rsplit("\\", 1)
     arcpy.CreateFeatureclass_management(out_path, out_name, "POLYGON",
                                         spatial_reference=sr)
@@ -62,13 +63,13 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
         for r in c:
             county_poly = r[0]
     county_line = arcpy.Polyline(county_poly.getPart(0))
-    
+
     # Get closest point on county boundary to each udb end point
     udb_start = arcpy.PointGeometry(udb_line.firstPoint)
     udb_end = arcpy.PointGeometry(udb_line.lastPoint)
     start_connector = county_line.snapToLine(udb_start)
     end_connector = county_line.snapToLine(udb_end)
-    
+
     # Cut the county boundary based on the extended UDB line
     cutter_points = [p for p in udb_line.getPart(0)]
     cutter_points.insert(0, start_connector.centroid)
@@ -92,8 +93,9 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
 
     return out_fc
 
+
 # %% MAIN
 if __name__ == "__main__":
-    udb_fc = PMT.makePath(PMT.RAW, "UrbanDevelopmentBoundary.shp")
-    county_fc = PMT.makePath(PMT.RAW, "CensusGeo", "MiamiDadeBoundary.shp")
-    out_fc = PMT.makePath(PMT.CLEANED, "UrbanDevelopmentBoundary.shp")
+    udb_fc = makePath(RAW, "UrbanDevelopmentBoundary.shp")
+    county_fc = makePath(RAW, "CensusGeo", "MiamiDadeBoundary.shp")
+    out_fc = makePath(CLEANED, "UrbanDevelopmentBoundary.shp")

@@ -2,21 +2,21 @@
 """
 
 # %% IMPORTS
-import PMT
+import PMT_tools.PMT as PMT
 import arcpy
 import pandas as pd
 import numpy as np
-from analyze_osm_networks import NetLoader, _listAccumulationAttributes, NET_BY_YEAR
+from PMT_tools.analyze_osm_networks import NetLoader, _listAccumulationAttributes, NET_BY_YEAR
 
 if arcpy.CheckExtension("network") == "Available":
-        arcpy.CheckOutExtension("network")
+    arcpy.CheckOutExtension("network")
 else:
     raise arcpy.ExecuteError("Network Analyst Extension license is not available.")
 
 # %% GLOBALS
 OSM_DIR = PMT.makePath(PMT.CLEANED, "OSM_Networks")
 SEARCH_CRITERIA = "edges SHAPE;osm_ND_Junctions NONE"
-SEARCH_QUERY ="edges #;osm_ND_Junctions #"
+SEARCH_QUERY = "edges #;osm_ND_Junctions #"
 NET_LOADER = NetLoader("1500 meters",
                        search_criteria=SEARCH_CRITERIA,
                        match_type="MATCH_TO_CLOSEST",
@@ -35,7 +35,7 @@ def _loadLocations(net_layer, sublayer, points, name_field,
         fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
                         "SnapX", "SnapY", "Distance"]
         fmap_vals += net_location_fields
-    fmap = ";".join([f"{ff} {fv} #" for ff,fv in zip(fmap_fields, fmap_vals)])
+    fmap = ";".join([f"{ff} {fv} #" for ff, fv in zip(fmap_fields, fmap_vals)])
     # Load facilities
     print(f"... ...loading {sublayer}")
     arcpy.na.AddLocations(
@@ -46,14 +46,15 @@ def _loadLocations(net_layer, sublayer, points, name_field,
         search_tolerance=net_loader.search_tolerance,
         sort_field="",
         search_criteria=net_loader.search_criteria,
-        match_type = net_loader.match_type,
+        match_type=net_loader.match_type,
         append=net_loader.append,
         snap_to_position_along_network=net_loader.snap,
         snap_offset=net_loader.offset,
         exclude_restricted_elements=net_loader.exclude_restricted,
         search_query=net_loader.search_query
-        )
+    )
     # TODO: list which locations are invalid
+
 
 def _solve(net_layer):
     # Solve
@@ -63,6 +64,7 @@ def _solve(net_layer):
                        terminate_on_solve_error="CONTINUE"
                        )
     return s
+
 
 def _rowsToCsv(in_table, fields, out_table, chunksize):
     header = True
@@ -115,7 +117,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
         hierarchy = "USE_HIERARCHY"
     else:
         hierarchy = "NO_HIERARCHY"
-    #accum = _listAccumulationAttributes(in_nd, imped_attr)
+    # accum = _listAccumulationAttributes(in_nd, imped_attr)
 
     print("... ...OD MATRIX: create network problem")
     net_layer = arcpy.MakeODCostMatrixLayer_na(
@@ -132,8 +134,8 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
         time_of_day=None
     )
     net_layer_ = net_layer.getOutput(0)
-    
-    try: 
+
+    try:
         _loadLocations(net_layer_, "Destinations", dest_pts, dest_name_field,
                        net_loader, d_location_fields)
         # Iterate solves as needed
@@ -156,12 +158,12 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
                     net_layer, extend_lyr_name)[0]
             out_fields = ["Name", f"Total_{imped_attr}"]
             columns = ["Name", imped_attr]
-            #out_fields += [f"Total_{attr}" for attr in accum]
-            #columns += [c for c in accum]
+            # out_fields += [f"Total_{attr}" for attr in accum]
+            # columns += [c for c in accum]
             df = pd.DataFrame(
                 arcpy.da.TableToNumPyArray(extend_sublayer, out_fields)
             )
-            df.columns=columns
+            df.columns = columns
             # Split outputs
             if len(df) > 0:
                 names = ["OName", "DName"]
@@ -196,7 +198,7 @@ for year in PMT.YEARS:
         print("... Walk")
         # - Build skim
         walk_nd = PMT.makePath(
-                    OSM_DIR, f"walk{net_suffix}.gdb", "osm", "osm_ND")
+            OSM_DIR, f"walk{net_suffix}.gdb", "osm", "osm_ND")
         walk_imped = "Minutes"
         walk_cutoff = 60
         walk_skim = PMT.makePath(
@@ -218,13 +220,13 @@ for year in PMT.YEARS:
             o_location_fields=None,
             d_location_fields=None,
             o_chunk_size=5000
-            )
+        )
 
         # Bike access
         print("... Bike")
         # - Build skim
         bike_nd = PMT.makePath(
-                OSM_DIR, f"bike{net_suffix}.gdb", "osm", "osm_ND")
+            OSM_DIR, f"bike{net_suffix}.gdb", "osm", "osm_ND")
         bike_imped = "Minutes"
         bike_cutoff = 60
         bike_skim = PMT.makePath(
@@ -248,7 +250,7 @@ for year in PMT.YEARS:
             o_location_fields=None,
             d_location_fields=None,
             o_chunk_size=500
-            )
+        )
 
         # Mark as solved
         solved.append(net_suffix)

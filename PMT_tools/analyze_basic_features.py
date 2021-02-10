@@ -12,7 +12,6 @@ import pandas as pd
 import os
 from six import string_types
 
-
 # %% GLOBALS
 # Station params
 STATIONS_FC = "SMARTplanStations"
@@ -36,15 +35,16 @@ ALIGN_BUFF_DIST = "2640 Feet"
 CORRIDOR_NAME_FIELD = "Corridor"
 
 # Outputs
-STN_AREAS_FC="StationAreas"
-CORRIDORS_FC="Corridors"
-LONG_STN_FC="StationsLong"
+STN_AREAS_FC = "StationAreas"
+CORRIDORS_FC = "Corridors"
+LONG_STN_FC = "StationsLong"
 SUM_AREAS_FC = "SummaryAreas"
 
 # Other
 RENAME_DICT = {
     "EastWest": "East-West"
 }
+
 
 # %% FUNCTIONS
 
@@ -53,6 +53,7 @@ def _listifyInput(input):
         return input.split(";")
     else:
         return list(input)
+
 
 def _stringifyList(input):
     return ";".join(input)
@@ -131,7 +132,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     _diss_flds_ = _stringifyList(align_diss_fields)
     arcpy.Buffer_analysis(alignments_fc, corridors_fc, align_buff_dist,
                           dissolve_option="LIST", dissolve_field=_diss_flds_)
-    
+
     # Elongate stations by corridor (for dashboard displays, selectors)
     print("... elongating station features")
     # - dump to data frame
@@ -188,7 +189,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
 
     sr = arcpy.Describe(long_stn_fc).spatialReference
     mpu = float(sr.metersPerUnit)
-    buff_dist = stn_buffer_meters/mpu
+    buff_dist = stn_buffer_meters / mpu
 
     # Make output container - polygon with fields for Name, Corridor
     print(f"... creating output feature class {out_fc}")
@@ -217,7 +218,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
                 ic.insertRow(out_row)
                 # Keep the polygons in a dictionary for use later
                 cor_polys[corridor] = poly
-    
+
     # Add all station areas with name= stn_name_field, corridor=stn_cor_field
     print("... adding station polygons by corridor")
     stn_fields = ["SHAPE@", stn_name_field, stn_cor_field]
@@ -268,7 +269,7 @@ if __name__ == "__main__":
         STN_CORRIDOR_FIELDS,
         ALIGNMENTS_FC,
         ALIGN_DISS_FIELDS,
-        stn_buff_dist = STN_BUFF_DIST,
+        stn_buff_dist=STN_BUFF_DIST,
         align_buff_dist=ALIGN_BUFF_DIST,
         stn_areas_fc=STN_AREAS_FC,
         corridors_fc=CORRIDORS_FC,
