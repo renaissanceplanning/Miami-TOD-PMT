@@ -272,7 +272,8 @@ if __name__ == "__main__":
     # ****************************************************
     # joins
     # - blocks
-    joinAttributes(blocks, block_id, imperviousness, imperviousness_id, "*")
+    joinAttributes(to_table=blocks, to_id_field=block_id, from_table=imperviousness,
+                   from_id_field=imperviousness_id, join_fields="*")
     # - parcels
     joinAttributes(parcels, parcel_id, econdem, econdem_id, "*")
     joinAttributes(parcels, parcel_id, energycons, energycons_id, "*")
@@ -296,9 +297,7 @@ if __name__ == "__main__":
     joinAttributes(sum_areas, sum_areas_id, diversity, diversity_id, "*")
     # ****************************************************
 
-    ##
-    ## Trend can start from here
-    ##
+
 
     # Intersect features
     # --------------------------
@@ -358,8 +357,8 @@ if __name__ == "__main__":
         Consolidation("OthJobs", ["CNS03", "CNS04", "CNS14",
                                   "CNS19"])
     ]
-    df = summarizeAttributes(int_bp, Column(block_id), agg_cols,
-                             consolidations=consolidate)
+    df = summarizeAttributes(in_fc=int_bp, group_fields=Column(block_id),
+                             consolidations=consolidate, melt_col=agg_cols,)
     PMT.extendTableDf(blocks, block_id, df, block_id)
 
     # Summary areas from parcels
@@ -562,3 +561,25 @@ if __name__ == "__main__":
 
     # Rename output
     # arcpy.Rename_management(out_gdb, )
+##
+
+    # Trend can start from here
+    """ 
+        - networks,and parcels can stay out of Trend
+        - points, permits only
+        - can take long tables and stack by year (
+        - take the difference between SN and base year at block, summary area, etc..level     
+            - "_by_year" tables
+            - "_difference" FCs (Snapshot - BaseYear) 
+                - rename feature classes where appropriate (Blocks, BlockGroups
+        - percent difference as an addition would be valuable  
+    """
+    # Near Term
+    """
+        - Ideal_PMT_NearTerm
+            - networks the same
+            - points, permits only
+            - parcels are different from the permits {build_trend_shortterm_parcels.py}
+                - use the Parcel_with_new_permits as Snapshot
+                - generate trend against base year
+    """

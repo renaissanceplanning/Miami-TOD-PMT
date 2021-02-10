@@ -163,7 +163,7 @@ def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, j
 
 # %% MAIN
 if __name__ == "__main__":
-    # TODO: move this into prepare.py as a task
+    # TODO: move this into preparer.py as a task
     if DEBUG:
         import uuid
 

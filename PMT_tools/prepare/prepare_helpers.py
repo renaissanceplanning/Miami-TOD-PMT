@@ -3,7 +3,7 @@ from PMT_tools.config.prepare_config import (CRASH_CODE_TO_STRING, CRASH_CITY_CO
                                              CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES)
 from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STATUS_DICT, PERMITS_FIELDS_DICT,
                                              PERMITS_USE, PERMITS_DROPS, )
-from PMT_tools.prepare.prepare import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
+from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 from PMT_tools.config.prepare_config import PARCEL_COMMON_KEY
 
 from PMT_tools.PMT import gdfToFeatureClass, dfToPoints, extendTableDf, makePath

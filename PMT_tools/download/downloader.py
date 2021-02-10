@@ -1,3 +1,6 @@
+"""
+downloading raw data to set up raw data folder
+"""
 # global values configured for downloading
 from PMT_tools.config.download_config import (CRASHES_SERVICE, PED_BIKE_QUERY)
 from PMT_tools.config.download_config import (CENSUS_SCALE, CENSUS_STATE, CENSUS_COUNTY, CENSUS_GEO_TYPES,

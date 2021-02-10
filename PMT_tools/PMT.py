@@ -43,9 +43,9 @@ SR_WGS_84 = arcpy.SpatialReference(EPSG_LL)
 SR_FL_SPF = arcpy.SpatialReference(EPSG_FLSPF)  # Florida_East_FIPS_0901_Feet
 SR_WEB_MERCATOR = arcpy.SpatialReference(EPSG_WEB_MERC)
 
-
 # %% UTILITY CLASSES
-''' column and aggregation classes '''
+
+# column and aggregation classes
 class Column():
     def __init__(self, name, default=0.0, rename=None):
         self.name = name
@@ -116,8 +116,9 @@ class Join(CollCollection):
         CollCollection.__init__(self, None, input_cols, agg_method, default)
         self.on_col = on_col
 
-
     ''' comparison classes '''
+
+
 class Comp:
     """
     Comparison methods:
@@ -199,7 +200,6 @@ class Or:
                 [c.eval(self.vector) for c in self.criteria]
             )
         )
-
 
 
 # %% FUNCTIONS
@@ -705,7 +705,7 @@ def dfToPoints(df, out_fc, shape_fields,
     )
     # write to temp feature class
     arcpy.da.NumPyArrayToFeatureClass(in_array=in_array, out_table=temp_fc,
-                                      shape_fields=shape_fields, spatial_reference=from_sr,)
+                                      shape_fields=shape_fields, spatial_reference=from_sr, )
     # reproject if needed, otherwise dump to output location
     if from_sr != to_sr:
         arcpy.Project_management(in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=to_sr)

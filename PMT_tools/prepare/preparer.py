@@ -1,5 +1,6 @@
-import os
-
+"""
+preparation scripts used set up cleaned geodatabases
+"""
 # TODO: move these functions to a general helper file as they apply more broadly
 from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 # config global variables
