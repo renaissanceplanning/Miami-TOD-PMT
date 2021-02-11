@@ -8,9 +8,9 @@ cleaning, analysis, and summarization processes.
 # %% imports
 import numpy as np
 import urllib3
-import geopandas as gpd
+# import geopandas as gpd
 import pandas as pd
-from shapely.geometry.polygon import Polygon as POLY
+# from shapely.geometry.polygon import Polygon as POLY
 
 import os
 import tempfile
@@ -1019,15 +1019,15 @@ def add_unique_id(feature_class, new_id_field=None):
     new_id_field: String; name of new id field
     """
     CODEBLOCK = """
-        val = 0 
-        def unique_ID(): 
-            global val 
-            start = 1 
-            if (val == 0):  
-                val = start
-            else:  
-                val += 1  
-            return val
+val = 0 
+def unique_ID(): 
+    global val 
+    start = 1 
+    if (val == 0):  
+        val = start
+    else:  
+        val += 1  
+    return val
          """
     if new_id_field is None:
         new_id_field = "ProcessID"
