@@ -202,6 +202,111 @@ class Or:
         )
 
 
+class NetLoader():
+    """
+    A naive class for specifying network location loading preferences.
+    Simplifies network functions by passing loading specifications as
+    a single argument. This class does no validation of assigned preferences.
+    """
+    def __init__(self, search_tolerance, search_criteria, 
+                 match_type="MATCH_TO_CLOSEST", append="APPEND",
+                 snap="NO_SNAP", offset="5 Meters", 
+                 exclude_restricted="EXCLUDE", search_query=None):
+        self.search_tolerance = search_tolerance
+        self.search_criteria = search_criteria
+        self.match_type = match_type
+        self.append = append
+        self.snap = snap
+        self.offset = offset
+        self.exclude_restricted = exclude_restricted
+        self.search_query = search_query
+
+
+class ServiceAreaAnalysis():
+    """
+    Specifies elements of a Network Analyst Service Area Problem and
+    provides a method for solving and exporting service arae lines
+    and polygons.
+
+    Parameters
+    ------------
+    name: String
+    network_dataset: Path
+    facilities: Path or Feature Layer
+    name_field: String
+    net_loader: NetLoader
+    """
+    def __init__(self, name, network_dataset, facilities, name_field,
+                 net_loader):
+        self.name = name
+        self.network_dataset = network_dataset
+        self.facilities = facilities
+        self.name_field = name_field
+        self.net_loader = net_loader
+        self.overlaps = ["OVERLAP", "NON_OVERLAP"]
+        self.merges = ["NO_MERGE", "MERGE"]
+    
+    def solve(self, imped_attr, cutoff, out_ws, restrictions="",
+              use_hierarchy=False, net_location_fields=""):
+        """
+        Create service area lines and polygons for this object's `facilities`.
+
+        Parameters
+        -----------
+        imped_attr: String
+            The impedance attribute in this object's `network_dataset` to use
+            in estimating service areas.
+        cutoff: Numeric
+            The size of the service area to create (in units corresponding to
+            those used by `imped_attr`).
+        out_was: Path
+            A workspace where service area feature class ouptuts will be
+            stored.
+        restrictions: String
+            A semi-colon-separated list of restriction attributes in
+            `self.network_dataset` to honor when creating service areas.
+        use_hierarchy: Boolean, default=False
+        net_location_fields: String, default=""
+        """
+        for overlap, merge in zip(self.overlaps, self.merges):
+            print(f"...{overlap}/{merge}")
+            # Lines
+            lines = makePath(out_ws, f"{self.name}_{overlap}")
+            lines = genSALines(
+                self.facilities,
+                self.name_field,
+                self.network_dataset,
+                imped_attr,
+                cutoff,
+                self.net_loader,
+                lines,
+                from_to="TRAVEL_TO",
+                overlap=overlap,
+                restrictions=restrictions,
+                use_hierarchy=use_hierarchy,
+                uturns="ALLOW_UTURNS",
+                net_location_fields=net_location_fields
+            )
+            # Polygons
+            polys = makePath(out_ws, f"{self.name}_{merge}")
+            polys = genSAPolys(
+                self.facilities,
+                self.name_field,
+                self.network_dataset,
+                imped_attr,
+                cutoff,
+                self.net_loader,
+                polys,
+                from_to="TRAVEL_TO",
+                merge=merge,
+                nesting="RINGS",
+                restrictions=restrictions,
+                use_hierarchy=use_hierarchy,
+                uturns="ALLOW_UTURNS",
+                net_location_fields=net_location_fields
+            )
+
+
 # %% FUNCTIONS
 # TODO: Review all functions here and deprecate as makes sense
 def makePath(in_folder, *subnames):
@@ -828,6 +933,8 @@ def sumToAggregateGeo(
         **kwargs,
 ):
     """
+    DEPRECATED
+
     Summarizes values for features in an input feature class based on their
     relationship to larger geographic units. For example, summarize dwelling
     units from parcels to station areas.
@@ -1035,6 +1142,356 @@ def add_unique_id(feature_class, new_id_field=None):
                                     expression="unique_ID()", expression_type="PYTHON3",
                                     code_block=CODEBLOCK, field_type="LONG")
     return new_id_field
+
+
+# Network analysis helpers
+def _listAccumulationAttributes(network, impedance_attribute):
+    accumulation = []
+    desc = arcpy.Describe(network)
+    attributes = desc.attributes
+    for attribute in attributes:
+        if attribute.name == impedance_attribute:
+            continue
+        elif attribute.usageType == "Cost":
+            accumulation.append(attribute.name)
+    return accumulation
+
+
+def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
+                            net_loader, net_location_fields):
+    # Field mappings
+    fmap_fields = ["Name"]
+    fmap_vals = [name_field]
+    if net_location_fields is not None:
+        fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
+                        "SnapX", "SnapY", "Distance"]
+        fmap_vals += net_location_fields
+    fmap = ";".join([f"{ff} {fv} #" for ff,fv in zip(fmap_fields, fmap_vals)])
+    # Load facilities
+    print("... ...loading facilities")
+    arcpy.na.AddLocations(
+        in_network_analysis_layer=net_layer,
+        sub_layer="Facilities",
+        in_table=facilities,
+        field_mappings=fmap,
+        search_tolerance=net_loader.search_tolerance,
+        sort_field="",
+        search_criteria=net_loader.search_criteria,
+        match_type = net_loader.match_type,
+        append=net_loader.append,
+        snap_to_position_along_network=net_loader.snap,
+        snap_offset=net_loader.offset,
+        exclude_restricted_elements=net_loader.exclude_restricted,
+        search_query=net_loader.search_query
+        )
+    # TODO: list which locations are invalid
+
+    # Solve
+    print("... ...generating service areas")
+    arcpy.na.Solve(in_network_analysis_layer=net_layer,
+                    ignore_invalids="SKIP",
+                    terminate_on_solve_error="TERMINATE"
+                    )
+
+
+def _exportSublayer(net_layer, sublayer, out_fc):
+    # Export output
+    print("... ...exporting output")
+    sublayer_names = arcpy.na.GetNAClassNames(net_layer)
+    result_lyr_name = sublayer_names[sublayer]
+    try:
+        result_sublayer = net_layer.listLayers(result_lyr_name)[0]
+    except:
+        result_sublayer = arcpy.mapping.ListLayers(
+            net_layer, result_lyr_name)[0]
+    
+    if arcpy.Exists(out_fc):
+        arcpy.Delete_management(out_fc)
+    out_ws, out_name = os.path.split(out_fc)
+    arcpy.FeatureClassToFeatureClass_conversion(
+        result_sublayer, out_ws, out_name)
+
+
+def _extendFromSublayer(out_fc, key_field, net_layer, sublayer, fields):
+    print(f"... ...extending output from {sublayer}")
+    sublayer_names = arcpy.na.GetNAClassNames(net_layer)
+    extend_lyr_name = sublayer_names[sublayer]
+    try:
+        extend_sublayer = net_layer.listLayers(extend_lyr_name)[0]
+    except:
+        extend_sublayer = arcpy.mapping.ListLayers(
+            net_layer, extend_lyr_name)[0]
+    # Dump to array and extend
+    extend_fields = ["OID@"] + fields
+    extend_array = arcpy.da.TableToNumPyArray(extend_sublayer, extend_fields)
+    arcpy.da.ExtendTable(out_fc, key_field, extend_array, "OID@")
+
+
+def _loadLocations(net_layer, sublayer, points, name_field,
+                   net_loader, net_location_fields):
+    # Field mappings
+    fmap_fields = ["Name"]
+    fmap_vals = [name_field]
+    if net_location_fields is not None:
+        fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
+                        "SnapX", "SnapY", "Distance"]
+        fmap_vals += net_location_fields
+    fmap = ";".join([f"{ff} {fv} #" for ff, fv in zip(fmap_fields, fmap_vals)])
+    # Load facilities
+    print(f"... ...loading {sublayer}")
+    arcpy.na.AddLocations(
+        in_network_analysis_layer=net_layer,
+        sub_layer=sublayer,
+        in_table=points,
+        field_mappings=fmap,
+        search_tolerance=net_loader.search_tolerance,
+        sort_field="",
+        search_criteria=net_loader.search_criteria,
+        match_type=net_loader.match_type,
+        append=net_loader.append,
+        snap_to_position_along_network=net_loader.snap,
+        snap_offset=net_loader.offset,
+        exclude_restricted_elements=net_loader.exclude_restricted,
+        search_query=net_loader.search_query
+    )
+    # TODO: list which locations are invalid
+
+
+def _solve(net_layer):
+    # Solve
+    print("... ...od matrix")
+    s = arcpy.na.Solve(in_network_analysis_layer=net_layer,
+                       ignore_invalids="SKIP",
+                       terminate_on_solve_error="CONTINUE"
+                       )
+    return s
+
+
+def _rowsToCsv(in_table, fields, out_table, chunksize):
+    header = True
+    mode = "w"
+    rows = []
+    # Iterate over rows
+    with arcpy.da.SearchCursor(in_table, fields) as c:
+        for r in c:
+            rows.append(r)
+            if len(rows) == chunksize:
+                df = pd.DataFrame(rows, columns=fields)
+                df.to_csv(out_table, index=False, header=header, mode=mode)
+                rows = []
+                header = False
+                mode = "a"
+    # Save any stragglers
+    df = pd.DataFrame(rows, columns=fields)
+    df.to_csv(out_table, index=False, header=header, mode=mode)
+
+
+# Network location functions
+def genSALines(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
+               out_fc, from_to="TRAVEL_FROM", overlap="OVERLAP",
+               restrictions="", use_hierarchy=False, uturns="ALLOW_UTURNS",
+               net_location_fields=None):
+    """
+
+    Parameters
+    ------------
+    facilities: Path or feature layer
+        The facilities for which service areas will be generated.
+    name_field: String
+        The field in `facilities` that identifies each location.
+    in_nd: Path
+        Path to the network dataset
+    imped_attr: String
+        The name of the impedance attribute to use when solving the network
+        and generating service area lines
+    cutoff: Numeric, or [Numeric,...]
+        The search radius (in units of `imped_attr`) that defines the limits
+        of the service area. If a list is given, the highest value defines the
+        cutoff and all other values are used as break points, which are used
+        to split output lines.
+    net_loader: NetLoader
+        Location loading preferences
+    from_to: String, default="TRAVEL_FROM"
+        If "TRAVEL_FROM", service areas reflect the reach of the network from
+        `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
+        network to the facilities. If not applying one-way restrictions, the
+        outcomes are effectively equivalent.
+    overlap: String, deault="OVERLAP"
+        If "OVERLAP", ...
+    restrictions: String or [String,...], default=""
+        Specify restriction attributes (oneway, e.g.) to honor when generating
+        service area lines. If the restrictions are paramterized, default
+        parameter values are used in the solve.
+    uturns: String, default="ALLOW_UTURNS"
+        Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
+        "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
+    use_hierarchy: Boolean, default=False
+        If a hierarchy is defined for `in_nd`, it will be applied when solving
+        the network if `use_hierarchy` is True; otherwise a simple,
+        non-hierarchical solve is executed.
+    net_location_fields: [String,...], default=None
+        If provided, list the fields in the `facilities` attribute table that
+        define newtork loading locations. Fields must be provided in the 
+        following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
+        SnapY, Distance.
+
+    See Also
+    -----------
+    NetLoader
+    """
+    if arcpy.CheckExtension("network") == "Available":
+        arcpy.CheckOutExtension("network")
+    else:
+        raise arcpy.ExecuteError("Network Analyst Extension license is not available.")
+    if use_hierarchy:
+        hierarchy = "USE_HIERARCHY"
+    else:
+        hierarchy = "NO_HIERARCHY"
+    # accumulation
+    accum = _listAccumulationAttributes(in_nd, imped_attr)
+    print("... ...LINES: create network problem")
+
+    net_layer = arcpy.MakeServiceAreaLayer_na(
+        # Setup
+        in_network_dataset=in_nd,
+        out_network_analysis_layer="__svc_lines__",
+        impedance_attribute=imped_attr,
+        travel_from_to=from_to,
+        default_break_values=cutoff,
+        # Polygon generation (disabled)
+        polygon_type="NO_POLYS",
+        merge=None,
+        nesting_type=None,
+        polygon_trim=None,
+        poly_trim_value=None,
+        # Line generation (enabled)
+        line_type="TRUE_LINES",
+        overlap=overlap,
+        split="SPLIT",
+        lines_source_fields="LINES_SOURCE_FIELDS",
+        # Solve options
+        excluded_source_name="",
+        accumulate_attribute_name=accum,
+        UTurn_policy=uturns,
+        restriction_attribute_name=restrictions,
+        hierarchy=hierarchy,
+        time_of_day=""
+    )
+    net_layer_ = net_layer.getOutput(0)
+    try:
+        _loadFacilitiesAndSolve("__svc_lines__", facilities, name_field,
+                                net_loader, net_location_fields)
+        _exportSublayer(net_layer_, "SALines", out_fc)
+        # Extend output with facility names
+        _extendFromSublayer(out_fc, "FacilityID", net_layer_, "Facilities", ["Name"])
+    except:
+        raise
+    finally:
+        print("... ...deleting network problem")
+        arcpy.Delete_management(net_layer)
+
+
+def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
+               out_fc, from_to="TRAVEL_FROM", merge="NO_MERGE", nesting="RINGS",
+               restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
+               net_location_fields=None):
+    """
+    
+
+    Parameters
+    ------------
+    facilities: Path or feature layer
+        The facilities for which service areas will be generated.
+    name_field: String
+        The field in `facilities` that identifies each location.
+    in_nd: Path
+        Path to the network dataset
+    imped_attr: String
+        The name of the impedance attribute to use when solving the network
+        and generating service area lines
+    cutoff: Numeric, or [Numeric,...]
+        The search radius (in units of `imped_attr`) that defines the limits
+        of the service area. If a list is given, the highest value defines the
+        cutoff and all other values are used as break points, which are used
+        to split output lines.
+    net_loader: NetLoader
+        Location loading preferences
+    out_fc: Path
+    from_to: String, default="TRAVEL_FROM"
+        If "TRAVEL_FROM", service areas reflect the reach of the network from
+        `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
+        network to the facilities. If not applying one-way restrictions, the
+        outcomes are effectively equivalent.
+    restrictions: String or [String,...], default=None
+        Specify restriction attributes (oneway, e.g.) to honor when generating
+        service area lines. If the restrictions are paramterized, default
+        parameter values are used in the solve.
+    uturns: String, default="ALLOW_UTURNS"
+        Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
+        "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
+    use_hierarchy: Boolean, default=False
+        If a hierarchy is defined for `in_nd`, it will be applied when solving
+        the network if `use_hierarchy` is True; otherwise a simple,
+        non-hierarchical solve is executed.
+    net_location_fields: [String,...], default=None
+        If provided, list the fields in the `facilities` attribute table that
+        define newtork loading locations. Fields must be provided in the 
+        following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
+        SnapY, Distance.
+
+    Returns
+    --------
+    out_fc: Path
+
+    See Also
+    -----------
+    NetLoader
+    """
+    if arcpy.CheckExtension("network") == "Available":
+            arcpy.CheckOutExtension("network")
+    else:
+        raise arcpy.ExecuteError("Network Analyst Extension license is not available.")
+    if use_hierarchy:
+        hierarchy = "USE_HIERARCHY"
+    else:
+        hierarchy = "NO_HIERARCHY"
+    print("... ...POLYGONS: create network problem")
+    net_layer = arcpy.MakeServiceAreaLayer_na(
+        # Setup
+        in_network_dataset=in_nd,
+        out_network_analysis_layer="__svc_areas__",
+        impedance_attribute=imped_attr,
+        travel_from_to=from_to,
+        default_break_values=cutoff,
+        # Polygon generation (disabled)
+        polygon_type="DETAILED_POLYS",
+        merge=merge,
+        nesting_type="RINGS",
+        polygon_trim="TRIM_POLYS",
+        poly_trim_value="100 Meters",
+        # Line generation (enabled)
+        line_type="NO_LINES",
+        overlap="OVERLAP",
+        split="SPLIT",
+        lines_source_fields="LINES_SOURCE_FIELDS",
+        # Solve options
+        excluded_source_name=None,
+        accumulate_attribute_name=None,
+        UTurn_policy=uturns,
+        restriction_attribute_name=restrictions,
+        hierarchy=hierarchy,
+        time_of_day=None
+    )
+    net_layer_ = net_layer.getOutput(0)
+    try:
+        _loadFacilitiesAndSolve("__svc_areas__", facilities, name_field,
+                                net_loader, net_location_fields)
+        _exportSublayer(net_layer_, "SAPolygons", out_fc)
+    except:
+        raise
+    finally:
+        print("... ...deleting network problem")
+        arcpy.Delete_management(net_layer)
 
 
 if __name__ == "__main__":
