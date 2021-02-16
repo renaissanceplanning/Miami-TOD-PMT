@@ -12,7 +12,7 @@ based on parcel data.
 
 
 # %% IMPORTS
-from PMT_tools.year_to_snapshot import *
+from PMT_tools.build.year_to_snapshot import *
 from PMT_tools.PMT import makePath, RAW
 
 # %% GLOBALS

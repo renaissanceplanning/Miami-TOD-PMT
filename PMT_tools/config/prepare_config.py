@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from .PMT import NetLoader
+
 """ Bike Ped Crash Configs """
 # cleaning configuration
 CRASH_FIELDS_DICT = dict(
@@ -173,7 +173,6 @@ CRASH_CITY_CODES = OrderedDict(
 """
 Configuration variables to be used with building permit data
 """
-from PMT_tools.config_project import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 PERMITS_CAT_CODE_PEDOR = "PD"
 
 

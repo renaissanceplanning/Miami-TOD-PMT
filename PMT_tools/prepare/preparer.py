@@ -27,7 +27,7 @@ from PMT_tools.PMT import makePath, SR_FL_SPF, EPSG_FLSPF, checkOverwriteOutput,
 # PMT classes
 from PMT_tools.PMT import ServiceAreaAnalysis
 # PMT globals
-from PMT_tools.PMT import (RAW, CLEANED, BASIC_FEAURES, REF, YEARS)
+from PMT_tools.PMT import (RAW, CLEANED, BASIC_FEATURES, REF, YEARS)
 from PMT_tools.PMT import arcpy
 
 import PMT_tools.logger as log

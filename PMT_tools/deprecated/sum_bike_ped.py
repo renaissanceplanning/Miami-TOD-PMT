@@ -6,7 +6,7 @@ Created: November 2020
 """
 
 # %% IMPORTS
-from PMT_tools.config_project import (
+from PMT_tools.config.config_project import (
     BASIC_FEATURES, YEARS, ROOT
 )
 import PMT
