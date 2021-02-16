@@ -1,4 +1,6 @@
 from collections import OrderedDict
+from PMT_tools.PMT import (Comp, And)
+
 
 """ Bike Ped Crash Configs """
 # cleaning configuration
@@ -608,4 +610,26 @@ ACCESS_TIME_BREAKS = [15, 30, 45, 60]
 ACCESS_UNITS = "Min"
 D_ACT_FIELDS = ["TotalJobs", "ConsJobs", "HCJobs", "EnrollAdlt", "EnrollK12"]
 O_ACT_FIELDS = ["HH"]
+
+"""
+Configuration variables to be used in block group modeling and model application
+"""
+
+YEAR_GDB_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb"
+# --> os.path.join(^, "Polygons/BlockGroups") to create BG_GEOMETRY_PATH_FORMAT
+# --> os.path.join(^, "Enrichment_blockgroups") to create BG_ENRICH_PATH_FORMAT
+# --> same as SAVE_GDB_PATH_FORMAT
+REFERENCE_DIRECTORY = r"K:\Projects\MiamiDade\PMT\Data\Reference"
+# --> os.path.join(^, "block_group_model_coefficients.csv") to create
+# MODEL_COEFFICIENTS PATH
+ACS_YEARS = [2014, 2015, 2016, 2017, 2018]
+LODES_YEARS = [2014, 2015, 2016, 2017]
+
+"""
+Configuration variables to be used in allocation
+"""
+
+# will use YEAR_GDB_FORMAT, that's it
+
+
 
