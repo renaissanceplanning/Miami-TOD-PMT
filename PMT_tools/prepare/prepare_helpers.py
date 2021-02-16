@@ -5,6 +5,12 @@ from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STA
                                              PERMITS_USE, PERMITS_DROPS, )
 from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 from PMT_tools.config.prepare_config import PARCEL_COMMON_KEY
+from PMT_tools.config.prepare_config import MAZ_COMMON_KEY, TAZ_COMMON_KEY
+
+from PMT_tools.PMT import PMT as PMT # Think we need everything here
+from PMT import gdfToFeatureClass, dfToPoints, extendTableDf, makePath, CLEANED
+from PMT import Comp, And, Or
+from PMT import _loadLocations, _solve, _rowsToCsv
 
 from PMT_tools.PMT import gdfToFeatureClass, dfToPoints, extendTableDf, makePath, dfToTable, add_unique_id, intersectFeatures, featureclass_to_df, copyFeatures
 
@@ -28,11 +34,17 @@ import re
 from sklearn import linear_model
 import scipy
 import arcpy
+from six import string_types
 
 logger = log.Logger(add_logs_to_arc_messages=True)
 
 
 # general use functions
+def is_gz_file(filepath):
+    with open(filepath, 'rb') as test_f:
+        return test_f.read(2) == b'\x1f\x8b'
+
+
 def validate_json(json_file, encoding='utf8'):
     with open(json_file, encoding=encoding) as file:
         try:
@@ -571,20 +583,171 @@ def clean_parcel_geometry(in_features, fc_key_field, out_features=None):
         logger.log_msg("output feature class path must be provided")
 
 
-def prep_parcel_land_use_tbl(in_fc, fc_lu_field, lu_tbl, tbl_lu_field):
+def prep_parcel_land_use_tbl(parcels_fc, parcel_lu_field, parcel_fields,
+                             lu_tbl, tbl_lu_field, dtype={}, **kwargs):
     """
-    join parcels with dor use codes and output table
+    Join parcels with land use classifications based on DOR use codes.
+    
+
     Parameters
     ----------
-    in_fc
-    fc_lu_field
-    lu_tbl
-    tbl_lu_field
+    parcels_fc: Path
+    parcel_lu_field: String
+        The column in `parcels_fc` with each parcel's DOR use code.
+    parcel_fields: [String, ...]
+        Other columns in `parcels_fc` (such as an ID field, e.g.) to retain
+        alongside land use codes.
+    lu_tbl: Path
+        A csv table of land use groupings to associated with each parcel,
+        keyed by DOR use code.
+    tbl_lu_field: String
+        The column in `lu_tbl` with DOR use codes.
+    dtype: {string: type}
+        If any data type specifications are needed to properly parse
+        `lu_tbl` provide them as a dictionary.
+    **kwargs:
+        Any other keyword arguments given are passed to the
+        `pd.read_csv` method when reading `lu_tbl`.
+    
     Returns
     -------
-
+    par_df: DataFrame
     """
-    pass
+    # Dump parcels_fc to data frame
+    if isinstance(parcel_fields, string_types):
+        parcel_fields = [parcel_fields]
+    par_fields = parcel_fields + [parcel_lu_field]
+    par_df = pd.DataFrame(
+        arcpy.da.TableToNumPyArray(parcels_fc, par_fields) # TODO: null values
+    )
+    # Read in the land use reference table
+    ref_table = pd.read_csv(lu_tbl, dtype=dtype, **kwargs)
+
+    # Join
+    return par_df.merge(
+        ref_table, how="left", left_on=par_lu_field, right_on=tbl_lu_field)
+
+
+def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit, bg_id_field="GEOID10",
+                           par_id_field="PARCELNO", par_lu_field="DOR_UC",
+                           par_bld_area="TOT_LVG_AREA", sum_crit=None,
+                           par_sum_fields=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA],
+                           ):
+    """
+    Relates parcels to block groups based on centroid location and summarizes
+    key parcel fields to the block group level, including building floor area
+    by potential activity type (residential, jobs by type, e.g.).
+
+    Parameters
+    ------------
+    bg_fc: String; path
+    parcels_fc: String; path
+    sum_crit: dict
+        Dictionary whose keys reflect column names to be generated to hold sums
+        of parcel-level data in the output block group data frame, and whose
+        values consist of at least one PMT comparator class (`Comp`, `And`).
+        These are used to map parcel land use codes to LODES variables, e.g.
+        An iterable of comparators in a value implies an `Or` operation.
+    par_sum_fields: [String, ...], default=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA]
+        If provided, these parcel fields will also be summed to the block-group level.
+    bg_id_field: String, default="GEOID10"
+    par_id_field: String, default="PARCELNO"
+    par_lu_field: String, default="DOR_UC"
+    par_bld_area: String, default="TOT_LVG_AREA"
+
+    Returns
+    --------
+    bg_df: DataFrame
+    """
+    # Prep output
+    if sum_crit is None:
+        sum_crit = {}
+    #PMT.checkOverwriteOutput(output=out_tbl, overwrite=overwrite)
+    sr = arcpy.Describe(parcels_fc).spatialReference
+
+    # Make parcel feature layer
+    parcel_fl = arcpy.MakeFeatureLayer_management(parcels_fc, "__parcels__")
+    par_fields = [par_id_field, par_lu_field, par_bld_area]
+    if isinstance(par_sum_fields, string_types):
+        par_sum_fields = [par_sum_fields]
+    par_fields += [psf for psf in par_sum_fields if psf not in par_fields]
+
+    try:
+        # Iterate over bg features
+        print("--- analyzing block group features")
+        bg_fields = ["SHAPE@", bg_id_field]
+        bg_stack = []
+        with arcpy.da.SearchCursor(
+                bg_fc, bg_fields, spatial_reference=sr) as bgc:
+            for bgr in bgc:
+                bg_poly, bg_id = bgr
+                # Select parcels in this BG
+                arcpy.SelectLayerByLocation_management(parcel_fl, "HAVE_THEIR_CENTER_IN", bg_poly)
+                # Dump selected to data frame
+                par_df = PMT.featureclass_to_df(in_fc=parcel_fl, keep_fields=par_fields, null_val=0)
+                if len(par_df) == 0:
+                    print(f"---  --- no parcels found for BG {bg_id}") #TODO: convert to warning?
+                # Get mean parcel values # TODO: this assumes single part features, might not be needed now?
+                par_grp_fields = [par_id_field] + par_sum_fields
+                par_sum = par_df[par_grp_fields].groupby(par_id_field).mean()
+                # Summarize totals to BG level
+                par_sum[bg_id_field] = bg_id
+                bg_grp_fields = [bg_id_field] + par_sum_fields
+                bg_sum = par_sum[bg_grp_fields].groupby(bg_id_field).sum()
+                # Select and summarize new fields
+                for grouping in sum_crit.keys():
+                    # Mask based on land use criteria
+                    crit = Or(par_df[par_lu_field], sum_crit[grouping])
+                    mask = crit.eval()
+                    # Summarize masked data
+                    #  - Parcel means (to account for multi-poly's)
+                    area = par_df[mask].groupby([par_id_field]).mean()[par_bld_area]
+                    #  - BG Sums
+                    if len(area) > 0:
+                        area = area.sum()
+                    else:
+                        area = 0
+                    bg_sum[grouping] = area
+                bg_stack.append(bg_sum.reset_index())
+        # Join bg sums to outfc
+        print("--- joining parcel summaries to block groups")
+        bg_df = pd.concat(bg_stack)
+        print(f"---  --- {len(bg_df)} block group rows")
+        return bg_df
+        #PMT.dfToTable(df=bg_df, out_table=out_tbl)
+    except:
+        raise
+    finally:
+        arcpy.Delete_management(parcel_fl)
+
+
+def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, join_fields):
+    """
+    Adds data from another raw table as new columns based on teh fields provided.
+    Parameters
+    ----------
+    tbl_path: String; path
+    tbl_id_field: String; table primary key
+    join_tbl: String; path
+    join_id_field: String; join table foreign key
+    join_fields: [String, ...]; list of fields to include in update
+
+    Returns
+    -------
+    None
+    """
+    # TODO: add checks for join_fields as actual columns in join_tbl
+    if is_gz_file(join_tbl):
+        tbl_df = pd.read_csv(
+            join_tbl, usecols=join_fields, compression='gzip')
+    else:
+        tbl_df = pd.read_csv(join_tbl, usecols=join_fields)
+    PMT.extendTableDf(
+        in_table=tbl_path,
+        table_match_field=tbl_id_field,
+        df=tbl_df,
+        df_match_field=join_id_field
+        )
 
 
 def prep_parcel_energy_consumption_tbl(in_parcel_lu_tbl, energy_use_field,
@@ -1652,3 +1815,777 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
 
     # Then we done!
     return sed_path
+
+                                           
+# MAZ/TAZ data prep helpers
+def estimate_maz_from_parcels(par_fc, par_id_field, maz_fc, maz_id_field,
+                              taz_id_field, se_data, se_id_field, agg_cols,
+                              consolidations):
+    """
+    Estimate jobs, housing, etc. at the MAZ level based on underlying parcel
+    data. 
+
+    Parameters
+    ------------
+    par_fc: Path
+        Parcel features
+    par_id_field: String
+        Field identifying each parcel feature
+    maz_fc: Path
+        MAZ features
+    maz_id_field: String
+        Field identifying each MAZ feature
+    taz_id_field: String
+        Field in `maz_fc` that defines which TAZ the MAZ feature is in.
+    se_data: Path
+        A gdb table containing parcel-level socio-economic/demographic
+        estimates.
+    se_id_field: String
+        Field identifying each parcel in `se_data`
+    agg_cols: [PMT.AggColumn, ...]
+        Columns to summarize to MAZ level
+    consolidations: [PMT.Consolidation, ...]
+        Columns to consolidated into a single statistic and then summarize
+        to TAZ level.
+
+    Returns
+    --------
+    DataFrame
+
+    See Also
+    --------
+    PMT.AggColumn
+    PMT.Consolidation
+    """
+    # intersect
+    int_fc = PMT.intersectFeatures(maz_fc, par_fc)
+    # Join
+    PMT.joinAttributes(int_fc, par_id_field, se_data, se_id_field, "*")
+    # Summarize
+    gb_cols = [Column(maz_id_field), Column(taz_id_field)]
+    df = PMT.summarizeAttributes(
+        int_fc, gb_cols, agg_cols, consolidations=consolidations)
+    return df
+
+# Consolidate MAZ data (for use in areas outside the study area)
+# TODO: This could become a more generalized method
+def consolidate_cols(df, base_fields, consolidations):
+    """
+    Use the `PMT.Consolidation` class to combine columns and
+    return a clean data frame.
+
+    Parameters
+    -----------
+    df: DataFrame
+    base_fields: [String, ...]
+        Field(s) in `df` that are not subject to consolidation but which 
+        are to be retained in the returned data frame.
+    consolidations: [Consolidation, ...]
+        Specifications for output columns that consolidate columns
+        found in `df`.
+
+    Returns
+    --------
+    clean_df: DataFrame
+        A new data frame with columns reflecting `base_field` and
+        `consolidations`.
+    
+    See Also
+    ----------
+    PMT.Consolidation
+    """
+    if isinstance(base_fields, str):
+        base_fields = [base_fields]
+
+    clean_cols = base_fields + [c.name for c in consolidations]
+    for c in consolidations:
+        df[c.name] = df[c.input_cols].agg(c.cons_method, axis=1)
+
+    clean_df = df[clean_cols].copy()
+    return clean_df
+
+
+def patch_local_regional_maz(maz_par_df, maz_df):
+    """
+    Create a regionwide MAZ socioeconomic/demographic data frame based
+    on parcel-level and MAZ-level data. Where MAZ features do not overlap
+    with parcels, use MAZ-level data.
+
+    Parameters
+    -----------
+    
+    """
+    # Create a filter to isolate MAZ features having parcel overlap
+    patch_fltr = np.in1d(maz_df[MAZ_COMMON_KEY], maz_par_df[MAZ_COMMON_KEY])
+    matching_rows =  maz_df[patch_fltr].copy()
+    # Join non-parcel-level data (school enrollments, e.g.) to rows with
+    #  other columns defined by parcel level data, creating a raft of
+    #  MAZ features with parcel overlap that have all desired columns
+    all_par = maz_par_data.merge(
+        matching_rows, how="inner", on=MAZ_COMMON_KEY, suffixes=("", "_M"))
+    # Drop extraneous columns generated by the join
+    drop_cols = [c for c in all_par.columns if c[-2:] == "_M"]
+    if drop_cols:
+        all_par.drop(columns=drop_cols, inplace=True)
+    # MAZ features with no parcel overlap already have all attributes
+    #  and can be combined with the `all_par` frame created above
+    return pd.concat([all_par, maz_data[~patch_fltr]])
+
+
+def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv, 
+              chunksize=100000, rename={}, **kwargs):
+    """
+    A simple function to read rows from a skim table (csv file), select
+    key columns, and save to an ouptut csv file. Keyword arguments can be
+    given to set column types, etc.
+
+    Parameters
+    -------------
+    in_csv: Path
+    o_field: String
+    d_field: String
+    imp_fields: [String, ...]
+    out_csv: Path
+    chunksize: Integer, default=1000000
+    rename: Dict, default={}
+        A dictionary to rename columns with keys reflecting existing column
+        names and values new column names.
+    kwargs:
+        Keyword arguments parsed by the pandas `read_csv` method.
+    """
+    # Manage vars
+    if isinstance(imp_fields, string_types):
+        imp_fields = [imp_fields]
+    # Read chunks
+    mode = "w"
+    header = True
+    usecols = [o_field, d_field] + imp_fields
+    for chunk in pd.read_csv(
+        in_csv, usecols=usecols, chunksize=chunksize, **kwargs):
+        if rename:
+            chunk.rename(columns=rename, inplace=True)
+        # write output
+        chunk.to_csv(out_csv, header=header, mode=mode, index=False)
+        header = False
+        mode = "a"
+
+
+def copy_net_result(net_by_year, target_year, solved_years, fc_names):
+    """
+    Since some PMT years use the same OSM network, a solved network analysis
+    can be copied from one year to another to avoid redundant processing.
+    
+    This function is a helper function called by PMT wrapper functions. It
+    is not intended to be run indepenently.
+    
+    Parameters
+    ------------
+    net_by_year: dict
+        A dictionary with keys reflecting PMT analysis years and values
+        reflecting the OSM network vintage to apply to each year.
+    target_year: Var
+        The PMT analysis year being analyzed
+    solved_years: [Var, ...]
+        A list of PMT anlaysis years that have already been solved
+    fc_names: [String, ...]
+        The feature class(es) to be copied from an already-solved
+        analysis. Provide the names only (not paths).
+    
+    Returns
+    --------
+    None
+        Copies network service area feature classes to the target year
+        output from a source year using the same OSM data. Any existing
+        features in the feature dataset implied by the target year are
+        overwritten.
+    """
+    # Coerce fcs to list
+    if isinstance(fc_names, string_types):
+        fc_names = [fc_names]
+    # Set a source to copy network analysis results from based on net_by_year
+    target_net = net_by_year[year]
+    source_year = None
+    for solved_year in solved_years:
+        solved_net = net_by_year[solved_year]
+        if solved_net == target_net:
+            source_year = solved_year
+            break
+    source_fds = makePath(CLEANED, f"PMT_{source_year}.gdb", "Networks")
+    target_fds = makePath(CLEANED, f"PMT_{target_year}.gdb", "Networks")
+    # Copy feature classes
+    print(f"- copying results from {copy_fd} to {fd}")
+    for fc_name in fc_names:
+        print(f" - - {fc_name}")
+        src_fc = makePath(source_fds, fc_name)
+        tgt_fc = makePath(target_fds, fc_name)
+        if arcpy.Exists(tgt_fc):
+            arcpy.Delete_management(tgt_fc)
+        arcpy.FeatureClassToFeatureClass_conversion(
+            src_fc, target_fds, fc_name)
+
+
+    for mode in ["walk", "bike"]:
+        for dest_grp in ["stn", "parks"]:
+            for run in ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]:
+                fc_name = f"{mode}_to_{dest_grp}_{run}"
+                
+                
+
+
+def lines_to_centrality(line_feaures, impedance_attribute):
+    """
+    Using the "lines" layer output from an OD matrix problem, calculate
+    node centrality statistics and store results in a csv table.
+
+    Parameters
+    -----------
+    line_features: ODMatrix/Lines feature layer
+    impedance_attribute: String
+    out_csv: Path
+    header: Boolean
+    mode: String
+    """
+    imp_field = f"Total_{impedance_attribute}"
+    # Dump to df
+    df = pd.DataFrame(
+        arcpy.da.TableToNumPyArray(
+            line_features, ["Name", imp_field]
+        )
+    )
+    names = ["N", "Node"]
+    df[names] = df["Name"].str.split(" - ", n=1, expand=True)
+    # Summarize
+    sum_df = df.groupby("Node").agg(
+        {"N": "size", imp_field: sum}
+        ).reset_index()
+    # Calculate centrality
+    sum_df["centrality"] = (sum_df.N - 1)/sum_df[imp_field]
+    # Add average length
+    sum_df["AvgLength"] = 1/sum_df.centrality
+    # Add centrality index
+    sum_df["CentIdx"] = sum_df.N/sum_df.AvgLength
+    return sum_df
+
+
+def network_centrality(in_nd, in_features, net_loader,
+                       name_field="OBJECTID", impedance_attribute="Length",
+                       cutoff="1609", restrictions="", chunksize=1000):
+    """
+    Uses Network Analyst to create and iteratively solve an OD matrix problem
+    to assess connectivity among point features.
+    
+    The evaluation analyses how many features can reach a given feature and
+    what the total and average travel impedances are. Results are reported
+    for traveling TO each feature (i.e. features as destinations), which may
+    be significant if oneway or similar restrictions are honored.
+
+    in_nd: Path, NetworkDataset
+    in_features: Path, Feature Class or Feature Layer
+        A point feature class or feature layer that will serve as origins and
+        destinations in the OD matrix
+    net_loader: NetLoader
+        Provide network location loading preferences using a NetLoader
+        instance.
+    name_field: String, default="OBJECTID"
+        A field in `in_features` that identifies each feature. Generally this
+        should be a unique value.
+    impedance_attribute: String, default="Length"
+        The attribute in `in_nd` to use when solving shortest paths among
+        features in `in_features`.
+    cutoff: String, default="1609"
+        A number (as a string) that establishes the search radius for
+        evaluating node centrality. Counts and impedances from nodes within
+        this threshold are summarized. Units are implied by the
+        `impedance_attribute`.
+    restrictions: String, default=""
+        If `in_nd` includes restriction attributes, provide a
+        semi-colon-separated string listing which restrictions to honor
+        in solving the OD matrix.
+    chunksize: Integer, default=1000
+        Destination points from `in_features` are loaded iteratively in chunks
+        to manage memory. The `chunksize` determines how many features are
+        analyzed simultaneously (more is faster but consumes more memory).
+
+    Returns
+    -------
+    centrality_df: DataFrame
+    """
+    results = []
+    # Step 1: OD problem
+    print("Make OD Problem")
+    arcpy.MakeODCostMatrixLayer_na(
+        in_network_dataset=in_nd,
+        out_network_analysis_layer="OD Cost Matrix",
+        impedance_attribute=impedance_attribute,
+        default_cutoff=cutoff,
+        default_number_destinations_to_find="",
+        accumulate_attribute_name="",
+        UTurn_policy="ALLOW_UTURNS",
+        restriction_attribute_name=restrictions,
+        hierarchy="NO_HIERARCHY",
+        hierarchy_settings="",
+        output_path_shape="NO_LINES",
+        time_of_day=""
+    )
+    #Step 2 - add all origins
+    print("Load all origins")
+    in_features = in_features
+    arcpy.AddLocations_na(
+        in_network_analysis_layer="OD Cost Matrix",
+        sub_layer="Origins",
+        in_table=in_features,
+        field_mappings=f"Name {name_field} #",
+        search_tolerance=net_loader.search_tolerance,
+        sort_field="",
+        search_criteria=net_loader.search_criteria,
+        match_type=net_loader.match_type,
+        append=net_loader.append,
+        snap_to_position_along_network=net_loader.snap,
+        snap_offset=net_loader.snap_offset,
+        exclude_restricted_elements=net_loader.exclude_restricted,
+        search_query=net_loader.search_query
+        )
+    # Step 3 - iterate through destinations
+    print("Iterate destinations and solve")
+    # Use origin field maps to expedite loading
+    fm = "Name Name #;CurbApproach CurbApproach 0;SourceID SourceID #;SourceOID SourceOID #;PosAlong PosAlong #;SideOfEdge SideOfEdge #"
+    for chunk in PMT.iterRowsAsChunks(
+        "OD Cost Matrix\Origins", chunksize=chunksize):
+        # printed dots track progress over chunks
+        print(".", end="")
+        arcpy.AddLocations_na(
+            in_network_analysis_layer="OD Cost Matrix",
+            sub_layer="Destinations",
+            in_table=chunk,
+            field_mappings=fm
+            )
+        # Solve OD Matrix
+        arcpy.Solve_na("OD Cost Matrix", "SKIP", "CONTINUE")
+        # Dump to df
+        line_features = "OD Cost Matrix\Lines"
+        temp_df = lines_to_centrality(line_features, impedance_attribute)
+        # Stack df results
+        results.append(temp_df)
+    return pd.concat(results, axis=0)
+
+
+def parcel_walk_time_bin(in_table, bin_field, time_field, code_block):
+    """
+    Adds a field to create travel time categories in a new `bin_field`
+    based on the walk times recorded in a `time_field` and an extended
+    if/else `code_block` that defines a simple function `assignBin()`.
+
+    Parameters
+    -----------
+    in_table: path
+    bin_field: String
+    time_field: String
+    code_block: String
+        Defines a python function `assignBin()` with if/else statements
+        to group times in `time_field` into bins to be stored as string
+        values in `bin_field`.
+    """
+    arcpy.AddField_management(
+        in_table, bin_field, "TEXT", field_length=20)
+    arcpy.CalculateField_management(
+        in_table, bin_field, f"assignBin(!{time_field}!)",
+        expression_type="PYTHON3", code_block=code_block
+    )
+
+
+def parcel_walk_times(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
+                      ref_time_field, target_name):
+    """
+    For features in a parcel feature class, summarize walk times reported
+    in a reference features class of service area lines. Generates fields
+    recording the nearest reference feature, walk time to the nearest
+    reference feature, number of reference features within the service
+    area walk time cutoff, and a minimum walk time "category" field.
+
+    Parameters
+    -----------
+    parcel_fc: Path
+        The parcel features to which walk time estimates will be appended.
+    parcel_id_field: String
+        The field in `parcel_fc` that uniquely identifies each feature.
+    ref_fc: Path
+        A feature class of line features with travel time estimates from/to
+        key features (stations, parks, etc.)
+    ref_name_field: String
+        A field in `ref_fc` that identifies key features (which station, e.g.)
+    ref_time_field: String
+        A field in `ref_fc` that reports the time to walk from each line
+        feature from/to key features.
+    target_name: String
+        A string suffix included in output field names.
+
+    Returns
+    --------
+    walk_time_df: DataFrame
+        A data frame with columns storing walk time data:
+        `nearest_{target_name}`, `min_time_{target_name}`,
+        `n_{target_name}`
+
+    See Also
+    ---------
+    parcel_ideal_walk_time
+    """
+    sr = arcpy.Describe(ref_fc).spatialReference
+    # Name time fields
+    min_time_field = f"min_time_{target_name}"
+    nearest_field = f"nearest_{target_name}"
+    number_field = f"n_{target_name}"
+    # Intersect layers
+    print("... intersecting parcels and network outputs")
+    int_fc = "in_memory\\par_wt_sj"
+    int_fc = arcpy.SpatialJoin_analysis(parcel_fc, ref_fc, int_fc,
+                                        join_operation="JOIN_ONE_TO_MANY",
+                                        join_type="KEEP_ALL",
+                                        match_option="WITHIN_A_DISTANCE",
+                                        search_radius="80 Feet")
+    # Summarize
+    print(f"... summarizing by {parcel_id_field}, {ref_name_field}")
+    sum_tbl = "in_memory\\par_wt_sj_sum"
+    statistics_fields = [[ref_time_field, "MIN"], [ref_time_field, "MEAN"]]
+    case_fields = [parcel_id_field, ref_name_field]
+    sum_tbl = arcpy.Statistics_analysis(
+        int_fc, sum_tbl, statistics_fields, case_fields)
+    # Delete intersect features
+    arcpy.Delete_management(int_fc)
+
+    # Dump sum table to data frame
+    print("... converting to data frame")
+    sum_fields = [f"MEAN_{ref_time_field}"]
+    dump_fields = [parcel_id_field, ref_name_field] + sum_fields
+    int_df = pd.DataFrame(
+        arcpy.da.TableToNumPyArray(sum_tbl, dump_fields)
+    )
+    int_df.columns = [parcel_id_field, ref_name_field, ref_time_field]
+    # Delete summary table
+    arcpy.Delete_management(sum_tbl)
+
+    # Summarize
+    print("... summarizing times")
+    int_df = int_df.set_index(ref_name_field)
+    gb = int_df.groupby(parcel_id_field)
+    which_name = gb.idxmin()
+    min_time = gb.min()
+    number = gb.size()
+
+    # Export output table
+    print("... saving walk time results")
+    walk_time_df = pd.concat(
+        [which_name, min_time, number], axis=1).reset_index()
+    renames = [parcel_id_field, nearest_field, min_time_field, number_field]
+    walk_time_df.columns = renames
+    return walk_time_df
+
+
+def parcel_ideal_walk_time(parcels_fc, parcel_id_field, target_fc,
+                           target_name_field, radius, target_name,
+                           overlap_type="HAVE_THEIR_CENTER_IN",
+                           sr=None, assumed_mph=3):
+    """
+    Estimate walk time between parcels and target features (stations, parks,
+    e.g.) based on a straight-line distance estimate and an assumed walking
+    speed.
+
+    Parameters
+    ------------
+    parcels_fc: Path
+    parcel_id_field: String
+        A field that uniquely identifies features in `parcels_fc`
+    target_fc: Path
+    target_name_field: String
+        A field that uniquely identifies features in `target_fc`
+    radius: String
+        A "linear unit" string for spatial selection ('5280 Feet', e.g.)
+    target_name: String
+        A string suffix included in output field names.
+    overlap_type: String, default="HAVE_THEIR_CENTER_IN"
+        A string specifying selection type (see ArcGIS )
+    sr: SpatialReference, default=None
+        A spatial reference code, string, or object to ensure parcel and
+        target features are projected consistently. If `None`, the spatial
+        reference from `parcels_fc` is used.
+    assumed_mph: numeric, default=3
+        The assumed average walk speed expressed in miles per hour.
+
+    Returns
+    --------
+    walk_time_fc: DataFrame
+        A data frame with columns storing ideal walk time data:
+        `nearest_{target_name}`, `min_time_{target_name}`,
+        `n_{target_name}`
+    """
+    # output_fields
+    nearest_field = f"nearest_{target_name}"
+    min_time_field = f"min_time_{target_name}"
+    n_field = f"n_{target_name}"
+    # Set spatial reference
+    if sr is None:
+        sr = arcpy.Describe(parcels_fc).spatialReference
+    else:
+        sr = arcpy.SpatialReference(sr)
+    mpu = float(sr.metersPerUnit)
+    # Make feature layers
+    par_lyr = arcpy.MakeFeatureLayer_management(parcels_fc, "parcels")
+    tgt_lyr = arcpy.MakeFeatureLayer_management(target_fc, "target")
+    try:
+        print("... estimating ideal times")
+        tgt_results = []
+        # Iterate over targets
+        tgt_fields = [target_name_field, "SHAPE@"]
+        par_fields = [parcel_id_field, "SHAPE@X", "SHAPE@Y"]
+        out_fields = [parcel_id_field, target_name_field, "minutes"]
+        with arcpy.da.SearchCursor(
+            tgt_lyr, tgt_fields, spatial_reference=sr) as tgt_c:
+            for tgt_r in tgt_c:
+                tgt_name, tgt_feature = tgt_r
+                tgt_x = tgt_feature.centroid.X
+                tgt_y = tgt_feature.centroid.Y
+                # select parcels in target buffer
+                arcpy.SelectLayerByLocation_management(
+                    par_lyr, overlap_type, tgt_feature, search_distance=radius)
+                # dump to df
+                par_df = pd.DataFrame(
+                    arcpy.da.FeatureClassToNumPyArray(
+                        par_lyr, par_fields, spatial_reference=sr)
+                )
+                par_df[target_name_field] = tgt_name
+                # estimate distances
+                par_df["dx"] = par_df["SHAPE@X"] - tgt_x
+                par_df["dy"] = par_df["SHAPE@Y"] - tgt_y
+                par_df["meters"] = np.sqrt(par_df.dx ** 2 + par_df.dy ** 2) * mpu
+                par_df["minutes"] = (par_df.meters * 60)/(assumed_mph * 1609.344)
+                # store in mini df output
+                tgt_results.append(par_df[out_fields].copy())
+        # Bind up results
+        print("... binding results")
+        bind_df = pd.concat(tgt_results).set_index(target_name_field)
+        # Group by/summarize
+        print("... summarizing times")
+        gb = bind_df.groupby(parcel_id_field)
+        par_min = gb.min()
+        par_count = gb.size()
+        par_nearest = gb["minutes"].idxmin()
+        walk_time_df = pd.concat([par_nearest, par_min, par_count], axis=1)
+        walk_time_df.columns = [nearest_field, min_time_field, n_field]
+        walk_time_df.reset_index(inplace=True)
+        return walk_time_df
+    except:
+        raise
+    finally:
+        arcpy.Delete_management(par_lyr)
+        arcpy.Delete_management(tgt_lyr)
+
+
+def summarizeAccess(skim_table, o_field, d_field, imped_field,
+                    se_data, id_field, act_fields, imped_breaks,
+                    units="minutes", join_by="D", chunk_size=100000,
+                    **kwargs):
+    """
+    Reads an origin-destination skim table, joins activity data,
+    and summarizes activities by impedance bins.
+
+    Parameters
+    -----------
+    skim_table: Path
+    o_field: String
+    d_field: String
+    imped_field: String
+    se_data: Path
+    id_field: String
+    act_fields: [String, ...]
+    out_table: Path
+    out_fc_field: String
+    imped_breaks: [Numeric, ...]
+    mode: String
+    units: String, default="minutes"
+    join_by: String, default="D"
+    chunk_size: Int, default=100000
+    kwargs:
+        Keyword arguments for reading the skim table
+
+    Returns
+    --------
+    out_table: Path
+    """
+    # Prep vars
+    if isinstance(act_fields, string_types):
+        act_fields = [act_fields]
+    if join_by == "D":
+        left_on = d_field
+        gb_field = o_field
+    elif join_by == "O":
+        left_on = o_field
+        gb_field = d_field
+    else:
+        raise ValueError(
+            f"Expected 'D' or 'O' as `join_by` value - got {join_by}")
+    bin_field = f"BIN_{units}"
+    # Read the activity data
+    _a_fields_ = [id_field] + act_fields
+    act_df = pd.DataFrame(
+        arcpy.da.TableToNumPyArray(se_data, _a_fields_)
+    )
+
+    # Read the skim table
+    out_dfs = []
+    use_cols = [o_field, d_field, imped_field]
+    print("... ... ... binning skims")
+    for chunk in pd.read_csv(
+        skim_table, usecols=use_cols, chunksize=chunk_size, **kwargs):
+        # Define impedance bins
+        low = -np.inf
+        criteria = []
+        labels = []
+        for i_break in imped_breaks:
+            crit = np.logical_and(
+                chunk[imped_field] >= low,
+                chunk[imped_field] < i_break
+            )
+            criteria.append(crit)
+            labels.append(f"{i_break}{units}")
+            low = i_break
+        # Apply categories
+        chunk[bin_field] = np.select(
+            criteria, labels, f"{i_break}{units}p"
+        )
+        labels.append(f"{i_break}{units}p")
+        # Join the activity data
+        join_df = chunk.merge(
+            act_df, how="inner", left_on=left_on, right_on=id_field)
+        # Summarize
+        sum_fields = [gb_field]
+        prod_fields = []
+        for act_field in act_fields:
+            new_field = f"Wtd{units}{act_field}"
+            join_df[new_field] = join_df[imped_field] * join_df[act_field]
+            sum_fields += [act_field, new_field]
+            prod_fields.append(new_field)
+        sum_df = join_df.groupby([gb_field, bin_field]).sum().reset_index()
+        out_dfs.append(sum_df)
+    # Concatenate all
+    out_df = pd.concat(out_dfs)
+    # Pivot, summarize, and join
+    # - Pivot
+    print("... ... ... bin columns")
+    pivot_fields = [gb_field, bin_field] + act_fields
+    pivot = pd.pivot_table(
+        out_df[pivot_fields], index=gb_field, columns=bin_field)
+    pivot.columns = PMT.colMultiIndexToNames(pivot.columns, separator="")
+    # - Summarize
+    print("... ... ... average time by activitiy")
+    sum_df = out_df[sum_fields].groupby(gb_field).sum()
+    avg_fields = []
+    for act_field, prod_field in zip(act_fields, prod_fields):
+        avg_field = f"Avg{units}{act_field}"
+        avg_fields.append(avg_field)
+        sum_df[avg_field] = sum_df[prod_field]/sum_df[act_field]
+    # - Join
+    final_df = pivot.merge(
+        sum_df[avg_fields], how="outer", left_index=True, right_index=True)
+    
+    return final_df.reset_index()
+
+
+def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
+               in_nd, imped_attr, cutoff, net_loader, out_table,
+               restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
+               o_location_fields=None, d_location_fields=None,
+               o_chunk_size=None):
+    """
+    Creates and solves an OD Matrix problem for a collection of origin and 
+    destination points using a specified network dataset. Results are
+    exported as a csv file.
+
+    Parameters
+    ----------
+    origin_pts: Path
+    origin_name_field: String
+    dest_pts: Path
+    dest_name_field: String
+    in_nd: Path
+    imped_attr: String
+    cutoff: numeric
+    net_loader: NetLoader
+    out_table: Path
+    restrictions: [String, ...], default=None
+    use_hierarchy: Boolean, default=False
+    uturns: String, default="ALLOW_UTURNS"
+    o_location_fields: [String, ...], default=None
+    d_location_fields: [String, ...], default=None
+    o_chunk_size: Integer, default=None
+    """
+    if use_hierarchy:
+        hierarchy = "USE_HIERARCHY"
+    else:
+        hierarchy = "NO_HIERARCHY"
+    # accum = _listAccumulationAttributes(in_nd, imped_attr)
+
+    print("... ...OD MATRIX: create network problem")
+    net_layer = arcpy.MakeODCostMatrixLayer_na(
+        # Setup
+        in_network_dataset=in_nd,
+        out_network_analysis_layer="__od__",
+        impedance_attribute=imped_attr,
+        default_cutoff=cutoff,
+        accumulate_attribute_name=None,
+        UTurn_policy=uturns,
+        restriction_attribute_name=restrictions,
+        output_path_shape="NO_LINES",
+        hierarchy=hierarchy,
+        time_of_day=None
+    )
+    net_layer_ = net_layer.getOutput(0)
+
+    try:
+        _loadLocations(net_layer_, "Destinations", dest_pts, dest_name_field,
+                       net_loader, d_location_fields)
+        # Iterate solves as needed
+        if o_chunk_size is None:
+            o_chunk_size = arcpy.GetCount_management(origin_pts)[0]
+        write_mode = "w"
+        header = True
+        for o_pts in PMT.iterRowsAsChunks(origin_pts, chunksize=o_chunk_size):
+            _loadLocations(net_layer_, "Origins", o_pts, origin_name_field,
+                           net_loader, o_location_fields)
+            s = _solve(net_layer_)
+            print("... ... solved, dumping to data frame")
+            # Get output as a data frame
+            sublayer_names = arcpy.na.GetNAClassNames(net_layer_)
+            extend_lyr_name = sublayer_names["ODLines"]
+            try:
+                extend_sublayer = net_layer_.listLayers(extend_lyr_name)[0]
+            except:
+                extend_sublayer = arcpy.mapping.ListLayers(
+                    net_layer, extend_lyr_name)[0]
+            out_fields = ["Name", f"Total_{imped_attr}"]
+            columns = ["Name", imped_attr]
+            # out_fields += [f"Total_{attr}" for attr in accum]
+            # columns += [c for c in accum]
+            df = pd.DataFrame(
+                arcpy.da.TableToNumPyArray(extend_sublayer, out_fields)
+            )
+            df.columns = columns
+            # Split outputs
+            if len(df) > 0:
+                names = ["OName", "DName"]
+                df[names] = df["Name"].str.split(" - ", n=1, expand=True)
+
+                # Save
+                df.to_csv(
+                    out_table, index=False, mode=write_mode, header=header)
+
+                # Update writing params
+                write_mode = "a"
+                header = False
+    except:
+        raise
+    finally:
+        print("... ...deleting network problem")
+        arcpy.Delete_management(net_layer)
+
+
+# TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`

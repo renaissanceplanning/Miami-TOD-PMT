@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from PMT_tools.PMT import (Comp, And)
 
+
 """ Bike Ped Crash Configs """
 # cleaning configuration
 CRASH_FIELDS_DICT = dict(
@@ -174,7 +175,6 @@ CRASH_CITY_CODES = OrderedDict(
 """
 Configuration variables to be used with building permit data
 """
-from PMT_tools.config_project import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 PERMITS_CAT_CODE_PEDOR = "PD"
 
 
@@ -367,6 +367,249 @@ PARCEL_COLS = {
         'STATE_PAR_': 'STATE_PARCEL_ID'
     }
 }
+PARCEL_LU_COL = "DOR_UC"
+PARCEL_AREA_COL = "LND_SQFOOT"
+PARCEL_BLD_AREA = "TOT_LVG_AREA"
+PARCEL_LU_AREAS = { # COL_NAME: (which_field, criteria)
+    "VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
+    "RES_AREA": ["RES_NRES", "RES"],
+    "NRES_AREA": ["RES_NRES", "NRES"]
+}
+
+# Block groups config
+BG_COMMON_KEY = "GEOID"
+BG_PAR_SUM_FIELDS = ["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA"]
+
+# LODES/ACS config
+ACS_COMMON_KEY = "GEOID10"
+LODES_COMMON_KEY = "bgrp"
+ACS_RACE_FIELDS = [ACS_COMMON_KEY] + [
+    'Total_Non_Hisp', 'Total_Hispanic', 'White_Non_Hisp', 'Black_Non_Hisp',
+    'Asian_Non_Hisp', 'Multi_Non_Hisp', 'White_Hispanic', 'Black_Hispanic',
+    'Asian_Hispanic', 'Multi_Hispanic', 'Other_Non_Hisp', 'Other_Hispanic'
+]
+ACS_COMMUTE_FIELDS = [ACS_COMMON_KEY] + [
+    'Total_Commutes', 'Drove_alone', 'Carpool', 'Transit', 'Taxi',
+    'Motorcycle', 'Bicycle', 'Walk', 'Other', 'Work_From_Home',
+    'Drove', 'NonMotor', 'AllOther', 'SOV_Share', 'HOV_Share',
+    'PT_Share', 'NM_Share', 'Oth_Share', 'WFH_Share'
+]
+LODES_FIELDS = [LODES_COMMON_KEY] + [
+    'C000', 'CA01', 'CA02', 'CA03', 'CE01', 'CE02', 'CE03',
+    'CNS01', 'CNS02', 'CNS03', 'CNS04', 'CNS05', 'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10',
+    'CNS11', 'CNS12', 'CNS13', 'CNS14', 'CNS15', 'CNS16', 'CNS17', 'CNS18', 'CNS19', 'CNS20',
+    'CR01', 'CR02', 'CR03', 'CR04', 'CR05', 'CR07',
+    'CT01', 'CT02', 'CD01', 'CD02', 'CD03', 'CD04', 'CS01', 'CS02',
+    'CFA01', 'CFA02', 'CFA03', 'CFA04', 'CFA05', 'CFS01', 'CFS02', 'CFS03', 'CFS04', 'CFS05'
+]
+
+LODES_CRITERIA = {
+    "CNS_01_par": And([Comp(">=", 50), Comp("<=", 69)]),
+    "CNS_02_par": Comp("==", 92),
+    "CNS_03_par": Comp("==", 91),
+    "CNS_04_par": [Comp("==", 17), Comp("==", 19)],
+    "CNS_05_par": [Comp("==", 41), Comp("==", 42)],
+    "CNS_06_par": Comp("==", 29),
+    "CNS_07_par": And([Comp(">=", 11), Comp("<=", 16)]),
+    "CNS_08_par": [Comp("==", 20), Comp("==", 48), Comp("==", 49)],
+    "CNS_09_par": [Comp("==", 17), Comp("==", 18), Comp("==", 19)],
+    "CNS_10_par": [Comp("==", 23), Comp("==", 24)],
+    "CNS_11_par": [Comp("==", 17), Comp("==", 18), Comp("==", 19)],
+    "CNS_12_par": [Comp("==", 17), Comp("==", 18), Comp("==", 19)],
+    "CNS_13_par": [Comp("==", 17), Comp("==", 18), Comp("==", 19)],
+    "CNS_14_par": Comp("==", 89),
+    "CNS_15_par": [Comp("==", 72), Comp("==", 83), Comp("==", 84)],
+    "CNS_16_par": [Comp("==", 73), Comp("==", 85)],
+    "CNS_17_par": [And([Comp(">=", 30), Comp("<=", 38)]), Comp("==", 82)],
+    "CNS_18_par": [Comp("==", 21), Comp("==", 22), Comp("==", 33), Comp("==", 39)],
+    "CNS_19_par": [Comp("==", 27), Comp("==", 28)],
+    "CNS_20_par": And([Comp(">=", 86), Comp("<=", 89)]),
+    "RES_par": [And([Comp(">=", 1), Comp("<=", 9)]),
+                And([Comp(">=", 100), Comp("<=", 102)])]
+}
+
+
+# SERPM config
+MODEL_YEARS = [2015, 2045]
+MAZ_COMMON_KEY = "MAZ"
+TAZ_COMMON_KEY = "TAZ"
+SERPM_RENAMES = {
+    "mgra": MAZ_COMMON_KEY,
+    "MAZ2010": MAZ_COMMON_KEY,
+    "REG_TAZ": TAZ_COMMON_KEY
+}
+SKIM_IMP_FIELD = "TIME"
+SKIM_O_FIELD = "OName"
+SKIM_D_FIELD = "DName"
+SKIM_RENAMES = {
+    "F_TAZ": SKIM_O_FIELD,
+    "T_TAZ": SKIM_D_FIELD,
+    SKIM_IMP_FIELD: "Minutes"
+}
+SKIM_DTYPES = {
+    "F_TAZ": int,
+    "T_TAZ": int,
+    SKIM_IMP_FIELD: float
+}
+# - MAZ aggregation specs
+MAZ_AGG_COLS = [
+    AggColumn("NO_RES_UNTS", rename="HH"),
+    AggColumn("Total_Employment", rename="TotalJobs"),
+    AggColumn("CNS16", rename="HCJobs"),
+    AggColumn("CNS15", rename="EdJobs")
+    ]
+# - MAZ consolidation specs (from parcels)
+MAZ_PAR_CONS = [
+    Consolidation("RsrcJobs", ["CNS01", "CNS02"]),
+    Consolidation("IndJobs", ["CNS05", "CNS06", "CNS08"]),
+    Consolidation("ConsJobs", ["CNS07", "CNS17", "CNS18"]),
+    Consolidation("OffJobs", ["CNS09", "CNS10", "CNS11",
+                              "CNS12", "CNS13", "CNS20"]),
+    Consolidation("OthJobs", ["CNS03", "CNS04", "CNS14",
+                              "CNS19"])
+# - MAZ consolidation specs (from MAZ se data)
+MAZ_SE_CONS= [
+    Consolidation("HH", ["hh"]),
+    Consolidation("TotalJobs", ["emp_total"]),
+    Consolidation("ConsJobs": [
+        "emp_retail",
+        "emp_amusement",
+        "emp_hotel",
+        "emp_restaurant_bar",
+        "emp_personal_svcs_retail",
+        "emp_state_local_gov_ent"
+        ]
+    ),
+    Consolidation("EdJobs": [
+        "emp_pvt_ed_k12",
+        "emp_pvt_ed_post_k12_oth",
+        "emp_public_ed"
+        ]
+    ),
+    Consolidation("HCJobs": ["emp_health"]),
+    Consolidation("IndJobs": [
+        "emp_mfg_prod",
+        "emp_mfg_office",
+        "emp_whsle_whs",
+        "emp_trans"
+        ]
+    ),
+    Consolidation("OffJobs": [
+        "emp_prof_bus_svcs",
+        "emp_personal_svcs_office",
+        "emp_state_local_gov_white",
+        "emp_own_occ_dwell_mgmt",
+        "emp_fed_gov_accts",
+        "emp_st_lcl_gov_accts",
+        "emp_cap_accts"
+        ]
+    ),
+    Consolidation("OthJobs": [
+        "emp_const_non_bldg_prod",
+        "emp_const_non_bldg_office",
+        "emp_utilities_prod",
+        "emp_utilities_office",
+        "emp_const_bldg_prod",
+        "emp_const_bldg_office",
+        "emp_prof_bus_svcs_bldg_maint",
+        "emp_religious",
+        "emp_pvt_hh",
+        "emp_scrap_other",
+        "emp_fed_non_mil",
+        "emp_fed_mil",
+        "emp_state_local_gov_blue"
+        ]
+    ),
+    Consolidation("RsrcJobs": ["emp_ag"]),
+    Consolidation("EnrollAdlt": [
+        "collegeEnroll",
+        "otherCollegeEnroll",
+        "AdultSchEnrl"
+        ]
+    ),
+    Consolidation("EnrollK12": [
+        "EnrollGradeKto8",
+        "EnrollGrade9to12",
+        "PrivateEnrollGradeKto8"
+        ]
+    )
+]
+
+
+# osm config
+NET_BY_YEAR = { # TODO: refs should be _q3_2020 (rename q3_2019 gdb's)
+    2014: ["_q3_2020", MODEL_YEARS[0]],
+    2015: ["_q3_2020", MODEL_YEARS[0]],
+    2016: ["_q3_2020", MODEL_YEARS[0]],
+    2017: ["_q3_2020", MODEL_YEARS[0]],
+    2018: ["_q3_2020", MODEL_YEARS[0]],
+    2019: ["_q3_2020", MODEL_YEARS[0]],
+    "NearTerm": ["_q3_2020", MODEL_YEARS[0]],
+    "LongTerm": ["_q3_2020", MODEL_YEARS[1]]
+}
+NETS_DIR = makePath(CLEANED, "osm_networks")
+SEARCH_CRITERIA = "edges SHAPE;osm_ND_Junctions NONE"
+SEARCH_QUERY = "edges #;osm_ND_Junctions #"
+NET_LOADER = NetLoader("1500 meters",
+                       search_criteria=SEARCH_CRITERIA,
+                       match_type="MATCH_TO_CLOSEST",
+                       append="APPEND",
+                       exclude_restricted="EXCLUDE",
+                       search_query=SEARCH_QUERY
+                       )
+OSM_IMPED = "Minutes"
+OSM_CUTOFF = "15 30"
+BIKE_RESTRICTIONS = "Oneway;IsCycleway;LTS1;LTS2;LTS3;LTS4"
+BIKE_PED_CUTOFF = 60
+
+# centrality config
+CENTRALITY_IMPED = "Length"
+CENTRALITY_CUTOFF = "1609"
+CENTRALITY_NET_LOADER = NetLoader(
+    search_tolerance="5 meters",
+    search_criteria="edges NONE;osm_ND_Junctions END",
+    match_type="MATCH_TO_CLOSEST",
+    append="CLEAR",
+    snap="NO_SNAP",
+    offset="5 meters",
+    exclude_restricted="INCLUDE",
+    search_query="edges #;osm_ND_Junctions #"
+)
+
+
+# walk times config
+TIME_BIN_CODE_BLOCK = """
+def assignBin(value):
+    if value <= 5:
+        return "0 to 5 minutes"
+    elif value <= 10:
+        return "5 to 10 minutes"
+    elif value <= 15:
+        return "10 to 15 minutes"
+    elif value <= 20:
+        return "15 to 20 minutes"
+    elif value <= 25:
+        return "20 to 25 minutes"
+    elif value <= 30:
+        return "25 to 30 minutes"
+    else:
+        return "over 30 minutes"
+"""
+IDEAL_WALK_MPH = 3.0
+IDEAL_WALK_RADIUS = "7920 Feet"
+
+# accessibility scores
+ACCESS_MODES = ["Auto", "Transit", "Walk", "Bike"]
+MODE_SCALE_REF = { # Mode: [source (cleaned folder), scale, id_field]
+    "Auto": ["SERPM", "taz", TAZ_COMMON_KEY],
+    "Transit": ["SERPM", "taz", TAZ_COMMON_KEY],
+    "Walk": ["OSM_Networks", "maz", MAZ_COMMON_KEY],
+    "Bike": ["OSM_Networks", "maz", MAZ_COMMON_KEY]
+}
+ACCESS_TIME_BREAKS = [15, 30, 45, 60]
+ACCESS_UNITS = "Min"
+D_ACT_FIELDS = ["TotalJobs", "ConsJobs", "HCJobs", "EnrollAdlt", "EnrollK12"]
+O_ACT_FIELDS = ["HH"]
 
 """
 Configuration variables to be used in block group modeling and model application

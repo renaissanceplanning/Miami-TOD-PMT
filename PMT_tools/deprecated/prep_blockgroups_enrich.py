@@ -151,7 +151,7 @@ def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, j
 
     Returns
     -------
-    Nothing
+    None
     """
     # TODO: add checks for join_fields as actual columns in join_tbl
     if is_gz_file(join_tbl):

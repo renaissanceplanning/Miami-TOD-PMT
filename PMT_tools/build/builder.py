@@ -92,6 +92,7 @@ def build_intersections(blocks_fc, parcels_fc, maz_fc, taz_fc, sum_area_fc, ):
         maz_fc: String; path to MAZ feature class
         taz_fc: String; path to TAZ feature class
         sum_area_fc: String; path to SummaryArea feature class
+        nodes_fc: Strin; path to Nodes feature class
 
     Returns:
     [String,...]; list of paths to intersected feature classes
@@ -100,7 +101,7 @@ def build_intersections(blocks_fc, parcels_fc, maz_fc, taz_fc, sum_area_fc, ):
     # Intersect features for long tables
     intersections = [(blocks_fc, parcels_fc), (sum_area_fc, parcels_fc),
                      (sum_area_fc, blocks_fc), (sum_area_fc, maz_fc),
-                     (sum_area_fc, taz_fc)]
+                     (sum_area_fc, taz_fc), (sum_area_fc, nodes_fc)]
     int_out = []
     for intersect in intersections:
         summ, disag = intersect
@@ -133,7 +134,7 @@ def build_enriched_tables(intersection_list, fc_spec_list, enrichment_dict_list,
             table_match_field=feature_class_id,
             df=summary_df,
             df_match_field=feature_class_id)
-
+        # TODO: calculate new summariation information (RES_DENS, FAR, e.g.)
 
 def build_elongated_tables():
     pass

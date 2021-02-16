@@ -115,6 +115,12 @@ SA_TAZ_ENRICH = {
     "consolidate": [],
     "melt_cols": []
 }
+SA_NODES_ENRICH = {
+    "grouping": Column(SUM_AREA_FC_SPECS[1]),
+    "agg_cols": [AggColumn("CentIdx", agg_method="mean")],
+    "consolidation": [],
+    "melt_cols": []
+}
 
 # elongate var dicts
 #TODO: manage YEAR_COL better to allow for processing multiple years, add year as input?

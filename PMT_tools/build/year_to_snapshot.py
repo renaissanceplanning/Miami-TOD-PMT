@@ -10,6 +10,7 @@ from six import string_types
 from collections.abc import Iterable
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
 import PMT_tools.PMT as PMT
+
 # %% GLOBALS
 SNAPSHOT_YEAR = 2019
 MODES = ["Auto", "Transit", "Walk", "Bike"]
