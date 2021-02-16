@@ -6,9 +6,11 @@ from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STA
 from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 from PMT_tools.config.prepare_config import PARCEL_COMMON_KEY
 
-from PMT_tools.PMT import gdfToFeatureClass, dfToPoints, extendTableDf, makePath
+from PMT_tools.PMT import gdfToFeatureClass, dfToPoints, extendTableDf, makePath, dfToTable, add_unique_id, intersectFeatures, featureclass_to_df, copyFeatures
 
 import PMT_tools.logger as log
+
+
 
 from datetime import time
 import numpy as np
@@ -22,6 +24,9 @@ import json
 from json.decoder import JSONDecodeError
 import os
 import uuid
+import re
+from sklearn import linear_model
+import scipy
 import arcpy
 
 logger = log.Logger(add_logs_to_arc_messages=True)
@@ -812,3 +817,838 @@ def prep_imperviousness(zip_path, clip_path, out_dir, out_sr=None):
         else:
             arcpy.CopyRaster_management(in_raster=clipped_raster, out_rasterdataset=out_raster)
     return out_raster
+
+
+def analyze_blockgroup_model(bg_enrich_path,
+                             acs_years,
+                             lodes_years,
+                             save_directory):
+    '''
+    fit linear models to block group-level total employment, population, and
+    commutes at the block group level, and save the model coefficients for 
+    future prediction
+
+    Parameters
+    ----------
+    bg_enrich_path : str
+        path to enriched block group data, with a fixed-string wild card for
+        year (see Notes)
+    acs_years : list of int
+        years for which ACS variables (population, commutes) are present in 
+        the data
+    lodes_years : list of int
+        years for which LODES variables (employment) are present in the data
+    save_directory : str
+        directory to which to save the model coefficients (results will be 
+        saved as a csv)
+        
+    Notes
+    -----
+    in `bg_enrich_path`, replace the presence of a year with the string 
+    "{year}". For example, if your enriched block group data for 2010-2015 is 
+    stored at "Data_2010.gdb/enriched", "Data_2010.gdb/enriched", ..., then 
+    `bg_enrich_path = "Data_{year}.gdb/enriched"`.
+
+    Returns
+    -------
+    save_path : str
+        path to a table of model coefficients
+
+    '''
+    
+    # 1. Read 
+    # -------
+    
+    logger.log_msg("...reading input data (block group)")
+    df = []
+    years = np.unique(np.concatenate([acs_years, lodes_years]))
+    for y in years:
+        logger.log_msg(' '.join(["----> Loading", str(y)]))
+        # Read
+        load_path = re.sub("{year}", str(y), bg_enrich_path,
+                           flags = re.IGNORECASE)
+        fields = [f.name for f in arcpy.ListFields(load_path)]
+        tab = arcpy.da.FeatureClassToNumPyArray(in_table = load_path,
+                                                field_names = fields,
+                                                null_value = 0)
+        tab = pd.DataFrame(tab)
+        # Edit
+        tab["Year"] = y
+        tab["Since_2013"] = y - 2013
+        tab["Total_Emp_Area"] = (
+            tab["CNS_01_par"] + tab["CNS_02_par"] + tab["CNS_03_par"] + 
+            tab["CNS_04_par"] + tab["CNS_05_par"] + tab["CNS_06_par"] + 
+            tab["CNS_07_par"] + tab["CNS_08_par"] + tab["CNS_09_par"] + 
+            tab["CNS_10_par"] + tab["CNS_11_par"] + tab["CNS_12_par"] + 
+            tab["CNS_13_par"] + tab["CNS_14_par"] + tab["CNS_15_par"] + 
+            tab["CNS_16_par"] + tab["CNS_17_par"] + tab["CNS_18_par"] + 
+            tab["CNS_19_par"] + tab["CNS_20_par"]
+        )
+        if y in lodes_years:
+            tab["Total_Employment"] = (
+                tab["CNS01"] + tab["CNS02"] + tab["CNS03"] + tab["CNS04"] + 
+                tab["CNS05"] + tab["CNS06"] + tab["CNS07"] + tab["CNS08"] + 
+                tab["CNS09"] + tab["CNS10"] + tab["CNS11"] + tab["CNS12"] + 
+                tab["CNS13"] + tab["CNS14"] + tab["CNS15"] + tab["CNS16"] + 
+                tab["CNS17"] + tab["CNS18"] + tab["CNS19"] + tab["CNS20"]
+            )
+        if y in acs_years:
+            tab["Total_Population"] = (
+                tab["Total_Non_Hisp"] + tab["Total_Hispanic"]
+            )
+        # Store
+        df.append(tab)
+    
+    # Bind up the table, filling empty rows
+    df = pd.concat(df, ignore_index=True)
+    
+    # 2. Model
+    # --------
+    
+    # Variable setup: defines our variables of interest for modeling
+    independent_variables = ["LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA" ,
+                             "NO_BULDNG", "NO_RES_UNTS", "RES_par",
+                             "CNS_01_par", "CNS_02_par", "CNS_03_par",
+                             "CNS_04_par", "CNS_05_par", "CNS_06_par",
+                             "CNS_07_par", "CNS_08_par", "CNS_09_par",
+                             "CNS_10_par", "CNS_11_par", "CNS_12_par",
+                             "CNS_13_par", "CNS_14_par", "CNS_15_par",
+                             "CNS_16_par", "CNS_17_par", "CNS_18_par",
+                             "CNS_19_par", "CNS_20_par", "Total_Emp_Area",
+                             "Since_2013"]
+    response = {"Total_Employment": lodes_years,
+                "Total_Population": acs_years,
+                "Total_Commutes": acs_years}
+    
+    # Step 1: Overwrite NA values with 0 (where we should have data but don't)
+    # -- parcel-based variables should be there every time: fill all with 0
+    # -- job variables should be there for `lodes_years`: fill these with 0
+    # -- dem variables should be there for `acs_years`: fill these with 0
+    logger.log_msg("...replacing missing values")
+    parcel_na_dict = {iv: 0 for iv in independent_variables}
+    df.fillna(parcel_na_dict,
+              inplace=True)
+    df.loc[(df.Total_Employment.isna()) & df.Year.isin(lodes_years), "Total_Employment"] = 0
+    df.loc[(df.Total_Population.isna()) & df.Year.isin(acs_years), "Total_Population"] = 0
+    df.loc[(df.Total_Commutes.isna()) & df.Year.isin(acs_years), "Total_Commutes"] = 0
+    keep_cols = ["GEOID10", "Year"] + independent_variables + list(response.keys())
+    df = df[keep_cols]
+    
+    # Step 2: conduct modeling by extracting a correlation matrix between candidate
+    # explanatories and our responses, identifying explanatories with significant
+    # correlations to our response, and fitting a MLR using these explanatories
+    logger.log_msg("...fitting and applying models")
+    fits = []
+    for key, value in response.items():
+        logger.log_msg(' '.join(["---->", key]))
+        # Subset to relevant years for relevant years
+        mdf = df[df.Year.isin(value)][independent_variables + [key]]
+        n = len(mdf.index)
+        # Correlation of all explanatories with response
+        corr_mat = mdf.corr()
+        cwr = corr_mat[key]
+        cwr.drop(key, inplace=True)
+        cwr = cwr[~cwr.isna()]
+        # Calculate t statistic and p-value for correlation test
+        t_stat = cwr * np.sqrt((n-2) / (1-cwr**2))
+        p_values = pd.Series(scipy.stats.t.sf(t_stat, n-2) * 2,
+                             index = t_stat.index)
+        # Variables for the model
+        mod_vars = []
+        cutoff = 0.05
+        while len(mod_vars) == 0:
+            mod_vars = p_values[p_values.le(cutoff)].index.tolist()
+            cutoff += 0.05
+        # Fit a multiple linear regression
+        regr = linear_model.LinearRegression()
+        regr.fit(X = mdf[mod_vars],
+                 y = mdf[[key]])
+        # Save the model coefficients
+        fits.append(pd.Series(regr.coef_[0],
+                              index = mod_vars,
+                              name = key))
+        
+    # Step 3: combine results into a single df
+    logger.log_msg("...formatting model coefficients into a single table")
+    coefs = pd.concat(fits, axis=1).reset_index()
+    coefs.rename(columns = {"index": "Variable"},
+                 inplace=True)
+    coefs.fillna(0,
+                 inplace=True)
+    
+    # 3. Write
+    # --------
+    
+    logger.log_msg("...writing results")
+    save_path = makePath(save_directory, 
+                         "block_group_model_coefficients.csv")
+    coefs.to_csv(save_path,
+                 index = False)
+    
+    # Done
+    # ----
+    return save_path 
+
+    
+def analyze_blockgroup_apply(year,
+                             bg_enrich_path,
+                             bg_geometry_path,
+                             model_coefficients_path,
+                             save_gdb_location,
+                             shares_from = None):
+    '''
+    predict block group-level total employment, population, and commutes using
+    pre-fit linear models, and apply a shares-based approach to subdivide
+    totals into relevant subgroups
+
+    Parameters
+    ----------
+    year : int
+        year of the `bg_enrich` data
+    bg_enrich_path : str
+        path to enriched block group data; this is the data to which the
+        models will be applied
+    bg_geometry_path : str
+        path to geometry of block groups underlying the data
+    model_coefficients_path : str
+        path to table of model coefficients
+    save_gdb_location : str
+        gdb location to which to save the results (results will be saved as a
+        table)
+    shares_from : dict, optional
+        if the year of interest does not have observed data for either LODES
+        or ACS, provide other files from which subgroup shares can be
+        calculated (with the keys "LODES" and "ACS", respectively). 
+        For example, imagine that you are applying the models to a year where
+        ACS data was available but LODES data was not. Then,
+        `shares_from = {"LODES": "path_to_most_recent_bg_enrich_file_with_LODES"}.
+        A separate file does not need to be referenced for ACS because the
+        data to which the models are being applied already reflects shares for
+        ACS variables.
+        The default is None, which assumes LODES and ACS data are available
+        for the year of interest in the provided `bg_enrich` file
+
+    Returns
+    -------
+    save_path : str
+        path to a table of model application results
+
+    '''
+    
+    # 1. Read 
+    # -------
+    
+    logger.log_msg("...reading input data (block group)")
+    # Load
+    fields = [f.name for f in arcpy.ListFields(bg_enrich_path)]
+    df = arcpy.da.FeatureClassToNumPyArray(in_table = bg_enrich_path,
+                                            field_names = fields,
+                                            null_value = 0)
+    df = pd.DataFrame(df)
+    # Edit
+    df["Since_2013"] = year - 2013
+    df["Total_Emp_Area"] = (
+        df["CNS_01_par"] + df["CNS_02_par"] + df["CNS_03_par"] + 
+        df["CNS_04_par"] + df["CNS_05_par"] + df["CNS_06_par"] + 
+        df["CNS_07_par"] + df["CNS_08_par"] + df["CNS_09_par"] + 
+        df["CNS_10_par"] + df["CNS_11_par"] + df["CNS_12_par"] + 
+        df["CNS_13_par"] + df["CNS_14_par"] + df["CNS_15_par"] + 
+        df["CNS_16_par"] + df["CNS_17_par"] + df["CNS_18_par"] + 
+        df["CNS_19_par"] + df["CNS_20_par"]
+    )
+    # Fill na
+    independent_variables = ["LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA" ,
+                             "NO_BULDNG", "NO_RES_UNTS", "RES_par",
+                             "CNS_01_par", "CNS_02_par", "CNS_03_par",
+                             "CNS_04_par", "CNS_05_par", "CNS_06_par",
+                             "CNS_07_par", "CNS_08_par", "CNS_09_par",
+                             "CNS_10_par", "CNS_11_par", "CNS_12_par",
+                             "CNS_13_par", "CNS_14_par", "CNS_15_par",
+                             "CNS_16_par", "CNS_17_par", "CNS_18_par",
+                             "CNS_19_par", "CNS_20_par", "Total_Emp_Area",
+                             "Since_2013"]
+    parcel_na_dict = {iv: 0 for iv in independent_variables}
+    df.fillna(parcel_na_dict,
+              inplace=True)
+    
+    # 2. Apply models
+    # ---------------
+    
+    logger.log_msg("...applying models to predict totals")
+    # Load the coefficients
+    coefs = pd.read_csv(model_coefficients_path)
+    # Predict using matrix multiplication
+    mod_inputs = df[coefs["Variable"]]
+    coef_values = coefs.drop(columns = "Variable")
+    preds = np.matmul(mod_inputs.to_numpy(), coef_values.to_numpy())
+    preds = pd.DataFrame(preds)
+    preds.columns = coef_values.columns.tolist()
+    pwrite = pd.concat([df[["GEOID10"]], preds], axis=1)
+    # If any prediction is below 0, turn it to 0
+    pwrite.loc[pwrite.Total_Employment < 0, "Total_Employment"] = 0
+    pwrite.loc[pwrite.Total_Population < 0, "Total_Population"] = 0
+    pwrite.loc[pwrite.Total_Commutes < 0, "Total_Commutes"] = 0
+    
+    # 3. Shares
+    # ---------
+    
+    # Variable setup: defines our variables of interest for modeling
+    dependent_variables_emp = ["CNS01", "CNS02", "CNS03", "CNS04", "CNS05", 
+                               "CNS06", "CNS07", "CNS08", "CNS09", "CNS10",
+                               "CNS11", "CNS12", "CNS13", "CNS14", "CNS15", 
+                               "CNS16", "CNS17", "CNS18", "CNS19", "CNS20"]
+    dependent_variables_pop_tot = ["Total_Hispanic", "Total_Non_Hisp"]
+    dependent_variables_pop_sub = ["White_Hispanic", "Black_Hispanic", 
+                                   "Asian_Hispanic", "Multi_Hispanic",
+                                   "Other_Hispanic", "White_Non_Hisp", 
+                                   "Black_Non_Hisp", "Asian_Non_Hisp", 
+                                   "Multi_Non_Hisp", "Other_Non_Hisp"]
+    dependent_variables_trn = ["Drove", "Carpool", "Transit",
+                               "NonMotor", "Work_From_Home", "AllOther"]
+    acs_vars = dependent_variables_pop_tot + dependent_variables_pop_sub + dependent_variables_trn
+    
+    # Pull shares variables from appropriate sources, recognizing that they
+    # may not all be the same!
+    logger.log_msg("...formatting shares data")
+    # Format
+    if shares_from is not None:
+        if "LODES" in shares_from.keys():
+            lodes = arcpy.da.FeatureClassToNumPyArray(in_table = shares_from["LODES"],
+                                                      field_names = ["GEOID10"] + dependent_variables_emp,
+                                                      null_value = 0)
+            lodes = pd.DataFrame(lodes)
+        else:
+            lodes = df[["GEOID10"] + dependent_variables_emp]
+        if "ACS" in shares_from.keys():
+            acs = arcpy.da.FeatureClassToNumPyArray(in_table = shares_from["ACS"],
+                                                    field_names = ["GEOID10"] + acs_vars,
+                                                    null_value = 0)
+            acs = pd.DataFrame(acs)
+        else:
+            acs = df[["GEOID10"] + acs_vars]
+    # Merge and replace NA
+    shares_df = pd.merge(lodes, acs, on="GEOID10", how="left")
+    shares_df.fillna(0,
+                     inplace=True)
+    
+    # Step 2: Calculate shares relative to total
+    # This is done relative to the "Total" variable for each group 
+    logger.log_msg("...calculating shares")
+    shares_dict = {}
+    for name, vrs in zip(["Emp", "Pop_Tot", "Pop_Sub", "Comm"],
+                         [dependent_variables_emp, 
+                          dependent_variables_pop_tot, 
+                          dependent_variables_pop_sub,
+                          dependent_variables_trn]):
+        sdf = shares_df[vrs]
+        sdf["TOTAL"] = sdf.sum(axis=1)
+        for d in vrs:
+            sdf[d] = sdf[d] / sdf["TOTAL"]
+        sdf["GEOID10"] = shares_df["GEOID10"]
+        sdf.drop(columns = "TOTAL", 
+                 inplace=True)
+        shares_dict[name] = sdf
+    
+    # Step 3: some rows have NA shares because the total for that class of
+    # variables was 0. For these block groups, take the average share of all
+    # block groups that touch that one
+    logger.log_msg("...estimating missing shares")
+    # What touches what?    
+    arcpy.PolygonNeighbors_analysis(in_features = bg_geometry_path,
+                                    out_table = "in_memory\\neighbors", 
+                                    in_fields = "GEOID10")
+    touch = arcpy.da.FeatureClassToNumPyArray(in_table = "in_memory\\neighbors",
+                                              field_names = ["src_GEOID10","nbr_GEOID10"])
+    touch = pd.DataFrame(touch)
+    touch.rename(columns = {"src_GEOID10": "GEOID10",
+                            "nbr_GEOID10": "Neighbor"},
+                 inplace=True)
+    # Loop filling of NA by mean of adjacent non-NAs
+    ctf = 1
+    i = 1
+    while(ctf > 0):
+        # First, identify cases where we need to fill NA        
+        to_fill = []
+        for key, value in shares_dict.items():
+            f = value[value.isna().any(axis=1)]
+            f = f[["GEOID10"]]
+            f["Fill"] = key
+            to_fill.append(f)
+        to_fill = pd.concat(to_fill, ignore_index=True)
+        # Create a neighbors table
+        nt = pd.merge(to_fill,
+                      touch,
+                      how = "left",
+                      on = "GEOID10")
+        nt.rename(columns = {"GEOID10": "Source",
+                             "Neighbor": "GEOID10"},
+                  inplace=True)
+        # Now, merge in the shares data for appropriate rows
+        fill_by_touching = {}
+        nrem = []
+        for key, value in shares_dict.items():
+            fill_df = pd.merge(nt[nt.Fill == key],
+                               value,
+                               how = "left",
+                               on = "GEOID10")
+            nv = fill_df.groupby("Source").mean()
+            nv["RS"] = nv.sum(axis=1)
+            data_cols = [c for c in nv.columns.tolist() if c != "GEOID10"]
+            for d in data_cols:
+                nv[d] = nv[d] / nv["RS"]
+            nv.drop(columns = "RS",
+                    inplace=True)
+            nv = nv.reset_index()
+            nv.rename(columns = {"Source":"GEOID10"},
+                      inplace=True)
+            not_replaced = value[~value.GEOID10.isin(nv.GEOID10)]
+            replaced = pd.concat([not_replaced, nv])
+            fill_by_touching[key] = replaced
+            nrem.append(len(replaced[replaced.isna().any(axis=1)].index))
+        # Now, it's possible that some block group/year combos to be filled had
+        # 0 block groups in that year touching them that had data. If this happened,
+        # we're goisadfsdfsdfng to repeat the process. Check by summing nrem
+        # and initialize by resetting the shares dict
+        ctf = sum(nrem)
+        i += 1
+        shares_dict = fill_by_touching
+      
+    # Step 4: merge and format the shares
+    logger.log_msg("...merging and formatting shares")
+    filled_shares = [df.set_index("GEOID10") for df in shares_dict.values()]
+    cs_shares = pd.concat(filled_shares, axis=1).reset_index()
+    cs_shares.rename(columns = {"index":"GEOID10"},
+                     inplace=True)
+    
+    # 4. Block group estimation
+    # -------------------------
+    
+    logger.log_msg("...estimating variable levels using model estimates and shares")
+    # Now, our allocations are simple multiplication problems! Hooray!
+    # So, all we have to do is multiply the shares by the appropriate column
+    # First, we'll merge our estimates and shares
+    alloc = pd.merge(pwrite, 
+                     cs_shares, 
+                     on = "GEOID10")
+    # We'll do employment first
+    for d in dependent_variables_emp:
+        alloc[d] = alloc[d] * alloc.Total_Employment
+    # Now population
+    for d in dependent_variables_pop_tot:
+        alloc[d] = alloc[d] * alloc.Total_Population
+    for d in dependent_variables_pop_sub:
+        alloc[d] = alloc[d] * alloc.Total_Population
+    # Finally commutes
+    for d in dependent_variables_trn:
+        alloc[d] = alloc[d] * alloc.Total_Commutes
+        
+    # 5. Writing
+    # ----------
+    
+    logger.log_msg("...writing outputs")
+    # Here we write block group for allocation
+    save_path = makePath(save_gdb_location,
+                         "Modeled_blockgroups")
+    dfToTable(df = alloc, 
+              out_table = save_path)
+        
+    # Done
+    # ----
+    return save_path
+
+
+def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
+                                parcels_id="FOLIO", parcel_lu="DOR_UC", parcel_liv_area="TOT_LVG_AREA"):
+    """
+    Allocate block group data to parcels using relative abundances of
+    parcel building square footage
+    
+    Parameters 
+    ----------
+    parcel_fc: Path
+        path to shape of parcel polygons, containing at a minimum a unique ID
+        field, land use field, and total living area field (Florida DOR)
+    bg_modeled: Path
+        path to table of modeled block group job, populatiom, and commute
+        data for allocation
+    bg_geom: Path
+        path to feature class of block group polygons
+    out_gdb: Path
+        path to location in which the allocated results will be saved
+    parcels_id: str
+        unique ID field in the parcels shape
+        Default is "PARCELNO" for Florida parcels
+    parcel_lu: str
+        land use code field in the parcels shape
+        Default is "DOR_UC" for Florida parcels
+    parcel_liv_area: str
+        building square footage field in the parcels shape
+        Default is "TOT_LVG_AREA" for Florida parcels
+        
+    
+    Returns
+    -------
+    path of location at which the allocation results are saved. 
+    Saving will be completed as part of the function. The allocation estimates
+    will be joined to the original parcels shape
+    
+    """
+    
+    # Organize constants for allocation
+    lodes_attrs = ['CNS01', 'CNS02', 'CNS03', 'CNS04', 'CNS05', 
+                   'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10',
+                   'CNS11', 'CNS12', 'CNS13', 'CNS14', 'CNS15', 
+                   'CNS16', 'CNS17', 'CNS18', 'CNS19', 'CNS20']
+    demog_attrs = ['Total_Hispanic', 'White_Hispanic', 'Black_Hispanic', 
+                   'Asian_Hispanic', 'Multi_Hispanic', 'Other_Hispanic',
+                   'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp', 
+                   'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp']
+    commute_attrs = ['Drove', 'Carpool', 'Transit', 
+                     'NonMotor', 'Work_From_Home', 'AllOther']
+    block_group_attrs = ["GEOID10"] + lodes_attrs + demog_attrs + commute_attrs
+    
+    # Initialize spatial processing by intersecting
+    print("...intersecting blocks and parcels")
+    bg_spatial = makePath("in_memory", "bg_spatial")
+    copyFeatures(bg_geom, bg_spatial)
+    arcpy.AddJoin_management(bg_spatial, "GEOID10", bg_modeled, "GEOID10")
+    parcel_fields = [parcels_id, parcel_lu, parcel_liv_area, "Shape_Area"]
+    intersect_fc = intersectFeatures(summary_fc=bg_spatial,
+                                     disag_fc=parcel_fc, disag_fields=parcel_fields)
+    intersect_fields = parcel_fields + block_group_attrs
+    intersect_df = featureclass_to_df(in_fc=intersect_fc, keep_fields=intersect_fields)
+
+    # Format data for allocation
+    logger.log_msg("...formatting block group for allocation data")
+    # set any value below 0 to 0 and set any land use from -1 to NA
+    to_clip = lodes_attrs + demog_attrs + commute_attrs + [parcel_liv_area, "Shape_Area"]
+    for var in to_clip:
+        intersect_df[f"{var}"] = intersect_df[f"{var}"].clip(lower=0)
+    # 2. replace -1 in DOR_UC with NA
+    pluf = parcel_lu
+    elu = intersect_df[pluf] == -1
+    intersect_df.loc[elu, pluf] = None
+
+    # Step 1 in allocation is totaling the living area by activity in each block group. 
+    # To do this, we define in advance which activities can go to which land uses
+
+    # First, we set up this process by matching activities to land uses
+    print("-- setting up activity-land use matches...")
+    lu_mask = {
+        'CNS01': ((intersect_df[pluf] >= 50) & (intersect_df[pluf] <= 69)),
+        'CNS02': (intersect_df[pluf] == 92),
+        'CNS03': (intersect_df[pluf] == 91),
+        'CNS04': ((intersect_df[pluf] == 17) | (intersect_df[pluf] == 19)),
+        'CNS05': ((intersect_df[pluf] == 41) | (intersect_df[pluf] == 42)),
+        'CNS06': (intersect_df[pluf] == 29),
+        'CNS07': ((intersect_df[pluf] >= 11) & (intersect_df[pluf] <= 16)),
+        'CNS08': ((intersect_df[pluf] == 48) | (intersect_df[pluf] == 49) | (intersect_df[pluf] == 20)),
+        'CNS09': ((intersect_df[pluf] == 17) | (intersect_df[pluf] == 18) | (intersect_df[pluf] == 19)),
+        'CNS10': ((intersect_df[pluf] == 23) | (intersect_df[pluf] == 24)),
+        'CNS11': ((intersect_df[pluf] == 17) | (intersect_df[pluf] == 18) | (intersect_df[pluf] == 19)),
+        'CNS12': ((intersect_df[pluf] == 17) | (intersect_df[pluf] == 18) | (intersect_df[pluf] == 19)),
+        'CNS13': ((intersect_df[pluf] == 17) | (intersect_df[pluf] == 18) | (intersect_df[pluf] == 19)),
+        'CNS14': (intersect_df[pluf] == 89),
+        'CNS15': ((intersect_df[pluf] == 72) | (intersect_df[pluf] == 83) | (intersect_df[pluf] == 84)),
+        'CNS16': ((intersect_df[pluf] == 73) | (intersect_df[pluf] == 85)),
+        'CNS17': (((intersect_df[pluf] >= 30) & (intersect_df[pluf] <= 38)) | (intersect_df[pluf] == 82)),
+        'CNS18': ((intersect_df[pluf] == 21) | (intersect_df[pluf] == 22) | (intersect_df[pluf] == 33) | 
+                  (intersect_df[pluf] == 39)),
+        'CNS19': ((intersect_df[pluf] == 27) | (intersect_df[pluf] == 28)),
+        'CNS20': ((intersect_df[pluf] >= 86) & (intersect_df[pluf] <= 89)),
+        'Population': (((intersect_df[pluf] >= 1) & (intersect_df[pluf] <= 9)) | 
+                       ((intersect_df[pluf] >= 100) & (intersect_df[pluf] <= 102)))
+    }
+
+    # Note that our activity-land use matches aren't guaranteed because they are subjectively defined. 
+    # To that end, we need backups in case a block group is entirely missing all possible land uses 
+    # for an activity. 
+    #   - we set up masks for 'all non-res' (all land uses relevant to any non-NAICS-1-or-2 job type) 
+    #   - and 'all developed' ('all non-res' + any residential land uses). 
+    #  ['all non-res' will be used if a land use isn't present for a given activity; 
+    #  [ the 'all developed' will be used if 'all non-res' fails]
+    non_res_lu_codes = [11, 12, 13, 14, 15, 16, 17, 18, 19, 
+                        20, 21, 22, 23, 24, 27, 28, 29, 
+                        30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 
+                        41, 42, 48, 49, 
+                        72, 73, 
+                        82, 84, 85, 86, 87, 88, 89]
+    all_dev_lu_codes = non_res_lu_codes + [1, 2, 3, 4, 5, 6, 7, 8, 9, 
+                                           100, 101, 102]
+    all_non_res = {'NR': (intersect_df[pluf].isin(non_res_lu_codes))}
+    all_developed = {'AD': (intersect_df[pluf].isin(all_dev_lu_codes))}
+
+    # If all else fails, A fourth level we'll use (if we need to) is simply all total living area in the block group, 
+    #   but we don't need a mask for that. If this fails (which it rarely should), we revert to land area, 
+    #   which we know will work (all parcels have area right?)
+
+    # Next, we'll total parcels by block group (this is just a simple operation
+    # to give our living area totals something to join to)
+    logger.log_msg("...initializing living area sums")
+    count_parcels_bg = intersect_df.groupby(['GEOID10'])['GEOID10'].agg(['count'])
+    count_parcels_bg.rename(columns={'count': 'NumParBG'}, inplace=True)
+    count_parcels_bg = count_parcels_bg.reset_index()
+
+    # Now we can begin totaling living area. We'll start with jobs
+    logger.log_msg("...totaling living area by job type")
+    # 1. get count of total living area (w.r.t. land use mask) for each
+    # job type
+    pldaf = "Shape_Area"
+    for var in lodes_attrs:
+        # mask by LU, group on GEOID10
+        area = intersect_df[lu_mask[var]].groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+        area.rename(columns={'sum': f'{var}_Area'},
+                    inplace=True)
+        area = area[area[f'{var}_Area'] > 0]
+        area = area.reset_index()
+        area[f'{var}_How'] = "lu_mask"
+        missing = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+        if (len(missing) > 0):
+            lev1 = intersect_df[all_non_res["NR"]]
+            lev1 = lev1[lev1.GEOID10.isin(missing)]
+            area1 = lev1.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+            area1.rename(columns={'sum': f'{var}_Area'},
+                         inplace=True)
+            area1 = area1[area1[f'{var}_Area'] > 0]
+            area1 = area1.reset_index()
+            area1[f'{var}_How'] = "non_res"
+            area = pd.concat([area, area1])
+            missing1 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+            if (len(missing1) > 0):
+                lev2 = intersect_df[all_developed["AD"]]
+                lev2 = lev2[lev2.GEOID10.isin(missing1)]
+                area2 = lev2.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+                area2.rename(columns={'sum': f'{var}_Area'},
+                             inplace=True)
+                area2 = area2[area2[f'{var}_Area'] > 0]
+                area2 = area2.reset_index()
+                area2[f'{var}_How'] = "all_dev"
+                area = pd.concat([area, area2])
+                missing2 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+                if (len(missing2) > 0):
+                    lev3 = intersect_df[intersect_df.GEOID10.isin(missing2)]
+                    area3 = lev3.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+                    area3.rename(columns={'sum': f'{var}_Area'},
+                                 inplace=True)
+                    area3 = area3[area3[f'{var}_Area'] > 0]
+                    area3 = area3.reset_index()
+                    area3[f'{var}_How'] = "living_area"
+                    area = pd.concat([area, area3])
+                    missing3 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+                    if (len(missing3) > 0):
+                        lev4 = intersect_df[intersect_df.GEOID10.isin(missing3)]
+                        area4 = lev4.groupby(['GEOID10'])[pldaf].agg(['sum'])
+                        area4.rename(columns={'sum': f'{var}_Area'},
+                                     inplace=True)
+                        area4 = area4.reset_index()
+                        area4[f'{var}_How'] = "land_area"
+                        area = pd.concat([area, area4])
+        area = area.reset_index(drop=True)
+        count_parcels_bg = pd.merge(count_parcels_bg, area,
+                                    how='left',
+                                    on='GEOID10')
+
+    # Repeat the above with population
+    logger.log_msg("...totaling living area for population")
+    area = intersect_df[lu_mask['Population']].groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+    area.rename(columns={'sum': 'Population_Area'},
+                inplace=True)
+    area = area[area['Population_Area'] > 0]
+    area = area.reset_index()
+    area['Population_How'] = "lu_mask"
+    missing1 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+    if (len(missing1) > 0):
+        lev2 = intersect_df[all_developed["AD"]]
+        lev2 = lev2[lev2.GEOID10.isin(missing1)]
+        area2 = lev2.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+        area2.rename(columns={'sum': 'Population_Area'},
+                     inplace=True)
+        area2 = area2[area2['Population_Area'] > 0]
+        area2 = area2.reset_index()
+        area2['Population_How'] = "all_dev"
+        area = pd.concat([area, area2])
+        missing2 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+        if (len(missing2) > 0):
+            lev3 = intersect_df[intersect_df.GEOID10.isin(missing2)]
+            area3 = lev3.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+            area3.rename(columns={'sum': 'Population_Area'},
+                         inplace=True)
+            area3 = area3[area3['Population_Area'] > 0]
+            area3 = area3.reset_index()
+            area3['Population_How'] = "living_area"
+            area = pd.concat([area, area3])
+            missing3 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+            if (len(missing3) > 0):
+                lev4 = intersect_df[intersect_df.GEOID10.isin(missing3)]
+                area4 = lev4.groupby(['GEOID10'])[pldaf].agg(['sum'])
+                area4.rename(columns={'sum': 'Population_Area'},
+                             inplace=True)
+                area4 = area4.reset_index()
+                area4['Population_How'] = "land_area"
+                area = pd.concat([area, area4])
+    area = area.reset_index(drop=True)
+    count_parcels_bg = pd.merge(count_parcels_bg, area,
+                                how='left',
+                                on='GEOID10')
+
+    # Now, we format and re-merge with our original parcel data
+    logger.log_msg("...merging living area totals with parcel-level data")
+    # 1. fill table with NAs -- no longer needed because NAs are eliminated
+    # by nesting structure
+    # tot_bg = tot_bg.fillna(0)
+    # 2. merge back to original data
+    intersect_df = pd.merge(intersect_df, count_parcels_bg,
+                            how='left',
+                            on='GEOID10')
+
+    # Step 2 in allocation is taking parcel-level proportions of living area
+    # relative to the block group total, and calculating parcel-level
+    # estimates of activities by multiplying the block group activity total
+    # by the parcel-level proportions
+
+    # For allocation, we need a two step process, depending on how the area
+    # was calculated for the activity. If "{var}_How" is land_area, then
+    # allocation needs to be relative to land area; otherwise, it needs to be
+    # relative to living area. To do this, we'll set up mask dictionaries
+    # similar to the land use mask
+    logger.log_msg("setting up allocation logic...")
+    lu = {}
+    nr = {}
+    ad = {}
+    lvg_area = {}
+    lnd_area = {}
+    for v in lu_mask.keys():
+        lu[v] = (intersect_df[f'{v}_How'] == "lu_mask")
+        nr[v] = (intersect_df[f'{v}_How'] == "non_res")
+        ad[v] = (intersect_df[f'{v}_How'] == "all_dev")
+        lvg_area[v] = (intersect_df[f'{v}_How'] == "living_area")
+        lnd_area[v] = (intersect_df[f'{v}_How'] == "land_area")
+
+    # First up, we'll allocate jobs
+    logger.log_msg("...allocating jobs and population")
+    # 1. for each job variable, calculate the proportion, then allocate     
+    for var in lu_mask.keys():
+        # First for lu mask
+        intersect_df.loc[lu[var] & lu_mask[var], f'{var}_Par_Prop'] = (
+                intersect_df[parcel_liv_area][lu[var] & lu_mask[var]] / intersect_df[f'{var}_Area'][lu[var] & lu_mask[var]]
+        )
+        # Then for non res
+        intersect_df.loc[nr[var] & all_non_res["NR"], f'{var}_Par_Prop'] = (
+                intersect_df[parcel_liv_area][nr[var] & all_non_res["NR"]] / intersect_df[f'{var}_Area'][
+            nr[var] & all_non_res["NR"]]
+        )
+        # Then for all dev
+        intersect_df.loc[ad[var] & all_developed["AD"], f'{var}_Par_Prop'] = (
+                intersect_df[parcel_liv_area][ad[var] & all_developed["AD"]] / intersect_df[f'{var}_Area'][ad[var] & all_developed["AD"]]
+        )
+        # Then for living area
+        intersect_df.loc[lvg_area[var], f'{var}_Par_Prop'] = (
+                intersect_df[parcel_liv_area][lvg_area[var]] / intersect_df[f'{var}_Area'][lvg_area[var]]
+        )
+        # Then for land area
+        intersect_df.loc[lnd_area[var], f'{var}_Par_Prop'] = (
+                intersect_df[pldaf][lnd_area[var]] / intersect_df[f'{var}_Area'][lnd_area[var]]
+        )
+        # Now fill NAs with 0 for proportions
+        intersect_df[f'{var}_Par_Prop'] = intersect_df[f'{var}_Par_Prop'].fillna(0)
+
+        # Now allocate (note that for pop, we're using the population ratios
+        # for all racial subsets)
+        if var != "Population":
+            intersect_df[f'{var}_PAR'] = intersect_df[f'{var}_Par_Prop'] * intersect_df[var]
+        else:
+            race_vars = ['Total_Hispanic', 'White_Hispanic', 'Black_Hispanic',
+                         'Asian_Hispanic', 'Multi_Hispanic', 'Other_Hispanic',
+                         'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp',
+                         'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp']
+            for rv in race_vars:
+                intersect_df[f'{rv}_PAR'] = intersect_df['Population_Par_Prop'] * intersect_df[rv]
+
+    # If what we did worked, all the proportions should sum to 1. This will
+    # help us identify if there are any errors
+    # v = [f'{var}_Par_Prop' for var in lodes_attrs + ["Population"]]
+    # x = intersect_df.groupby(["GEOID10"])[v].apply(lambda x: x.sum())
+    # x[v].apply(lambda x: [min(x), max(x)])
+
+    # Now we can sum up totals
+    logger.log_msg("...totaling allocated jobs and population")
+    intersect_df['Total_Employment'] = (
+            intersect_df['CNS01_PAR'] + intersect_df['CNS02_PAR'] + intersect_df['CNS03_PAR'] +
+            intersect_df['CNS04_PAR'] + intersect_df['CNS05_PAR'] + intersect_df['CNS06_PAR'] +
+            intersect_df['CNS07_PAR'] + intersect_df['CNS08_PAR'] + intersect_df['CNS09_PAR'] +
+            intersect_df['CNS10_PAR'] + intersect_df['CNS11_PAR'] + intersect_df['CNS12_PAR'] +
+            intersect_df['CNS13_PAR'] + intersect_df['CNS14_PAR'] + intersect_df['CNS15_PAR'] +
+            intersect_df['CNS16_PAR'] + intersect_df['CNS17_PAR'] + intersect_df['CNS18_PAR'] +
+            intersect_df['CNS19_PAR'] + intersect_df['CNS20_PAR']
+    )
+    intersect_df['Total_Population'] = (
+            intersect_df['Total_Non_Hisp_PAR'] + intersect_df['Total_Hispanic_PAR']
+    )
+
+    # Finally, we'll allocate transportation usage
+    logger.log_msg("...allocating commutes")
+    # Commutes will be allocated relative to total population, so total by
+    # the block group and calculate the parcel share
+    tp_props = intersect_df.groupby("GEOID10")["Total_Population"].sum().reset_index()
+    tp_props.columns = ["GEOID10", "TP_Agg"]
+    geoid_edit = tp_props[tp_props.TP_Agg == 0].GEOID10
+    intersect_df = pd.merge(intersect_df, tp_props,
+                            how='left',
+                            on='GEOID10')
+    intersect_df["TP_Par_Prop"] = intersect_df['Total_Population'] / intersect_df['TP_Agg']
+    # If there are any 0s (block groups with 0 population) replace with
+    # the population area population, in case commutes are predicted where
+    # population isn't
+    intersect_df.loc[intersect_df.GEOID10.isin(geoid_edit), "TP_Par_Prop"] = intersect_df["Population_Par_Prop"][
+        intersect_df.GEOID10.isin(geoid_edit)]
+    # Now we can allocate commutes
+    transit_vars = ['Drove', 'Carpool', 'Transit',
+                    'NonMotor', 'Work_From_Home', 'AllOther']
+    for var in transit_vars:
+        intersect_df[f'{var}_PAR'] = intersect_df["TP_Par_Prop"] * intersect_df[var]
+
+    # And, now we can sum up totals
+    logger.log_msg("...totaling allocated commutes")
+    intersect_df['Total_Commutes'] = (
+            intersect_df['Drove_PAR'] + intersect_df['Carpool_PAR'] + intersect_df['Transit_PAR'] +
+            intersect_df['NonMotor_PAR'] + intersect_df['Work_From_Home_PAR'] + intersect_df['AllOther_PAR']
+    )
+
+    # Now we're ready to write
+
+    # We don't need all the columns we have, so first we define the columns
+    # we want and select them from our data. Note that we don't need to
+    # maintain the parcels_id_field here, because our save file has been
+    # initialized with this already!
+    logger.log_msg("...selecting columns of interest")
+    to_keep = [parcels_id,
+               parcel_liv_area,
+               parcel_lu,
+               'GEOID10',
+               'Total_Employment',
+               'CNS01_PAR', 'CNS02_PAR', 'CNS03_PAR', 'CNS04_PAR',
+               'CNS05_PAR', 'CNS06_PAR', 'CNS07_PAR', 'CNS08_PAR',
+               'CNS09_PAR', 'CNS10_PAR', 'CNS11_PAR', 'CNS12_PAR',
+               'CNS13_PAR', 'CNS14_PAR', 'CNS15_PAR', 'CNS16_PAR',
+               'CNS17_PAR', 'CNS18_PAR', 'CNS19_PAR', 'CNS20_PAR',
+               'Total_Population',
+               'Total_Hispanic_PAR',
+               'White_Hispanic_PAR', 'Black_Hispanic_PAR', 'Asian_Hispanic_PAR',
+               'Multi_Hispanic_PAR', 'Other_Hispanic_PAR',
+               'Total_Non_Hisp_PAR',
+               'White_Non_Hisp_PAR', 'Black_Non_Hisp_PAR', 'Asian_Non_Hisp_PAR',
+               'Multi_Non_Hisp_PAR', 'Other_Non_Hisp_PAR',
+               'Total_Commutes',
+               'Drove_PAR', 'Carpool_PAR', 'Transit_PAR',
+               'NonMotor_PAR', 'Work_From_Home_PAR', 'AllOther_PAR']
+    intersect_df = intersect_df[to_keep]
+
+    # For saving, we join the allocation estimates back to the ID shape we
+    # initialized during spatial processing
+    logger.log_msg("...writing table of allocation results")
+    sed_path = makePath(out_gdb,
+                        "socioeconomic_and_demographic")
+    dfToTable(intersect_df, sed_path)
+
+    # Then we done!
+    return sed_path

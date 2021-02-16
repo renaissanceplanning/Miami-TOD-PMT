@@ -8,6 +8,7 @@ from PMT_tools.config.prepare_config import IN_CRS, OUT_CRS
 from PMT_tools.config.prepare_config import (CRASH_FIELDS_DICT, USE_CRASH)
 from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FIELDS_DICT, TRANSIT_LONG, TRANSIT_LAT
 from PMT_tools.config.prepare_config import PARCEL_COLS, PARCEL_USE_COLS
+from PMT_tools.config.prepare_config import YEAR_GDB_FORMAT, REFERENCE_DIRECTORY, LODES_YEARS, ACS_YEARS
 # prep/clean helper functions
 from PMT_tools.prepare.prepare_helpers import *
 from PMT_tools.prepare.prepare_osm_networks import *
@@ -204,6 +205,74 @@ def process_osm_networks():
         # Build network datasets
         template = makePath(REF, f"osm_{net_type}_template.xml")
         makeNetworkDataset(template, net_type_fd, "osm_ND")
+        
+        
+def process_bg_estimate_activity_models():
+    bg_enrich = makePath(YEAR_GDB_FORMAT, 
+                         "Enrichment_blockgroups")
+    save_path = analyze_blockgroup_model(bg_enrich_path = bg_enrich,
+                                         acs_years = ACS_YEARS,
+                                         lodes_years = LODES_YEARS,
+                                         save_directory = REFERENCE_DIRECTORY)
+    return save_path
+
+
+def process_bg_apply_activity_models():
+    for year in YEARS:
+        # Set the inputs based on the year
+        bg_enrich = makePath(YEAR_GDB_FORMAT, 
+                             "Enrichment_blockgroups").replace("{year}", str(year))
+        bg_geometry = makePath(YEAR_GDB_FORMAT,
+                               "Polygons",
+                               "BlockGroups").replace("{year}", str(year))
+        model_coefficients = makePath(REFERENCE_DIRECTORY,
+                                      "block_group_model_coefficients.csv"),
+        save_gdb = YEAR_GDB_FORMAT.replace("{year}", str(year))
+        
+        # For unobserved years, set a constant share approach
+        shares = {}
+        if year not in LODES_YEARS:
+            wl = np.argmin([abs(x - year) for x in LODES_YEARS])
+            shares["LODES"] = bg_enrich.replace(str(year), str(LODES_YEARS[wl]))
+        if year not in ACS_YEARS:
+            wa = np.argmin([abs(x - year) for x in ACS_YEARS])
+            shares["ACS"] = bg_enrich.replace(str(year), str(ACS_YEARS[wa]))
+        if len(shares.keys()) == 0:
+            shares = None
+            
+        # Apply the models
+        analyze_blockgroup_apply(year = year,
+                                 bg_enrich_path = bg_enrich,
+                                 bg_geometry_path = bg_geometry,
+                                 model_coefficients_path = model_coefficients,
+                                 save_gdb_location = save_gdb,
+                                 shares_from = shares)
+        
+        
+def process_allocate_bg_to_parcels():
+    for year in YEARS:
+        # Set the inputs based on the year
+        parcel_fc = makePath(YEAR_GDB_FORMAT,
+                             "Polygons",
+                             "Parcels").replace("{year}", str(year))
+        bg_modeled = makePath(YEAR_GDB_FORMAT, 
+                              "Enrichment_blockgroups").replace("{year}", str(year))
+        bg_geom = makePath(YEAR_GDB_FORMAT,
+                           "Polygons",
+                           "BlockGroups").replace("{year}", str(year))
+        out_gdb = YEAR_GDB_FORMAT.replace("{year}", str(year))
+        
+        # Allocate
+        analyze_blockgroup_allocate(parcel_fc = parcel_fc, 
+                                    bg_modeled = bg_modeled, 
+                                    bg_geom = bg_geom, 
+                                    out_gdb = out_gdb,
+                                    parcels_id="FOLIO", 
+                                    parcel_lu="DOR_UC", 
+                                    parcel_liv_area="TOT_LVG_AREA")
+        
+    
+    
 
 
 if __name__ == "__main__":
