@@ -631,5 +631,49 @@ Configuration variables to be used in allocation
 
 # will use YEAR_GDB_FORMAT, that's it
 
+"""
+Configuration variables to be used in contiguity + developable area
+"""
 
+# will use YEAR_GDB_FORMAT for parcels_path
+# will use PARCEL_COMMON_KEY for parcels_id_field
+CTGY_CHUNKS = 20
+CTGY_CELL_SIZE = 40
+CTGY_WEIGHTS = "nn"
+CTGY_SAVE_FULL = False #should the table of sub-polygon results be saved to?
+CTGY_SUMMARY_FUNCTIONS = ["min", "max", "median", "mean"],
+CTGY_SCALE_AREA = True
+# TODO: fill in the buildings bath
+BUILDINGS_PATH = "" #fill in the buildings path when you figure it out eh?
+
+"""
+Configuration variables to be used in land use diversity
+"""
+
+# will use YEAR_GBD_FORMAT for parcels_path
+# will use PARCEL_COMMON_KEY for parcels_id_field
+# will use PARCEL_LU_COL for parcels_land_use_field
+LU_RECODE_TABLE = r"K:\Projects\MiamiDade\PMT\Data\Reference\Land_Use_Recode.csv"
+LU_RECODE_FIELD = "DIV_CLASS"
+DIV_ON_FIELD = PARCEL_BLD_AREA
+DIV_AGG_GEOM_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb\Polygons\SummaryAreas"
+DIV_AGG_GEOM_ID = "RowID_"
+DIV_AGG_GEOM_BUFFER = 0,
+DIV_RELEVANT_LAND_USES =["auto", "civic", "education",
+                         "entertainment", "grocery",
+                         "healthcare", "industrial",
+                         "lodging", "mf", "office",
+                         "restaurant", "sf", "shopping"],
+DIV_METRICS = ["simpson", "shannon", "berger-parker", "enp", "chi-squared"],
+DIV_CHISQ_PROPS = None,
+DIV_REGIONAL_ADJ = True,
+DIV_REGIONAL_CONSTS = None
+
+"""
+Configuration variables to be used in imperviousness
+"""
+
+# imperviousness path is the output of the prep function, don't need to specify here
+ZONE_GEOM_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb\Polygons\Blocks"
+ZONE_GEOM_ID = "GEOID10"
 
