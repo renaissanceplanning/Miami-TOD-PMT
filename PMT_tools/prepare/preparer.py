@@ -5,14 +5,15 @@ preparation scripts used set up cleaned geodatabases
 from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 # config global variables
 from PMT_tools.config.prepare_config import IN_CRS, OUT_CRS
-from PMT_tools.config.prepare_config import (CRASH_FIELDS_DICT, USE_CRASH)
-from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FIELDS_DICT, TRANSIT_LONG, TRANSIT_LAT
-from PMT_tools.config.prepare_config import PARCEL_COLS, PARCEL_USE_COLS, PARCEL_AREA_COL, PARCEL_LU_AREAS, PARCEL_BLD_AREA
+from PMT_tools.config.prepare_config import (CRASH_FIELDS_DICT, USE_CRASH)  # crash config
+from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FIELDS_DICT, TRANSIT_LONG, TRANSIT_LAT # transit ridership
+from PMT_tools.config.prepare_config import PARCEL_COLS, PARCEL_USE_COLS, PARCEL_AREA_COL, PARCEL_LU_AREAS, PARCEL_BLD_AREA, PARCEL_LU_COL
 from PMT_tools.config.prepare_config import BG_COMMON_KEY, ACS_COMMON_KEY, LODES_COMMON_KEY
 from PMT_tools.config.prepare_config import BG_PAR_SUM_FIELDS, ACS_RACE_FIELDS, ACS_COMMUTE_FIELDS, LODES_FIELDS, LODES_CRITERIA
 from PMT_tools.config.prepare_config import SKIM_O_FIELD, SKIM_D_FIELD, SKIM_IMP_FIELD, SKIM_DTYPES, SKIM_RENAMES
 from PMT_tools.config.prepare_config import OSM_IMPED, OSM_CUTOFF, BIKE_PED_CUTOFF
 from PMT_tools.config.prepare_config import NETS_DIR, SEARCH_CRITERIA, SEARCH_QUERY, NET_LOADER, NET_BY_YEAR, BIKE_RESTRICTIONS
+from PMT_tools.config.prepare_config import MAZ_AGG_COLS, MAZ_PAR_CONS, SERPM_RENAMES, MAZ_SE_CONS, MODEL_YEARS
 from PMT_tools.config.prepare_config import CENTRALITY_IMPED, CENTRALITY_CUTOFF, CENTRALITY_NET_LOADER
 from PMT_tools.config.prepare_config import TIME_BIN_CODE_BLOCK, IDEAL_WALK_MPH, IDEAL_WALK_RADIUS
 from PMT_tools.config.prepare_config import ACCESS_MODES, MODE_SCALE_REF, ACCESS_TIME_BREAKS, ACCESS_UNITS, O_ACT_FIELDS, D_ACT_FIELDS
@@ -217,7 +218,7 @@ def enrich_block_groups():
             sum_crit=LODES_CRITERIA, par_sum_fields=BG_PAR_SUM_FIELDS
             )
         # Save enriched data
-        dfToTable(bg_df, out_table, overwrite=True)
+        dfToTable(bg_df, out_tbl, overwrite=True)
         # Extend BG output with ACS/LODES data
         in_tables = [race_tbl, commute_tbl, lodes_tbl]
         in_tbl_ids = [ACS_COMMON_KEY, ACS_COMMON_KEY, LODES_COMMON_KEY]
@@ -275,7 +276,7 @@ def process_osm_networks():
     for net_type in ["bike", "walk"]:
         net_type_version = f"{net_type}_{net_version}"
         clean_gdb = makeCleanNetworkGDB(CLEANED, gdb_name=net_type_version)
-        net_type_fd = makeNetFeatureDataSet(clean_gdb, "osm", sr)
+        net_type_fd = makeNetFeatureDataSet(gdb_path=clean_gdb, name="osm", sr=OUT_CRS)
 
         # import edges
         net_raw = PMT.makePath(osm_raw, net_type_version, "edges.shp")
@@ -356,6 +357,7 @@ def process_model_se_data():
             makePath(CLEANED, f"PMT_{year}.gdb"))
         out_fds = validate_feature_dataset(
             makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
+        out_fc = makePath(out_fds, "MAZ")
         maz_se_data = makePath(RAW, "SERPM", "V7", "maz_data.csv") # TODO: standardize SERPM pathing
         # Summarize parcels to MAZ
         print("... summarizing MAZ activities from parcels")
@@ -398,16 +400,17 @@ def process_model_skims():
     # Get field definitions
     o_field = [k for k in SKIM_RENAMES.keys() if SKIM_RENAMES[k] == "OName"][0]
     d_field = [k for k in SKIM_RENAMES.keys() if SKIM_RENAMES[k] == "DName"][0]
-    # Setup input/output tables
-    auto_csv = makePath(RAW, "SERPM", f"GP_Skims_AM_{year}.csv")
-    auto_out = makePath(CLEANED, "SERPM", f"Auto_Skim_{year}.csv")
-    transit_csv = makePath(RAW, "SERPM", f"Tran_Skims_AM_{year}.csv")
-    transit_out = makePath(CLEANED, "SERPM", f"Transit_Skim_{year}.csv")
-    inputs = [auto_csv, transit_csv]
-    outptus = [auto_out, transit_out]
+
     # Clean each input/output for each model year
     for year in MODEL_YEARS:
         print(year)
+        # Setup input/output tables
+        auto_csv = PMT.makePath(RAW, "SERPM", f"GP_Skims_AM_{year}.csv")
+        auto_out = PMT.makePath(CLEANED, "SERPM", f"Auto_Skim_{year}.csv")
+        transit_csv = PMT.makePath(RAW, "SERPM", f"Tran_Skims_AM_{year}.csv")
+        transit_out = PMT.makePath(CLEANED, "SERPM", f"Transit_Skim_{year}.csv")
+        inputs = [auto_csv, transit_csv]
+        outputs = [auto_out, transit_out]
         for i, o in zip(inputs, outputs):
             print(f"... cleaning skim {i}")
             clean_skim(i, o_field, d_field, SKIM_IMP_FIELD, o,
@@ -441,7 +444,7 @@ def process_osm_service_areas():
         net_suffix = NET_BY_YEAR[year][0]
         if net_suffix in solved:
             # Copy from other year if already solved
-            copy_net_result(net_by_year, year, solved_years, expected_fcs)
+            copy_net_result(net_by_year=net_by_year, target_year=year, solved_years=solved_years, fc_names=expected_fcs)
         else:
             # Solve this network
             print(f"\n{net_suffix}")
@@ -485,7 +488,7 @@ def process_centrality():
         checkOverwriteOutput(out_fc, overwrite=True)
         if net_suffix in solved:
             # Copy from other year if already solved
-            copy_net_result(net_by_year, year, solved_years, out_fc_name)
+            copy_net_result(net_by_year=net_by_year, target_year=year, solved_years=solved_years, fc_names=out_fc_name)
         else:
             # Get node and edge features as layers
             print(f"\n{net_suffix}")
@@ -499,35 +502,23 @@ def process_centrality():
             # Select edges by attribute - service roads
             where = arcpy.AddFieldDelimiters(edges, "highway")
             where = where + " LIKE '%service%'"
-            arcpy.SelectLayerByAttribute_management(
-                edges, "NEW_SELECTION", where)
+            arcpy.SelectLayerByAttribute_management(in_layer_or_view=edges, selection_type="NEW_SELECTION",
+                                                    where_clause=where)
             # Select nodes by location - nodes not touching services roads
-            arcpy.SelectLayerByLocation_management(
-                nodes, "INTERSECT", edges,
-                selection_type="NEW_SELECTION",
-                invert_spatial_relationship="INVERT"
-                )
+            arcpy.SelectLayerByLocation_management(in_layer=nodes, overlap_type="INTERSECT", select_features=edges,
+                                                   selection_type="NEW_SELECTION", invert_spatial_relationship="INVERT")
             # Export selected nodes to output fc
             arcpy.FeatureClassToFeatureClass_conversion(
                 nodes, out_fds, out_fc_name)
             oid_field = arcpy.Describe(out_fc).OIDFieldName
-            arcpy.CalculateField_management(out_fc, node_id, f"!{oid_field}!",
-                                            expression_type="PYTHON",
-                                            field_type="LONG"
-                                            )
+            arcpy.CalculateField_management(in_table=out_fc, field=node_id, expression=f"!{oid_field}!",
+                                            expression_type="PYTHON", field_type="LONG")
             # Calculate centrality (iterative OD solves)
-            centrality_df = network_centrality(
-                in_nd=in_nd,
-                in_features=out_fc,
-                net_loader=CENTRALITY_NET_LOADER,
-                name_field=node_id,
-                impedance_attribute=CENTRALITY_IMPED,
-                cutoff=CENTRALITY_CUTOFF,
-                restrictions=BIKE_RESTRICTIONS,
-                chunksize=1000
-                )
+            centrality_df = network_centrality(in_nd=in_nd, in_features=out_fc, net_loader=CENTRALITY_NET_LOADER,
+                                               name_field=node_id, impedance_attribute=CENTRALITY_IMPED,
+                                               cutoff=CENTRALITY_CUTOFF, restrictions=BIKE_RESTRICTIONS, chunksize=1000)
             # Extend out_fc
-            extendTableDf(out_fc, "NODE_ID", centrality_df, "NODE_ID")
+            PMT.extendTableDf(out_fc, "NODE_ID", centrality_df, "NODE_ID")
             # Delete layers to avoid name collisions
             arcpy.Delete_management(edges)
             arcpy.Delete_management(nodes)
@@ -565,8 +556,8 @@ def process_walk_times():
             print("... classifying time bins")
             bin_field = f"bin_{tgt_name}"
             min_time_field = f"min_time_{tgt_name}"
-            parcel_walk_time_bin(
-                out_table, bin_field, min_time_field, TIME_BIN_CODE_BLOCK)
+            parcel_walk_time_bin(in_table=out_table, bin_field=bin_field,
+                                 time_field=min_time_field, code_block=TIME_BIN_CODE_BLOCK)
 
 
 def process_ideal_walk_times():
@@ -598,8 +589,7 @@ def process_ideal_walk_times():
         for target in targets:
             min_time_field = f"min_time_{target}"
             bin_field = f"bin_{target}"
-            parcel_walk_time_bin(
-                out_table, bin_field, min_time_field, TIME_BIN_CODE_BLOCK)
+            parcel_walk_time_bin(out_table, bin_field, min_time_field, TIME_BIN_CODE_BLOCK)
 
 def process_access():
     for year in YEARS:
@@ -619,16 +609,16 @@ def process_access():
             skim_data = makePath(
                 CLEANED, source, f"{mode}_Skim_{skim_year}.csv")
             # Analyze access
-            atd_df = summarizeAccess(skim_data, SKIM_O_FIELD, SKIM_D_FIELD,
-                                     SKIM_IMP_FIELD, zone_data, id_field,
-                                     D_ACT_FIELDS, ACCESS_TIME_BREAKS
+            atd_df = summarizeAccess(skim_table=skim_data, o_field=SKIM_O_FIELD, d_field=SKIM_D_FIELD,
+                                     imped_field=SKIM_IMP_FIELD, se_data=zone_data, id_field=id_field,
+                                     act_fields=D_ACT_FIELDS, imped_breaks=ACCESS_TIME_BREAKS,
                                      units=ACCESS_UNITS, join_by="D",
                                      dtype=SKIM_DTYPES, chunk_size=100000
                                      )
-            afo_df = summarizeAccess(skim_data, SKIM_O_FIELD, SKIM_D_FIELD,
-                                     SKIM_IMP_FIELD, zone_data, id_field,
-                                     O_ACT_FIELDS, ACCESS_TIME_BREAKS
-                                     units=UNITS, join_by="O",
+            afo_df = summarizeAccess(skim_table=skim_data, o_field=SKIM_O_FIELD, d_field=SKIM_D_FIELD,
+                                     imped_field=SKIM_IMP_FIELD, se_data=zone_data, id_field=id_field,
+                                     act_fields=O_ACT_FIELDS, imped_breaks=ACCESS_TIME_BREAKS,
+                                     units=ACCESS_UNITS, join_by="O",
                                      dtype=SKIM_DTYPES, chunk_size=100000
                                      )
             # Merge tables

@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from PMT_tools.PMT import (Comp, And, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
 
 """ Bike Ped Crash Configs """
 # cleaning configuration
@@ -175,7 +176,6 @@ Configuration variables to be used with building permit data
 """
 PERMITS_CAT_CODE_PEDOR = "PD"
 
-
 # status code dict
 PERMITS_STATUS_DICT = dict(
     [
@@ -185,7 +185,6 @@ PERMITS_STATUS_DICT = dict(
         ("B", "Bond submitted")
     ]
 )
-
 
 PERMITS_FIELDS_DICT = dict(
     [
@@ -233,7 +232,6 @@ TRANSIT_RIDERSHIP_TABLES = {
 }
 TRANSIT_LAT = "LAT"
 TRANSIT_LONG = "LONG"
-
 
 # parcel config
 PARCEL_COMMON_KEY = "FOLIO"
@@ -368,7 +366,7 @@ PARCEL_COLS = {
 PARCEL_LU_COL = "DOR_UC"
 PARCEL_AREA_COL = "LND_SQFOOT"
 PARCEL_BLD_AREA = "TOT_LVG_AREA"
-PARCEL_LU_AREAS = { # COL_NAME: (which_field, criteria)
+PARCEL_LU_AREAS = {  # COL_NAME: (which_field, criteria)
     "VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
     "RES_AREA": ["RES_NRES", "RES"],
     "NRES_AREA": ["RES_NRES", "NRES"]
@@ -426,7 +424,6 @@ LODES_CRITERIA = {
                 And([Comp(">=", 100), Comp("<=", 102)])]
 }
 
-
 # SERPM config
 MODEL_YEARS = [2015, 2045]
 MAZ_COMMON_KEY = "MAZ"
@@ -455,87 +452,37 @@ MAZ_AGG_COLS = [
     AggColumn("Total_Employment", rename="TotalJobs"),
     AggColumn("CNS16", rename="HCJobs"),
     AggColumn("CNS15", rename="EdJobs")
-    ]
+]
 # - MAZ consolidation specs (from parcels)
 MAZ_PAR_CONS = [
-    Consolidation("RsrcJobs", ["CNS01", "CNS02"]),
-    Consolidation("IndJobs", ["CNS05", "CNS06", "CNS08"]),
-    Consolidation("ConsJobs", ["CNS07", "CNS17", "CNS18"]),
-    Consolidation("OffJobs", ["CNS09", "CNS10", "CNS11",
-                              "CNS12", "CNS13", "CNS20"]),
-    Consolidation("OthJobs", ["CNS03", "CNS04", "CNS14",
-                              "CNS19"])
+    Consolidation(name="RsrcJobs", input_cols=["CNS01", "CNS02"]),
+    Consolidation(name="IndJobs", input_cols=["CNS05", "CNS06", "CNS08"]),
+    Consolidation(name="ConsJobs", input_cols=["CNS07", "CNS17", "CNS18"]),
+    Consolidation(name="OffJobs", input_cols=["CNS09", "CNS10", "CNS11", "CNS12", "CNS13", "CNS20"]),
+    Consolidation(name="OthJobs", input_cols=["CNS03", "CNS04", "CNS14", "CNS19"])
+]
 # - MAZ consolidation specs (from MAZ se data)
-MAZ_SE_CONS= [
+MAZ_SE_CONS = [
     Consolidation("HH", ["hh"]),
     Consolidation("TotalJobs", ["emp_total"]),
-    Consolidation("ConsJobs": [
-        "emp_retail",
-        "emp_amusement",
-        "emp_hotel",
-        "emp_restaurant_bar",
-        "emp_personal_svcs_retail",
-        "emp_state_local_gov_ent"
-        ]
-    ),
-    Consolidation("EdJobs": [
-        "emp_pvt_ed_k12",
-        "emp_pvt_ed_post_k12_oth",
-        "emp_public_ed"
-        ]
-    ),
-    Consolidation("HCJobs": ["emp_health"]),
-    Consolidation("IndJobs": [
-        "emp_mfg_prod",
-        "emp_mfg_office",
-        "emp_whsle_whs",
-        "emp_trans"
-        ]
-    ),
-    Consolidation("OffJobs": [
-        "emp_prof_bus_svcs",
-        "emp_personal_svcs_office",
-        "emp_state_local_gov_white",
-        "emp_own_occ_dwell_mgmt",
-        "emp_fed_gov_accts",
-        "emp_st_lcl_gov_accts",
-        "emp_cap_accts"
-        ]
-    ),
-    Consolidation("OthJobs": [
-        "emp_const_non_bldg_prod",
-        "emp_const_non_bldg_office",
-        "emp_utilities_prod",
-        "emp_utilities_office",
-        "emp_const_bldg_prod",
-        "emp_const_bldg_office",
-        "emp_prof_bus_svcs_bldg_maint",
-        "emp_religious",
-        "emp_pvt_hh",
-        "emp_scrap_other",
-        "emp_fed_non_mil",
-        "emp_fed_mil",
-        "emp_state_local_gov_blue"
-        ]
-    ),
-    Consolidation("RsrcJobs": ["emp_ag"]),
-    Consolidation("EnrollAdlt": [
-        "collegeEnroll",
-        "otherCollegeEnroll",
-        "AdultSchEnrl"
-        ]
-    ),
-    Consolidation("EnrollK12": [
-        "EnrollGradeKto8",
-        "EnrollGrade9to12",
-        "PrivateEnrollGradeKto8"
-        ]
-    )
+    Consolidation("ConsJobs", ["emp_retail", "emp_amusement", "emp_hotel",
+                               "emp_restaurant_bar", "emp_personal_svcs_retail", "emp_state_local_gov_ent"]),
+    Consolidation("EdJobs", ["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"]),
+    Consolidation("HCJobs", ["emp_health"]),
+    Consolidation("IndJobs", ["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"]),
+    Consolidation("OffJobs", ["emp_prof_bus_svcs", "emp_personal_svcs_office", "emp_state_local_gov_white",
+                              "emp_own_occ_dwell_mgmt", "emp_fed_gov_accts", "emp_st_lcl_gov_accts", "emp_cap_accts"]),
+    Consolidation("OthJobs", ["emp_const_non_bldg_prod", "emp_const_non_bldg_office", "emp_utilities_prod",
+                              "emp_utilities_office", "emp_const_bldg_prod", "emp_const_bldg_office",
+                              "emp_prof_bus_svcs_bldg_maint", "emp_religious", "emp_pvt_hh", "emp_scrap_other",
+                              "emp_fed_non_mil", "emp_fed_mil", "emp_state_local_gov_blue"]),
+    Consolidation("RsrcJobs", ["emp_ag"]),
+    Consolidation("EnrollAdlt", ["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"]),
+    Consolidation("EnrollK12", ["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"])
 ]
 
-
 # osm config
-NET_BY_YEAR = { # TODO: refs should be _q3_2020 (rename q3_2019 gdb's)
+NET_BY_YEAR = {  # TODO: refs should be _q3_2020 (rename q3_2019 gdb's)
     2014: ["_q3_2020", MODEL_YEARS[0]],
     2015: ["_q3_2020", MODEL_YEARS[0]],
     2016: ["_q3_2020", MODEL_YEARS[0]],
@@ -574,7 +521,6 @@ CENTRALITY_NET_LOADER = NetLoader(
     search_query="edges #;osm_ND_Junctions #"
 )
 
-
 # walk times config
 TIME_BIN_CODE_BLOCK = """
 def assignBin(value):
@@ -598,7 +544,7 @@ IDEAL_WALK_RADIUS = "7920 Feet"
 
 # accessibility scores
 ACCESS_MODES = ["Auto", "Transit", "Walk", "Bike"]
-MODE_SCALE_REF = { # Mode: [source (cleaned folder), scale, id_field]
+MODE_SCALE_REF = {  # Mode: [source (cleaned folder), scale, id_field]
     "Auto": ["SERPM", "taz", TAZ_COMMON_KEY],
     "Transit": ["SERPM", "taz", TAZ_COMMON_KEY],
     "Walk": ["OSM_Networks", "maz", MAZ_COMMON_KEY],
@@ -608,4 +554,3 @@ ACCESS_TIME_BREAKS = [15, 30, 45, 60]
 ACCESS_UNITS = "Min"
 D_ACT_FIELDS = ["TotalJobs", "ConsJobs", "HCJobs", "EnrollAdlt", "EnrollK12"]
 O_ACT_FIELDS = ["HH"]
-

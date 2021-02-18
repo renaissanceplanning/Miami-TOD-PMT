@@ -7,12 +7,6 @@ from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 from PMT_tools.config.prepare_config import PARCEL_COMMON_KEY
 from PMT_tools.config.prepare_config import MAZ_COMMON_KEY, TAZ_COMMON_KEY
 
-from PMT_tools.PMT import PMT as PMT # Think we need everything here
-from PMT import gdfToFeatureClass, dfToPoints, extendTableDf, makePath, CLEANED
-from PMT import Comp, And, Or
-from PMT import _loadLocations, _solve, _rowsToCsv
-
-
 import PMT_tools.logger as log
 
 from datetime import time
@@ -29,6 +23,7 @@ import os
 import uuid
 import arcpy
 from six import string_types
+import PMT_tools.PMT as PMT  # Think we need everything here
 
 logger = log.Logger(add_logs_to_arc_messages=True)
 
@@ -115,7 +110,7 @@ def geojson_to_feature_class(geojson_path, geom_type, encoding='utf8'):
         try:
             # convert json to temp feature class
             unique_name = str(uuid.uuid4().hex)
-            temp_feature = makePath("in_memory", f"_{unique_name}")
+            temp_feature = PMT.makePath("in_memory", f"_{unique_name}")
             arcpy.JSONToFeatures_conversion(in_json_file=geojson_path, out_features=temp_feature,
                                             geometry_type=geom_type)
             return temp_feature
@@ -137,8 +132,7 @@ def csv_to_df(csv_file, use_cols, rename_dict):
     rename_dict: dict
         dictionary mapping existing column name to standardized column names
 
-    Returns
-        Pandas dataframe
+    Returns: Pandas dataframe
     -------
 
     """
@@ -208,7 +202,7 @@ def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
     try:
         # convert json to temp feature class
         unique_name = str(uuid.uuid4().hex)
-        temp_feature = makePath("in_memory", f"_{unique_name}")
+        temp_feature = PMT.makePath("in_memory", f"_{unique_name}")
         arcpy.FeatureToPoint_management(in_features=in_fc, out_feature_class=temp_feature,
                                         point_location=point_loc)
         if id_field:
@@ -234,7 +228,7 @@ def polygon_to_points_gpd(poly_fc, id_field=None):
 def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
     pts = polygon_to_points_arc(in_fc=poly_fc, id_field=poly_key)
     with tempfile.TemporaryDirectory() as temp_dir:
-        t_geoj = makePath(temp_dir, "temp.geojson")
+        t_geoj = PMT.makePath(temp_dir, "temp.geojson")
         arcpy.FeaturesToJSON_conversion(in_features=pts, out_json_file=t_geoj,
                                         geoJSON="GEOJSON", outputToWGS84="WGS84")
         with open(t_geoj, "r") as j_file:
@@ -279,7 +273,7 @@ def update_crash_type(feature_class, data_fields, update_field):
 
 def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
     # dump subset to new FC
-    out_fc = makePath(out_path, out_name)
+    out_fc = PMT.makePath(out_path, out_name)
     arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
                                                 out_name=out_name, where_clause=where_clause)
     # update city code/injury severity/Harmful event to text value
@@ -373,8 +367,8 @@ def clean_permit_data(permit_csv, poly_features, permit_key, poly_key, out_file,
     # convert to points
     permit_gdf = add_xy_from_poly(poly_fc=poly_features, poly_key=poly_key,
                                   table_df=permit_df, table_key=permit_key)
-    gdfToFeatureClass(gdf=permit_gdf, out_fc=out_file, new_id_field="ROW_ID",
-                      exclude=['OBJECTID'], sr=out_crs, overwrite=True)
+    PMT.gdfToFeatureClass(gdf=permit_gdf, out_fc=out_file, new_id_field="ROW_ID",
+                          exclude=['OBJECTID'], sr=out_crs, overwrite=True)
 
 
 # Urban Growth Boundary
@@ -413,7 +407,7 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
     arcpy.AddField_management(in_table=out_fc, field_name="IN_UDB", field_type="LONG")
 
     # Get geometry objects
-    temp_udb = makePath("in_memory", "UDB_dissolve")
+    temp_udb = PMT.makePath("in_memory", "UDB_dissolve")
     diss_line = arcpy.Dissolve_management(in_features=udb_fc, out_feature_class=temp_udb)
     with arcpy.da.SearchCursor(diss_line, "SHAPE@", spatial_reference=sr) as c:
         for r in c:
@@ -549,8 +543,8 @@ def prep_transit_ridership(in_table, rename_dict, shape_fields, from_sr, to_sr, 
     # read the transit file to dataframe
     transit_df = read_transit_xls(xls_path=in_table, rename_dict=rename_dict)
     # convert table to points
-    return dfToPoints(df=transit_df, out_fc=out_fc, shape_fields=shape_fields,
-                      from_sr=from_sr, to_sr=to_sr, overwrite=True)
+    return PMT.dfToPoints(df=transit_df, out_fc=out_fc, shape_fields=shape_fields,
+                          from_sr=from_sr, to_sr=to_sr, overwrite=True)
 
 
 # Parcel data
@@ -612,20 +606,19 @@ def prep_parcel_land_use_tbl(parcels_fc, parcel_lu_field, parcel_fields,
         parcel_fields = [parcel_fields]
     par_fields = parcel_fields + [parcel_lu_field]
     par_df = pd.DataFrame(
-        arcpy.da.TableToNumPyArray(parcels_fc, par_fields) # TODO: null values
+        arcpy.da.TableToNumPyArray(parcels_fc, par_fields)  # TODO: null values
     )
     # Read in the land use reference table
     ref_table = pd.read_csv(lu_tbl, dtype=dtype, **kwargs)
 
     # Join
     return par_df.merge(
-        ref_table, how="left", left_on=par_lu_field, right_on=tbl_lu_field)
+        ref_table, how="left", left_on=parcel_lu_field, right_on=tbl_lu_field)
 
 
-def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit, bg_id_field="GEOID10",
-                           par_id_field="PARCELNO", par_lu_field="DOR_UC",
-                           par_bld_area="TOT_LVG_AREA", sum_crit=None,
-                           par_sum_fields=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA],
+def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit=None, bg_id_field="GEOID10",
+                           par_id_field="PARCELNO", par_lu_field="DOR_UC", par_bld_area="TOT_LVG_AREA",
+                           par_sum_fields=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA"]
                            ):
     """
     Relates parcels to block groups based on centroid location and summarizes
@@ -656,7 +649,7 @@ def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit, bg_id_field="GEOID10",
     # Prep output
     if sum_crit is None:
         sum_crit = {}
-    #PMT.checkOverwriteOutput(output=out_tbl, overwrite=overwrite)
+    # PMT.checkOverwriteOutput(output=out_tbl, overwrite=overwrite)
     sr = arcpy.Describe(parcels_fc).spatialReference
 
     # Make parcel feature layer
@@ -680,7 +673,7 @@ def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit, bg_id_field="GEOID10",
                 # Dump selected to data frame
                 par_df = PMT.featureclass_to_df(in_fc=parcel_fl, keep_fields=par_fields, null_val=0)
                 if len(par_df) == 0:
-                    print(f"---  --- no parcels found for BG {bg_id}") #TODO: convert to warning?
+                    print(f"---  --- no parcels found for BG {bg_id}")  # TODO: convert to warning?
                 # Get mean parcel values # TODO: this assumes single part features, might not be needed now?
                 par_grp_fields = [par_id_field] + par_sum_fields
                 par_sum = par_df[par_grp_fields].groupby(par_id_field).mean()
@@ -691,7 +684,7 @@ def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit, bg_id_field="GEOID10",
                 # Select and summarize new fields
                 for grouping in sum_crit.keys():
                     # Mask based on land use criteria
-                    crit = Or(par_df[par_lu_field], sum_crit[grouping])
+                    crit = PMT.Or(par_df[par_lu_field], sum_crit[grouping])
                     mask = crit.eval()
                     # Summarize masked data
                     #  - Parcel means (to account for multi-poly's)
@@ -708,7 +701,7 @@ def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit, bg_id_field="GEOID10",
         bg_df = pd.concat(bg_stack)
         print(f"---  --- {len(bg_df)} block group rows")
         return bg_df
-        #PMT.dfToTable(df=bg_df, out_table=out_tbl)
+        # PMT.dfToTable(df=bg_df, out_table=out_tbl)
     except:
         raise
     finally:
@@ -741,7 +734,7 @@ def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, j
         table_match_field=tbl_id_field,
         df=tbl_df,
         df_match_field=join_id_field
-        )
+    )
 
 
 def prep_parcel_energy_consumption_tbl(in_parcel_lu_tbl, energy_use_field,
@@ -825,7 +818,7 @@ def estimate_parcel_nres_consumption(energy_df, energy_lu_field, energy_sqft_fie
             out_rows.append((par_id, BTU))
 
     df = pd.DataFrame(out_rows, columns=df_cols)
-    extendTableDf(out_table, out_id_field, df, parcel_id_field)
+    PMT.extendTableDf(out_table, out_id_field, df, parcel_id_field)
     return out_table
 
 
@@ -882,8 +875,8 @@ def prep_parcels(in_fc, in_tbl, out_fc, fc_key_field="PARCELNO",
     # Add columns to dissolved features
     print("...joining attributes to features")
     print(par_df.columns)
-    extendTableDf(in_table=out_fc, table_match_field=PARCEL_COMMON_KEY,
-                  df=par_df, df_match_field=PARCEL_COMMON_KEY)
+    PMT.extendTableDf(in_table=out_fc, table_match_field=PARCEL_COMMON_KEY,
+                      df=par_df, df_match_field=PARCEL_COMMON_KEY)
 
 
 # impervious surface
@@ -902,7 +895,7 @@ def get_raster_file(folder):
         for file in os.listdir(folder):
             for extension in raster_formats:
                 if fnmatch.fnmatch(file, f"*{extension}"):
-                    rast_files.append(makePath(folder, file))
+                    rast_files.append(PMT.makePath(folder, file))
 
         if len(rast_files) == 1:
             return rast_files[0]
@@ -946,7 +939,7 @@ def prep_imperviousness(zip_path, clip_path, out_dir, out_sr=None):
 
         # define the output file from input file
         rast_name, ext = os.path.splitext(os.path.split(raster_file)[1])
-        clipped_raster = makePath(temp_unzip_folder, f"clipped{ext}")
+        clipped_raster = PMT.makePath(temp_unzip_folder, f"clipped{ext}")
 
         logger.log_msg("...checking if a transformation of the clip geometry is necessary")
         # Transform the clip geometry if necessary
@@ -954,7 +947,7 @@ def prep_imperviousness(zip_path, clip_path, out_dir, out_sr=None):
         clip_sr = arcpy.Describe(clip_path).spatialReference
         if raster_sr != clip_sr:
             logger.log_msg("...reprojecting clipping geometry to match raster")
-            project_file = makePath(temp_unzip_folder, "Project.shp")
+            project_file = PMT.makePath(temp_unzip_folder, "Project.shp")
             arcpy.Project_management(in_dataset=clip_path, out_dataset=project_file, out_coor_system=raster_sr)
             clip_path = project_file
 
@@ -967,13 +960,14 @@ def prep_imperviousness(zip_path, clip_path, out_dir, out_sr=None):
         # Transform the clipped raster
         logger.log_msg("...copying/reprojecting raster out to project CRS")
         out_sr = arcpy.SpatialReference(out_sr)
-        out_raster = makePath(out_dir, f"{rast_name}_clipped{ext}")
+        out_raster = PMT.makePath(out_dir, f"{rast_name}_clipped{ext}")
         if out_sr != raster_sr:
             arcpy.ProjectRaster_management(in_raster=clipped_raster, out_raster=out_raster,
                                            out_coor_system=out_sr, resampling_type="NEAREST")
         else:
             arcpy.CopyRaster_management(in_raster=clipped_raster, out_rasterdataset=out_raster)
     return out_raster
+
 
 # MAZ/TAZ data prep helpers
 def estimate_maz_from_parcels(par_fc, par_id_field, maz_fc, maz_id_field,
@@ -1020,10 +1014,11 @@ def estimate_maz_from_parcels(par_fc, par_id_field, maz_fc, maz_id_field,
     # Join
     PMT.joinAttributes(int_fc, par_id_field, se_data, se_id_field, "*")
     # Summarize
-    gb_cols = [Column(maz_id_field), Column(taz_id_field)]
+    gb_cols = [PMT.Column(maz_id_field), PMT.Column(taz_id_field)]
     df = PMT.summarizeAttributes(
         int_fc, gb_cols, agg_cols, consolidations=consolidations)
     return df
+
 
 # Consolidate MAZ data (for use in areas outside the study area)
 # TODO: This could become a more generalized method
@@ -1065,7 +1060,7 @@ def consolidate_cols(df, base_fields, consolidations):
 
 def patch_local_regional_maz(maz_par_df, maz_df):
     """
-    Create a regionwide MAZ socioeconomic/demographic data frame based
+    Create a region wide MAZ socioeconomic/demographic data frame based
     on parcel-level and MAZ-level data. Where MAZ features do not overlap
     with parcels, use MAZ-level data.
 
@@ -1075,11 +1070,11 @@ def patch_local_regional_maz(maz_par_df, maz_df):
     """
     # Create a filter to isolate MAZ features having parcel overlap
     patch_fltr = np.in1d(maz_df[MAZ_COMMON_KEY], maz_par_df[MAZ_COMMON_KEY])
-    matching_rows =  maz_df[patch_fltr].copy()
+    matching_rows = maz_df[patch_fltr].copy()
     # Join non-parcel-level data (school enrollments, e.g.) to rows with
     #  other columns defined by parcel level data, creating a raft of
     #  MAZ features with parcel overlap that have all desired columns
-    all_par = maz_par_data.merge(
+    all_par = maz_par_df.merge(
         matching_rows, how="inner", on=MAZ_COMMON_KEY, suffixes=("", "_M"))
     # Drop extraneous columns generated by the join
     drop_cols = [c for c in all_par.columns if c[-2:] == "_M"]
@@ -1090,8 +1085,8 @@ def patch_local_regional_maz(maz_par_df, maz_df):
     return pd.concat([all_par, maz_data[~patch_fltr]])
 
 
-def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv, 
-              chunksize=100000, rename={}, **kwargs):
+def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
+               chunksize=100000, rename={}, **kwargs):
     """
     A simple function to read rows from a skim table (csv file), select
     key columns, and save to an ouptut csv file. Keyword arguments can be
@@ -1119,7 +1114,7 @@ def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
     header = True
     usecols = [o_field, d_field] + imp_fields
     for chunk in pd.read_csv(
-        in_csv, usecols=usecols, chunksize=chunksize, **kwargs):
+            in_csv, usecols=usecols, chunksize=chunksize, **kwargs):
         if rename:
             chunk.rename(columns=rename, inplace=True)
         # write output
@@ -1161,36 +1156,33 @@ def copy_net_result(net_by_year, target_year, solved_years, fc_names):
     if isinstance(fc_names, string_types):
         fc_names = [fc_names]
     # Set a source to copy network analysis results from based on net_by_year
-    target_net = net_by_year[year]
+    target_net = net_by_year[target_year]
     source_year = None
     for solved_year in solved_years:
         solved_net = net_by_year[solved_year]
         if solved_net == target_net:
             source_year = solved_year
             break
-    source_fds = makePath(CLEANED, f"PMT_{source_year}.gdb", "Networks")
-    target_fds = makePath(CLEANED, f"PMT_{target_year}.gdb", "Networks")
+    source_fds = PMT.makePath(PMT.CLEANED, f"PMT_{source_year}.gdb", "Networks")
+    target_fds = PMT.makePath(PMT.CLEANED, f"PMT_{target_year}.gdb", "Networks")
     # Copy feature classes
-    print(f"- copying results from {copy_fd} to {fd}")
+    print(f"- copying results from {source_fds} to {target_fds}")
     for fc_name in fc_names:
         print(f" - - {fc_name}")
-        src_fc = makePath(source_fds, fc_name)
-        tgt_fc = makePath(target_fds, fc_name)
+        src_fc = PMT.makePath(source_fds, fc_name)
+        tgt_fc = PMT.makePath(target_fds, fc_name)
         if arcpy.Exists(tgt_fc):
             arcpy.Delete_management(tgt_fc)
         arcpy.FeatureClassToFeatureClass_conversion(
             src_fc, target_fds, fc_name)
 
-
     for mode in ["walk", "bike"]:
         for dest_grp in ["stn", "parks"]:
             for run in ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]:
                 fc_name = f"{mode}_to_{dest_grp}_{run}"
-                
-                
 
 
-def lines_to_centrality(line_feaures, impedance_attribute):
+def lines_to_centrality(line_features, impedance_attribute):
     """
     Using the "lines" layer output from an OD matrix problem, calculate
     node centrality statistics and store results in a csv table.
@@ -1206,22 +1198,19 @@ def lines_to_centrality(line_feaures, impedance_attribute):
     imp_field = f"Total_{impedance_attribute}"
     # Dump to df
     df = pd.DataFrame(
-        arcpy.da.TableToNumPyArray(
-            line_features, ["Name", imp_field]
-        )
-    )
+        arcpy.da.TableToNumPyArray(line_features, ["Name", imp_field]))
     names = ["N", "Node"]
     df[names] = df["Name"].str.split(" - ", n=1, expand=True)
     # Summarize
     sum_df = df.groupby("Node").agg(
         {"N": "size", imp_field: sum}
-        ).reset_index()
+    ).reset_index()
     # Calculate centrality
-    sum_df["centrality"] = (sum_df.N - 1)/sum_df[imp_field]
+    sum_df["centrality"] = (sum_df.N - 1) / sum_df[imp_field]
     # Add average length
-    sum_df["AvgLength"] = 1/sum_df.centrality
+    sum_df["AvgLength"] = 1 / sum_df.centrality
     # Add centrality index
-    sum_df["CentIdx"] = sum_df.N/sum_df.AvgLength
+    sum_df["CentIdx"] = sum_df.N / sum_df.AvgLength
     return sum_df
 
 
@@ -1285,7 +1274,7 @@ def network_centrality(in_nd, in_features, net_loader,
         output_path_shape="NO_LINES",
         time_of_day=""
     )
-    #Step 2 - add all origins
+    # Step 2 - add all origins
     print("Load all origins")
     in_features = in_features
     arcpy.AddLocations_na(
@@ -1302,13 +1291,13 @@ def network_centrality(in_nd, in_features, net_loader,
         snap_offset=net_loader.snap_offset,
         exclude_restricted_elements=net_loader.exclude_restricted,
         search_query=net_loader.search_query
-        )
+    )
     # Step 3 - iterate through destinations
     print("Iterate destinations and solve")
     # Use origin field maps to expedite loading
     fm = "Name Name #;CurbApproach CurbApproach 0;SourceID SourceID #;SourceOID SourceOID #;PosAlong PosAlong #;SideOfEdge SideOfEdge #"
     for chunk in PMT.iterRowsAsChunks(
-        "OD Cost Matrix\Origins", chunksize=chunksize):
+            "OD Cost Matrix\Origins", chunksize=chunksize):
         # printed dots track progress over chunks
         print(".", end="")
         arcpy.AddLocations_na(
@@ -1316,7 +1305,7 @@ def network_centrality(in_nd, in_features, net_loader,
             sub_layer="Destinations",
             in_table=chunk,
             field_mappings=fm
-            )
+        )
         # Solve OD Matrix
         arcpy.Solve_na("OD Cost Matrix", "SKIP", "CONTINUE")
         # Dump to df
@@ -1343,12 +1332,10 @@ def parcel_walk_time_bin(in_table, bin_field, time_field, code_block):
         to group times in `time_field` into bins to be stored as string
         values in `bin_field`.
     """
-    arcpy.AddField_management(
-        in_table, bin_field, "TEXT", field_length=20)
-    arcpy.CalculateField_management(
-        in_table, bin_field, f"assignBin(!{time_field}!)",
-        expression_type="PYTHON3", code_block=code_block
-    )
+    arcpy.AddField_management(in_table, bin_field, "TEXT", field_length=20)
+    arcpy.CalculateField_management(in_table=in_table, field=bin_field,
+                                    expression=f"assignBin(!{time_field}!)",
+                                    expression_type="PYTHON3", code_block=code_block)
 
 
 def parcel_walk_times(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
@@ -1497,7 +1484,7 @@ def parcel_ideal_walk_time(parcels_fc, parcel_id_field, target_fc,
         par_fields = [parcel_id_field, "SHAPE@X", "SHAPE@Y"]
         out_fields = [parcel_id_field, target_name_field, "minutes"]
         with arcpy.da.SearchCursor(
-            tgt_lyr, tgt_fields, spatial_reference=sr) as tgt_c:
+                tgt_lyr, tgt_fields, spatial_reference=sr) as tgt_c:
             for tgt_r in tgt_c:
                 tgt_name, tgt_feature = tgt_r
                 tgt_x = tgt_feature.centroid.X
@@ -1515,7 +1502,7 @@ def parcel_ideal_walk_time(parcels_fc, parcel_id_field, target_fc,
                 par_df["dx"] = par_df["SHAPE@X"] - tgt_x
                 par_df["dy"] = par_df["SHAPE@Y"] - tgt_y
                 par_df["meters"] = np.sqrt(par_df.dx ** 2 + par_df.dy ** 2) * mpu
-                par_df["minutes"] = (par_df.meters * 60)/(assumed_mph * 1609.344)
+                par_df["minutes"] = (par_df.meters * 60) / (assumed_mph * 1609.344)
                 # store in mini df output
                 tgt_results.append(par_df[out_fields].copy())
         # Bind up results
@@ -1593,7 +1580,7 @@ def summarizeAccess(skim_table, o_field, d_field, imped_field,
     use_cols = [o_field, d_field, imped_field]
     print("... ... ... binning skims")
     for chunk in pd.read_csv(
-        skim_table, usecols=use_cols, chunksize=chunk_size, **kwargs):
+            skim_table, usecols=use_cols, chunksize=chunk_size, **kwargs):
         # Define impedance bins
         low = -np.inf
         criteria = []
@@ -1640,11 +1627,11 @@ def summarizeAccess(skim_table, o_field, d_field, imped_field,
     for act_field, prod_field in zip(act_fields, prod_fields):
         avg_field = f"Avg{units}{act_field}"
         avg_fields.append(avg_field)
-        sum_df[avg_field] = sum_df[prod_field]/sum_df[act_field]
+        sum_df[avg_field] = sum_df[prod_field] / sum_df[act_field]
     # - Join
     final_df = pivot.merge(
         sum_df[avg_fields], how="outer", left_index=True, right_index=True)
-    
+
     return final_df.reset_index()
 
 
@@ -1699,7 +1686,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
     net_layer_ = net_layer.getOutput(0)
 
     try:
-        _loadLocations(net_layer_, "Destinations", dest_pts, dest_name_field,
+        PMT._loadLocations(net_layer_, "Destinations", dest_pts, dest_name_field,
                        net_loader, d_location_fields)
         # Iterate solves as needed
         if o_chunk_size is None:
@@ -1707,9 +1694,9 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
         write_mode = "w"
         header = True
         for o_pts in PMT.iterRowsAsChunks(origin_pts, chunksize=o_chunk_size):
-            _loadLocations(net_layer_, "Origins", o_pts, origin_name_field,
+            PMT._loadLocations(net_layer_, "Origins", o_pts, origin_name_field,
                            net_loader, o_location_fields)
-            s = _solve(net_layer_)
+            s = PMT._solve(net_layer_)
             print("... ... solved, dumping to data frame")
             # Get output as a data frame
             sublayer_names = arcpy.na.GetNAClassNames(net_layer_)
@@ -1744,6 +1731,5 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
     finally:
         print("... ...deleting network problem")
         arcpy.Delete_management(net_layer)
-
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
