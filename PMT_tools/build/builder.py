@@ -137,6 +137,7 @@ def build_enriched_tables(intersection_list, fc_spec_list, enrichment_dict_list,
         # TODO: calculate new summariation information (RES_DENS, FAR, e.g.)
 
 def build_elongated_tables():
+    # TODO: confirm sums are correct. Draft dashboard data suspicious.
     pass
 
 

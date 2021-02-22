@@ -1,4 +1,36 @@
 from collections import OrderedDict
+from .PMT import NetLoader
+
+# Basic features configuration
+BASIC_STATIONS = "SMARTplanStations"
+STN_NAME_FIELD = "Name"
+STN_BUFF_DIST = "2640 Feet"
+STN_BUFF_METERS = 804.672
+STN_DISS_FIELDS = ["Id", "Name", "Status"]
+STN_CORRIDOR_FIELDS = ["Beach",
+                       "EastWest",
+                       "Green",
+                       "Kendall",
+                       "Metromover",
+                       "North",
+                       "Northeast",
+                       "Orange",
+                       "South"]
+
+BASIC_ALIGNMENTS = "SMARTplanAlignments"
+ALIGN_DISS_FIELDS = "Corridor"
+ALIGN_BUFF_DIST = "2640 Feet"
+CORRIDOR_NAME_FIELD = "Corridor"
+
+BASIC_STN_AREAS = "StationAreas"
+BASIC_CORRIDORS = "Corridors"
+BASIC_LONG_STN = "StationsLong"
+BASIC_SUM_AREAS = "SummaryAreas"
+STN_LONG_CORRIDOR = "Corridor"
+
+BASIC_RENAME_DICT = {
+    "EastWest": "East-West"
+}
 from PMT_tools.PMT import (Comp, And, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
 
 """ Bike Ped Crash Configs """

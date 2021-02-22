@@ -5,6 +5,9 @@ preparation scripts used set up cleaned geodatabases
 from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 # config global variables
 from PMT_tools.config.prepare_config import IN_CRS, OUT_CRS
+from PMT_tools.config.prepare_config import BASIC_STATIONS, STN_NAME_FIELD, STN_BUFF_DIST, STN_BUFF_METERS, STN_DISS_FIELDS, STN_CORRIDOR_FIELDS
+from PMT_tools.config.prepare_config import BASIC_ALIGNMENTS, ALIGN_BUFF_DIST, ALIGN_DISS_FIELDS, CORRIDOR_NAME_FIELD
+from PMT_tools.config.prepare_config import BASIC_STN_AREAS, BASIC_CORRIDORS, BASIC_LONG_STN, BASIC_SUM_AREAS, BASIC_RENAME_DICT, STN_LONG_CORRIDOR
 from PMT_tools.config.prepare_config import (CRASH_FIELDS_DICT, USE_CRASH)
 from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FIELDS_DICT, TRANSIT_LONG, TRANSIT_LAT
 from PMT_tools.config.prepare_config import PARCEL_COLS, PARCEL_USE_COLS
@@ -97,6 +100,35 @@ def process_normalized_geometries():
             arcpy.CopyFeatures_management(in_features=lyr, out_feature_class=out_data)
             arcpy.CalculateField_management(in_table=out_data, field="Year", expression=year,
                                             expression_type="PYTHON3", field_type="LONG")
+
+def process_basic_features():
+    print("Making basic features")
+    makeBasicFeatures(
+        BASIC_FEATURES,
+        BASIC_STATIONS,
+        STN_DISS_FIELDS,
+        STN_CORRIDOR_FIELDS,
+        BASIC_ALIGNMENTS,
+        ALIGN_DISS_FIELDS,
+        stn_buff_dist=STN_BUFF_DIST,
+        align_buff_dist=ALIGN_BUFF_DIST,
+        stn_areas_fc=BASIC_STN_AREAS,
+        corridors_fc=BASIC_CORRIDORS,
+        long_stn_fc=BASIC_LONG_STN,
+        rename_dict=BASIC_RENAME_DICT,
+        overwrite=True)
+
+    print("Making summarization features")
+    makeSummaryFeatures(
+        BASIC_FEATURES,
+        BASIC_LONG_STN,
+        BASIC_CORRIDORS,
+        CORRIDOR_NAME_FIELD,
+        BASIC_SUM_AREAS,
+        stn_buffer_meters=STN_BUFF_METERS,
+        stn_name_field=STN_NAME_FIELD,
+        stn_cor_field=STN_LONG_CORRIDOR,
+        overwrite=True)
 
 
 def process_parks():
@@ -679,6 +711,7 @@ def process_ideal_walk_times():
             bin_field = f"bin_{target}"
             parcel_walk_time_bin(out_table, bin_field, min_time_field, TIME_BIN_CODE_BLOCK)
 
+
 def process_access():
     for year in YEARS:
         print(f"Analysis year: {year}")
@@ -768,13 +801,19 @@ def process_lu_diversity():
 
 if __name__ == "__main__":
     # setup basic features
-    # TODO: process_basic_features() AB
+    # process_basic_features() #TODO: include the status field to drive selector widget
 
     # setup any basic normalized geometries
     process_normalized_geometries() # TODO: standardize column names
 
     # copies downloaded parcel data and only minimally necessary attributes into yearly gdb
     # process_parcels()
+
+    # cleans and geocodes permits to associated parcels
+    # process_permits() # TODO: gdfToFeatureclass is not working properly
+
+    # Updates parcels based on permits for near term analysis
+    # apply_permits_to_parcels() TODO: AW, integrate, rename, etc.
 
     # merges park data into a single point featureset and polygon feartureset
     # process_parks()
@@ -784,12 +823,6 @@ if __name__ == "__main__":
 
     # cleans and geocodes transit into included Lat/Lon
     # process_transit() # TODO: reduce geo precision and consolidate points to reduce size
-
-    # cleans and geocodes permits to associated parcels
-    # process_permits() # TODO: gdfToFeatureclass is not working properly
-
-    # Updates parcels based on permits for near term analysis
-    # apply_permits_to_parcels() TODO: AW, integrate, rename, etc.
 
     # prepare near term parcels
     # enrich_block_groups()
