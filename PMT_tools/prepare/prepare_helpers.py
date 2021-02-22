@@ -331,6 +331,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     overwrite: Boolean, default=False
     
     """
+    # TODO: include (All) corridors with Name = (All stations), (Entire corridors), (Outside station areas)
     stn_diss_fields = _listifyInput(stn_diss_fields)
     stn_corridor_fields = _listifyInput(stn_corridor_fields)
     align_diss_fields = _listifyInput(align_diss_fields)
@@ -1960,6 +1961,23 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
     finally:
         print("... ...deleting network problem")
         arcpy.Delete_management(net_layer)
+
+
+def taz_travel_stats(skim_table, trip_table, o_field, d_field, dist_field, ):
+    """
+
+    Parameters
+    -----------
+
+    Returns
+    --------
+    taz_stats_df: DataFrame
+    """
+    # Read skims, trip tables
+    # Summarize trips, total trip mileage by TAZ
+    #
+
+    return taz_stats_df
 
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`

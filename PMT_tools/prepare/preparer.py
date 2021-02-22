@@ -676,13 +676,19 @@ def process_access():
 
 if __name__ == "__main__":
     # setup basic features
-    # process_basic_features()
+    # process_basic_features() #TODO: include the status field to drive selector widget
 
     # setup any basic normalized geometries
     process_normalized_geometries() # TODO: standardize column names
 
     # copies downloaded parcel data and only minimally necessary attributes into yearly gdb
     # process_parcels()
+
+    # cleans and geocodes permits to associated parcels
+    # process_permits() # TODO: gdfToFeatureclass is not working properly
+
+    # Updates parcels based on permits for near term analysis
+    # apply_permits_to_parcels() TODO: AW, integrate, rename, etc.
 
     # merges park data into a single point featureset and polygon feartureset
     # process_parks()
@@ -692,12 +698,6 @@ if __name__ == "__main__":
 
     # cleans and geocodes transit into included Lat/Lon
     # process_transit() # TODO: reduce geo precision and consolidate points to reduce size
-
-    # cleans and geocodes permits to associated parcels
-    # process_permits() # TODO: gdfToFeatureclass is not working properly
-
-    # Updates parcels based on permits for near term analysis
-    # apply_permits_to_parcels() TODO: AW, integrate, rename, etc.
 
     # prepare near term parcels
     # enrich_block_groups()
