@@ -801,6 +801,11 @@ def process_lu_diversity():
 
 if __name__ == "__main__":
     # setup basic features
+    # SETUP CLEAN DATA
+    # -----------------------------------------------
+    # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
+    # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
+
     # process_basic_features() #TODO: include the status field to drive selector widget
 
     # setup any basic normalized geometries
@@ -812,9 +817,6 @@ if __name__ == "__main__":
     # cleans and geocodes permits to associated parcels
     # process_permits() # TODO: gdfToFeatureclass is not working properly
 
-    # Updates parcels based on permits for near term analysis
-    # apply_permits_to_parcels() TODO: AW, integrate, rename, etc.
-
     # merges park data into a single point featureset and polygon feartureset
     # process_parks()
 
@@ -824,18 +826,17 @@ if __name__ == "__main__":
     # cleans and geocodes transit into included Lat/Lon
     # process_transit() # TODO: reduce geo precision and consolidate points to reduce size
 
+    # ENRICH DATA
+    # -----------------------------------------------
+    # Updates parcels based on permits for near term analysis
+    # apply_permits_to_parcels() TODO: AW, integrate, rename, etc.
+
     # prepare near term parcels
     # enrich_block_groups()
 
     # estimate_bg_activity_model() # AW
     # apply_bg_activity_model() # AW
     # allocate_parcel_activity() # AW
-
-    # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
-    # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
-
-    # only updated when new impervious data are made available
-    # process_imperviousness() # AW
 
     # TODO: test/debug methods below (from Alex, not yet tested)
     # TODO: check use validate_fds method instead of makePath in these and helper funcs
@@ -846,17 +847,19 @@ if __name__ == "__main__":
     # prepare MAZ and TAZ socioeconomic/demographic data
     # process_model_se_data()
 
+    # NETWORK ANALYSES
+    # -----------------------------------------------
     # build osm networks from templates
     # process_osm_networks()
-
-    # analyze walk/bike times among MAZs
-    # process_osm_skims()
 
     # assess network centrality for each bike network
     # process_centrality()
 
     # analyze osm network service areas
     # process_osm_service_areas()
+
+    # analyze walk/bike times among MAZs
+    # process_osm_skims()
 
     # record parcel walk times
     # process_walk_times()
@@ -867,18 +870,20 @@ if __name__ == "__main__":
     # prepare serpm TAZ-level travel skims
     # process_model_skims()
 
+    # DEPENDENT ANALYSIS
+    # -----------------------------------------------
     # analyze access by MAZ, TAZ
     # process_access()
 
-    # Travel stats
-    # TODO: vmt methodology (AB)
+    # prepare TAZ trip length and VMT rates
+    # process_travel_stats() #AB
+    # TODO: script to calculate rates so year-over-year diffs can be estimated
+
+    # only updated when new impervious data are made available
+    # process_imperviousness() # AW
+    # TODO: ISGM for year-over-year changes? (low priority)
+
 
 # TODO: incorporate a project setup script or at minimum a yearly build geodatabase function/logic
 # TODO: handle multi-year data as own function
-# TODO: handle parcel tabular data generation year over year
-#       - parcel land use,
-#       - parcel energy consumption
-#       - parcel contiguity
-#       - parcel Economic and Demographic
-#       - parcel Walk Times,
-# TODO: add logging/print statements for procedure tracking
+# TODO: add logging/print statements for procedure tracking (low priority)
