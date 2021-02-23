@@ -495,22 +495,24 @@ MAZ_PAR_CONS = [
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
-    Consolidation("HH", ["hh"]),
-    Consolidation("TotalJobs", ["emp_total"]),
-    Consolidation("ConsJobs", ["emp_retail", "emp_amusement", "emp_hotel",
-                               "emp_restaurant_bar", "emp_personal_svcs_retail", "emp_state_local_gov_ent"]),
-    Consolidation("EdJobs", ["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"]),
-    Consolidation("HCJobs", ["emp_health"]),
-    Consolidation("IndJobs", ["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"]),
-    Consolidation("OffJobs", ["emp_prof_bus_svcs", "emp_personal_svcs_office", "emp_state_local_gov_white",
-                              "emp_own_occ_dwell_mgmt", "emp_fed_gov_accts", "emp_st_lcl_gov_accts", "emp_cap_accts"]),
-    Consolidation("OthJobs", ["emp_const_non_bldg_prod", "emp_const_non_bldg_office", "emp_utilities_prod",
-                              "emp_utilities_office", "emp_const_bldg_prod", "emp_const_bldg_office",
-                              "emp_prof_bus_svcs_bldg_maint", "emp_religious", "emp_pvt_hh", "emp_scrap_other",
-                              "emp_fed_non_mil", "emp_fed_mil", "emp_state_local_gov_blue"]),
-    Consolidation("RsrcJobs", ["emp_ag"]),
-    Consolidation("EnrollAdlt", ["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"]),
-    Consolidation("EnrollK12", ["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"])
+    # Consolidation(name="HH", input_cols=["hh"]),
+    Consolidation(name="TotalJobs", input_cols=["emp_total"]),
+    Consolidation(name="ConsJobs", input_cols=["emp_retail", "emp_amusement", "emp_hotel",
+                                               "emp_restaurant_bar", "emp_personal_svcs_retail", "emp_state_local_gov_ent"]),
+    Consolidation(name="EdJobs", input_cols=["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"]),
+    Consolidation(name="HCJobs", input_cols=["emp_health"]),
+    Consolidation(name="IndJobs", input_cols=["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"]),
+    Consolidation(name="OffJobs", input_cols=["emp_prof_bus_svcs", "emp_personal_svcs_office",
+                                              "emp_state_local_gov_white", "emp_own_occ_dwell_mgmt",
+                                              "emp_fed_gov_accts", "emp_st_lcl_gov_accts", "emp_cap_accts"]),
+    Consolidation(name="OthJobs", input_cols=["emp_const_non_bldg_prod", "emp_const_non_bldg_office",
+                                              "emp_utilities_prod", "emp_utilities_office", "emp_const_bldg_prod",
+                                              "emp_const_bldg_office", "emp_prof_bus_svcs_bldg_maint", "emp_religious",
+                                              "emp_pvt_hh", "emp_scrap_other", "emp_fed_non_mil", "emp_fed_mil",
+                                              "emp_state_local_gov_blue"]),
+    Consolidation(name="RsrcJobs", input_cols=["emp_ag"]),
+    Consolidation(name="EnrollAdlt", input_cols=["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"]),
+    Consolidation(name="EnrollK12", input_cols=["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"])
 ]
 
 # osm config

@@ -43,6 +43,7 @@ SR_WGS_84 = arcpy.SpatialReference(EPSG_LL)
 SR_FL_SPF = arcpy.SpatialReference(EPSG_FLSPF)  # Florida_East_FIPS_0901_Feet
 SR_WEB_MERCATOR = arcpy.SpatialReference(EPSG_WEB_MERC)
 
+
 # %% UTILITY CLASSES
 
 # column and aggregation classes
@@ -208,9 +209,10 @@ class NetLoader():
     Simplifies network functions by passing loading specifications as
     a single argument. This class does no validation of assigned preferences.
     """
-    def __init__(self, search_tolerance, search_criteria, 
+
+    def __init__(self, search_tolerance, search_criteria,
                  match_type="MATCH_TO_CLOSEST", append="APPEND",
-                 snap="NO_SNAP", offset="5 Meters", 
+                 snap="NO_SNAP", offset="5 Meters",
                  exclude_restricted="EXCLUDE", search_query=None):
         self.search_tolerance = search_tolerance
         self.search_criteria = search_criteria
@@ -236,6 +238,7 @@ class ServiceAreaAnalysis():
     name_field: String
     net_loader: NetLoader
     """
+
     def __init__(self, name, network_dataset, facilities, name_field,
                  net_loader):
         self.name = name
@@ -245,7 +248,7 @@ class ServiceAreaAnalysis():
         self.net_loader = net_loader
         self.overlaps = ["OVERLAP", "NON_OVERLAP"]
         self.merges = ["NO_MERGE", "MERGE"]
-    
+
     def solve(self, imped_attr, cutoff, out_ws, restrictions="",
               use_hierarchy=False, net_location_fields=""):
         """
@@ -737,8 +740,8 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
         `in_table` is modified in place
     """
     in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
-    arcpy.da.ExtendTable(in_table=in_table, table_match_field=table_match_field, in_array=in_array,
-                         array_match_field=df_match_field, **kwargs)
+    arcpy.da.ExtendTable(in_table=in_table, table_match_field=table_match_field,
+                         in_array=in_array, array_match_field=df_match_field, **kwargs)
 
 
 def dfToTable(df, out_table, overwrite=False):
@@ -1166,7 +1169,7 @@ def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
         fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
                         "SnapX", "SnapY", "Distance"]
         fmap_vals += net_location_fields
-    fmap = ";".join([f"{ff} {fv} #" for ff,fv in zip(fmap_fields, fmap_vals)])
+    fmap = ";".join([f"{ff} {fv} #" for ff, fv in zip(fmap_fields, fmap_vals)])
     # Load facilities
     print("... ...loading facilities")
     arcpy.na.AddLocations(
@@ -1177,21 +1180,21 @@ def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
         search_tolerance=net_loader.search_tolerance,
         sort_field="",
         search_criteria=net_loader.search_criteria,
-        match_type = net_loader.match_type,
+        match_type=net_loader.match_type,
         append=net_loader.append,
         snap_to_position_along_network=net_loader.snap,
         snap_offset=net_loader.offset,
         exclude_restricted_elements=net_loader.exclude_restricted,
         search_query=net_loader.search_query
-        )
+    )
     # TODO: list which locations are invalid
 
     # Solve
     print("... ...generating service areas")
     arcpy.na.Solve(in_network_analysis_layer=net_layer,
-                    ignore_invalids="SKIP",
-                    terminate_on_solve_error="TERMINATE"
-                    )
+                   ignore_invalids="SKIP",
+                   terminate_on_solve_error="TERMINATE"
+                   )
 
 
 def _exportSublayer(net_layer, sublayer, out_fc):
@@ -1204,7 +1207,7 @@ def _exportSublayer(net_layer, sublayer, out_fc):
     except:
         result_sublayer = arcpy.mapping.ListLayers(
             net_layer, result_lyr_name)[0]
-    
+
     if arcpy.Exists(out_fc):
         arcpy.Delete_management(out_fc)
     out_ws, out_name = os.path.split(out_fc)
@@ -1448,7 +1451,7 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
     NetLoader
     """
     if arcpy.CheckExtension("network") == "Available":
-            arcpy.CheckOutExtension("network")
+        arcpy.CheckOutExtension("network")
     else:
         raise arcpy.ExecuteError("Network Analyst Extension license is not available.")
     if use_hierarchy:

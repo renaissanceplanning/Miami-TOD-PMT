@@ -151,7 +151,7 @@ def process_parks():
 def process_crashes():
     ''' crashes '''
     crash_json = makePath(RAW, "Safety_Security", "bike_ped.geojson")
-    all_features = geojson_to_feature_class(geojson_path=crash_json, geom_type='POINT')
+    all_features = geojson_to_feature_class_arc(geojson_path=crash_json, geom_type='POINT')
     arcpy.FeatureClassToFeatureClass_conversion(all_features, RAW, "DELETE_crashes.shp")
     # reformat attributes and keep only useful
     clean_and_drop(feature_class=all_features, use_cols=USE_CRASH, rename_dict=CRASH_FIELDS_DICT)
@@ -187,7 +187,7 @@ def process_udb():
     county_fc = makePath(RAW, "CensusGeo", "Miami-Dade_Boundary.geojson")
     out_fc = makePath(CLEANED, "UrbanDevelopmentBoundary.shp")
 
-    temp_fc = geojson_to_feature_class(geojson_path=udb_fc, geom_type="POLYLINE")
+    temp_fc = geojson_to_feature_class_arc(geojson_path=udb_fc, geom_type="POLYLINE")
     udbLineToPolygon(udb_fc=temp_fc, county_fc=county_fc, out_fc=out_fc)
 
 
@@ -224,7 +224,7 @@ def process_parcels():
         usecols = PARCEL_USE_COLS.get(year, PARCEL_USE_COLS["DEFAULT"])
         csv_kwargs = {"dtype": {"PARCEL_ID": str, "CENSUS_BK": str},
                       "usecols": usecols}
-        prep_parcels(in_fc=in_fc, in_tbl=in_csv, out_fc=out_fc, fc_key_field="PARCELNO",
+        prep_parcels(in_fc=in_fc, in_tbl=in_csv, out_fc=out_fc, fc_key_field="PARCELNO", new_fc_key_field=None,
                      tbl_key_field="PARCEL_ID", tbl_renames=renames, **csv_kwargs)
         arcpy.CalculateField_management(in_table=out_fc, field="Year", expression=year,
                                         expression_type="PYTHON3", field_type="LONG")
@@ -290,7 +290,7 @@ def process_parcel_land_use():
         tbl_lu_field = "DOR_UC"
         dtype={"DOR_UC": int}
         par_df = prep_parcel_land_use_tbl(parcels_fc, par_lu_field, par_fields,
-                                          lu_table, tbl_lu_field, dtype=dtype)
+                                          lu_table, tbl_lu_field, dtype_map=dtype)
         # Calculate area columns
         for par_lu_col in PARCEL_LU_AREAS.keys():
             ref_col, crit = PARCEL_LU_AREAS[par_lu_col]
@@ -306,7 +306,7 @@ def process_imperviousness():
     impervious_download = makePath(RAW, "Imperviousness.zip")
     county_boundary = makePath(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures", "MiamiDadeCountyBoundary")
     out_dir = validate_directory(makePath(CLEANED, "IMPERVIOUS"))
-    impv_raster = prep_imperviousness(zip_path=impervious_download, clip_path=county_boundary, out_dir=out_dir, out_sr=EPSG_FLSPF)
+    impv_raster = prep_imperviousness(zip_path=impervious_download, clip_path=county_boundary, out_dir=out_dir, transform_crs=EPSG_FLSPF)
     for year in YEARS:
         gdb = YEAR_GDB_FORMAT.replace("{year}", str(year))
         if "{year}" in ZONE_GEOM_FORMAT:
@@ -764,7 +764,7 @@ def process_contiguity():
         if CTGY_SAVE_FULL == True:
             full_path = makePath(gdb, "Contiguity_full_singlepart")
             dfToTable(ctgy_full, full_path)
-        ctgy_summarized = contiguity_summary(full_results_table = ctgy_full,
+        ctgy_summarized = contiguity_summary(full_results_df= ctgy_full,
                                              parcels_id_field = PARCEL_COMMON_KEY,
                                              summary_funs = CTGY_SUMMARY_FUNCTIONS,
                                              area_scaling = CTGY_SCALE_AREA)
