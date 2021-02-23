@@ -4080,3 +4080,377 @@ def lu_diversity(parcels_path,
     if regional_adjustment == True and regional_constants is None:
         div_frames["region"] = area_div
     return div_frames
+
+
+def prep_permits_units_reference(parcels_path,
+                                 permits_path,
+                                 lu_match_field,
+                                 parcels_living_area_field,
+                                 permits_units_field,
+                                 permits_living_area_name,
+                                 units_match_dict={}):
+    '''
+    creates a reference table by which to convert various units provided in
+    the Florida permits data to building square footage
+    
+    Parameters
+    ----------
+    parcels_path: path
+        path to MOST RECENT parcels data (see notes)
+    permits_path: path
+        path to the building permits data
+    lu_match_field: str
+        field name for a land use field present in BOTH the parcels and
+        permits data
+    parcels_living_area_field: str
+        field name in the parcels for the total living area (building area)
+    permits_units_field: str
+        field name in the permits for the unit of measurement for permit
+        types
+    permits_living_area_name: str
+        unit name for building area in the `permits_units_field`
+    units_match_dict: dict
+        a dictionary of the format `{unit_name: parcel_field, ...}`, where the
+        `unit_name` is one of the unit names present in the permits data's
+        `permits_units_field`, and the `parcel_field` is the field name in the
+        parcels corresponding to that unit. It should be used to identify
+        non-building area fields in the parcels for which we can calculate
+        a building area/unit for the multiplier. `parcel_field` can also
+        take the form of a basic function (+,-,/,*) of a column, see Notes for
+        specifications
+        
+    Notes
+    -----
+    The most up-to-date parcels data available should be used, because units 
+    multipliers for the short term should be based on the most current data
+    
+    To specify a function for the units_match_field, use the format
+    "{field} {function sign} {number}". So, for example, to map an 'acre' unit
+    in the permits to a 'land_square_foot' field in the parcels, you'd use the
+    dictionary entry `'acre': 'land_square_foot' / 43560`
+    
+    Returns
+    -------
+    pandas dataframe
+        a table of units multipliers/overwrites by land use
+    '''
+    
+    # Loading data
+    # ------------
+    
+    # To set up for loading the parcels, we'll need to identify desired unit 
+    # fields that are not building square footage. These are provided in the 
+    # values of the units_match_dict; however, some of them might be given
+    # as functions (i.e. to match to a unit, a function of a parcels field is
+    # required). So, we need to isolate the field names and the functional 
+    # components
+    logger.log_msg("...identifying relevant parcel fields")
+    
+    match_fields = []
+    match_functions = []
+    
+    for key in units_match_dict.keys():
+        # Field
+        field = re.findall("^(.*[A-Za-z])", units_match_dict[key])[0]
+        if field not in match_fields:
+            match_fields.append(field)
+        # Function
+        fun = units_match_dict[key].replace(field, "")
+        if fun != "":
+            fun = ''.join(['parcels["',
+                           field,
+                           '"] = parcels["',
+                           field,
+                           '"]',
+                           fun])
+            if field not in match_functions:
+                match_functions.append(fun)   
+        # Overwrite value
+        units_match_dict[key] = field
+    
+    # Parcels: we only need to keep a few fields from the parcels: the 
+    # lu_match_field, the parcels_living_area_field, and any values in the 
+    # match_fields (calculated above from units_match_dict). If we have any 
+    # functions to apply (again, calcualted above from units_match_dict),
+    # we'll do that too.
+    logger.log_msg("...reading/formatting parcels")
+    
+    parcels_sr = arcpy.Describe(parcels_path).spatialReference
+    parcels_fields = [lu_match_field, parcels_living_area_field] + match_fields
+    parcels = arcpy.da.FeatureClassToNumPyArray(in_table = parcels_path,
+                                                field_names = parcels_fields,
+                                                spatial_reference = parcels_sr,
+                                                null_value = 0)
+    parcels = pd.DataFrame(parcels)
+    for fun in match_functions:
+        exec(fun)
+    
+    # Permits: like with the parcels, we only need to keep a few fields: 
+    # the lu_match_field, and the units_field. Also, we only need to keep
+    # unique rows of this frame (otherwise we'd just be repeating
+    # calculations!)
+    logger.log_msg("...reading/formatting permits")
+    
+    permits_sr = arcpy.Describe(permits_path).spatialReference
+    permits_fields = [lu_match_field, permits_units_field]
+    permits = arcpy.da.FeatureClassToNumPyArray(in_table = permits_path,
+                                                field_names = permits_fields,
+                                                spatial_reference = permits_sr,
+                                                null_value = 0)
+    permits = pd.DataFrame(permits)
+    permits = permits.drop_duplicates().reset_index(drop=True)
+    
+    # Multipliers and overwrites 
+    # --------------------------
+    # Now, we loop through the units to calculate multipliers. We'll actually
+    # have two classes: multipliers and overwrites. Multipliers imply that
+    # the unit can be converted to square footage using some function of the 
+    # unit; overwrites imply that this conversion unavailable
+    
+    
+    # To do this, we loop over the rows of permits. There are 3 possible
+    # paths for each row
+    # 1. If the unit of the row is already square footage, we don't need any
+    # additional processing
+    #   Multiplier: 1
+    #   Overwrite: None
+    # 2. If the unit is one of the keys in units_match_dict, this means we can
+    # calculate a square footage / unit from the parcels. We do this relative
+    # to all parcels with that row's land use
+    #   Multiplier: median(square footage / unit)
+    #   Overwrite: None
+    # 2. If the unit is NOT one of the keys in units_match_dict, this means 
+    # we have to rely on average square footage. This is an overwrite, not a
+    # multiplier, and is calculated relative to all parcels with that row's
+    # land use
+    #   Multiplier: None
+    #   Overwrite: median(square footage)
+    logger.log_msg("...calculating multipliers and overwrites")
+    
+    # First we initialize the loop with a looping index and lists to store
+    # the results    
+    rows = np.arange(len(permits.index))
+    units_multipliers = []
+    units_overwrites = []
+    
+    for row in rows:
+        # Unit and land use for the row
+        unit = permits[permits_units_field][row]
+        lu = permits[lu_match_field][row]
+        
+        # Case (1)
+        if unit == permits_living_area_name:
+            units_multipliers.append(1)
+            units_overwrites.append(None)
+        
+        # Cases (2) and (3)
+        else:
+            # Parcels of the row's land use
+            plu = parcels[parcels[lu_match_field] == lu]
+            
+            # Case (2)
+            if unit in units_match_dict.keys():
+                per = plu[parcels_living_area_field] / plu[units_match_dict[unit]]
+                median_value = np.median(per)
+                units_multipliers.append(median_value)
+                units_overwrites.append(None)
+            
+            # Case (3)
+            else: 
+                per = plu[parcels_living_area_field]
+                median_value = np.median(per)
+                units_multipliers.append(None)
+                units_overwrites.append(median_value)
+            
+    # Since our results are lists, we can just attach them back to the permits
+    # as new columns
+    logger.log_msg("...binding results to the permits data")
+      
+    permits["Multiplier"] = units_multipliers
+    permits["Overwrite"] = units_overwrites
+    
+    # Done 
+    # ----
+    return permits
+
+
+def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
+                             parcels_id_field, parcels_lu_field, parcels_living_area_field, parcels_land_value_field, parcels_total_value_field, parcels_buildings_field,
+                             permits_id_field, permits_lu_field, permits_units_field, permits_values_field, permits_cost_field,
+                             save_gdb_location, units_field_match_dict={}):
+    
+    # First, we need to initialize a save feature class. The feature class
+    # will be a copy of the parcels with a unique ID (added by the function)
+    logger.log_msg("...initializing a save feature class")
+
+    # Add a unique ID field to the parcels called "ProcessID"
+    logger.log_msg("... ...adding a unique ID field for individual parcels")
+    # creating a temporary copy of parcels
+    temp_parcels = PMT.makePath("in_memory", "temp_parcels")
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path="in_memory", out_name="temp_parcels")
+    process_id_field = PMT.add_unique_id(feature_class=temp_parcels)
+
+    logger.log_msg("... ...reading/formatting parcels")
+    # read in all of our data
+    #   - read the parcels (after which we'll remove the added unique ID from the original data). T
+    parcels_sr = arcpy.Describe(temp_parcels).spatialReference
+    parcels_fields = [f.name for f in arcpy.ListFields(temp_parcels) if not f.name in ["OID","Shape","Shape_Length","Shape_Area"]]
+    parcels_arr = arcpy.da.FeatureClassToNumPyArray(in_table=temp_parcels, field_names=parcels_fields,
+                                                    spatial_reference=parcels_sr, null_value=0)
+    parcels_df = pd.DataFrame(parcels_arr)
+
+    # create output dataset keeping only process_id and delete temp file
+    logger.log_msg("... ...creating save feature class")
+    fmap = arcpy.FieldMappings()
+    fm = arcpy.FieldMap()
+    fm.addInputField(temp_parcels, process_id_field)
+    fmap.addFieldMap(fm)
+    short_term_parcels = arcpy.FeatureClassToFeatureClass_conversion(
+        in_features=temp_parcels, out_path=save_gdb_location, out_name="Parcels", field_mapping=fmap
+    )[0]
+    arcpy.Delete_management(in_data=temp_parcels)
+    
+    # Now we're ready to process the permits to create the short term parcels
+    # data
+    logger.log_msg("...creating short term parcels")
+    
+    # First we read the permits
+    logger.log_msg("... ...reading/formatting permits_df")
+    permits_sr = arcpy.Describe(permits_path).spatialReference
+    permits_fields = [permits_id_field, permits_lu_field, permits_units_field, permits_values_field, permits_cost_field]
+    permit_array = arcpy.da.FeatureClassToNumPyArray(in_table=permits_path, field_names=permits_fields,
+                                                     spatial_reference=permits_sr, null_value=0)
+    permits_df = pd.DataFrame(permit_array)
+    permits_df = permits_df[permits_df[permits_values_field] >= 0]
+
+    # Now the permits reference table,
+    logger.log_msg("... ...reading/formatting permits reference")
+    if fnmatch.fnmatch(name=permits_reference_path, pat="*gdb*"):
+        ref_fields = [f.name for f in arcpy.ListFields(permits_reference_path)]
+        ref_array = arcpy.da.TableToNumPyArray(in_table=permits_reference_path,
+                                               field_names=ref_fields)
+        ref_df = pd.DataFrame(ref_array)
+    else:
+        ref_df = pd.read_csv(permits_reference_path)
+
+    # Merge the permits_df and permits_df reference
+    #   - join the two together on the permits_lu_field and permits_units_field
+    logger.log_msg("... ...merging permits_df and permits_df reference")
+    permits_df = pd.merge(left=permits_df, right=ref_df,
+                          left_on=[permits_lu_field, permits_units_field],
+                          right_on=[permits_lu_field, permits_units_field], how="left")
+
+    # Now we add to permits_df the field matches to the parlces (which will be
+    # helpful come the time of updating parcels from the permits_df)
+    if units_field_match_dict is not None:
+        logger.log_msg("... ...joining units-field matches")
+        ufm = pd.DataFrame.from_dict(units_field_match_dict, orient="index").reset_index()
+        ufm.columns = [permits_units_field, "Parcel_Field"]
+        permits_df = pd.merge(left=permits_df, right=ufm,
+                              left_on=permits_units_field, right_on=permits_units_field, how="left")
+
+    # calculate the new building square footage for parcel in the permit features
+    # using the reference table multipliers and overwrites
+    logger.log_msg("... ...applying unit multipliers and overwrites")
+    new_living_area = []
+    for value, multiplier, overwrite in zip(
+            permits_df[permits_values_field],
+            permits_df["Multiplier"],
+            permits_df["Overwrite"]):
+        if np.isnan(overwrite) and not np.isnan(multiplier):
+            new_living_area.append(value * multiplier)
+        elif np.isnan(multiplier) and not np.isnan(overwrite):
+            new_living_area.append(overwrite)
+        else:
+            new_living_area.append(0)
+
+    logger.log_msg("... ...appending new living area values to permits_df data")
+    permits_df["UpdTLA"] = new_living_area
+    permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
+
+    # update the parcels with the info from the permits_df
+    #   - match building permits_df to the parcels using id_match_field,
+    #   - overwrite parcel LU, building square footage, and anything specified in the match dict
+    #   - add replacement flag
+    logger.log_msg("... ...collecting updated parcel data")
+    pids = np.unique(permits_df[permits_id_field])
+    update = []
+    for i in pids:
+        df = permits_df[permits_df[permits_id_field] == i]
+        if len(df.index) > 1:
+            pid = pd.Series(i, index=[permits_id_field])
+            # Living area by land use
+            total_living_area = df.groupby(permits_lu_field)["UpdTLA"].agg("sum").reset_index()
+            # Series for land use [with most living area]
+            land_use = pd.Series(total_living_area[permits_lu_field][np.argmax(total_living_area["UpdTLA"])],
+                                 index=[permits_lu_field])
+            # Series for living area (total across all land uses)
+            ba = pd.Series(sum(total_living_area["UpdTLA"]), index=[parcels_living_area_field])
+            # Series for other fields (from units-field match)
+            others = df.groupby("Parcel_Field")[permits_values_field].agg("sum")
+            # Series for cost
+            cost = pd.Series(sum(df[permits_cost_field]), index=[permits_cost_field])
+            # Bind
+            df = pd.DataFrame(pd.concat([pid, land_use, ba, others, cost], axis=0)).T
+        else:
+            # Rename columns to match parcels
+            df.rename(columns={"UpdTLA": parcels_living_area_field,
+                               permits_values_field: df.Parcel_Field.values[0]},
+                      inplace=True)
+            # Drop unnecessary columns (including nulls from units-field match)
+            df.drop(columns=[permits_units_field, "Parcel_Field"], inplace=True)
+            df = df.loc[:, df.columns.notnull()]
+        # Append the results to our storage list
+        update.append(df)
+
+    # Now we just merge up the rows. We'll also add 2 columns:
+    #    - number of buildings = 1 (a constant assumption, unless TLA == 0)
+    #    - a column to indicate that these are update parcels from the permits_df
+    # We'll also name our columns to match the parcels
+    update = pd.concat(update, axis=0).reset_index(drop=True)
+    update.fillna(0, inplace=True)
+    update[parcels_buildings_field] = 1
+    update.loc[update[parcels_living_area_field] == 0, parcels_buildings_field] = 0
+    update["PERMIT"] = 1
+    update.rename(columns = {permits_id_field: parcels_id_field,
+                             permits_lu_field: parcels_lu_field},
+                  inplace=True)
+    
+    # Finally, we want to update the value field. To do this, we take the
+    # max of previous value and previous land value + cost of new development
+    logger.log_msg("... ...estimating parcel value after permit development")
+    pv = parcels_df[parcels_df[parcels_id_field].isin(pids)]
+    pv = pv.groupby(parcels_id_field)[[parcels_land_value_field, parcels_total_value_field]].sum().reset_index()
+    update = pd.merge(update, pv,
+                      on = parcels_id_field, how = "left")
+    update["NV"] = update[parcels_land_value_field] + update[permits_cost_field]
+    update[parcels_total_value_field] = np.maximum(update["NV"], update[parcels_total_value_field])
+    update.drop(columns = ["NV", parcels_land_value_field, "COST"],
+                inplace=True)
+
+    # make the replacements. - drop all the rows from the parcels whose IDs are in the permits_df, - add all the rows
+    # for the data we just collected. and retain the process ID from the parcels we're dropping for the sake of joining
+    logger.log_msg("... ...replacing parcel data with updated information")
+    to_drop = parcels_df[parcels_df[parcels_id_field].isin(pids)]
+    process_ids = to_drop.groupby(parcels_id_field)["ProcessID"].min().reset_index()
+    update = pd.merge(update, process_ids, on=parcels_id_field, how="left")
+    parcel_update = parcels_df[~parcels_df[parcels_id_field].isin(pids)]
+    parcel_update["PERMIT"] = 0
+    final_update = pd.concat([parcel_update, update], axis=0).reset_index(drop=True)
+
+    # Now we just write!
+    logger.log_msg("")
+    logger.log_msg("Writing results")
+    
+    # join to initialized feature class using extend table (and delete the
+    # created ID when its all over)
+    logger.log_msg("... ...joining results to save feature class (be patient, this will take a while)")
+    PMT.extendTableDf(in_table=short_term_parcels, table_match_field=process_id_field,
+                      df=final_update, df_match_field="ProcessID")
+    arcpy.DeleteField_management(in_table=short_term_parcels, drop_field=process_id_field)
+    
+    # Then we're done -- return the file path
+    logger.log_msg("")
+    logger.log_msg("Done!")
+    logger.log_msg("")
+    return short_term_parcels
