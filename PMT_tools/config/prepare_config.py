@@ -601,9 +601,8 @@ CTGY_WEIGHTS = "nn"
 CTGY_SAVE_FULL = False #should the table of sub-polygon results be saved to?
 CTGY_SUMMARY_FUNCTIONS = ["min", "max", "median", "mean"],
 CTGY_SCALE_AREA = True
-# TODO: fill in the buildings bath
-BUILDINGS_PATH = "" #fill in the buildings path when you figure it out eh?
-
+# TODO: fill in the PROPER buildings path
+BUILDINGS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\OSM_Buildings\OSM_Buildings_20201001111703.shp"
 """
 Configuration variables to be used in land use diversity
 """
@@ -634,3 +633,38 @@ Configuration variables to be used in imperviousness
 # imperviousness path is the output of the prep function, don't need to specify here
 ZONE_GEOM_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb\Polygons\Blocks"
 ZONE_GEOM_ID = "GEOID10"
+
+"""
+Configuration variables to be used in permits/short term parcels prep
+"""
+
+# For building the reference table
+# Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
+PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Dade_BuildingPermits.shp"
+# Use PARCEL_LU_COL for lu_match_field
+# Use PARCEL_BLD_AREA for parcels_living_area_field
+PERMITS_UNITS_FIELD = "UNITS"
+PERMITS_BLD_AREA_NAME = "sq. ft."
+REF_TABLE_UNITS_MATCH = {"bed": "NO_RES_UNTS",
+                         "room": "NO_RES_UNTS",
+                         "unit": "NO_RES_UNTS",
+                         "acre": "LND_SQFOOT / 43560"}
+    
+# For building the short term parcels
+# Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
+PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Dade_BuildingPermits.shp"
+PERMITS_REF_TABLE_PATH = r"K:\Projects\MiamiDade\PMT\Data\Reference\permits_units_reference_table.csv"
+# Use PARCEL_COMMON_KEY for parcels_id_field
+# Use PARCEL_LU_COL for parcels_lu_field
+# USE PARCEL_BLD_AREA parcels_living_area_field
+PARCEL_LAND_VALUE = "LND_VAL"
+PARCEL_JUST_VALUE = "JV"
+PARCEL_BUILDINGS = "NO_BULDNG"
+PERMITS_ID_FIELD = "PARCELNO"
+PERMITS_LU_FIELD = "DOR_UC"
+# Use PERMITS_UNITS_FIELD for permits units field
+PERMITS_VALUES_FIELD = "UNITS_VAL"
+PERMITS_COST_FIELD = "COST"
+SHORT_TERM_PARCELS_UNITS_MATCH = {"bed": "NO_RES_UNTS",
+                                  "room": "NO_RES_UNTS",
+                                  "unit": "NO_RES_UNTS"}

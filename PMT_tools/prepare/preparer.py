@@ -27,6 +27,11 @@ from PMT_tools.config.prepare_config import DIV_ON_FIELD, LU_RECODE_TABLE, LU_RE
 from PMT_tools.config.prepare_config import DIV_AGG_GEOM_FORMAT, DIV_AGG_GEOM_ID, DIV_AGG_GEOM_BUFFER
 from PMT_tools.config.prepare_config import DIV_RELEVANT_LAND_USES, DIV_METRICS, DIV_CHISQ_PROPS, DIV_REGIONAL_ADJ, DIV_REGIONAL_CONSTS
 from PMT_tools.config.prepare_config import ZONE_GEOM_FORMAT, ZONE_GEOM_ID
+from PMT_tools.config.prepare_config import PERMITS_PATH, PERMITS_REF_TABLE_PATH, REF_TABLE_UNITS_MATCH, SHORT_TERM_PARCELS_UNITS_MATCH
+from PMT_tools.config.prepare_config import PERMITS_UNITS_FIELD, PERMITS_BLD_AREA_NAME, PERMITS_ID_FIELD, PERMITS_LU_FIELD, PERMITS_VALUES_FIELD, PERMITS_COST_FIELD
+from PMT_tools.config.prepare_config import PARCEL_LAND_VALUE, PARCEL_JUST_VALUE, PARCEL_BUILDINGS
+
+
 
 OSM_IMPED = "Minutes"
 OSM_CUTOFF = "15 30"
@@ -796,6 +801,45 @@ def process_lu_diversity():
         for key, value in lu_dict.items():
             write_to = makePath(gdb, ''.join(["Diversity_", key]))
             dfToTable(value, write_to)
+            
+            
+def process_permits_units_reference():
+    PARCELS_PATH = makePath(YEAR_GDB_FORMAT.replace("{year}", max(YEARS)),
+                            "Polygons",
+                            "Parcels")
+    purt = prep_permits_units_reference(parcels_path = PARCELS_PATH,
+                                        permits_path = PERMITS_PATH,
+                                        lu_match_field = PARCEL_LU_COL,
+                                        parcels_living_area_field = PARCEL_BLD_AREA,
+                                        permits_units_field = PERMITS_UNITS_FIELD,
+                                        permits_living_area_name = PERMITS_BLD_AREA_NAME,
+                                        units_match_dict = REF_TABLE_UNITS_MATCH)
+    save_to = makePath("" # TODO: where is the reference folder?
+                       "permits_units_reference_table.csv")
+    dfToTable(purt, save_to)
+    
+
+def process_short_term_parcels():
+    PARCELS_PATH = makePath(YEAR_GDB_FORMAT.replace("{year}", max(YEARS)),
+                            "Polygons",
+                            "Parcels")
+    SAVE_GDB = "" #TODO: where is this getting saved?
+    build_short_term_parcels(parcels_path=PARCELS_PATH,
+                             permits_path=PERMITS_PATH,
+                             permits_reference_path=PERMITS_REF_TABLE_PATH,
+                             parcels_id_field=PARCEL_COMMON_KEY,
+                             parcels_lu_field=PARCEL_LU_COL,
+                             parcels_living_area_field=PARCEL_BLD_AREA,
+                             parcels_land_value_field=PARCEL_LAND_VALUE,
+                             parcels_total_value_field=PARCEL_JUST_VALUE,
+                             parcels_buildings_field=PARCEL_BUILDINGS,
+                             permits_id_field=PERMITS_ID_FIELD,
+                             permits_lu_field=PERMITS_LU_FIELD,
+                             permits_units_field=PERMITS_UNITS_FIELD,
+                             permits_values_field=PERMITS_VALUES_FIELD,
+                             permits_cost_field=PERMITS_COST_FIELD,
+                             save_gdb_location=SAVE_GDB,
+                             units_field_match_dict=SHORT_TERM_PARCELS_UNITS_MATCH)
 
 
 
@@ -829,14 +873,15 @@ if __name__ == "__main__":
     # ENRICH DATA
     # -----------------------------------------------
     # Updates parcels based on permits for near term analysis
-    # apply_permits_to_parcels() TODO: AW, integrate, rename, etc.
+    # process_permits_units_reference()
+    # process_short_term_parcels()
 
     # prepare near term parcels
     # enrich_block_groups()
 
-    # estimate_bg_activity_model() # AW
-    # apply_bg_activity_model() # AW
-    # allocate_parcel_activity() # AW
+    # process_bg_estimate_activity_models()
+    # process_bg_apply_activity_models()
+    # process_allocate_bg_to_parcels()
 
     # TODO: test/debug methods below (from Alex, not yet tested)
     # TODO: check use validate_fds method instead of makePath in these and helper funcs
