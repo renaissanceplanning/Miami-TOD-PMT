@@ -55,7 +55,7 @@ def cleanParks(raw_dir, poly_fcs, points_fc, clean_dir, out_poly,
     """
     # Merge polygons
     mergeFeatures(raw_dir, poly_fcs, clean_dir, out_poly,
-                      drop_columns=drop_columns, rename_columns=rename_columns)
+                  drop_columns=drop_columns, rename_columns=rename_columns)
     # Copy points
     in_points = makePath(raw_dir, points_fc)
     out_points = makePath(clean_dir, out_points)
