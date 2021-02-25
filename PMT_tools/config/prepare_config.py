@@ -1,21 +1,14 @@
 from collections import OrderedDict
-from .PMT import NetLoader
+from PMT_tools.PMT import (Comp, And, Column, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
 
-# Basic features configuration
+""" Basic features configuration """
 BASIC_STATIONS = "SMARTplanStations"
 STN_NAME_FIELD = "Name"
 STN_BUFF_DIST = "2640 Feet"
 STN_BUFF_METERS = 804.672
 STN_DISS_FIELDS = ["Id", "Name", "Status"]
-STN_CORRIDOR_FIELDS = ["Beach",
-                       "EastWest",
-                       "Green",
-                       "Kendall",
-                       "Metromover",
-                       "North",
-                       "Northeast",
-                       "Orange",
-                       "South"]
+STN_CORRIDOR_FIELDS = ["Beach", "EastWest", "Green", "Kendall", "Metromover",
+                       "North", "Northeast", "Orange", "South"]
 
 BASIC_ALIGNMENTS = "SMARTplanAlignments"
 ALIGN_DISS_FIELDS = "Corridor"
@@ -31,7 +24,7 @@ STN_LONG_CORRIDOR = "Corridor"
 BASIC_RENAME_DICT = {
     "EastWest": "East-West"
 }
-from PMT_tools.PMT import (Comp, And, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
+
 
 """ Bike Ped Crash Configs """
 # cleaning configuration
@@ -266,6 +259,8 @@ TRANSIT_LAT = "LAT"
 TRANSIT_LONG = "LONG"
 
 # parcel config
+PARCEL_DOR_KEY = "PARCELNO"
+PARCEL_NAL_KEY = "PARCEL_ID"
 PARCEL_COMMON_KEY = "FOLIO"
 PARCEL_USE_COLS = {
     2019: [
@@ -410,7 +405,10 @@ BG_PAR_SUM_FIELDS = ["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", 
 
 # LODES/ACS config
 ACS_COMMON_KEY = "GEOID10"
+ACS_YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 LODES_COMMON_KEY = "bgrp"
+LODES_YEARS = [2014, 2015, 2016, 2017, 2018]
+
 ACS_RACE_FIELDS = [ACS_COMMON_KEY] + [
     'Total_Non_Hisp', 'Total_Hispanic', 'White_Non_Hisp', 'Black_Non_Hisp',
     'Asian_Non_Hisp', 'Multi_Non_Hisp', 'White_Hispanic', 'Black_Hispanic',
@@ -457,6 +455,7 @@ LODES_CRITERIA = {
 }
 
 # SERPM config
+#             base,  future
 MODEL_YEARS = [2015, 2045]
 MAZ_COMMON_KEY = "MAZ"
 TAZ_COMMON_KEY = "TAZ"
@@ -495,12 +494,13 @@ MAZ_PAR_CONS = [
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
-    # Consolidation(name="HH", input_cols=["hh"]),
-    Consolidation(name="TotalJobs", input_cols=["emp_total"]),
+    Column(name="hh", rename="HH"),
+    Column(name="emp_total", rename="TotalJobs"),
     Consolidation(name="ConsJobs", input_cols=["emp_retail", "emp_amusement", "emp_hotel",
-                                               "emp_restaurant_bar", "emp_personal_svcs_retail", "emp_state_local_gov_ent"]),
+                                               "emp_restaurant_bar", "emp_personal_svcs_retail",
+                                               "emp_state_local_gov_ent"]),
     Consolidation(name="EdJobs", input_cols=["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"]),
-    Consolidation(name="HCJobs", input_cols=["emp_health"]),
+    Column(name="emp_health", rename="HCJobs"),
     Consolidation(name="IndJobs", input_cols=["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"]),
     Consolidation(name="OffJobs", input_cols=["emp_prof_bus_svcs", "emp_personal_svcs_office",
                                               "emp_state_local_gov_white", "emp_own_occ_dwell_mgmt",
@@ -510,13 +510,14 @@ MAZ_SE_CONS = [
                                               "emp_const_bldg_office", "emp_prof_bus_svcs_bldg_maint", "emp_religious",
                                               "emp_pvt_hh", "emp_scrap_other", "emp_fed_non_mil", "emp_fed_mil",
                                               "emp_state_local_gov_blue"]),
-    Consolidation(name="RsrcJobs", input_cols=["emp_ag"]),
+    Column(name="emp_ag", rename="RsrcJobs"),
     Consolidation(name="EnrollAdlt", input_cols=["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"]),
     Consolidation(name="EnrollK12", input_cols=["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"])
 ]
 
 # osm config
 NET_BY_YEAR = {  # TODO: refs should be _q3_2020 (rename q3_2019 gdb's)
+    # Year: [osm_data_pull, bas
     2014: ["_q3_2020", MODEL_YEARS[0]],
     2015: ["_q3_2020", MODEL_YEARS[0]],
     2016: ["_q3_2020", MODEL_YEARS[0]],
@@ -598,7 +599,7 @@ Configuration variables to be used in contiguity + developable area
 CTGY_CHUNKS = 20
 CTGY_CELL_SIZE = 40
 CTGY_WEIGHTS = "nn"
-CTGY_SAVE_FULL = False #should the table of sub-polygon results be saved to?
+CTGY_SAVE_FULL = False  # should the table of sub-polygon results be saved to?
 CTGY_SUMMARY_FUNCTIONS = ["min", "max", "median", "mean"],
 CTGY_SCALE_AREA = True
 # TODO: fill in the PROPER buildings path
@@ -616,11 +617,11 @@ DIV_ON_FIELD = PARCEL_BLD_AREA
 DIV_AGG_GEOM_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb\Polygons\SummaryAreas"
 DIV_AGG_GEOM_ID = "RowID_"
 DIV_AGG_GEOM_BUFFER = 0,
-DIV_RELEVANT_LAND_USES =["auto", "civic", "education",
-                         "entertainment", "grocery",
-                         "healthcare", "industrial",
-                         "lodging", "mf", "office",
-                         "restaurant", "sf", "shopping"],
+DIV_RELEVANT_LAND_USES = ["auto", "civic", "education",
+                          "entertainment", "grocery",
+                          "healthcare", "industrial",
+                          "lodging", "mf", "office",
+                          "restaurant", "sf", "shopping"],
 DIV_METRICS = ["simpson", "shannon", "berger-parker", "enp", "chi-squared"],
 DIV_CHISQ_PROPS = None,
 DIV_REGIONAL_ADJ = True,
@@ -649,7 +650,7 @@ REF_TABLE_UNITS_MATCH = {"bed": "NO_RES_UNTS",
                          "room": "NO_RES_UNTS",
                          "unit": "NO_RES_UNTS",
                          "acre": "LND_SQFOOT / 43560"}
-    
+
 # For building the short term parcels
 # Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
 PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Dade_BuildingPermits.shp"

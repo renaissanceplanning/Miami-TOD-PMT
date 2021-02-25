@@ -8,8 +8,10 @@ cleaning, analysis, and summarization processes.
 # %% imports
 import numpy as np
 import urllib3
+import uuid
 # import geopandas as gpd
 import pandas as pd
+import pysal as ps
 # from shapely.geometry.polygon import Polygon as POLY
 
 import os
@@ -35,6 +37,7 @@ REF = os.path.join(DATA, "Reference")
 BASIC_FEATURES = os.path.join(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
+YEAR_GDB_FORMAT = os.path.join(DATA, "IDEAL_PMT_{year}.gdb")
 
 EPSG_LL = 4326
 EPSG_FLSPF = 2881
@@ -72,8 +75,8 @@ class CollCollection(AggColumn):
                 valid = False
             elif not isinstance(value, Iterable):
                 valid = False
-            elif len(value) <= 1:
-                valid = False
+            # elif len(value) <= 1:
+            #     valid = False
             elif not isinstance(value[0], string_types):
                 valid = False
             # Set property of raise error
@@ -311,41 +314,48 @@ class ServiceAreaAnalysis():
 
 
 # %% FUNCTIONS
-# TODO: Review all functions here and deprecate as makes sense
 def makePath(in_folder, *subnames):
     """
-    Dynamically set a path (e.g., for iteratively referencing
-    year-specific geodatabases)
+        Dynamically set a path (e.g., for iteratively referencing
+        year-specific geodatabases)
 
-    Parameters
-    -----------
-    in_folder: String or Path
-    subnames:
-        A list of arguments to join in making the full path
-        `{in_folder}/{subname_1}/.../{subname_n}
-
-    Returns: Path
+    Args:
+        in_folder: String or Path
+        subnames:
+            A list of arguments to join in making the full path
+            `{in_folder}/{subname_1}/.../{subname_n}
+    Returns:
+        Path
     """
     return os.path.join(in_folder, *subnames)
 
 
+def make_inmem_path():
+    """
+        generates an in_memory path usable by arcpy that is
+        unique to avoid any overlapping names
+    Returns:
+        String; in_memory path
+    """
+    unique_name = str(uuid.uuid4().hex)
+    return makePath("in_memory", f"_{unique_name}")
+
+
 def checkOverwriteOutput(output, overwrite=False):
     """
-    A helper function that checks if an output file exists and
-    deletes the file if an overwrite is expected.
+        A helper function that checks if an output file exists and
+        deletes the file if an overwrite is expected.
 
-    Parameters
-    -------------
-    output: Path
-        The file to be checked/deleted
-    overwrite: Boolean
-        If True, `output` will be deleted if it already exists.
-        If False, raises `RuntimeError`.
+    Args:
+        output: Path
+            The file to be checked/deleted
+        overwrite: Boolean
+            If True, `output` will be deleted if it already exists.
+            If False, raises `RuntimeError`.
     
-    Raises
-    -------
-    RuntimeError:
-        If `output` exists and `overwrite` is False.
+    Raises:
+        RuntimeError:
+            If `output` exists and `overwrite` is False.
     """
     if arcpy.Exists(output):
         if overwrite:
@@ -355,17 +365,33 @@ def checkOverwriteOutput(output, overwrite=False):
             raise RuntimeError(f"Output file {output} already exists")
 
 
+def dbf_to_df(dbf_file, upper=False):
+    """
+        # Reads in dbf file and returns Pandas DataFrame object
+    Args:
+        dbf_file: String; path to dbf file
+        upper: Boolean; convert columns to uppercase if wanted
+    Returns:
+        pandas DataFrame object
+    """
+    db = ps.open(dbf_file)  # Pysal to open DBF
+    d = {col: db.by_col(col) for col in db.header}  # Convert dbf to dictionary
+    dbf_df = pd.DataFrame(d)  # Convert to Pandas DF
+    if upper:
+        dbf_df.columns = map(str.upper, db.header)
+    db.close()
+    return dbf_df
+
+
 def intersectFeatures(summary_fc, disag_fc, disag_fields="*"):
     """
         creates a temporary intersected feature class for disaggregation of data
-    Parameters
-    ----------
-    summary_fc: String; path to path to polygon feature class with data to be disaggregated from
-    disag_fc: String; path to polygon feature class with data to be disaggregated to
-    disag_fields: [String,...]; list of fields to pass over to intersect function
-    Returns
-    -------
-    int_fc: String; path to temp intersected feature class
+    Args:
+        summary_fc: String; path to path to polygon feature class with data to be disaggregated from
+        disag_fc: String; path to polygon feature class with data to be disaggregated to
+        disag_fields: [String,...]; list of fields to pass over to intersect function
+    Returns:
+        int_fc: String; path to temp intersected feature class
     """
     # Create a temporary gdb for storing the intersection result
     temp_dir = tempfile.mkdtemp()
@@ -385,57 +411,23 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*"):
     return int_fc
 
 
-def gdfToFeatureClass(gdf, out_fc, new_id_field, exclude, sr=4326, overwrite=False):
-    """
-    Creates a feature class or shapefile from a geopandas GeoDataFrame.
-
-    Parameters
-    ------------
-    new_id_field
-    gdf: GeoDataFrame
-    out_fc: Path
-    exclude:
-    sr: spatial reference, default=4326
-        A spatial reference specification. Authority/factory code, WKT, WKID,
-        ESRI name, path to .prj file, etc.
-    overwrite:
-    Returns
-    ---------
-    out_fc: Path
-
-    SeeAlso
-    ---------
-    jsonToFeatureClass
-    """
-    j = json.loads(gdf.to_json())
-    jsonToFeatureClass(json_obj=j, out_fc=out_fc, new_id_field=new_id_field,
-                       exclude=exclude, sr=sr, overwrite=overwrite)
-
-
-def jsonToFeatureClass(json_obj, out_fc, new_id_field='ROW_ID',
+def jsonToFeatureClass(json_obj, out_file, new_id_field='ROW_ID',
                        exclude=None, sr=4326, overwrite=False):
-    """
-    Creates a feature class or shape file from a json object.
+    """Creates a feature class or shape file from a json object.
+    Args:
+        json_obj (dict)
+        out_fc (str)
+        new_id_field (str): name of new field to be added
+        exclude (List; [String,...]): list of columns to exclude
+        sr (spatial reference), default=4326: A spatial reference specification.
+            Authority/factory code, WKT, WKID, ESRI name, path to .prj file, etc.
+        overwrite (bool): True/False whether to overwrite an existing dataset
+    Returns:
+        out_fc: Path
 
-    Parameters
-    -----------
-    new_id_field
-    json_obj: dict
-    out_fc: Path
-    exclude: List; [String,...] list of columns to exclude
-    sr: spatial reference, default=4326
-        A spatial reference specification. Authority/factory code, WKT, WKID,
-        ESRI name, path to .prj file, etc.
-    overwrite: Boolean; True/False whether to overwrite an existing dataset
-
-    Returns
-    --------
-    out_fc: Path
-
-    See Also
-    ---------
-    gdfToFeatureClass
-    jsonToTable
+    See Also:
+        gdfToFeatureClass
+        jsonToTable
     """
     # Stack features and attributes
     if exclude is None:
@@ -453,15 +445,14 @@ def jsonToFeatureClass(json_obj, out_fc, new_id_field='ROW_ID',
     sr = arcpy.SpatialReference(sr)
     geom_type = geom_stack[0].type.upper()
     if overwrite:
-        checkOverwriteOutput(output=out_fc, overwrite=overwrite)
-    out_path, out_name = os.path.split(out_fc)
-    arcpy.CreateFeatureclass_management(
-        out_path, out_name, geom_type, spatial_reference=sr
-    )
-    arcpy.AddField_management(out_fc, new_id_field, "LONG")
+        checkOverwriteOutput(output=out_file, overwrite=overwrite)
+    out_path, out_name = os.path.split(out_file)
+    arcpy.CreateFeatureclass_management(out_path=out_path, out_name=out_name,
+                                        geometry_type=geom_type, spatial_reference=sr)
+    arcpy.AddField_management(out_file, new_id_field, "LONG")
 
     # Add geometries
-    with arcpy.da.InsertCursor(out_fc, ["SHAPE@", new_id_field]) as c:
+    with arcpy.da.InsertCursor(out_file, ["SHAPE@", new_id_field]) as c:
         for i, geom in enumerate(geom_stack):
             row = [geom, i]
             c.insertRow(row)
@@ -471,83 +462,37 @@ def jsonToFeatureClass(json_obj, out_fc, new_id_field='ROW_ID',
     prop_df[new_id_field] = np.arange(len(prop_df))
     exclude = [excl for excl in exclude if excl in prop_df.columns.to_list()]
     prop_df.drop(labels=exclude, axis=1, inplace=True)
-    if arcpy.Describe(out_fc).dataType.lower() == "shapefile":
+    if arcpy.Describe(out_file).dataType.lower() == "shapefile":
         prop_df.fillna(0.0, inplace=True)
 
     # Extend table
-    print([f.name for f in arcpy.ListFields(out_fc)])
+    print([f.name for f in arcpy.ListFields(out_file)])
     print(prop_df.columns)
-    return extendTableDf(in_table=out_fc, table_match_field=new_id_field,
+    return extendTableDf(in_table=out_file, table_match_field=new_id_field,
                          df=prop_df, df_match_field=new_id_field)
 
 
 def jsonToTable(json_obj, out_file):
     """
-    Creates an ArcGIS table from a json object.
+        Creates an ArcGIS table from a json object. Assumes potentially a geoJSON object
 
-    Parameters
-    -----------
-    json_obj: dict
-    out_file: Path
+    Args:
+        json_obj: dict
+        out_file: Path
 
-    Returns
-    --------
-    out_file: Path
+    Returns:
+        out_file: Path
 
-    SeeAlso
-    ---------
-    jsonToFeatureClass
+    SeeAlso:
+        jsonToFeatureClass
     """
     # convert to dataframe
-    gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
-    df = pd.DataFrame(gdf.drop(columns="geometry"))
-    return dfToTable(df, out_file)
-
-
-def fetch_json_to_file(url, out_file, encoding="utf-8", overwrite=False):
-    http = urllib3.PoolManager()
-    req = http.request("GET", url)
-    req_json = json.loads(req.data.decode(encoding))
-    if overwrite:
-        checkOverwriteOutput(output=out_file, overwrite=overwrite)
-    with open(out_file, 'w') as dst:
-        json_txt = json.dumps(req_json)
-        dst.write(json_txt)
-
-
-def fetchJsonUrl(
-        url, out_file, encoding="utf-8", is_spatial=False, crs=4326, overwrite=False
-):
-    """
-    Retrieve a json/geojson file at the given url and convert to a
-    data frame or geodataframe.
-
-    Parameters
-    -----------
-    url: String
-    out_file: Path
-    encoding: String, default="uft-8"
-    is_spatial: Boolean, default=False
-        If True, dump json to geodataframe
-    crs: String
-    overwrite: Boolean
-
-    Returns
-    ---------
-    out_file: Path
-    """
-    exclude = ["FID", "OID", "ObjectID", "SHAPE_Length", "SHAPE_Area"]
-    http = urllib3.PoolManager()
-    req = http.request("GET", url)
-    req_json = json.loads(req.data.decode(encoding))
-
-    if is_spatial:
-        jsonToFeatureClass(req_json, out_file, sr=4326)
-
+    if "features" in json_obj:
+        df = pd.DataFrame.from_dict(data=json_obj["features"])
+        df.drop(columns="geometry", inplace=True)
     else:
-        prop_stack = []
-        gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
-        return pd.DataFrame(gdf.drop(columns="geometry"))
+        df = pd.DataFrame.from_dict(data=json_obj)
+    return dfToTable(df, out_file)
 
 
 def iterRowsAsChunks(in_table, chunksize=1000):
@@ -632,81 +577,17 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
     return out_fc
 
 
-def mergeFeatures(
-        raw_dir, fc_names, clean_dir, out_fc, drop_columns=[], rename_columns=[]
-):
-    """
-    Combine feature classes from a raw folder in a single feature class in
-    a clean folder.
-
-    Parameters
-    -------------
-    raw_dir: Path
-        The directory where all raw feature classes are stored.
-    fc_names: [String,...]
-        A list of feature classes in `raw_dir` to combine into a single
-        feature class of all features in `clean_dir`.
-    clean_dir: Path
-        The directory where the cleaned output feature class will be stored.
-    out_fc: String
-        The name of the output feature class with combined features.
-    drop_columns: [[String,...]]
-        A list of lists. Each list corresponds to feature classes listed in
-        `fc_names`. Each includes column names to drop when combining
-        features.
-    rename_columns: [{String: String,...},...]
-        A list of dictionaries. Each dictionary corresponds to feature classes
-        listed in `fc_names`. Each has keys that reflect raw column names and
-        values that assign new names to these columns.
-
-    Returns
-    --------
-    out_file: Path
-        Path to the output file (merged features saved to disk)
-    """
-    # Align inputs
-    if isinstance(fc_names, string_types):
-        fc_names = [fc_names]
-    if not drop_columns:
-        drop_columns = [[] for _ in fc_names]
-    if not rename_columns:
-        rename_columns = [{} for _ in fc_names]
-
-    # Iterate over input fc's
-    all_features = []
-    for fc_name, drop_cols, rename_cols in zip(fc_names, drop_columns, rename_columns):
-        # Read features
-        in_fc = makePath(raw_dir, fc_name)
-        gdf = gpd.read_file(in_fc)
-        # Drop/rename
-        gdf.drop(columns=drop_cols, inplace=True)
-        gdf.rename(columns=rename_cols, inplace=True)
-        all_features.append(gdf)
-
-    # Concatenate features
-    merged = pd.concat(all_features)
-
-    # Save output
-    out_file = makePath(clean_dir, out_fc)
-    merged.to_file(out_file)
-
-    return out_file
-
-
 def colMultiIndexToNames(columns, separator="_"):
     """
-    For a collection of columns in a data frame, collapse index levels to
-    flat column names. Index level values are joined using the provided
-    `separator`.
+        For a collection of columns in a data frame, collapse index levels to
+        flat column names. Index level values are joined using the provided
+        `separator`.
 
-    Parameters
-    -----------
-    columns: pd.Index
-    separator: String
-
-    Returns
-    --------
-    flat_columns: pd.Index
+    Args:
+        columns: pd.Index
+        separator: String
+    Returns:
+        flat_columns: pd.Index
     """
     if isinstance(columns, pd.MultiIndex):
         columns = columns.to_series().apply(
@@ -717,27 +598,24 @@ def colMultiIndexToNames(columns, separator="_"):
 
 def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
     """
-    Use a pandas data frame to extend (add columns to) an existing table based
-    through a join on key columns. Key values in the existing table must be
-    unique.
+        Use a pandas data frame to extend (add columns to) an existing table based
+        through a join on key columns. Key values in the existing table must be
+        unique.
 
-    Parameters
-    -----------
-    in_table: Path, feature layer, or table view
-        The existing table to be extended
-    table_match_field: String
-        The field in `in_table` on which to join values from `df`
-    df: DataFrame
-        The data frame whose columns will be added to `in_table`
-    df_match_field: String
-        The field in `df` on which join values to `in_table`
-    kwargs:
-        Optional keyword arguments to be passed to `arcpy.da.ExtendTable`.
+    Args:
+        in_table: Path, feature layer, or table view
+            The existing table to be extended
+        table_match_field: String
+            The field in `in_table` on which to join values from `df`
+        df: DataFrame
+            The data frame whose columns will be added to `in_table`
+        df_match_field: String
+            The field in `df` on which join values to `in_table`
+        kwargs:
+            Optional keyword arguments to be passed to `arcpy.da.ExtendTable`.
 
-    Returns
-    --------
-    None
-        `in_table` is modified in place
+    Returns:
+        None; `in_table` is modified in place
     """
     in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
     arcpy.da.ExtendTable(in_table=in_table, table_match_field=table_match_field,
@@ -746,17 +624,15 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
 
 def dfToTable(df, out_table, overwrite=False):
     """
-    Use a pandas data frame to export an arcgis table.
+        Use a pandas data frame to export an arcgis table.
 
-    Parameters
-    -----------
-    df: DataFrame
-    out_table: Path
-    overwrite: Boolean, default=False
+    Args:
+        df: DataFrame
+        out_table: Path
+        overwrite: Boolean, default=False
 
-    Returns
-    --------
-    out_table: Path
+    Returns:
+        out_table: Path
     """
     if overwrite:
         checkOverwriteOutput(output=out_table, overwrite=overwrite)
@@ -765,30 +641,26 @@ def dfToTable(df, out_table, overwrite=False):
     return out_table
 
 
-def dfToPoints(df, out_fc, shape_fields,
-               from_sr, to_sr, overwrite=False):
+def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
     """
-    Use a pandas data frame to export an arcgis point feature class.
+        Use a pandas data frame to export an arcgis point feature class.
 
-    Parameters
-    -----------
-    df: DataFrame
-    out_fc: Path
-    shape_fields: [String,...]
-        Columns to be used as shape fields (x, y)
-    from_sr: SpatialReference
-        The spatial reference definition for the coordinates listed
-        in `shape_field`
-    to_sr: SpatialReference
-        The spatial reference definition for the output features.
-    overwrite: Boolean, default=False
-
-    Returns
-    --------
-    out_fc: Path
+    Args:
+        df: DataFrame
+        out_fc: Path
+        shape_fields: [String,...]
+            Columns to be used as shape fields (x, y)
+        from_sr: SpatialReference
+            The spatial reference definition for the coordinates listed
+            in `shape_field`
+        to_sr: SpatialReference
+            The spatial reference definition for the output features.
+        overwrite: Boolean, default=False
+    Returns:
+        out_fc: Path
     """
     # set paths
-    temp_fc = r"in_memory\temp_points"
+    temp_fc = make_inmem_path()
 
     # coerce sr to Spatial Reference object
     # Check if it is a spatial reference already
@@ -813,7 +685,7 @@ def dfToPoints(df, out_fc, shape_fields,
     )
     # write to temp feature class
     arcpy.da.NumPyArrayToFeatureClass(in_array=in_array, out_table=temp_fc,
-                                      shape_fields=shape_fields, spatial_reference=from_sr, )
+                                      shape_fields=shape_fields, spatial_reference=from_sr,)
     # reproject if needed, otherwise dump to output location
     if from_sr != to_sr:
         arcpy.Project_management(in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=to_sr)
@@ -829,69 +701,49 @@ def dfToPoints(df, out_fc, shape_fields,
 
 def featureclass_to_df(in_fc, keep_fields="*", null_val=0):
     """
-    converts feature class/feature layer to pandas DataFrame object, keeping only a subset of fields if provided
-    - drops all spatial data
-    Parameters
-    ----------
-    in_fc: String; path to a feature class
-    keep_fields: List or Tuple; field names to return in the dataframe,
-        "*" is default and will return all fields
-    null_val: value to be used for nulls found in the data
-
-    Returns
-    -------
-    pandas Dataframe
+        converts feature class/feature layer to pandas DataFrame object, keeping
+        only a subset of fields if provided
+        - drops all spatial data
+    Args:
+        in_fc: String; path to a feature class
+        keep_fields: List or Tuple; field names to return in the dataframe,
+            "*" is default and will return all fields
+        null_val: value to be used for nulls found in the data
+    Returns:
+        pandas Dataframe
     """
     # setup fields
     if keep_fields == "*":
         keep_fields = [f.name for f in arcpy.ListFields(in_fc) if not f.required]
     elif isinstance(keep_fields, string_types):
         keep_fields = [keep_fields]
-    # process fc to array
-    in_fc_arr = arcpy.da.FeatureClassToNumPyArray(in_table=in_fc, field_names=keep_fields,
-                                                  skip_nulls=False, null_value=null_val)
-    return pd.DataFrame(in_fc_arr)
+
+    return pd.DataFrame(
+        arcpy.da.FeatureClassToNumPyArray(
+            in_table=in_fc, field_names=keep_fields,
+            skip_nulls=False, null_value=null_val)
+    )
+
+
+def is_multipart():
+    pass
 
 
 def multipolygon_to_polygon_arc(file_path):
-    polygon_fcs = makePath("in_memory", "polygons")
+    """
+        convert multipolygon geometries in a single row into
+        multiple rows of simple polygon geometries
+    Args:
+        file_path: String; path to input Poly/MultiPoly feature class
+        temp: Boolean; if
+
+    Returns:
+        String; path to in_memory Polygon feature class
+    """
+    # TODO: add function is_multipart() to validate Polygon or MultiPolygon input
+    polygon_fcs = make_inmem_path()
     arcpy.MultipartToSinglepart_management(in_features=file_path, out_feature_class=polygon_fcs)
     return polygon_fcs
-
-
-def multipolygonToPolygon(gdf, in_crs):
-    """
-    For a geopandas data frame, convert multipolygon geometries in a single
-    row into multiple rows of simply polygon geometries.
-
-    This function is an adaptation of the approach outlined here:
-    https://gist.github.com/mhweber/cf36bb4e09df9deee5eb54dc6be74d26
-
-    Parameters
-    -----------
-    gdf: geodataframe
-    """
-    # Setup an empty geodataframe as the output container
-    poly_df = gpd.GeoDataFrame(columns=gdf.columns)
-    # Iterate over input rows
-    for idx, row in gdf.iterrows():
-        if type(row.geometry) == POLY:
-            # Append existing simple polygons to the output
-            poly_df = poly_df.append(row, ignore_index=True)
-        else:
-            # Explode multi-polygons to simple features and append
-            #  - Create a mini-geodataframe to assist
-            mult_df = gpd.GeoDataFrame(columns=gdf.columns)
-            recs = len(row.geometry)
-            #  - Repare the feature many times in the mini-gdf
-            mult_df = mult_df.append([row] * recs, ignore_index=True)
-            #  - Iterate over rows keeping the i'th geom element as you go
-            for geom_i in range(recs):
-                mult_df.loc[geom_i, "geometry"] = row.geometry[geom_i]
-            #  - Append mini-gdf rows to the output container
-            poly_df = poly_df.append(mult_df, ignore_index=True)
-    poly_df.crs = in_crs
-    return poly_df
 
 
 def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
@@ -1118,26 +970,24 @@ def sumToAggregateGeo(
 
 def add_unique_id(feature_class, new_id_field=None):
     """
-    adds a unique incrementing integer value to a feature class and returns that name
-    Parameters
-    ----------
-    feature_class: String; path to a feature class
-    new_id_field: String; name of new id field, if none is provided, ProcessID is used
+        adds a unique incrementing integer value to a feature class and returns that name
+    Args:
+        feature_class: String; path to a feature class
+        new_id_field: String; name of new id field, if none is provided, ProcessID is used
 
-    Returns
-    -------
-    new_id_field: String; name of new id field
+    Returns:
+        new_id_field: String; name of new id field
     """
     CODEBLOCK = """
-val = 0 
-def unique_ID(): 
-    global val 
-    start = 1 
-    if (val == 0):  
-        val = start
-    else:  
-        val += 1  
-    return val
+        val = 0 
+        def unique_ID(): 
+            global val 
+            start = 1 
+            if (val == 0):  
+                val = start
+            else:  
+                val += 1  
+            return val
          """
     if new_id_field is None:
         new_id_field = "ProcessID"
@@ -1498,13 +1348,157 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
 
 
 if __name__ == "__main__":
-    arcpy.env.overwriteOutput = True
-    sumToAggregateGeo(
-        disag_fc=r"K:\Projects\MiamiDade\PMT\Data\Cleaned\Safety_Security\Crash_Data"
-                 r"\Miami_Dade_NonMotorist_CrashData_2012-2020.shp",
-        sum_fields=["SPEED_LIM"],
-        groupby_fields=["CITY"],
-        agg_fc=r"K:\Projects\MiamiDade\PMT\Basic_features.gdb\Basic_features_SPFLE\SMART_Plan_Station_Areas",
-        agg_id_field="Id",
-        output_fc=r"D:\Users\DE7\Desktop\agg_test.gdb\bike_speed_agg",
-    )
+    print("nothing set to run")
+
+
+# DEPRECATED GPD functions
+# def fetchJsonUrl(
+#         url, out_file, encoding="utf-8", is_spatial=False, crs=4326, overwrite=False
+# ):
+#     """
+#     Retrieve a json/geojson file at the given url and convert to a
+#     data frame or geodataframe.
+#
+#     Parameters
+#     -----------
+#     url: String
+#     out_file: Path
+#     encoding: String, default="uft-8"
+#     is_spatial: Boolean, default=False
+#         If True, dump json to geodataframe
+#     crs: String
+#     overwrite: Boolean
+#
+#     Returns
+#     ---------
+#     out_file: Path
+#     """
+#     exclude = ["FID", "OID", "ObjectID", "SHAPE_Length", "SHAPE_Area"]
+#     http = urllib3.PoolManager()
+#     req = http.request("GET", url)
+#     req_json = json.loads(req.data.decode(encoding))
+#
+#     if is_spatial:
+#         jsonToFeatureClass(req_json, out_file, sr=4326)
+#
+#     else:
+#         prop_stack = []
+#         gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
+#         return pd.DataFrame(gdf.drop(columns="geometry"))
+#
+#
+# def gdfToFeatureClass(gdf, out_fc, new_id_field, exclude, sr=4326, overwrite=False):
+#     """
+#     Creates a feature class or shapefile from a geopandas GeoDataFrame.
+#
+#     Args:
+#         new_id_field
+#         gdf: GeoDataFrame
+#         out_fc: Path
+#         exclude:
+#         sr: spatial reference, default=4326
+#             A spatial reference specification. Authority/factory code, WKT, WKID,
+#             ESRI name, path to .prj file, etc.
+#         overwrite:
+#     Returns:
+#         out_fc: Path
+#     SeeAlso:
+#         jsonToFeatureClass
+#     """
+#     j = json.loads(gdf.to_json())
+#     jsonToFeatureClass(json_obj=j, out_fc=out_fc, new_id_field=new_id_field,
+#                        exclude=exclude, sr=sr, overwrite=overwrite)
+#
+#
+# def multipolygonToPolygon(gdf, in_crs):
+#     """
+#     For a geopandas data frame, convert multipolygon geometries in a single
+#     row into multiple rows of simply polygon geometries.
+#
+#     This function is an adaptation of the approach outlined here:
+#     https://gist.github.com/mhweber/cf36bb4e09df9deee5eb54dc6be74d26
+#
+#     Parameters
+#     -----------
+#     gdf: geodataframe
+#     """
+#     # Setup an empty geodataframe as the output container
+#     poly_df = gpd.GeoDataFrame(columns=gdf.columns)
+#     # Iterate over input rows
+#     for idx, row in gdf.iterrows():
+#         if type(row.geometry) == POLY:
+#             # Append existing simple polygons to the output
+#             poly_df = poly_df.append(row, ignore_index=True)
+#         else:
+#             # Explode multi-polygons to simple features and append
+#             #  - Create a mini-geodataframe to assist
+#             mult_df = gpd.GeoDataFrame(columns=gdf.columns)
+#             recs = len(row.geometry)
+#             #  - Repare the feature many times in the mini-gdf
+#             mult_df = mult_df.append([row] * recs, ignore_index=True)
+#             #  - Iterate over rows keeping the i'th geom element as you go
+#             for geom_i in range(recs):
+#                 mult_df.loc[geom_i, "geometry"] = row.geometry[geom_i]
+#             #  - Append mini-gdf rows to the output container
+#             poly_df = poly_df.append(mult_df, ignore_index=True)
+#     poly_df.crs = in_crs
+#     return poly_df
+#
+#
+# def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc, drop_columns=[], rename_columns=[]):
+#     """
+#         Combine feature classes from a raw folder in a single feature class in
+#         a clean folder.
+#
+#     Args:
+#         raw_dir: String;  The directory path where all raw feature classes are stored.
+#         fc_names: [String,...]; A list of feature classes in `raw_dir` to combine into a single
+#             feature class of all features in `clean_dir`.
+#         clean_dir: String; The directory path where the cleaned output feature class will be stored.
+#         out_fc: String; The name of the output feature class with combined features.
+#         drop_columns: [[String,...]]; A list of lists. Each list corresponds to feature classes listed in
+#             `fc_names`. Each includes column names to drop when combining features.
+#         rename_columns: [{String: String,...},...]; A list of dictionaries. Each dictionary corresponds
+#             to feature classes listed in `fc_names`. Each has keys that reflect raw column names and
+#             values that assign new names to these columns.
+#     Returns:
+#         out_file: String; Path to the output file (merged features saved to disk)
+#     """
+#     # Align inputs
+#     if isinstance(fc_names, string_types):
+#         fc_names = [fc_names]
+#     if not drop_columns:
+#         drop_columns = [[] for _ in fc_names]
+#     if not rename_columns:
+#         rename_columns = [{} for _ in fc_names]
+#
+#     # Iterate over input fc's
+#     all_features = []
+#     for fc_name, drop_cols, rename_cols in zip(fc_names, drop_columns, rename_columns):
+#         # Read features
+#         in_fc = makePath(raw_dir, fc_name)
+#         gdf = gpd.read_file(in_fc)
+#         # Drop/rename
+#         gdf.drop(columns=drop_cols, inplace=True)
+#         gdf.rename(columns=rename_cols, inplace=True)
+#         all_features.append(gdf)
+#
+#     # Concatenate features
+#     merged = pd.concat(all_features)
+#
+#     # Save output
+#     out_file = makePath(clean_dir, out_fc)
+#     merged.to_file(out_file)
+#
+#     return out_file
+
+# DEPRECATED
+# def fetch_json_to_file(url, out_file, encoding="utf-8", overwrite=False):
+#     http = urllib3.PoolManager()
+#     req = http.request("GET", url)
+#     req_json = json.loads(req.data.decode(encoding))
+#     if overwrite:
+#         checkOverwriteOutput(output=out_file, overwrite=overwrite)
+#     with open(out_file, 'w') as dst:
+#         json_txt = json.dumps(req_json)
+#         dst.write(json_txt)

@@ -5,36 +5,41 @@ preparation scripts used set up cleaned geodatabases
 from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 # config global variables
 from PMT_tools.config.prepare_config import IN_CRS, OUT_CRS
-from PMT_tools.config.prepare_config import BASIC_STATIONS, STN_NAME_FIELD, STN_BUFF_DIST, STN_BUFF_METERS, STN_DISS_FIELDS, STN_CORRIDOR_FIELDS
+from PMT_tools.config.prepare_config import (BASIC_STATIONS, STN_NAME_FIELD, STN_BUFF_DIST, STN_BUFF_METERS,
+                                             STN_DISS_FIELDS, STN_CORRIDOR_FIELDS)
 from PMT_tools.config.prepare_config import BASIC_ALIGNMENTS, ALIGN_BUFF_DIST, ALIGN_DISS_FIELDS, CORRIDOR_NAME_FIELD
-from PMT_tools.config.prepare_config import BASIC_STN_AREAS, BASIC_CORRIDORS, BASIC_LONG_STN, BASIC_SUM_AREAS, BASIC_RENAME_DICT, STN_LONG_CORRIDOR
+from PMT_tools.config.prepare_config import (BASIC_STN_AREAS, BASIC_CORRIDORS, BASIC_LONG_STN,
+                                             BASIC_SUM_AREAS, BASIC_RENAME_DICT, STN_LONG_CORRIDOR)
 from PMT_tools.config.prepare_config import (CRASH_FIELDS_DICT, USE_CRASH)
 from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FIELDS_DICT, TRANSIT_LONG, TRANSIT_LAT
-from PMT_tools.config.prepare_config import PARCEL_COLS, PARCEL_USE_COLS
-from PMT_tools.config.prepare_config import YEAR_GDB_FORMAT, REFERENCE_DIRECTORY, LODES_YEARS, ACS_YEARS
-from PMT_tools.config.prepare_config import PARCEL_COMMON_KEY, PARCEL_COLS, PARCEL_USE_COLS, PARCEL_AREA_COL, PARCEL_LU_AREAS, PARCEL_BLD_AREA
+from PMT_tools.config.prepare_config import LODES_YEARS, ACS_YEARS
+from PMT_tools.config.prepare_config import (PARCEL_COMMON_KEY, PARCEL_DOR_KEY, PARCEL_NAL_KEY, PARCEL_COLS,
+                                             PARCEL_USE_COLS, PARCEL_AREA_COL, PARCEL_LU_AREAS, PARCEL_BLD_AREA)
 from PMT_tools.config.prepare_config import BG_COMMON_KEY, ACS_COMMON_KEY, LODES_COMMON_KEY
-from PMT_tools.config.prepare_config import BG_PAR_SUM_FIELDS, ACS_RACE_FIELDS, ACS_COMMUTE_FIELDS, LODES_FIELDS, LODES_CRITERIA
+from PMT_tools.config.prepare_config import (BG_PAR_SUM_FIELDS, ACS_RACE_FIELDS, ACS_COMMUTE_FIELDS, LODES_FIELDS,
+                                             LODES_CRITERIA)
 from PMT_tools.config.prepare_config import SKIM_O_FIELD, SKIM_D_FIELD, SKIM_IMP_FIELD, SKIM_DTYPES, SKIM_RENAMES
 from PMT_tools.config.prepare_config import OSM_IMPED, OSM_CUTOFF, BIKE_PED_CUTOFF
-from PMT_tools.config.prepare_config import NETS_DIR, SEARCH_CRITERIA, SEARCH_QUERY, NET_LOADER, NET_BY_YEAR, BIKE_RESTRICTIONS
+from PMT_tools.config.prepare_config import (NETS_DIR, SEARCH_CRITERIA, SEARCH_QUERY, NET_LOADER,
+                                             NET_BY_YEAR, BIKE_RESTRICTIONS)
 from PMT_tools.config.prepare_config import MAZ_AGG_COLS, MAZ_PAR_CONS, SERPM_RENAMES, MAZ_SE_CONS, MODEL_YEARS
 from PMT_tools.config.prepare_config import CENTRALITY_IMPED, CENTRALITY_CUTOFF, CENTRALITY_NET_LOADER
 from PMT_tools.config.prepare_config import TIME_BIN_CODE_BLOCK, IDEAL_WALK_MPH, IDEAL_WALK_RADIUS
-from PMT_tools.config.prepare_config import ACCESS_MODES, MODE_SCALE_REF, ACCESS_TIME_BREAKS, ACCESS_UNITS, O_ACT_FIELDS, D_ACT_FIELDS
-from PMT_tools.config.prepare_config import CTGY_CHUNKS, CTGY_CELL_SIZE, CTGY_WEIGHTS, CTGY_SAVE_FULL, CTGY_SUMMARY_FUNCTIONS, CTGY_SCALE_AREA, BUILDINGS_PATH
+from PMT_tools.config.prepare_config import (ACCESS_MODES, MODE_SCALE_REF, ACCESS_TIME_BREAKS,
+                                             ACCESS_UNITS, O_ACT_FIELDS, D_ACT_FIELDS)
+from PMT_tools.config.prepare_config import (CTGY_CHUNKS, CTGY_CELL_SIZE, CTGY_WEIGHTS, CTGY_SAVE_FULL,
+                                             CTGY_SUMMARY_FUNCTIONS, CTGY_SCALE_AREA, BUILDINGS_PATH)
 from PMT_tools.config.prepare_config import DIV_ON_FIELD, LU_RECODE_TABLE, LU_RECODE_FIELD
 from PMT_tools.config.prepare_config import DIV_AGG_GEOM_FORMAT, DIV_AGG_GEOM_ID, DIV_AGG_GEOM_BUFFER
-from PMT_tools.config.prepare_config import DIV_RELEVANT_LAND_USES, DIV_METRICS, DIV_CHISQ_PROPS, DIV_REGIONAL_ADJ, DIV_REGIONAL_CONSTS
+from PMT_tools.config.prepare_config import (DIV_RELEVANT_LAND_USES, DIV_METRICS, DIV_CHISQ_PROPS,
+                                             DIV_REGIONAL_ADJ, DIV_REGIONAL_CONSTS)
 from PMT_tools.config.prepare_config import ZONE_GEOM_FORMAT, ZONE_GEOM_ID
-from PMT_tools.config.prepare_config import PERMITS_PATH, PERMITS_REF_TABLE_PATH, REF_TABLE_UNITS_MATCH, SHORT_TERM_PARCELS_UNITS_MATCH
-from PMT_tools.config.prepare_config import PERMITS_UNITS_FIELD, PERMITS_BLD_AREA_NAME, PERMITS_ID_FIELD, PERMITS_LU_FIELD, PERMITS_VALUES_FIELD, PERMITS_COST_FIELD
-from PMT_tools.config.prepare_config import PARCEL_LAND_VALUE, PARCEL_JUST_VALUE, PARCEL_BUILDINGS
+from PMT_tools.config.prepare_config import (PERMITS_PATH, PERMITS_REF_TABLE_PATH, REF_TABLE_UNITS_MATCH,
+                                             SHORT_TERM_PARCELS_UNITS_MATCH)
+from PMT_tools.config.prepare_config import (PERMITS_UNITS_FIELD, PERMITS_BLD_AREA_NAME, PERMITS_ID_FIELD,
+                                             PERMITS_LU_FIELD, PERMITS_VALUES_FIELD, PERMITS_COST_FIELD)
+from PMT_tools.config.prepare_config import PARCEL_LAND_VALUE, PARCEL_JUST_VALUE, PARCEL_BUILDINGS, PARCEL_LU_COL
 
-
-
-OSM_IMPED = "Minutes"
-OSM_CUTOFF = "15 30"
 # prep/clean helper functions
 from PMT_tools.prepare.prepare_helpers import *
 from PMT_tools.prepare.prepare_osm_networks import *
@@ -43,7 +48,7 @@ from PMT_tools.PMT import makePath, SR_FL_SPF, EPSG_FLSPF, checkOverwriteOutput,
 # PMT classes
 from PMT_tools.PMT import ServiceAreaAnalysis
 # PMT globals
-from PMT_tools.PMT import (RAW, CLEANED, BASIC_FEATURES, REF, YEARS)
+from PMT_tools.PMT import (RAW, CLEANED, BASIC_FEATURES, REF, YEARS, YEAR_GDB_FORMAT)
 from PMT_tools.PMT import arcpy
 
 import PMT_tools.logger as log
@@ -63,7 +68,7 @@ if DEBUG:
     RAW = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     DATA = ROOT
-    BASE_FEATURES_GDB = makePath(CLEANED, "PMT_BasicFeatures.gdb")
+    BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb")
     REF = makePath(ROOT, "Reference")
     RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
     DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
@@ -86,57 +91,43 @@ def process_normalized_geometries():
     block_groups = "Census_BlockGroups"
     TAZ = "TAZ"
     MAZ = "MAZ"
-    county = makePath(BASE_FEATURES_GDB, "BasicFeatures", "MiamiDadeCountyBoundary")
+    county = makePath(BASIC_FEATURES, "BasicFeatures", "MiamiDadeCountyBoundary")
     for year in YEARS:
         for raw, cleaned, cols in zip([raw_block, raw_block_groups, raw_TAZ, raw_MAZ],
                                       [blocks, block_groups, TAZ, MAZ],
                                       ["GEOID10", "GEOID", TAZ, MAZ]):
-
             temp_file = r"in_memory\\temp_features"
             out_path = validate_feature_dataset(makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF)
-            logger.log_msg(f"...building normalized {cleaned} in {out_path}")
+            logger.log_msg(f"---building normalized {cleaned} in {out_path}")
             out_data = makePath(out_path, cleaned)
             prep_feature_class(in_fc=raw, geom="POLYGON", out_fc=temp_file, use_cols=cols, rename_dict=None)
             lyr = arcpy.MakeFeatureLayer_management(in_features=temp_file, out_layer="lyr")
             arcpy.SelectLayerByLocation_management(in_layer=lyr, overlap_type="HAVE_THEIR_CENTER_IN",
                                                    select_features=county)
             PMT.checkOverwriteOutput(output=out_data, overwrite=True)
-            logger.log_msg(f"... outputing geometries and {cols} only")
+            logger.log_msg(f"--- outputing geometries and {cols} only")
             arcpy.CopyFeatures_management(in_features=lyr, out_feature_class=out_data)
             arcpy.CalculateField_management(in_table=out_data, field="Year", expression=year,
                                             expression_type="PYTHON3", field_type="LONG")
 
+
 def process_basic_features():
+    # TODO: add check for existing basic features, and compare for changes
     print("Making basic features")
-    makeBasicFeatures(
-        BASIC_FEATURES,
-        BASIC_STATIONS,
-        STN_DISS_FIELDS,
-        STN_CORRIDOR_FIELDS,
-        BASIC_ALIGNMENTS,
-        ALIGN_DISS_FIELDS,
-        stn_buff_dist=STN_BUFF_DIST,
-        align_buff_dist=ALIGN_BUFF_DIST,
-        stn_areas_fc=BASIC_STN_AREAS,
-        corridors_fc=BASIC_CORRIDORS,
-        long_stn_fc=BASIC_LONG_STN,
-        rename_dict=BASIC_RENAME_DICT,
-        overwrite=True)
+    makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=BASIC_STATIONS, stn_diss_fields=STN_DISS_FIELDS,
+                      stn_corridor_fields=STN_CORRIDOR_FIELDS, alignments_fc=BASIC_ALIGNMENTS,
+                      align_diss_fields=ALIGN_DISS_FIELDS, stn_buff_dist=STN_BUFF_DIST,
+                      align_buff_dist=ALIGN_BUFF_DIST, stn_areas_fc=BASIC_STN_AREAS,
+                      corridors_fc=BASIC_CORRIDORS, long_stn_fc=BASIC_LONG_STN,
+                      rename_dict=BASIC_RENAME_DICT, overwrite=True)
 
     print("Making summarization features")
-    makeSummaryFeatures(
-        BASIC_FEATURES,
-        BASIC_LONG_STN,
-        BASIC_CORRIDORS,
-        CORRIDOR_NAME_FIELD,
-        BASIC_SUM_AREAS,
-        stn_buffer_meters=STN_BUFF_METERS,
-        stn_name_field=STN_NAME_FIELD,
-        stn_cor_field=STN_LONG_CORRIDOR,
-        overwrite=True)
+    makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=BASIC_LONG_STN, corridors_fc=BASIC_CORRIDORS,
+                        cor_name_field=CORRIDOR_NAME_FIELD, out_fc=BASIC_SUM_AREAS, stn_buffer_meters=STN_BUFF_METERS,
+                        stn_name_field=STN_NAME_FIELD, stn_cor_field=STN_LONG_CORRIDOR, overwrite=True)
 
 
-def process_parks():
+def process_parks(overwrite=True):
     """
     parks - merges park polygons into one and formats both poly and point park data.
     """
@@ -148,6 +139,9 @@ def process_parks():
     poly_rename_cols = [{}, {}, {}]
     out_park_polys = makePath(CLEANED, "Park_Polys.shp")
     out_park_points = makePath(CLEANED, "Park_Points.shp")
+    if overwrite:
+        for output in [out_park_points, out_park_polys]:
+            checkOverwriteOutput(output=output, overwrite=overwrite)
     prep_park_polys(in_fcs=park_polys, geom="POLYGON", out_fc=out_park_polys,
                     use_cols=poly_use_cols, rename_dicts=poly_rename_cols)
     prep_feature_class(in_fc=park_points, geom="POINT", out_fc=out_park_points)
@@ -214,9 +208,11 @@ def process_transit():
                                to_sr=OUT_CRS, out_fc=transit_out_path)
 
 
-def process_parcels():
+def process_parcels(overwrite=True):
+    print("PROCESSING PARCELS... ")
     parcel_folder = makePath(RAW, "Parcels")
-    for year in YEARS[:1]:
+    for year in YEARS:
+        print(f"Setting up parcels for {year}")
         out_gdb = validate_geodatabase(makePath(CLEANED, f"PMT_{year}.gdb"))
         out_fds = validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
         # source data
@@ -229,8 +225,11 @@ def process_parcels():
         usecols = PARCEL_USE_COLS.get(year, PARCEL_USE_COLS["DEFAULT"])
         csv_kwargs = {"dtype": {"PARCEL_ID": str, "CENSUS_BK": str},
                       "usecols": usecols}
-        prep_parcels(in_fc=in_fc, in_tbl=in_csv, out_fc=out_fc, fc_key_field="PARCELNO", new_fc_key_field=None,
-                     tbl_key_field="PARCEL_ID", tbl_renames=renames, **csv_kwargs)
+        if overwrite:
+            checkOverwriteOutput(output=out_fc, overwrite=overwrite)
+        prep_parcels(in_fc=in_fc, in_tbl=in_csv, out_fc=out_fc, fc_key_field=PARCEL_DOR_KEY,
+                     new_fc_key_field=PARCEL_COMMON_KEY, tbl_key_field=PARCEL_NAL_KEY,
+                     tbl_renames=renames, **csv_kwargs)
         arcpy.CalculateField_management(in_table=out_fc, field="Year", expression=year,
                                         expression_type="PYTHON3", field_type="LONG")
 
@@ -261,7 +260,7 @@ def enrich_block_groups():
             parcels_fc=parcels_fc, par_id_field=PARCEL_COMMON_KEY,
             par_lu_field=PARCEL_LU_COL, par_bld_area=PARCEL_BLD_AREA,
             sum_crit=LODES_CRITERIA, par_sum_fields=BG_PAR_SUM_FIELDS
-            )
+        )
         # Save enriched data
         dfToTable(bg_df, out_tbl, overwrite=True)
         # Extend BG output with ACS/LODES data
@@ -275,7 +274,7 @@ def enrich_block_groups():
                 join_tbl=table,
                 join_id_field=tbl_id,
                 join_fields=fields
-                )
+            )
 
 
 def process_parcel_land_use():
@@ -285,7 +284,7 @@ def process_parcel_land_use():
         # Parcels
         parcels_fc = makePath(year_gdb, "Polygons", "Parcels")
         # Reference table
-        lu_table = makePath(REF, "Land_Use_Recode.csv") # TODO: put in config?
+        lu_table = makePath(REF, "Land_Use_Recode.csv")  # TODO: put in config?
         # Output
         out_table = makePath(year_gdb, "LandUseCodes_parcels")
 
@@ -293,7 +292,7 @@ def process_parcel_land_use():
         par_lu_field = "DOR_UC"
         par_fields = [PARCEL_COMMON_KEY, "LND_SQFOOT"]
         tbl_lu_field = "DOR_UC"
-        dtype={"DOR_UC": int}
+        dtype = {"DOR_UC": int}
         par_df = prep_parcel_land_use_tbl(parcels_fc, par_lu_field, par_fields,
                                           lu_table, tbl_lu_field, dtype_map=dtype)
         # Calculate area columns
@@ -311,16 +310,17 @@ def process_imperviousness():
     impervious_download = makePath(RAW, "Imperviousness.zip")
     county_boundary = makePath(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures", "MiamiDadeCountyBoundary")
     out_dir = validate_directory(makePath(CLEANED, "IMPERVIOUS"))
-    impv_raster = prep_imperviousness(zip_path=impervious_download, clip_path=county_boundary, out_dir=out_dir, transform_crs=EPSG_FLSPF)
+    impv_raster = prep_imperviousness(zip_path=impervious_download, clip_path=county_boundary, out_dir=out_dir,
+                                      transform_crs=EPSG_FLSPF)
     for year in YEARS:
         gdb = YEAR_GDB_FORMAT.replace("{year}", str(year))
         if "{year}" in ZONE_GEOM_FORMAT:
             zone_fc = ZONE_GEOM_FORMAT.replace("{year}", str(year))
         else:
             zone_fc = ZONE_GEOM_FORMAT
-        impv = analyze_imperviousness(impervious_path = impv_raster,
-                                      zone_geometries_path = zone_fc,
-                                      zone_geometries_id_field = ZONE_GEOM_ID)
+        impv = analyze_imperviousness(impervious_path=impv_raster,
+                                      zone_geometries_path=zone_fc,
+                                      zone_geometries_id_field=ZONE_GEOM_ID)
         zone_name = os.path.split(zone_fc)[1].lower()
         write_to = makePath(gdb, ''.join(["Imperviousness_", zone_name]))
         dfToTable(impv, write_to)
@@ -350,25 +350,20 @@ def process_osm_networks():
 
 
 def process_bg_estimate_activity_models():
-    bg_enrich = makePath(YEAR_GDB_FORMAT,
-                         "Enrichment_blockgroups")
-    save_path = analyze_blockgroup_model(bg_enrich_path = bg_enrich,
-                                         acs_years = ACS_YEARS,
-                                         lodes_years = LODES_YEARS,
-                                         save_directory = REFERENCE_DIRECTORY)
+    bg_enrich = makePath(YEAR_GDB_FORMAT, "Enrichment_blockgroups")
+    save_path = analyze_blockgroup_model(bg_enrich_path=bg_enrich,
+                                         acs_years=ACS_YEARS,
+                                         lodes_years=LODES_YEARS,
+                                         save_directory=REF)
     return save_path
 
 
 def process_bg_apply_activity_models():
     for year in YEARS:
         # Set the inputs based on the year
-        bg_enrich = makePath(YEAR_GDB_FORMAT,
-                             "Enrichment_blockgroups").replace("{year}", str(year))
-        bg_geometry = makePath(YEAR_GDB_FORMAT,
-                               "Polygons",
-                               "BlockGroups").replace("{year}", str(year))
-        model_coefficients = makePath(REFERENCE_DIRECTORY,
-                                      "block_group_model_coefficients.csv"),
+        bg_enrich = makePath(YEAR_GDB_FORMAT, "Enrichment_blockgroups").replace("{year}", str(year))
+        bg_geometry = makePath(YEAR_GDB_FORMAT, "Polygons", "BlockGroups").replace("{year}", str(year))
+        model_coefficients = makePath(REF, "block_group_model_coefficients.csv"),
         save_gdb = YEAR_GDB_FORMAT.replace("{year}", str(year))
 
         # For unobserved years, set a constant share approach
@@ -383,38 +378,23 @@ def process_bg_apply_activity_models():
             shares = None
 
         # Apply the models
-        analyze_blockgroup_apply(year = year,
-                                 bg_enrich_path = bg_enrich,
-                                 bg_geometry_path = bg_geometry,
-                                 model_coefficients_path = model_coefficients,
-                                 save_gdb_location = save_gdb,
-                                 shares_from = shares)
+        analyze_blockgroup_apply(year=year, bg_enrich_path=bg_enrich, bg_geometry_path=bg_geometry,
+                                 model_coefficients_path=model_coefficients, save_gdb_location=save_gdb,
+                                 shares_from=shares)
 
 
 def process_allocate_bg_to_parcels():
     for year in YEARS:
         # Set the inputs based on the year
-        parcel_fc = makePath(YEAR_GDB_FORMAT,
-                             "Polygons",
-                             "Parcels").replace("{year}", str(year))
-        bg_modeled = makePath(YEAR_GDB_FORMAT,
-                              "Enrichment_blockgroups").replace("{year}", str(year))
-        bg_geom = makePath(YEAR_GDB_FORMAT,
-                           "Polygons",
-                           "BlockGroups").replace("{year}", str(year))
+        parcel_fc = makePath(YEAR_GDB_FORMAT, "Polygons", "Parcels").replace("{year}", str(year))
+        bg_modeled = makePath(YEAR_GDB_FORMAT, "Enrichment_blockgroups").replace("{year}", str(year))
+        bg_geom = makePath(YEAR_GDB_FORMAT, "Polygons", "BlockGroups").replace("{year}", str(year))
         out_gdb = YEAR_GDB_FORMAT.replace("{year}", str(year))
 
         # Allocate
-        analyze_blockgroup_allocate(parcel_fc = parcel_fc,
-                                    bg_modeled = bg_modeled,
-                                    bg_geom = bg_geom,
-                                    out_gdb = out_gdb,
-                                    parcels_id="FOLIO",
-                                    parcel_lu="DOR_UC",
+        analyze_blockgroup_allocate(parcel_fc=parcel_fc, bg_modeled=bg_modeled, bg_geom=bg_geom,
+                                    out_gdb=out_gdb, parcels_id="FOLIO", parcel_lu="DOR_UC",
                                     parcel_liv_area="TOT_LVG_AREA")
-
-
-
 
 
 def process_osm_skims():
@@ -451,23 +431,11 @@ def process_osm_skims():
                 else:
                     restrictions = None
                 # - Create and load problem
-                genODTable(
-                    origin_pts=layer,
-                    origin_name_field=MAZ_COMMON_KEY,
-                    dest_pts=maz_pts,
-                    dest_name_field=MAZ_COMMON_KEY,
-                    in_nd=nd,
-                    imped_attr=OSM_IMPED,
-                    cutoff=BIKE_PED_CUTOFF,
-                    net_loader=NET_LOADER,
-                    out_table=skim,
-                    restrictions=restrictions,
-                    use_hierarchy=False,
-                    uturns="ALLOW_UTURNS",
-                    o_location_fields=None,
-                    d_location_fields=None,
-                    o_chunk_size=5000
-                    )
+                genODTable(origin_pts=layer, origin_name_field=MAZ_COMMON_KEY,
+                           dest_pts=maz_pts, dest_name_field=MAZ_COMMON_KEY,
+                           in_nd=nd, imped_attr=OSM_IMPED, cutoff=BIKE_PED_CUTOFF, net_loader=NET_LOADER,
+                           out_table=skim, restrictions=restrictions, use_hierarchy=False, uturns="ALLOW_UTURNS",
+                           o_location_fields=None, d_location_fields=None, o_chunk_size=5000)
                 # Clean up workspace
                 arcpy.Delete_management(layer)
             # Mark as solved
@@ -478,42 +446,39 @@ def process_model_se_data():
     # Summarize parcel data to MAZ
     for year in YEARS:
         # Set output
-        out_gdb = validate_geodatabase(
-            makePath(CLEANED, f"PMT_{year}.gdb"))
-        out_fds = validate_feature_dataset(
-            makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
+        out_gdb = validate_geodatabase(makePath(CLEANED, f"PMT_{year}.gdb"))
+        out_fds = validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
         out_fc = makePath(out_fds, "MAZ")
-        maz_se_data = makePath(RAW, "SERPM", "V7", "maz_data.csv") # TODO: standardize SERPM pathing
+        maz_se_data = makePath(RAW, "SERPM", "V7", "maz_data.csv")  # TODO: standardize SERPM pathing
         # Summarize parcels to MAZ
-        print("... summarizing MAZ activities from parcels")
+        print("--- summarizing MAZ activities from parcels")
         par_fc = makePath(out_gdb, "Polygons", "Parcels")
         se_data = makePath(out_gdb, "EconDemog_parcels")
-        par_data = estimate_maz_from_parcels(
-            par_fc=par_fc, par_id_field=PARCEL_COMMON_KEY, #TODO: confirm we can use common keys here?
-            maz_fc=out_fc, maz_id_field=MAZ_COMMON_KEY,
-            taz_id_field=TAZ_COMMON_KEY, se_data=se_data,
-            se_id_field=PARCEL_COMMON_KEY, agg_cols=MAZ_AGG_COLS,
-            consolidations=MAZ_PAR_CONS)
+        # TODO: confirm we can use common keys here?
+        par_data = estimate_maz_from_parcels(par_fc=par_fc, par_id_field=PARCEL_COMMON_KEY,
+                                             maz_fc=out_fc, maz_id_field=MAZ_COMMON_KEY,
+                                             taz_id_field=TAZ_COMMON_KEY, se_data=se_data,
+                                             se_id_field=PARCEL_COMMON_KEY, agg_cols=MAZ_AGG_COLS,
+                                             consolidations=MAZ_PAR_CONS)
         # Fetch MAZ data (enrollments, etc.)
-        print("... fetching other base-year MAZ data")
+        print("--- fetching other base-year MAZ data")
         maz_data = pd.read_csv(maz_se_data)
         maz_data.rename(columns=SERPM_RENAMES, inplace=True)
         # Consolidate
-        maz_data = consolidate_cols(
-            maz_data, [MAZ_COMMON_KEY, TAZ_COMMON_KEY], MAZ_SE_CONS)
+        maz_data = consolidate_cols(maz_data, [MAZ_COMMON_KEY, TAZ_COMMON_KEY], MAZ_SE_CONS)
         # Patch for full regional MAZ data
-        print("... combining parcel-based and non-parcel-based MAZ data")
+        print("--- combining parcel-based and non-parcel-based MAZ data")
         maz_data = patch_local_regional_maz(par_data, maz_data)
         # Export MAZ table
-        print("... exporting MAZ socioeconomic/demographic data")
+        print("--- exporting MAZ socioeconomic/demographic data")
         maz_table = makePath(out_gdb, "EconDemog_MAZ")
         dfToTable(maz_data, maz_table)
         # Summarize to TAZ scale
-        print("... summarizing MAZ data to TAZ scale")
+        print("--- summarizing MAZ data to TAZ scale")
         maz_data.drop(columns=[MAZ_COMMON_KEY], inplace=True)
-        taz_data = all_data.groupby(TAZ_COMMON_KEY).sum().reset_index()
+        taz_data = maz_data.groupby(TAZ_COMMON_KEY).sum().reset_index()
         # Export TAZ table
-        print("... exporting TAZ socioeconomic/demographic data")
+        print("--- exporting TAZ socioeconomic/demographic data")
         taz_table = makePath(out_gdb, "EconDemog_TAZ")
         dfToTable(taz_data, taz_table)
 
@@ -537,10 +502,9 @@ def process_model_skims():
         inputs = [auto_csv, transit_csv]
         outputs = [auto_out, transit_out]
         for i, o in zip(inputs, outputs):
-            print(f"... cleaning skim {i}")
-            clean_skim(i, o_field, d_field, SKIM_IMP_FIELD, o,
-                       rename=SKIM_RENAMES, chunksize=100000, thousands=",",
-                       dtype=SKIM_DTYPES)
+            print(f"--- cleaning skim {i}")
+            clean_skim(in_csv=i, o_field=o_field, d_field=d_field, imp_fields=SKIM_IMP_FIELD, out_csv=o,
+                       rename=SKIM_RENAMES, chunksize=100000, thousands=",", dtype=SKIM_DTYPES)
 
 
 def process_osm_service_areas():
@@ -556,31 +520,31 @@ def process_osm_service_areas():
     solved = []
     solved_years = []
     modes = ["walk", "bike"]
-    dest_grp =["stn", "parks"]
+    dest_grp = ["stn", "parks"]
     runs = ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]
     expected_fcs = [f"{mode}_to_{dg}_{run}"
-                        for mode in modes
-                        for dg in dest_grp
-                        for run in runs
-                        ]
+                    for mode in modes
+                    for dg in dest_grp
+                    for run in runs
+                    ]
     for year in YEARS:
         out_fds = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
         # Network setup
         net_suffix = NET_BY_YEAR[year][0]
         if net_suffix in solved:
             # Copy from other year if already solved
-            copy_net_result(net_by_year=net_by_year, target_year=year, solved_years=solved_years, fc_names=expected_fcs)
+            copy_net_result(net_by_year=NET_BY_YEAR, target_year=year,
+                            solved_years=solved_years, fc_names=expected_fcs)
         else:
             # Solve this network
             print(f"\n{net_suffix}")
             for mode in modes:
                 # Create separate service area problems for stations and parks
-                nd = makePath(
-                    NETS_DIR, f"{mode}{net_suffix}.gdb", "osm", "osm_ND")
-                stns = ServiceAreaAnalysis(f"{mode}_to_stn", nd, stations,
-                                           station_name, NET_LOADER)
-                parks = ServiceAreaAnalysis(f"{mode}_to_parks", nd, parks,
-                                            parks_name, NET_LOADER)
+                nd = makePath(NETS_DIR, f"{mode}{net_suffix}.gdb", "osm", "osm_ND")
+                stns = ServiceAreaAnalysis(name=f"{mode}_to_stn", network_dataset=nd, facilities=stations,
+                                           name_field=station_name, net_loader=NET_LOADER)
+                parks = ServiceAreaAnalysis(name=f"{mode}_to_parks", network_dataset=nd, facilities=parks,
+                                            name_field=parks_name, net_loader=NET_LOADER)
                 # Solve service area problems
                 for sa_prob in [stns, parks]:
                     print(f"\n - {sa_prob.name}")
@@ -590,10 +554,8 @@ def process_osm_service_areas():
                     else:
                         restrictions = ""
                     # Solve (exports output to the out_fds)
-                    sa_prob.solve(OSM_IMPED, OSM_CUTOFF, out_fds,
-                                  restrictions=restrictions,
-                                  use_hierarchy=False,
-                                  net_location_fields="")
+                    sa_prob.solve(imped_attr=OSM_IMPED, cutoff=OSM_CUTOFF, out_ws=out_fds,
+                                  restrictions=restrictions, use_hierarchy=False, net_location_fields="")
             # Keep track of what's already been solved
             solved.append(net_suffix)
         solved_years.append(year)
@@ -613,19 +575,18 @@ def process_centrality():
         checkOverwriteOutput(out_fc, overwrite=True)
         if net_suffix in solved:
             # Copy from other year if already solved
-            copy_net_result(net_by_year=net_by_year, target_year=year, solved_years=solved_years, fc_names=out_fc_name)
+            copy_net_result(net_by_year=NET_BY_YEAR, target_year=year, solved_years=solved_years, fc_names=out_fc_name)
         else:
             # Get node and edge features as layers
             print(f"\n{net_suffix}")
-            in_fds = makePath(
-                CLEANED, "osm_networks", f"bike{net_suffix}.gdb", "osm")
+            in_fds = makePath(CLEANED, "osm_networks", f"bike{net_suffix}.gdb", "osm")
             in_nd = makePath(in_fds, "osm_ND")
             in_edges = makePath(in_fds, "edges")
             in_nodes = makePath(in_fds, "osm_ND_Junctions")
             edges = arcpy.MakeFeatureLayer_management(in_edges, "EDGES")
             nodes = arcpy.MakeFeatureLayer_management(in_nodes, "NODES")
             # Select edges by attribute - service roads
-            where = arcpy.AddFieldDelimiters(edges, "highway")
+            where = arcpy.AddFieldDelimiters(datasource=edges, field="highway")
             where = where + " LIKE '%service%'"
             arcpy.SelectLayerByAttribute_management(in_layer_or_view=edges, selection_type="NEW_SELECTION",
                                                     where_clause=where)
@@ -633,8 +594,7 @@ def process_centrality():
             arcpy.SelectLayerByLocation_management(in_layer=nodes, overlap_type="INTERSECT", select_features=edges,
                                                    selection_type="NEW_SELECTION", invert_spatial_relationship="INVERT")
             # Export selected nodes to output fc
-            arcpy.FeatureClassToFeatureClass_conversion(
-                nodes, out_fds, out_fc_name)
+            arcpy.FeatureClassToFeatureClass_conversion(in_features=nodes, out_path=out_fds, out_name=out_fc_name)
             oid_field = arcpy.Describe(out_fc).OIDFieldName
             arcpy.CalculateField_management(in_table=out_fc, field=node_id, expression=f"!{oid_field}!",
                                             expression_type="PYTHON", field_type="LONG")
@@ -643,7 +603,8 @@ def process_centrality():
                                                name_field=node_id, impedance_attribute=CENTRALITY_IMPED,
                                                cutoff=CENTRALITY_CUTOFF, restrictions=BIKE_RESTRICTIONS, chunksize=1000)
             # Extend out_fc
-            PMT.extendTableDf(out_fc, "NODE_ID", centrality_df, "NODE_ID")
+            PMT.extendTableDf(in_table=out_fc, table_match_field="NODE_ID",
+                              df=centrality_df, df_match_field="NODE_ID")
             # Delete layers to avoid name collisions
             arcpy.Delete_management(edges)
             arcpy.Delete_management(nodes)
@@ -673,12 +634,11 @@ def process_walk_times():
         for tgt_name, ref_fc in zip(target_names, ref_fcs):
             print(f"- {tgt_name}")
             ref_fc = makePath(net_fds, ref_fc)
-            walk_time_df = parcel_walk_times(
-                parcels, PARCEL_COMMON_KEY, ref_fc,
-                ref_name_field, ref_time_field, tgt_name
-                )
+            walk_time_df = parcel_walk_times(parcel_fc=parcels, parcel_id_field=PARCEL_COMMON_KEY, ref_fc=ref_fc,
+                                             ref_name_field=ref_name_field, ref_time_field=ref_time_field,
+                                             target_name=tgt_name)
             # Add time bin field
-            print("... classifying time bins")
+            print("--- classifying time bins")
             bin_field = f"bin_{tgt_name}"
             min_time_field = f"min_time_{tgt_name}"
             parcel_walk_time_bin(in_table=out_table, bin_field=bin_field,
@@ -700,21 +660,20 @@ def process_ideal_walk_times():
         dfs = []
         for target, fc in zip(targets, target_fcs):
             print(f" - {target}")
-            #field_suffix = f"{target}_ideal"
-            df = parcel_ideal_walk_time(
-                    parcels_fc, PARCEL_COMMON_KEY, fc,"Name",
-                    IDEAL_WALK_RADIUS, target, #field_suffix
-                    overlap_type="HAVE_THEIR_CENTER_IN",
-                    sr=None, assumed_mph=IDEAL_WALK_MPH
-                    )
+            # field_suffix = f"{target}_ideal"
+            df = parcel_ideal_walk_time(parcels_fc=parcels_fc, parcel_id_field=PARCEL_COMMON_KEY, target_fc=fc,
+                                        target_name_field="Name", radius=IDEAL_WALK_RADIUS, target_name=target,
+                                        # field_suffix
+                                        overlap_type="HAVE_THEIR_CENTER_IN", sr=None, assumed_mph=IDEAL_WALK_MPH)
         # Combine dfs, dfToTable
-        combo_df = dfs[0].merge(dfs[1], how="outer", on=PARCEL_COMMON_KEY)
+        combo_df = dfs[0].merge(right=dfs[1], how="outer", on=PARCEL_COMMON_KEY)
         dfToTable(combo_df, out_table)
         # Add bin fields
         for target in targets:
             min_time_field = f"min_time_{target}"
             bin_field = f"bin_{target}"
-            parcel_walk_time_bin(out_table, bin_field, min_time_field, TIME_BIN_CODE_BLOCK)
+            parcel_walk_time_bin(in_table=out_table, bin_field=bin_field,
+                                 time_field=min_time_field, code_block=TIME_BIN_CODE_BLOCK)
 
 
 def process_access():
@@ -722,18 +681,17 @@ def process_access():
         print(f"Analysis year: {year}")
         gdb = makePath(CLEANED, f"PMT_{year}.gdb")
         for mode in ACCESS_MODES:
-            print(f"... {mode}")
+            print(f"--- {mode}")
             # Get reference info from globals
             source, scale, id_field = MODE_SCALE_REF[mode]
             osm_year, model_year = NET_BY_YEAR[year]
             if source == "OSM_Networks":
                 skim_year = osm_year
             else:
-                skim_yer = model_year
+                skim_year = model_year
             # Look up zone and skim data for each mode
             zone_data = makePath(gdb, f"EconDemog_{scale}")
-            skim_data = makePath(
-                CLEANED, source, f"{mode}_Skim_{skim_year}.csv")
+            skim_data = makePath(CLEANED, source, f"{mode}_Skim_{skim_year}.csv")
             # Analyze access
             atd_df = summarizeAccess(skim_table=skim_data, o_field=SKIM_O_FIELD, d_field=SKIM_D_FIELD,
                                      imped_field=SKIM_IMP_FIELD, se_data=zone_data, id_field=id_field,
@@ -750,31 +708,28 @@ def process_access():
             # Merge tables
             atd_df.rename(columns={SKIM_O_FIELD: id_field}, inplace=True)
             afo_df.rename(columns={SKIM_D_FIELD: id_field}, inplace=True)
-            full_table = atd_df.merge(afo_df, on=id_field)
+            full_table = atd_df.merge(right=afo_df, on=id_field)
 
             # Export output
             out_table = makePath(gdb, f"Access_{scale}_{mode}")
             dfToTable(full_table, out_table, overwrite=True)
 
+
 def process_contiguity():
     for year in YEARS:
         gdb = YEAR_GDB_FORMAT.replace("{year}", str(year))
         parcel_fc = makePath(gdb, "Polygons", "Parcels")
-        ctgy_full = contiguity_index(parcels_path = parcel_fc,
-                                     buildings_path = BUILDINGS_PATH,
-                                     parcels_id_field = PARCEL_COMMON_KEY,
-                                     chunks = CTGY_CHUNKS,
-                                     cell_size = CTGY_CELL_SIZE,
-                                     weights = CTGY_WEIGHTS)
-        if CTGY_SAVE_FULL == True:
+        ctgy_full = contiguity_index(parcels_path=parcel_fc, buildings_path=BUILDINGS_PATH,
+                                     parcels_id_field=PARCEL_COMMON_KEY, chunks=CTGY_CHUNKS,
+                                     cell_size=CTGY_CELL_SIZE, weights=CTGY_WEIGHTS)
+        if CTGY_SAVE_FULL:
             full_path = makePath(gdb, "Contiguity_full_singlepart")
             dfToTable(ctgy_full, full_path)
-        ctgy_summarized = contiguity_summary(full_results_df= ctgy_full,
-                                             parcels_id_field = PARCEL_COMMON_KEY,
-                                             summary_funs = CTGY_SUMMARY_FUNCTIONS,
-                                             area_scaling = CTGY_SCALE_AREA)
+        ctgy_summarized = contiguity_summary(full_results_df=ctgy_full, parcels_id_field=PARCEL_COMMON_KEY,
+                                             summary_funs=CTGY_SUMMARY_FUNCTIONS, area_scaling=CTGY_SCALE_AREA)
         summarized_path = makePath(gdb, "Contiguity_parcels")
         dfToTable(ctgy_summarized, summarized_path)
+
 
 def process_lu_diversity():
     for year in YEARS:
@@ -784,63 +739,45 @@ def process_lu_diversity():
             agg_fc = DIV_AGG_GEOM_FORMAT.replace("{year}", str(year))
         else:
             agg_fc = DIV_AGG_GEOM_FORMAT
-        lu_dict = lu_diversity(parcels_path = parcel_fc,
-                               parcels_id_field = PARCEL_COMMON_KEY,
-                               parcels_land_use_field = PARCEL_LU_COL,
-                               land_use_recode_path = LU_RECODE_TABLE,
-                               land_use_recode_field = LU_RECODE_FIELD,
-                               on_field = DIV_ON_FIELD,
-                               aggregate_geometry_path = agg_fc,
-                               aggregate_geometry_id_field = DIV_AGG_GEOM_ID,
-                               buffer_diversity = DIV_AGG_GEOM_BUFFER,
-                               relevant_land_uses = DIV_RELEVANT_LAND_USES,
-                               how = DIV_METRICS,
-                               chisq_props = DIV_CHISQ_PROPS,
-                               regional_adjustment = DIV_REGIONAL_ADJ,
-                               regional_constants = DIV_REGIONAL_CONSTS)
+        lu_dict = lu_diversity(parcels_path=parcel_fc, parcels_id_field=PARCEL_COMMON_KEY,
+                               parcels_land_use_field=PARCEL_LU_COL,
+                               land_use_recode_path=LU_RECODE_TABLE, land_use_recode_field=LU_RECODE_FIELD,
+                               on_field=DIV_ON_FIELD,
+                               aggregate_geometry_path=agg_fc, aggregate_geometry_id_field=DIV_AGG_GEOM_ID,
+                               buffer_diversity=DIV_AGG_GEOM_BUFFER, relevant_land_uses=DIV_RELEVANT_LAND_USES,
+                               how=DIV_METRICS, chisq_props=DIV_CHISQ_PROPS,
+                               regional_adjustment=DIV_REGIONAL_ADJ, regional_constants=DIV_REGIONAL_CONSTS)
         for key, value in lu_dict.items():
             write_to = makePath(gdb, ''.join(["Diversity_", key]))
-            dfToTable(value, write_to)
-            
-            
+            dfToTable(df=value, out_table=write_to)
+
+
 def process_permits_units_reference():
     PARCELS_PATH = makePath(YEAR_GDB_FORMAT.replace("{year}", max(YEARS)),
                             "Polygons",
                             "Parcels")
-    purt = prep_permits_units_reference(parcels_path = PARCELS_PATH,
-                                        permits_path = PERMITS_PATH,
-                                        lu_match_field = PARCEL_LU_COL,
-                                        parcels_living_area_field = PARCEL_BLD_AREA,
-                                        permits_units_field = PERMITS_UNITS_FIELD,
-                                        permits_living_area_name = PERMITS_BLD_AREA_NAME,
-                                        units_match_dict = REF_TABLE_UNITS_MATCH)
-    save_to = makePath("" # TODO: where is the reference folder?
+    purt = prep_permits_units_reference(parcels_path=PARCELS_PATH, permits_path=PERMITS_PATH,
+                                        lu_match_field=PARCEL_LU_COL,
+                                        parcels_living_area_field=PARCEL_BLD_AREA,
+                                        permits_units_field=PERMITS_UNITS_FIELD,
+                                        permits_living_area_name=PERMITS_BLD_AREA_NAME,
+                                        units_match_dict=REF_TABLE_UNITS_MATCH)
+    save_to = makePath(""  # TODO: where is the reference folder?
                        "permits_units_reference_table.csv")
-    dfToTable(purt, save_to)
-    
+    dfToTable(df=purt, out_table=save_to)
+
 
 def process_short_term_parcels():
-    PARCELS_PATH = makePath(YEAR_GDB_FORMAT.replace("{year}", max(YEARS)),
-                            "Polygons",
-                            "Parcels")
-    SAVE_GDB = "" #TODO: where is this getting saved?
-    build_short_term_parcels(parcels_path=PARCELS_PATH,
-                             permits_path=PERMITS_PATH,
-                             permits_reference_path=PERMITS_REF_TABLE_PATH,
-                             parcels_id_field=PARCEL_COMMON_KEY,
-                             parcels_lu_field=PARCEL_LU_COL,
-                             parcels_living_area_field=PARCEL_BLD_AREA,
-                             parcels_land_value_field=PARCEL_LAND_VALUE,
-                             parcels_total_value_field=PARCEL_JUST_VALUE,
-                             parcels_buildings_field=PARCEL_BUILDINGS,
-                             permits_id_field=PERMITS_ID_FIELD,
-                             permits_lu_field=PERMITS_LU_FIELD,
-                             permits_units_field=PERMITS_UNITS_FIELD,
-                             permits_values_field=PERMITS_VALUES_FIELD,
-                             permits_cost_field=PERMITS_COST_FIELD,
-                             save_gdb_location=SAVE_GDB,
-                             units_field_match_dict=SHORT_TERM_PARCELS_UNITS_MATCH)
-
+    PARCELS_PATH = makePath(YEAR_GDB_FORMAT.replace("{year}", max(YEARS)), "Polygons", "Parcels")
+    SAVE_GDB = ""  # TODO: where is this getting saved?
+    build_short_term_parcels(parcels_path=PARCELS_PATH, permits_path=PERMITS_PATH,
+                             permits_reference_path=PERMITS_REF_TABLE_PATH, parcels_id_field=PARCEL_COMMON_KEY,
+                             parcels_lu_field=PARCEL_LU_COL, parcels_living_area_field=PARCEL_BLD_AREA,
+                             parcels_land_value_field=PARCEL_LAND_VALUE, parcels_total_value_field=PARCEL_JUST_VALUE,
+                             parcels_buildings_field=PARCEL_BUILDINGS, permits_id_field=PERMITS_ID_FIELD,
+                             permits_lu_field=PERMITS_LU_FIELD, permits_units_field=PERMITS_UNITS_FIELD,
+                             permits_values_field=PERMITS_VALUES_FIELD, permits_cost_field=PERMITS_COST_FIELD,
+                             save_gdb_location=SAVE_GDB, units_field_match_dict=SHORT_TERM_PARCELS_UNITS_MATCH)
 
 
 if __name__ == "__main__":
@@ -850,22 +787,22 @@ if __name__ == "__main__":
     # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
     # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
 
-    # process_basic_features() #TODO: include the status field to drive selector widget
+    # process_basic_features() # TESTED # TODO: include the status field to drive selector widget
 
     # setup any basic normalized geometries
-    process_normalized_geometries() # TODO: standardize column names
+    # process_normalized_geometries()  # TESTED # TODO: standardize column names
 
     # copies downloaded parcel data and only minimally necessary attributes into yearly gdb
-    # process_parcels()
+    # process_parcels() # TESTED
 
     # cleans and geocodes permits to associated parcels
-    # process_permits() # TODO: gdfToFeatureclass is not working properly
+    # process_permits() # TESTED
 
     # merges park data into a single point featureset and polygon feartureset
-    # process_parks()
+    # process_parks() # TESTED
 
     # cleans and geocodes crashes to included Lat/Lon
-    # process_crashes()
+    process_crashes()
 
     # cleans and geocodes transit into included Lat/Lon
     # process_transit() # TODO: reduce geo precision and consolidate points to reduce size
@@ -927,7 +864,6 @@ if __name__ == "__main__":
     # only updated when new impervious data are made available
     # process_imperviousness() # AW
     # TODO: ISGM for year-over-year changes? (low priority)
-
 
 # TODO: incorporate a project setup script or at minimum a yearly build geodatabase function/logic
 # TODO: handle multi-year data as own function
