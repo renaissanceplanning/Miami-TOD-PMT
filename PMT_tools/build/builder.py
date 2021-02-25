@@ -42,6 +42,16 @@ from PMT_tools.PMT import CLEANED
 
 
 # SNAPSHOT Functions
+def build_access_by_mode(sum_area_fc, modes, out_gdb):
+    id_fields = ["RowID", "Name", "Corridor", YEAR_COL.name]
+    for mode in modes:
+        print(f"... ... {mode}")
+        df = _createLongAccess(int_fc=sum_area_fc, id_field=id_fields,
+                               activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode=mode)
+        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
+        PMT.dfToTable(df, out_table)
+
+
 def process_joins(in_gdb, out_gdb):
     """
     Joins feature classes to associated tabular data from year set and appends to FC in output gdb
@@ -123,33 +133,17 @@ def build_enriched_tables(intersection_list, fc_spec_list, enrichment_dict_list,
         agg = var_dict["agg_cols"]
         consolidate = var_dict["consolidate"]
         melts = var_dict["melt_cols"]
-        summary_df = summarizeAttributes(
-            in_fc=intersection,
-            group_fields=group,
-            agg_cols=agg,
-            consolidations=consolidate,
-            melt_col=melts)
-        PMT.extendTableDf(
-            in_table=feature_class,
-            table_match_field=feature_class_id,
-            df=summary_df,
-            df_match_field=feature_class_id)
-        # TODO: calculate new summariation information (RES_DENS, FAR, e.g.)
+        summary_df = summarizeAttributes(in_fc=intersection, group_fields=group,
+                                         agg_cols=agg, consolidations=consolidate, melt_col=melts)
+        PMT.extendTableDf(in_table=feature_class, table_match_field=feature_class_id,
+                          df=summary_df, df_match_field=feature_class_id)
+        # TODO: calculate new summarization information (RES_DENS, FAR, e.g.)
 
 def build_elongated_tables():
     # TODO: confirm sums are correct. Draft dashboard data suspicious.
     pass
 
 
-def build_access_by_mode(sum_area_fc, modes, out_gdb):
-    id_fields = ["RowID", "Name", "Corridor", YEAR_COL.name]
-    for mode in modes:
-        print(f"... ... {mode}")
-        df = _createLongAccess(
-            int_fc=sum_area_fc, id_field=id_fields,
-            activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode=mode)
-        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
-        PMT.dfToTable(df, out_table)
 
 
 # TODO: complete process_year_to_snapshot
@@ -175,35 +169,23 @@ def process_year_to_snapshot():
      int_sum_area_par,
      int_sum_area_block,
      int_sum_area_maz,
-     int_sum_area_taz) = build_intersections(
-        blocks_fc=blocks,
-        parcels_fc=parcels,
-        maz_fc=maz,
-        taz_fc=taz,
-        sum_area_fc=sum_area
-    )
+     int_sum_area_taz) = build_intersections(blocks_fc=blocks, parcels_fc=parcels, maz_fc=maz,
+                                             taz_fc=taz, sum_area_fc=sum_area)
     # enrich tables
-    build_enriched_tables(
-        intersection_list=[int_block_par, int_sum_area_par,
-                           int_sum_area_maz, int_sum_area_taz],
-        fc_spec_list=[BLOCK_FC_SPECS, SUM_AREA_FC_SPECS,
-                      SUM_AREA_FC_SPECS, SUM_AREA_FC_SPECS],
-        enrichment_dict_list=[BLOCK_PAR_ENRICH, SA_PAR_ENRICH,
-                              SA_MAZ_ENRICH, SA_TAZ_ENRICH],
-        out_gdb=out_gdb
-    )
+    build_enriched_tables(intersection_list=[int_block_par, int_sum_area_par, int_sum_area_maz, int_sum_area_taz],
+                          fc_spec_list=[BLOCK_FC_SPECS, SUM_AREA_FC_SPECS, SUM_AREA_FC_SPECS, SUM_AREA_FC_SPECS],
+                          enrichment_dict_list=[BLOCK_PAR_ENRICH, SA_PAR_ENRICH, SA_MAZ_ENRICH, SA_TAZ_ENRICH],
+                          out_gdb=out_gdb
+                          )
     # elongate tables
     elongate_intersections = [int_sum_area_par, int_sum_area_par, int_sum_area_par,
-                           int_sum_area_par, int_sum_area_par, int_sum_area_par, int_sum_area_block]
-    build_enriched_tables(
-        intersection_list=elongate_intersections,
-        fc_spec_list=ELONGATE_SPEC_DICTS,
-
-    )
+                              int_sum_area_par, int_sum_area_par, int_sum_area_par, int_sum_area_block]
+    build_enriched_tables(intersection_list=elongate_intersections, fc_spec_list=ELONGATE_SPEC_DICTS, )
     # build access by mode tables
 
 
 def process_years_to_trend():
+    in_gdb = "this is the Trend gdb started "
     pass
 
 

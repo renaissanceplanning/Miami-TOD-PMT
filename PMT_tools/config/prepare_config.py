@@ -1,7 +1,7 @@
 from collections import OrderedDict
-from .PMT import NetLoader
+from PMT_tools.PMT import (Comp, And, Column, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
 
-# Basic features configuration
+""" Basic features configuration """
 BASIC_STATIONS = "SMARTplanStations"
 STN_NAME_FIELD = "Name"
 STN_BUFF_DIST = "2640 Feet"
@@ -33,7 +33,7 @@ BASIC_RENAME_DICT = {
     "EastWest": "East-West",
     "AllCorridors": "(All corridors)"
 }
-from PMT_tools.PMT import (Comp, And, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
+
 
 """ Bike Ped Crash Configs """
 # cleaning configuration
@@ -268,6 +268,8 @@ TRANSIT_LAT = "LAT"
 TRANSIT_LONG = "LONG"
 
 # parcel config
+PARCEL_DOR_KEY = "PARCELNO"
+PARCEL_NAL_KEY = "PARCEL_ID"
 PARCEL_COMMON_KEY = "FOLIO"
 PARCEL_USE_COLS = {
     2019: [
@@ -412,7 +414,10 @@ BG_PAR_SUM_FIELDS = ["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", 
 
 # LODES/ACS config
 ACS_COMMON_KEY = "GEOID10"
+ACS_YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 LODES_COMMON_KEY = "bgrp"
+LODES_YEARS = [2014, 2015, 2016, 2017, 2018]
+
 ACS_RACE_FIELDS = [ACS_COMMON_KEY] + [
     'Total_Non_Hisp', 'Total_Hispanic', 'White_Non_Hisp', 'Black_Non_Hisp',
     'Asian_Non_Hisp', 'Multi_Non_Hisp', 'White_Hispanic', 'Black_Hispanic',
@@ -459,6 +464,7 @@ LODES_CRITERIA = {
 }
 
 # SERPM config
+#             base,  future
 MODEL_YEARS = [2015, 2045]
 MAZ_COMMON_KEY = "MAZ"
 TAZ_COMMON_KEY = "TAZ"
@@ -497,26 +503,30 @@ MAZ_PAR_CONS = [
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
-    Consolidation("HH", ["hh"]),
-    Consolidation("TotalJobs", ["emp_total"]),
-    Consolidation("ConsJobs", ["emp_retail", "emp_amusement", "emp_hotel",
-                               "emp_restaurant_bar", "emp_personal_svcs_retail", "emp_state_local_gov_ent"]),
-    Consolidation("EdJobs", ["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"]),
-    Consolidation("HCJobs", ["emp_health"]),
-    Consolidation("IndJobs", ["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"]),
-    Consolidation("OffJobs", ["emp_prof_bus_svcs", "emp_personal_svcs_office", "emp_state_local_gov_white",
-                              "emp_own_occ_dwell_mgmt", "emp_fed_gov_accts", "emp_st_lcl_gov_accts", "emp_cap_accts"]),
-    Consolidation("OthJobs", ["emp_const_non_bldg_prod", "emp_const_non_bldg_office", "emp_utilities_prod",
-                              "emp_utilities_office", "emp_const_bldg_prod", "emp_const_bldg_office",
-                              "emp_prof_bus_svcs_bldg_maint", "emp_religious", "emp_pvt_hh", "emp_scrap_other",
-                              "emp_fed_non_mil", "emp_fed_mil", "emp_state_local_gov_blue"]),
-    Consolidation("RsrcJobs", ["emp_ag"]),
-    Consolidation("EnrollAdlt", ["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"]),
-    Consolidation("EnrollK12", ["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"])
+    Column(name="hh", rename="HH"),
+    Column(name="emp_total", rename="TotalJobs"),
+    Consolidation(name="ConsJobs", input_cols=["emp_retail", "emp_amusement", "emp_hotel",
+                                               "emp_restaurant_bar", "emp_personal_svcs_retail",
+                                               "emp_state_local_gov_ent"]),
+    Consolidation(name="EdJobs", input_cols=["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"]),
+    Column(name="emp_health", rename="HCJobs"),
+    Consolidation(name="IndJobs", input_cols=["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"]),
+    Consolidation(name="OffJobs", input_cols=["emp_prof_bus_svcs", "emp_personal_svcs_office",
+                                              "emp_state_local_gov_white", "emp_own_occ_dwell_mgmt",
+                                              "emp_fed_gov_accts", "emp_st_lcl_gov_accts", "emp_cap_accts"]),
+    Consolidation(name="OthJobs", input_cols=["emp_const_non_bldg_prod", "emp_const_non_bldg_office",
+                                              "emp_utilities_prod", "emp_utilities_office", "emp_const_bldg_prod",
+                                              "emp_const_bldg_office", "emp_prof_bus_svcs_bldg_maint", "emp_religious",
+                                              "emp_pvt_hh", "emp_scrap_other", "emp_fed_non_mil", "emp_fed_mil",
+                                              "emp_state_local_gov_blue"]),
+    Column(name="emp_ag", rename="RsrcJobs"),
+    Consolidation(name="EnrollAdlt", input_cols=["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"]),
+    Consolidation(name="EnrollK12", input_cols=["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"])
 ]
 
 # osm config
 NET_BY_YEAR = {  # TODO: refs should be _q3_2020 (rename q3_2019 gdb's)
+    # Year: [osm_data_pull, bas
     2014: ["_q3_2020", MODEL_YEARS[0]],
     2015: ["_q3_2020", MODEL_YEARS[0]],
     2016: ["_q3_2020", MODEL_YEARS[0]],
@@ -598,12 +608,11 @@ Configuration variables to be used in contiguity + developable area
 CTGY_CHUNKS = 20
 CTGY_CELL_SIZE = 40
 CTGY_WEIGHTS = "nn"
-CTGY_SAVE_FULL = False #should the table of sub-polygon results be saved to?
+CTGY_SAVE_FULL = False  # should the table of sub-polygon results be saved to?
 CTGY_SUMMARY_FUNCTIONS = ["min", "max", "median", "mean"],
 CTGY_SCALE_AREA = True
-# TODO: fill in the buildings bath
-BUILDINGS_PATH = "" #fill in the buildings path when you figure it out eh?
-
+# TODO: fill in the PROPER buildings path
+BUILDINGS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\OSM_Buildings\OSM_Buildings_20201001111703.shp"
 """
 Configuration variables to be used in land use diversity
 """
@@ -617,11 +626,11 @@ DIV_ON_FIELD = PARCEL_BLD_AREA
 DIV_AGG_GEOM_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb\Polygons\SummaryAreas"
 DIV_AGG_GEOM_ID = "RowID_"
 DIV_AGG_GEOM_BUFFER = 0,
-DIV_RELEVANT_LAND_USES =["auto", "civic", "education",
-                         "entertainment", "grocery",
-                         "healthcare", "industrial",
-                         "lodging", "mf", "office",
-                         "restaurant", "sf", "shopping"],
+DIV_RELEVANT_LAND_USES = ["auto", "civic", "education",
+                          "entertainment", "grocery",
+                          "healthcare", "industrial",
+                          "lodging", "mf", "office",
+                          "restaurant", "sf", "shopping"],
 DIV_METRICS = ["simpson", "shannon", "berger-parker", "enp", "chi-squared"],
 DIV_CHISQ_PROPS = None,
 DIV_REGIONAL_ADJ = True,
@@ -634,3 +643,38 @@ Configuration variables to be used in imperviousness
 # imperviousness path is the output of the prep function, don't need to specify here
 ZONE_GEOM_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb\Polygons\Blocks"
 ZONE_GEOM_ID = "GEOID10"
+
+"""
+Configuration variables to be used in permits/short term parcels prep
+"""
+
+# For building the reference table
+# Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
+PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Dade_BuildingPermits.shp"
+# Use PARCEL_LU_COL for lu_match_field
+# Use PARCEL_BLD_AREA for parcels_living_area_field
+PERMITS_UNITS_FIELD = "UNITS"
+PERMITS_BLD_AREA_NAME = "sq. ft."
+REF_TABLE_UNITS_MATCH = {"bed": "NO_RES_UNTS",
+                         "room": "NO_RES_UNTS",
+                         "unit": "NO_RES_UNTS",
+                         "acre": "LND_SQFOOT / 43560"}
+
+# For building the short term parcels
+# Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
+PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Dade_BuildingPermits.shp"
+PERMITS_REF_TABLE_PATH = r"K:\Projects\MiamiDade\PMT\Data\Reference\permits_units_reference_table.csv"
+# Use PARCEL_COMMON_KEY for parcels_id_field
+# Use PARCEL_LU_COL for parcels_lu_field
+# USE PARCEL_BLD_AREA parcels_living_area_field
+PARCEL_LAND_VALUE = "LND_VAL"
+PARCEL_JUST_VALUE = "JV"
+PARCEL_BUILDINGS = "NO_BULDNG"
+PERMITS_ID_FIELD = "PARCELNO"
+PERMITS_LU_FIELD = "DOR_UC"
+# Use PERMITS_UNITS_FIELD for permits units field
+PERMITS_VALUES_FIELD = "UNITS_VAL"
+PERMITS_COST_FIELD = "COST"
+SHORT_TERM_PARCELS_UNITS_MATCH = {"bed": "NO_RES_UNTS",
+                                  "room": "NO_RES_UNTS",
+                                  "unit": "NO_RES_UNTS"}
