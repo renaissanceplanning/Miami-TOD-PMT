@@ -25,6 +25,8 @@ from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import arcpy
 from six import string_types
 
+from functools import reduce
+
 import PMT_tools.logger as log
 
 import PMT_tools.PMT as PMT  # Think we need everything here
@@ -33,7 +35,7 @@ from PMT_tools.PMT import (dfToPoints, extendTableDf, makePath, make_inmem_path,
 
 logger = log.Logger(add_logs_to_arc_messages=True)
 
-
+# TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
 # general use functions
 def is_gz_file(filepath):
     with open(filepath, 'rb') as test_f:
@@ -276,6 +278,44 @@ def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
                                         new_field_alias=rename)
 
 
+def _merge_df_(x_specs, y_specs, on=None, left_on=None, right_on=None,
+               **kwargs):
+    df_x, suffix_x = x_specs
+    df_y, suffix_y = y_specs
+    merge_df = df_x.merge(df_y, suffixes=(suffix_x, suffix_y), **kwargs)
+    # Must return a tuple to support reliably calling from `reduce`
+    return (merge_df, suffix_y)
+
+
+def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
+    # import dask.dataframe as dd
+    # from functools import reduce
+    ddfs = [dd.read_csv(t, **kwargs) for t in tables]
+    if suffixes is None:
+        df = reduce(lambda this, next: this.merge(next, on=merge_fields), ddfs)
+    else:
+        # for odd lenghts, the last suffix will be lost because there will
+        # be no collisions (applies to well-formed data only - inconsistent
+        # field naming could result in field name collisions prompting a
+        # suffix
+        if len(ddfs) % 2 != 0:
+            # Force rename suffix
+            cols = [
+                (c, f"{c}_{suffixes[-1]}")
+                for c in ddfs[-1].columns
+                if c not in merge_fields
+                ]
+            renames = dict(cols)
+            ddfs[-1] = ddfs.rename(columns=renames)
+        #zip ddfs and suffixes
+        specs = zip(ddfs, suffixes)
+        df = reduce(
+            lambda this, next: _merge_df_(this, next, on=merge_fields), specs
+            )
+    df.to_csv(out_table, single_file=True)
+
+
+
 # basic features functions
 def _listifyInput(input):
     if isinstance(input, string_types):
@@ -330,7 +370,6 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
             (chaging "EastWest" column to "East-West", e.g.)
         overwrite (bool): default=False
     """
-    # TODO: include (All) corridors with Name = (All stations), (Entire corridors), (Outside station areas)
     stn_diss_fields = _listifyInput(stn_diss_fields)
     stn_corridor_fields = _listifyInput(stn_corridor_fields)
     align_diss_fields = _listifyInput(align_diss_fields)
@@ -351,6 +390,22 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     _diss_flds_ = _stringifyList(align_diss_fields)
     arcpy.Buffer_analysis(alignments_fc, corridors_fc, align_buff_dist,
                           dissolve_option="LIST", dissolve_field=_diss_flds_)
+    
+    # Add (All corridors) to `corridors_fc`
+    # - Setup field outputs
+    upd_fields = align_diss_fields + ["SHAPE@"]
+    fld_objs = arcpy.ListFields(corridors_fc)
+    fld_objs = [f for f in fld_objs if f.name in align_diss_fields]
+    # TODO: Smarter method to set values for (All corridors)
+    # This just sets all string fields to '(All corridors)' and
+    # any non-string fields to  <NULL>
+    upd_vals = ["(All Corridors)" for f in fld_objs if f.type=="String" else None]
+    with arcpy.da.SearchCursor(corridors_fc, "SHAPE@") as c:
+        # Merge all polys
+        all_cors_poly = reduce(lambda x, y: x.union(y), [r[0] for r in c])
+    upd_vals.append(all_cors_poly)
+    with arcpy.da.InsertCursor(corridors_fc, upd_fields) as c:
+        c.insertRow(upd_vals)
 
     # Elongate stations by corridor (for dashboard displays, selectors)
     print("--- elongating station features")
@@ -416,7 +471,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     out_path, out_name = os.path.split(out_fc)
     arcpy.CreateFeatureclass_management(
         out_path, out_name, "POLYGON", spatial_reference=sr)
-    # - Add fields    
+    # - Add fields
     arcpy.AddField_management(out_fc, "Name", "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, "Corridor", "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, "RowID", "LONG")
@@ -457,6 +512,13 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
                     cor_stn_polys[corridor] = poly
                 else:
                     cor_stn_polys[corridor] = cor_poly.union(poly)
+                # Merge all corridors polygons in a dict for later use
+                # TODO: should "(All corridors)" be passed as an arg or remain hard-coded?
+                all_cor_poly = cor_stn_polys.get("(All corridors)", None)
+                if all_cor_poly is None:
+                    cor_stn_polys["(All corridors)"] = poly
+                else:
+                    cor_stn_polys["(All corridors)"] = all_cor_poly.union(poly)
 
     # Add dissolved areas with name = (All stations), corridor=stn_cor_field
     # Add difference area with name = (Outside station areas), corridor=stn_cor_field
@@ -2746,6 +2808,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
 def taz_travel_stats(skim_table, trip_table, o_field, d_field, dist_field, ):
     """
 
+
     Parameters
     -----------
 
@@ -2753,7 +2816,10 @@ def taz_travel_stats(skim_table, trip_table, o_field, d_field, dist_field, ):
     --------
     taz_stats_df: DataFrame
     """
+
     # Read skims, trip tables
+    skims = pd.read_csv()
+
     # Summarize trips, total trip mileage by TAZ
     #
 
@@ -2762,12 +2828,9 @@ def taz_travel_stats(skim_table, trip_table, o_field, d_field, dist_field, ):
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
-
-
 def contiguity_index(parcels_path, buildings_path, parcels_id_field,
                      chunks=20, cell_size=40, weights="nn"):
-    """
-        calculate contiguity of developable area
+    """calculate contiguity of developable area
     Args:
         parcels_path: String; path to parcel polygons; contiguity will be calculated relative to this
         buildings_path: String; path to building polygons;

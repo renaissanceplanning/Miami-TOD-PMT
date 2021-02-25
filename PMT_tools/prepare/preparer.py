@@ -495,6 +495,7 @@ def process_model_skims():
     for year in MODEL_YEARS:
         print(year)
         # Setup input/output tables
+        # TODO: add trip tables()
         auto_csv = PMT.makePath(RAW, "SERPM", f"GP_Skims_AM_{year}.csv")
         auto_out = PMT.makePath(CLEANED, "SERPM", f"Auto_Skim_{year}.csv")
         transit_csv = PMT.makePath(RAW, "SERPM", f"Tran_Skims_AM_{year}.csv")
