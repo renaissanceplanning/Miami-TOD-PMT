@@ -7,8 +7,16 @@ STN_NAME_FIELD = "Name"
 STN_BUFF_DIST = "2640 Feet"
 STN_BUFF_METERS = 804.672
 STN_DISS_FIELDS = ["Id", "Name", "Status"]
-STN_CORRIDOR_FIELDS = ["Beach", "EastWest", "Green", "Kendall", "Metromover",
-                       "North", "Northeast", "Orange", "South"]
+STN_CORRIDOR_FIELDS = ["Beach",
+                       "EastWest",
+                       "Green",
+                       "Kendall",
+                       "Metromover",
+                       "North",
+                       "Northeast",
+                       "Orange",
+                       "South",
+                       "AllCorridors"]
 
 BASIC_ALIGNMENTS = "SMARTplanAlignments"
 ALIGN_DISS_FIELDS = "Corridor"
@@ -22,7 +30,8 @@ BASIC_SUM_AREAS = "SummaryAreas"
 STN_LONG_CORRIDOR = "Corridor"
 
 BASIC_RENAME_DICT = {
-    "EastWest": "East-West"
+    "EastWest": "East-West",
+    "AllCorridors": "(All corridors)"
 }
 
 
