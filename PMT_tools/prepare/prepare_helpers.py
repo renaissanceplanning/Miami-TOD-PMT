@@ -518,13 +518,6 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
                     cor_stn_polys[corridor] = poly
                 else:
                     cor_stn_polys[corridor] = cor_poly.union(poly)
-                # Merge all corridors polygons in a dict for later use
-                # TODO: should "(All corridors)" be passed as an arg or remain hard-coded?
-                all_cor_poly = cor_stn_polys.get("(All corridors)", None)
-                if all_cor_poly is None:
-                    cor_stn_polys["(All corridors)"] = poly
-                else:
-                    cor_stn_polys["(All corridors)"] = all_cor_poly.union(poly)
 
     # Add dissolved areas with name = (All stations), corridor=stn_cor_field
     # Add difference area with name = (Outside station areas), corridor=stn_cor_field

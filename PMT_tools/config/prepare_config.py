@@ -15,7 +15,8 @@ STN_CORRIDOR_FIELDS = ["Beach",
                        "North",
                        "Northeast",
                        "Orange",
-                       "South"]
+                       "South",
+                       "AllCorridors"]
 
 BASIC_ALIGNMENTS = "SMARTplanAlignments"
 ALIGN_DISS_FIELDS = "Corridor"
@@ -29,7 +30,8 @@ BASIC_SUM_AREAS = "SummaryAreas"
 STN_LONG_CORRIDOR = "Corridor"
 
 BASIC_RENAME_DICT = {
-    "EastWest": "East-West"
+    "EastWest": "East-West",
+    "AllCorridors": "(All corridors)"
 }
 from PMT_tools.PMT import (Comp, And, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
 
