@@ -527,14 +527,14 @@ MAZ_SE_CONS = [
 # osm config
 NET_BY_YEAR = {  # TODO: refs should be _q3_2020 (rename q3_2019 gdb's)
     # Year: [osm_data_pull, bas
-    2014: ["_q3_2020", MODEL_YEARS[0]],
-    2015: ["_q3_2020", MODEL_YEARS[0]],
-    2016: ["_q3_2020", MODEL_YEARS[0]],
-    2017: ["_q3_2020", MODEL_YEARS[0]],
-    2018: ["_q3_2020", MODEL_YEARS[0]],
-    2019: ["_q3_2020", MODEL_YEARS[0]],
-    "NearTerm": ["_q3_2020", MODEL_YEARS[0]],
-    "LongTerm": ["_q3_2020", MODEL_YEARS[1]]
+    2014: ["_q1_2021", MODEL_YEARS[0]],
+    2015: ["_q1_2021", MODEL_YEARS[0]],
+    2016: ["_q1_2021", MODEL_YEARS[0]],
+    2017: ["_q1_2021", MODEL_YEARS[0]],
+    2018: ["_q1_2021", MODEL_YEARS[0]],
+    2019: ["_q1_2021", MODEL_YEARS[0]],
+    "NearTerm": ["_q1_2021", MODEL_YEARS[0]],
+    "LongTerm": ["_q1_2021", MODEL_YEARS[1]]
 }
 NETS_DIR = makePath(CLEANED, "osm_networks")
 SEARCH_CRITERIA = "edges SHAPE;osm_ND_Junctions NONE"
@@ -542,7 +542,7 @@ SEARCH_QUERY = "edges #;osm_ND_Junctions #"
 NET_LOADER = NetLoader("1500 meters",
                        search_criteria=SEARCH_CRITERIA,
                        match_type="MATCH_TO_CLOSEST",
-                       append="APPEND",
+                       append="CLEAR",
                        exclude_restricted="EXCLUDE",
                        search_query=SEARCH_QUERY
                        )

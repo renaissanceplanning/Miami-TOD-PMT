@@ -68,21 +68,31 @@ def validate_directory(directory):
             return error
 
 
-def validate_geodatabase(gdb_path):
-    if gdb_path.endswith(".gdb"):
-        if os.path.isdir(gdb_path):
+def validate_geodatabase(gdb_path, overwrite=False):
+    exists = False
+    if gdb_path.endswith(".gdb"): # TODO: else raise error?
+        if os.path.isdir(gdb_path):# TODO: should this be arcpy.Exists and arcpy.Describe.whatever indicates gdb?
+            exists = True
+            if overwrite:
+                checkOverwriteOutput(gdb_path, overwrite=overwrite)
+                exists = False
+    if exists:
+        # If we get here, the gdb exists, and it won't be overwritten
+        return gdb_path
+    else:
+        # The gdb does not or no longer exists and must be created
+        try:
+            out_path, name = os.path.split(gdb_path)
+            arcpy.CreateFileGDB_management(
+                out_folder_path=out_path, out_name=name[:-4])
             return gdb_path
-        else:
-            try:
-                out_path, name = os.path.split(gdb_path)
-                arcpy.CreateFileGDB_management(out_folder_path=out_path, out_name=name[:-4])
-                return gdb_path
-            except:
-                error = "--> 'gdb' does not exist and cannot be created"
-                return error
+        except:
+            error = "--> 'gdb' does not exist and cannot be created" #TODO: Raise?
+            return error
 
 
-def validate_feature_dataset(fds_path, sr):
+
+def validate_feature_dataset(fds_path, sr, overwrite=False):
     """
     validate that a feature dataset exists and is the correct sr, otherwise create it and return the path
     Parameters
@@ -98,11 +108,14 @@ def validate_feature_dataset(fds_path, sr):
         # verify the path is through a geodatabase
         if fnmatch.fnmatch(name=fds_path, pat="*.gdb*"):
             if arcpy.Exists(fds_path) and arcpy.Describe(fds_path).spatialReference == sr:
-                return fds_path
-            else:
-                out_gdb, name = os.path.split(fds_path)
-                out_gdb = validate_geodatabase(gdb_path=out_gdb)
-                arcpy.CreateFeatureDataset_management(out_dataset_path=out_gdb, out_name=name, spatial_reference=sr)
+                if overwrite:
+                    checkOverwriteOutput(fds_path, overwrite=overwrite)
+                else:
+                    return fds_path
+            # Snipped below only runs if not exists/overwrite and can be created.
+            out_gdb, name = os.path.split(fds_path)
+            out_gdb = validate_geodatabase(gdb_path=out_gdb)
+            arcpy.CreateFeatureDataset_management(out_dataset_path=out_gdb, out_name=name, spatial_reference=sr)
             return fds_path
         else:
             raise ValueError

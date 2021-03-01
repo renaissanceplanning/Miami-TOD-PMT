@@ -1,6 +1,11 @@
 """
 preparation scripts used set up cleaned geodatabases
 """
+import os
+import sys
+sys.path.insert(0, os.getcwd())
+
+
 # TODO: move these functions to a general helper file as they apply more broadly
 from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 # config global variables
@@ -15,7 +20,7 @@ from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FI
 from PMT_tools.config.prepare_config import LODES_YEARS, ACS_YEARS
 from PMT_tools.config.prepare_config import (PARCEL_COMMON_KEY, PARCEL_DOR_KEY, PARCEL_NAL_KEY, PARCEL_COLS,
                                              PARCEL_USE_COLS, PARCEL_AREA_COL, PARCEL_LU_AREAS, PARCEL_BLD_AREA)
-from PMT_tools.config.prepare_config import BG_COMMON_KEY, ACS_COMMON_KEY, LODES_COMMON_KEY
+from PMT_tools.config.prepare_config import BG_COMMON_KEY, ACS_COMMON_KEY, LODES_COMMON_KEY, MAZ_COMMON_KEY, TAZ_COMMON_KEY
 from PMT_tools.config.prepare_config import (BG_PAR_SUM_FIELDS, ACS_RACE_FIELDS, ACS_COMMUTE_FIELDS, LODES_FIELDS,
                                              LODES_CRITERIA)
 from PMT_tools.config.prepare_config import SKIM_O_FIELD, SKIM_D_FIELD, SKIM_IMP_FIELD, SKIM_DTYPES, SKIM_RENAMES
@@ -44,7 +49,7 @@ from PMT_tools.config.prepare_config import PARCEL_LAND_VALUE, PARCEL_JUST_VALUE
 from PMT_tools.prepare.prepare_helpers import *
 from PMT_tools.prepare.prepare_osm_networks import *
 # PMT functions
-from PMT_tools.PMT import makePath, SR_FL_SPF, EPSG_FLSPF, checkOverwriteOutput, dfToTable
+from PMT_tools.PMT import makePath, SR_FL_SPF, EPSG_FLSPF, checkOverwriteOutput, dfToTable, polygonsToPoints
 # PMT classes
 from PMT_tools.PMT import ServiceAreaAnalysis
 # PMT globals
@@ -64,7 +69,7 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
+    ROOT = r'D:\Users\AK7\Documents\PMT'
     RAW = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     DATA = ROOT
@@ -327,26 +332,40 @@ def process_imperviousness():
 
 
 def process_osm_networks():
-    net_version = "q1_2021"
-    # Import edges
-    osm_raw = PMT.makePath(RAW, "OpenStreetMap")
-    for net_type in ["bike", "walk"]:
-        net_type_version = f"{net_type}_{net_version}"
-        clean_gdb = makeCleanNetworkGDB(CLEANED, gdb_name=net_type_version)
-        net_type_fd = makeNetFeatureDataSet(gdb_path=clean_gdb, name="osm", sr=OUT_CRS)
+    net_versions = sorted({v[0] for v in NET_BY_YEAR.values()})
+    # TODO: DROP DEBUG PLACEHOLDER default of net_versions
+    # ********
+    net_versions = ["q1_2021"]
+    # ********
+    for net_version in net_versions:
+        # Import edges
+        osm_raw = PMT.makePath(RAW, "OpenStreetMap")
+        for net_type in ["bike", "walk"]:
+            net_type_version = f"{net_type}_{net_version}"
+            # Make output geodatabase
+            clean_gdb = validate_geodatabase(
+                makePath(NETS_DIR, f"{net_type_version}.gdb"),
+                overwrite=True
+                )
+            # make output feature dataset
+            net_type_fd = validate_feature_dataset(
+                makePath(clean_gdb, "osm"),
+                sr=OUT_CRS,
+                overwrite=True
+                )
 
-        # import edges
-        net_raw = PMT.makePath(osm_raw, net_type_version, "edges.shp")
-        # transfer to gdb
-        edges = importOSMShape(net_raw, net_type_fd, overwrite=True)
+            # import edges
+            net_raw = PMT.makePath(osm_raw, net_type_version, "edges.shp")
+            # transfer to gdb
+            edges = importOSMShape(net_raw, net_type_fd, overwrite=True)
 
-        if net_type == "bike":
-            # Enrich features
-            classifyBikability(edges)
+            if net_type == "bike":
+                # Enrich features
+                classifyBikability(edges)
 
-        # Build network datasets
-        template = makePath(REF, f"osm_{net_type}_template.xml")
-        makeNetworkDataset(template, net_type_fd, "osm_ND")
+            # Build network datasets
+            template = makePath(REF, f"osm_{net_type}_template.xml")
+            makeNetworkDataset(template, net_type_fd, "osm_ND")
 
 
 def process_bg_estimate_activity_models():
@@ -403,12 +422,12 @@ def process_osm_skims():
     else:
         raise arcpy.ExecuteError("Network Analyst Extension license is not available.")
     # Create and solve OD Matrix at MAZ scale
-    osm_dir = makePath(CLEANED, "OSM_Networks")
     solved = []
-    for year in PMT.YEARS:
+    for year in YEARS:
         # Get MAZ features, create temp centroids for network loading
-        maz_path = PMT.makePath(CLEANED, f"PMT_{year}.gdb", "Polygons", "MAZ")
-        maz_pts = PMT.polygon_to_points_arc(maz_path, MAZ_COMMON_KEY)
+        maz_path = makePath(CLEANED, f"PMT_{year}.gdb", "Polygons", "MAZ")
+        maz_fc = make_inmem_path()
+        maz_pts = polygonsToPoints(maz_path, maz_fc, MAZ_COMMON_KEY)
         net_suffix = NET_BY_YEAR[year][0]
         if net_suffix not in solved:
             # TODO: confirm whether separate walk/bike layers are needed
@@ -421,21 +440,23 @@ def process_osm_skims():
             layers = [walk_lyr, bike_lyr]
             # Run each mode
             for mode, layer in zip(modes, layers):
+                print(mode)
                 # - Skim input/output
                 nd = makePath(
-                    osm_dir, f"{mode}{net_suffix}.gdb", "osm", "osm_ND")
+                    NETS_DIR, f"{mode}{net_suffix}.gdb", "osm", "osm_ND")
                 skim = PMT.makePath(
-                    osm_dir, f"{mode}_Skim{net_suffix}.csv")
+                    NETS_DIR, f"{mode}_Skim{net_suffix}.csv")
                 if mode == "bike":
                     restrictions = BIKE_RESTRICTIONS
                 else:
                     restrictions = None
                 # - Create and load problem
+                # Confirm "Year" column is included in output table
                 genODTable(origin_pts=layer, origin_name_field=MAZ_COMMON_KEY,
                            dest_pts=maz_pts, dest_name_field=MAZ_COMMON_KEY,
                            in_nd=nd, imped_attr=OSM_IMPED, cutoff=BIKE_PED_CUTOFF, net_loader=NET_LOADER,
                            out_table=skim, restrictions=restrictions, use_hierarchy=False, uturns="ALLOW_UTURNS",
-                           o_location_fields=None, d_location_fields=None, o_chunk_size=5000)
+                           o_location_fields=None, d_location_fields=None, o_chunk_size=1000)
                 # Clean up workspace
                 arcpy.Delete_management(layer)
             # Mark as solved
@@ -514,13 +535,13 @@ def process_osm_service_areas():
     stations = makePath(BASIC_FEATURES, "SMART_Plan_Stations")
     station_name = "Name"
     # - Parks
-    parks = PMT.makePath(CLEANED, "Parks", "Facility.shp")
+    parks = PMT.makePath(CLEANED, "Park_Points.shp")
     parks_name = "NAME"
 
     # For each analysis year, analyze networks (avoid redundant solves)
     solved = []
     solved_years = []
-    modes = ["walk", "bike"]
+    modes = ["walk"] #["walk", "bike"]
     dest_grp = ["stn", "parks"]
     runs = ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]
     expected_fcs = [f"{mode}_to_{dg}_{run}"
@@ -529,13 +550,24 @@ def process_osm_service_areas():
                     for run in runs
                     ]
     for year in YEARS:
-        out_fds = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
+        out_fds_path = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
+        out_fds = validate_feature_dataset(out_fds_path, SR_FL_SPF, overwrite=False)
         # Network setup
         net_suffix = NET_BY_YEAR[year][0]
         if net_suffix in solved:
             # Copy from other year if already solved
-            copy_net_result(net_by_year=NET_BY_YEAR, target_year=year,
-                            solved_years=solved_years, fc_names=expected_fcs)
+            # Set a source to copy network analysis results from based on net_by_year
+            # TODO: functionalize source year setting
+            target_net = net_by_year[year][0]
+            source_year = None
+            for solved_year in solved:
+                solved_net = net_by_year[solved_year][0]
+                if solved_net == target_net:
+                    source_year = solved_year
+                    break
+            source_fds = makePath(CLEANED, f"PMT_{source_year}.gdb", "Networks")
+            target_fds = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
+            copy_net_result(sourc_fds, target_fds, fc_names=out_fc_name)
         else:
             # Solve this network
             print(f"\n{net_suffix}")
@@ -570,17 +602,27 @@ def process_centrality():
     for year in YEARS:
         net_suffix = NET_BY_YEAR[year][0]
         out_fds_path = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
-        out_fds = validate_feature_dataset(out_fds_path, SR_FL_SPF)
+        out_fds = validate_feature_dataset(out_fds_path, SR_FL_SPF, overwrite=False)
         out_fc_name = "nodes_bike"
         out_fc = makePath(out_fds, out_fc_name)
         checkOverwriteOutput(out_fc, overwrite=True)
         if net_suffix in solved:
             # Copy from other year if already solved
-            copy_net_result(net_by_year=NET_BY_YEAR, target_year=year, solved_years=solved_years, fc_names=out_fc_name)
+            # TODO: functionalize source year setting
+            target_net = net_by_year[year][0]
+            source_year = None
+            for solved_year in solved:
+                solved_net = net_by_year[solved_year][0]
+                if solved_net == target_net:
+                    source_year = solved_year
+                    break
+            source_fds = makePath(CLEANED, f"PMT_{source_year}.gdb", "Networks")
+            target_fds = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
+            copy_net_result(sourc_fds, target_fds, fc_names=out_fc_name)
         else:
             # Get node and edge features as layers
             print(f"\n{net_suffix}")
-            in_fds = makePath(CLEANED, "osm_networks", f"bike{net_suffix}.gdb", "osm")
+            in_fds = makePath(NETS_DIR, f"bike{net_suffix}.gdb", "osm")
             in_nd = makePath(in_fds, "osm_ND")
             in_edges = makePath(in_fds, "edges")
             in_nodes = makePath(in_fds, "osm_ND_Junctions")
@@ -597,15 +639,16 @@ def process_centrality():
             # Export selected nodes to output fc
             arcpy.FeatureClassToFeatureClass_conversion(in_features=nodes, out_path=out_fds, out_name=out_fc_name)
             oid_field = arcpy.Describe(out_fc).OIDFieldName
+            arcpy.AddField_management(in_table=out_fc, field_name=node_id, field_type="TEXT", field_length=8)
             arcpy.CalculateField_management(in_table=out_fc, field=node_id, expression=f"!{oid_field}!",
-                                            expression_type="PYTHON", field_type="LONG")
+                                            expression_type="PYTHON")
             # Calculate centrality (iterative OD solves)
             centrality_df = network_centrality(in_nd=in_nd, in_features=out_fc, net_loader=CENTRALITY_NET_LOADER,
                                                name_field=node_id, impedance_attribute=CENTRALITY_IMPED,
                                                cutoff=CENTRALITY_CUTOFF, restrictions=BIKE_RESTRICTIONS, chunksize=1000)
             # Extend out_fc
-            PMT.extendTableDf(in_table=out_fc, table_match_field="NODE_ID",
-                              df=centrality_df, df_match_field="NODE_ID")
+            PMT.extendTableDf(in_table=out_fc, table_match_field=node_id,
+                              df=centrality_df, df_match_field="Node")
             # Delete layers to avoid name collisions
             arcpy.Delete_management(edges)
             arcpy.Delete_management(nodes)
@@ -629,7 +672,8 @@ def process_walk_times():
         print(year)
         year_gdb = makePath(CLEANED, f"PMT_{year}.gdb")
         parcels = makePath(year_gdb, "Polygons", "Parcels")
-        out_table = makePath(year_gdb, "walk_time")
+        out_table = makePath(year_gdb, "WalkTime_parcels")
+        _append_ = False
         # Iterate over targets and references
         net_fds = makePath(year_gdb, "Networks")
         for tgt_name, ref_fc in zip(target_names, ref_fcs):
@@ -638,6 +682,12 @@ def process_walk_times():
             walk_time_df = parcel_walk_times(parcel_fc=parcels, parcel_id_field=PARCEL_COMMON_KEY, ref_fc=ref_fc,
                                              ref_name_field=ref_name_field, ref_time_field=ref_time_field,
                                              target_name=tgt_name)
+            # Dump df to output table
+            if _append_:
+                extendTableDf(out_table, PARCEL_COMMON_KEY, walk_time_df, PARCEL_COMMON_KEY)
+            else:
+                dfToTable(walk_time_df, out_table, overwrite=True)
+                _append_ = True
             # Add time bin field
             print("--- classifying time bins")
             bin_field = f"bin_{tgt_name}"
@@ -655,7 +705,7 @@ def process_ideal_walk_times():
         parcels_fc = makePath(year_gdb, "Polygons", "Parcels")
         stations_fc = makePath(BASIC_FEATURES, "SMART_Plan_Stations")
         parks_fc = makePath(CLEANED, "Park_Points.shp")
-        out_table = makePath(year_gdb, "ideal_walk_time")
+        out_table = makePath(year_gdb, "IdealWalkTime_parcels")
         target_fcs = [stations_fc, parks_fc]
         # Analyze ideal walk times
         dfs = []
@@ -664,9 +714,10 @@ def process_ideal_walk_times():
             # field_suffix = f"{target}_ideal"
             df = parcel_ideal_walk_time(parcels_fc=parcels_fc, parcel_id_field=PARCEL_COMMON_KEY, target_fc=fc,
                                         target_name_field="Name", radius=IDEAL_WALK_RADIUS, target_name=target,
-                                        # field_suffix
                                         overlap_type="HAVE_THEIR_CENTER_IN", sr=None, assumed_mph=IDEAL_WALK_MPH)
+            dfs.append(df)
         # Combine dfs, dfToTable
+        # TODO: This assumes only 2 data frames, but could be generalized to merge multiple frames
         combo_df = dfs[0].merge(right=dfs[1], how="outer", on=PARCEL_COMMON_KEY)
         dfToTable(combo_df, out_table)
         # Add bin fields
@@ -803,10 +854,10 @@ if __name__ == "__main__":
     # process_parks() # TESTED
 
     # cleans and geocodes crashes to included Lat/Lon
-    process_crashes()
+    # process_crashes() # DROPPED
 
     # cleans and geocodes transit into included Lat/Lon
-    # process_transit() # TODO: reduce geo precision and consolidate points to reduce size
+    # process_transit() # TESTED
 
     # ENRICH DATA
     # -----------------------------------------------
@@ -833,22 +884,22 @@ if __name__ == "__main__":
     # NETWORK ANALYSES
     # -----------------------------------------------
     # build osm networks from templates
-    # process_osm_networks()
+    # process_osm_networks() #Tested by AB 2/26/21
 
     # assess network centrality for each bike network
-    # process_centrality()
+    # process_centrality() # Tested by AB 2/27/21
 
     # analyze osm network service areas
-    # process_osm_service_areas()
+    # process_osm_service_areas() # Tested by AB 2/28/21
 
     # analyze walk/bike times among MAZs
-    # process_osm_skims()
+    # process_osm_skims() #Tested by AB 3/1/21
 
     # record parcel walk times
-    # process_walk_times()
+    process_walk_times() # Tested by AB 3/1/21 - full run to confirm
 
     # record parcel ideal walk times
-    # process_ideal_walk_times()
+    # process_ideal_walk_times() # Tested by AB 3/1/21
 
     # prepare serpm TAZ-level travel skims
     # process_model_skims()
