@@ -525,7 +525,7 @@ MAZ_SE_CONS = [
 ]
 
 # osm config
-NET_BY_YEAR = {  # TODO: refs should be _q3_2020 (rename q3_2019 gdb's)
+NET_BY_YEAR = {
     # Year: [osm_data_pull, bas
     2014: ["_q3_2020", MODEL_YEARS[0]],
     2015: ["_q3_2020", MODEL_YEARS[0]],
@@ -542,7 +542,7 @@ SEARCH_QUERY = "edges #;osm_ND_Junctions #"
 NET_LOADER = NetLoader("1500 meters",
                        search_criteria=SEARCH_CRITERIA,
                        match_type="MATCH_TO_CLOSEST",
-                       append="APPEND",
+                       append="CLEAR",
                        exclude_restricted="EXCLUDE",
                        search_query=SEARCH_QUERY
                        )

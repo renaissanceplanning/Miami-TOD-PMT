@@ -11,7 +11,7 @@ import urllib3
 import uuid
 # import geopandas as gpd
 import pandas as pd
-import pysal as ps
+#import pysal as ps
 # from shapely.geometry.polygon import Polygon as POLY
 
 import os
@@ -759,6 +759,7 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
     skip_nulls: Boolean, default=False
     null_value: Integer, default=0
     """
+    # TODO: adapt to search-cursor-based derivation of polygon.centroid to ensure point is within polygon
     sr = arcpy.Describe(in_fc).spatialReference
     if fields == "*":
         fields = [f.name for f in arcpy.ListFields(in_fc) if not f.required]
@@ -1015,7 +1016,7 @@ def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
     # Field mappings
     fmap_fields = ["Name"]
     fmap_vals = [name_field]
-    if net_location_fields is not None:
+    if net_location_fields is not None and net_location_fields != "":
         fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
                         "SnapX", "SnapY", "Distance"]
         fmap_vals += net_location_fields
@@ -1043,7 +1044,7 @@ def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
     print("... ...generating service areas")
     arcpy.na.Solve(in_network_analysis_layer=net_layer,
                    ignore_invalids="SKIP",
-                   terminate_on_solve_error="TERMINATE"
+                   terminate_on_solve_error="CONTINUE"
                    )
 
 

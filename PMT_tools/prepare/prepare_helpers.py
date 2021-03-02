@@ -1,5 +1,6 @@
 # global configurations
 # TODO: shuffle global imports to preparer and update functions to take in new variables accordingly
+from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 from PMT_tools.config.prepare_config import (CRASH_CODE_TO_STRING, CRASH_CITY_CODES,
                                              CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES)
 from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STATUS_DICT, PERMITS_FIELDS_DICT,
@@ -23,6 +24,7 @@ from sklearn import linear_model
 import scipy
 from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import arcpy
+#import dask.dataframe as dd
 from six import string_types
 
 from functools import reduce
@@ -288,8 +290,6 @@ def _merge_df_(x_specs, y_specs, on=None, left_on=None, right_on=None,
 
 
 def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
-    # import dask.dataframe as dd
-    # from functools import reduce
     ddfs = [dd.read_csv(t, **kwargs) for t in tables]
     if suffixes is None:
         df = reduce(lambda this, next: this.merge(next, on=merge_fields), ddfs)
@@ -306,7 +306,7 @@ def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
                 if c not in merge_fields
                 ]
             renames = dict(cols)
-            ddfs[-1] = ddfs.rename(columns=renames)
+            ddfs[-1] = ddfs[-1].rename(columns=renames)
         #zip ddfs and suffixes
         specs = zip(ddfs, suffixes)
         df = reduce(
@@ -399,7 +399,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     # TODO: Smarter method to set values for (All corridors)
     # This just sets all string fields to '(All corridors)' and
     # any non-string fields to  <NULL>
-    upd_vals = ["(All Corridors)" for f in fld_objs if f.type=="String" else None]
+    upd_vals = ["(All Corridors)" if f.type=="String" else None for f in fld_objs]
     with arcpy.da.SearchCursor(corridors_fc, "SHAPE@") as c:
         # Merge all polys
         all_cors_poly = reduce(lambda x, y: x.union(y), [r[0] for r in c])
@@ -2188,7 +2188,8 @@ def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
         mode = "a"
 
 
-def copy_net_result(net_by_year, target_year, solved_years, fc_names):
+def copy_net_result(source_fds, target_fds, fc_names):
+    # TODO: Generalize function name and docstring, as this now just copies one or more fcs across fds's
     """
     Since some PMT years use the same OSM network, a solved network analysis
     can be copied from one year to another to avoid redundant processing.
@@ -2198,13 +2199,8 @@ def copy_net_result(net_by_year, target_year, solved_years, fc_names):
 
     Parameters
     ------------
-    net_by_year: dict
-        A dictionary with keys reflecting PMT analysis years and values
-        reflecting the OSM network vintage to apply to each year.
-    target_year: Var
-        The PMT analysis year being analyzed
-    solved_years: [Var, ...]
-        A list of PMT anlaysis years that have already been solved
+    source_fds: Path, FeatureDataset
+    target_fds: Path, FeatureDataset
     fc_names: [String, ...]
         The feature class(es) to be copied from an already-solved
         analysis. Provide the names only (not paths).
@@ -2220,16 +2216,7 @@ def copy_net_result(net_by_year, target_year, solved_years, fc_names):
     # Coerce fcs to list
     if isinstance(fc_names, string_types):
         fc_names = [fc_names]
-    # Set a source to copy network analysis results from based on net_by_year
-    target_net = net_by_year[target_year][0]
-    source_year = None
-    for solved_year in solved_years:
-        solved_net = net_by_year[solved_year][0]
-        if solved_net == target_net:
-            source_year = solved_year
-            break
-    source_fds = PMT.makePath(PMT.CLEANED, f"PMT_{source_year}.gdb", "Networks")
-    target_fds = PMT.makePath(PMT.CLEANED, f"PMT_{target_year}.gdb", "Networks")
+
     # Copy feature classes
     print(f"- copying results from {source_fds} to {target_fds}")
     for fc_name in fc_names:
@@ -2241,10 +2228,11 @@ def copy_net_result(net_by_year, target_year, solved_years, fc_names):
         arcpy.FeatureClassToFeatureClass_conversion(
             src_fc, target_fds, fc_name)
 
-    for mode in ["walk", "bike"]:
-        for dest_grp in ["stn", "parks"]:
-            for run in ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]:
-                fc_name = f"{mode}_to_{dest_grp}_{run}"
+    # TODO: these may not exist when just copying centrality results
+    # for mode in ["walk", "bike"]:
+    #     for dest_grp in ["stn", "parks"]:
+    #         for run in ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]:
+    #             fc_name = f"{mode}_to_{dest_grp}_{run}"
 
 
 def lines_to_centrality(line_features, impedance_attribute):
@@ -2256,9 +2244,6 @@ def lines_to_centrality(line_features, impedance_attribute):
     -----------
     line_features: ODMatrix/Lines feature layer
     impedance_attribute: String
-    out_csv: Path
-    header: Boolean
-    mode: String
     """
     imp_field = f"Total_{impedance_attribute}"
     # Dump to df
@@ -2341,7 +2326,7 @@ def network_centrality(in_nd, in_features, net_loader,
     )
     # Step 2 - add all origins
     print("Load all origins")
-    in_features = in_features
+    #in_features = in_features
     arcpy.AddLocations_na(
         in_network_analysis_layer="OD Cost Matrix",
         sub_layer="Origins",
@@ -2353,7 +2338,7 @@ def network_centrality(in_nd, in_features, net_loader,
         match_type=net_loader.match_type,
         append=net_loader.append,
         snap_to_position_along_network=net_loader.snap,
-        snap_offset=net_loader.snap_offset,
+        snap_offset=net_loader.offset,
         exclude_restricted_elements=net_loader.exclude_restricted,
         search_query=net_loader.search_query
     )
@@ -2361,15 +2346,17 @@ def network_centrality(in_nd, in_features, net_loader,
     print("Iterate destinations and solve")
     # Use origin field maps to expedite loading
     fm = "Name Name #;CurbApproach CurbApproach 0;SourceID SourceID #;SourceOID SourceOID #;PosAlong PosAlong #;SideOfEdge SideOfEdge #"
-    for chunk in PMT.iterRowsAsChunks(
-            "OD Cost Matrix\Origins", chunksize=chunksize):
+    dest_src = arcpy.MakeFeatureLayer_management(
+        "OD Cost Matrix\Origins", "DEST_SOURCE")
+    for chunk in PMT.iterRowsAsChunks(dest_src, chunksize=chunksize):
         # printed dots track progress over chunks
         print(".", end="")
         arcpy.AddLocations_na(
             in_network_analysis_layer="OD Cost Matrix",
             sub_layer="Destinations",
             in_table=chunk,
-            field_mappings=fm
+            field_mappings=fm,
+            append="CLEAR"
         )
         # Solve OD Matrix
         arcpy.Solve_na("OD Cost Matrix", "SKIP", "CONTINUE")
@@ -2378,6 +2365,12 @@ def network_centrality(in_nd, in_features, net_loader,
         temp_df = lines_to_centrality(line_features, impedance_attribute)
         # Stack df results
         results.append(temp_df)
+    print(f"All solved ({len(results)} chunks")
+
+    # Delete temp layers
+    arcpy.Delete_management(dest_src)
+    arcpy.Delete_management("OD Cost Matrix")
+
     return pd.concat(results, axis=0)
 
 
@@ -2759,6 +2752,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
         write_mode = "w"
         header = True
         for o_pts in PMT.iterRowsAsChunks(origin_pts, chunksize=o_chunk_size):
+            # TODO: update printing: too many messages when iterating
             PMT._loadLocations(net_layer_, "Origins", o_pts, origin_name_field,
                                net_loader, o_location_fields)
             s = PMT._solve(net_layer_)
