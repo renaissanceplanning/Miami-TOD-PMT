@@ -558,16 +558,16 @@ def process_osm_service_areas():
             # Copy from other year if already solved
             # Set a source to copy network analysis results from based on net_by_year
             # TODO: functionalize source year setting
-            target_net = net_by_year[year][0]
+            target_net = NET_BY_YEAR[year][0]
             source_year = None
-            for solved_year in solved:
-                solved_net = net_by_year[solved_year][0]
+            for solved_year in solved_years:
+                solved_net = NET_BY_YEAR[solved_year][0]
                 if solved_net == target_net:
                     source_year = solved_year
                     break
             source_fds = makePath(CLEANED, f"PMT_{source_year}.gdb", "Networks")
             target_fds = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
-            copy_net_result(sourc_fds, target_fds, fc_names=out_fc_name)
+            copy_net_result(source_fds, target_fds, fc_names=expected_fcs)
         else:
             # Solve this network
             print(f"\n{net_suffix}")
@@ -609,16 +609,16 @@ def process_centrality():
         if net_suffix in solved:
             # Copy from other year if already solved
             # TODO: functionalize source year setting
-            target_net = net_by_year[year][0]
+            target_net = NET_BY_YEAR[year][0]
             source_year = None
-            for solved_year in solved:
-                solved_net = net_by_year[solved_year][0]
+            for solved_year in solved_years:
+                solved_net = NET_BY_YEAR[solved_year][0]
                 if solved_net == target_net:
                     source_year = solved_year
                     break
             source_fds = makePath(CLEANED, f"PMT_{source_year}.gdb", "Networks")
             target_fds = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
-            copy_net_result(sourc_fds, target_fds, fc_names=out_fc_name)
+            copy_net_result(source_fds, target_fds, fc_names=out_fc_name)
         else:
             # Get node and edge features as layers
             print(f"\n{net_suffix}")
@@ -887,19 +887,19 @@ if __name__ == "__main__":
     # process_osm_networks() #Tested by AB 2/26/21
 
     # assess network centrality for each bike network
-    # process_centrality() # Tested by AB 2/27/21
+    # process_centrality() # Tested by AB 3/2/21
 
     # analyze osm network service areas
     # process_osm_service_areas() # Tested by AB 2/28/21
 
     # analyze walk/bike times among MAZs
-    # process_osm_skims() #Tested by AB 3/1/21
+    # process_osm_skims() #Tested by AB 3/2/21
 
     # record parcel walk times
-    process_walk_times() # Tested by AB 3/1/21 - full run to confirm
+    # process_walk_times() # Tested by AB 3/2/21
 
     # record parcel ideal walk times
-    # process_ideal_walk_times() # Tested by AB 3/1/21
+    # process_ideal_walk_times() # Tested by AB 3/2/21
 
     # prepare serpm TAZ-level travel skims
     # process_model_skims()

@@ -11,7 +11,7 @@ import urllib3
 import uuid
 # import geopandas as gpd
 import pandas as pd
-import pysal as ps
+#import pysal as ps
 # from shapely.geometry.polygon import Polygon as POLY
 
 import os

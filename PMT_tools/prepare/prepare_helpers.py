@@ -2188,8 +2188,7 @@ def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
         mode = "a"
 
 
-def copy_net_result(source_fds, target_fds, net_by_year, target_year,
-                    solved_years, fc_names):
+def copy_net_result(source_fds, target_fds, fc_names):
     # TODO: Generalize function name and docstring, as this now just copies one or more fcs across fds's
     """
     Since some PMT years use the same OSM network, a solved network analysis
