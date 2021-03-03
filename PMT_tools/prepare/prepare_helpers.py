@@ -9,7 +9,9 @@ from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 from datetime import time
 import numpy as np
 import pandas as pd
-import geopandas as gpd
+import xlrd
+
+# import geopandas as gpd
 from pathlib import Path
 import tempfile as tempfile
 import zipfile
@@ -23,6 +25,7 @@ from sklearn import linear_model
 import scipy
 from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import arcpy
+import dask.dataframe as dd
 from six import string_types
 
 from functools import reduce
@@ -34,6 +37,7 @@ from PMT_tools.PMT import (dfToPoints, extendTableDf, makePath, make_inmem_path,
                            intersectFeatures, featureclass_to_df, copyFeatures, dbf_to_df)
 
 logger = log.Logger(add_logs_to_arc_messages=True)
+
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
 # general use functions
@@ -207,6 +211,7 @@ def split_date(df, date_field, unix_time=False):
 
 
 def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
+    # TODO: replace usages with PMT.polygonsToPoints
     try:
         # convert json to temp feature class
         unique_name = str(uuid.uuid4().hex)
@@ -288,8 +293,6 @@ def _merge_df_(x_specs, y_specs, on=None, left_on=None, right_on=None,
 
 
 def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
-    # import dask.dataframe as dd
-    # from functools import reduce
     ddfs = [dd.read_csv(t, **kwargs) for t in tables]
     if suffixes is None:
         df = reduce(lambda this, next: this.merge(next, on=merge_fields), ddfs)
@@ -304,16 +307,15 @@ def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
                 (c, f"{c}_{suffixes[-1]}")
                 for c in ddfs[-1].columns
                 if c not in merge_fields
-                ]
+            ]
             renames = dict(cols)
             ddfs[-1] = ddfs.rename(columns=renames)
-        #zip ddfs and suffixes
+        # zip ddfs and suffixes
         specs = zip(ddfs, suffixes)
         df = reduce(
             lambda this, next: _merge_df_(this, next, on=merge_fields), specs
-            )
+        )
     df.to_csv(out_table, single_file=True)
-
 
 
 # basic features functions
@@ -334,18 +336,20 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
                       corridors_fc="Corridors", long_stn_fc="Stations_Long",
                       rename_dict={}, overwrite=False):
     """In a geodatabase with basic features (station points and corridor alignments),
-    create polygon feature classes used for standard mapping and summarization.
-    The output feature classes include buffered corridors, buffered station areas,
-    and a long file of station points, where each station/corridor combo is represented
-    as a separate feature.
+        create polygon feature classes used for standard mapping and summarization.
+        The output feature classes include:
+         - buffered corridors,
+         - buffered station areas,
+         - and a long file of station points, where each station/corridor combo is represented
+                as a separate feature.
     
     Args:
         bf_gdb (str): Path to a geodatabase with key basic features, including stations and
             alignments
         stations_fc (str): A point feature class in`bf_gdb` with station locations and columns
-            indicating belonging in individual corridors (i.e., the colum names reflect corridor
+            indicating belonging in individual corridors (i.e., the column names reflect corridor
             names and flag whether the station is served by that corridor).
-        stn_diss_fields (list): [String,...] Field(s) on which to dissovle stations when buffering
+        stn_diss_fields (list): [String,...] Field(s) on which to dissolve stations when buffering
             station areas. Stations that reflect the same location by different facilities may
             be dissolved by name or ID, e.g. This may occur at intermodal locations.
             For example, where metro rail meets commuter rail - the station points may represent
@@ -353,7 +357,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
         stn_corridor_fields (list): [String,...] The columns in `stations_fc` that flag each
             stations belonging in various corridors.
         alignments_fc (str): Path to a line feature class in `bf_gdb` reflecting corridor alignments
-        align_diss_fields (list): [String,...] Field(s) on which to dissovle alignments when buffering
+        align_diss_fields (list): [String,...] Field(s) on which to dissolve alignments when buffering
             corridor areas.
         stn_buff_dist (str): Linear Unit, [default="2640 Feet"] A linear unit by which to buffer
             station points to create station area polygons.
@@ -367,7 +371,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
         rename_dict (dict): [default={}], If given, `stn_corridor_fields` can be relabeled before pivoting
             to create `long_stn_fc`, so that the values reported in the output "Corridor" column are not
             the column names, but values mapped on to the column names
-            (chaging "EastWest" column to "East-West", e.g.)
+            (changing "EastWest" column to "East-West", e.g.)
         overwrite (bool): default=False
     """
     stn_diss_fields = _listifyInput(stn_diss_fields)
@@ -390,7 +394,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     _diss_flds_ = _stringifyList(align_diss_fields)
     arcpy.Buffer_analysis(alignments_fc, corridors_fc, align_buff_dist,
                           dissolve_option="LIST", dissolve_field=_diss_flds_)
-    
+
     # Add (All corridors) to `corridors_fc`
     # - Setup field outputs
     upd_fields = align_diss_fields + ["SHAPE@"]
@@ -399,7 +403,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     # TODO: Smarter method to set values for (All corridors)
     # This just sets all string fields to '(All corridors)' and
     # any non-string fields to  <NULL>
-    upd_vals = ["(All Corridors)" for f in fld_objs if f.type=="String" else None]
+    upd_vals = ["(All corridors)" if f.type == "String" else None for f in fld_objs]
     with arcpy.da.SearchCursor(corridors_fc, "SHAPE@") as c:
         # Merge all polys
         all_cors_poly = reduce(lambda x, y: x.union(y), [r[0] for r in c])
@@ -410,11 +414,11 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     # Elongate stations by corridor (for dashboard displays, selectors)
     print("--- elongating station features")
     # - dump to data frame
-    fields = stn_diss_fields + stn_corridor_fields
+    fields = stn_diss_fields + stn_corridor_fields + ["SHAPE@X", "SHAPE@Y"]
     sr = arcpy.Describe(stations_fc).spatialReference
     fc_path = PMT.makePath(bf_gdb, stations_fc)
     stn_df = pd.DataFrame(
-        arcpy.da.FeatureClassToNumPyArray(fc_path, fields + ["SHAPE@X", "SHAPE@Y"])
+        arcpy.da.FeatureClassToNumPyArray(in_table=fc_path, field_names=fields)
     )
     # Rename columns if needed
     if rename_dict:
@@ -439,23 +443,21 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
                         out_fc, stn_buffer_meters=804.672,
                         stn_name_field="Name", stn_cor_field="Corridor",
                         overwrite=False):
-    """
-    Creates a single feature class for data summarization based on station
-    area and corridor geographies. The output feature class includes each
-    station area, all combined station areas, the entire corridor area,
-    and the portion of the corridor that is outside station areas.
+    """Creates a single feature class for data summarization based on station
+        area and corridor geographies. The output feature class includes each
+        station area, all combined station areas, the entire corridor area,
+        and the portion of the corridor that is outside station areas.
 
-    Parameters
-    --- --- --- --- --
-    bf_gdb: Path
-    long_stn_fc: String
-    corridors_fc: String
-    cor_name_field: String
-    out_fc: String
-    stn_buffer_meters: Numeric, default=804.672 (1/2 mile)
-    stn_name_field: String, default="Name"
-    stn_cor_field: String, default="Corridor
-    overwrite: Boolean, default=False
+    Args:
+        bf_gdb (str): Path to basic features gdb
+        long_stn_fc (str): path to long station points feature class
+        corridors_fc (str): path to corridors feature class
+        cor_name_field (str): name field for corridor feature class
+        out_fc (str): path to output feature class
+        stn_buffer_meters (num): Numeric, default=804.672 (1/2 mile)
+        stn_name_field (str): station name field default="Name"
+        stn_cor_field (str): corridor field, default="Corridor
+        overwrite (bool): overwrite existing copy, default=False
     """
 
     old_ws = arcpy.env.workspace
@@ -729,26 +731,24 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
 
 # Transit Ridership
 def read_transit_xls(xls_path, sheet=None, head_row=None, rename_dict=None):
-    """
-    XLS File Desc: Sheet 1 contains header and max rows for a sheet (65536),
+    """XLS File Desc: Sheet 1 contains header and max rows for a sheet (65536),
                     data continue on subsequent sheets without header
-    reads in the provided xls file and due to odd formatting concatenates
-    the sheets into a single data frame. The
-    Parameters
-    ----------
+        reads in the provided xls file and due to odd formatting concatenates
+        the sheets into a single data frame. The
+    Args:
         xls_path: str; String path to xls file
         sheet: str, int, list, or None, default None as we need to read the entire file
         head_row: int, list of int, default None as wee need to read the entire file
         rename_dict: dict; dictionary to map existing column names to more readable names
-    Returns
-    -------
+    Returns:
         pd.Dataframe; pandas dataframe of data from xls
     """
     # TODO: add logic to handle files that dont match existing format
     # TODO:     - example check may be to read all pages and see if row 0
     #               is the same or pages are empty
     # read the xls into dict
-    xls_dict = pd.read_excel(xls_path, sheet_name=sheet, header=head_row)
+    wb = xlrd.open_workbook(filename=xls_path, logfile=open(os.devnull, 'w'))
+    xls_dict = pd.read_excel(io=wb, engine="xlrd", sheet_name=sheet, header=head_row)
     # concatenate all sheets and set columns from sheet1:row1
     df = pd.concat(xls_dict.values())
     df.columns = df.iloc[0]
@@ -782,44 +782,49 @@ def read_transit_file_tag(file_path):
 
 
 def update_dict(d, values, tag):
-    """
-        adds new key:value pairs to dictionary given a set of values and
+    """adds new key:value pairs to dictionary given a set of values and
         tags in the keys --- only valuable in the Transit ridership context
     Args:
         d: dict
         values: [String,...]; output value names
         tag: String; unique tag found in a column
-
     Returns:
         d: dict; updated with new key value pairs
     """
-
     for value in values:
         d[f"{value}_{tag}"] = value
     return d
 
 
 def prep_transit_ridership(in_table, rename_dict, shape_fields, from_sr, to_sr, out_fc):
-    """
-    converts transit ridership data to a feature class and reformats attributes
-    Parameters
-    ----------
-    in_table: Path; string xls file path
-    rename_dict: dict; dictionary of existing: new attribute names
-    shape_fields: [String,...]; columns to be used as shape field (x,y)
-    from_sr: SpatialReference; the spatial reference definition for coordinates listed in 'shape_fields'
-    to_sr: SpatialReference; the spatial reference definition for output features
-    out_fc: Path
-
-    Returns
-    -------
-    out_fc: Path
+    """converts transit ridership data to a feature class and reformats attributes
+    Args:
+        in_table (str): xls file path
+        rename_dict (dict): dictionary of {existing: new attribute} names
+        shape_fields (list): [String,...] columns to be used as shape field (x,y)
+        from_sr (SpatialReference): the spatial reference definition for coordinates listed in 'shape_fields'
+        to_sr (SpatialReference): the spatial reference definition for output features
+        out_fc (str): path to the output feature class
+    Returns:
+        out_fc: Path
     """
     # on/off data are tagged by the date the file was created
     file_tag = read_transit_file_tag(file_path=in_table)
-    rename_dict = update_dict(d=rename_dict, values=["ON", "OFF"], tag=file_tag)
+    rename_dict = update_dict(d=rename_dict, values=["ON", "OFF", "TOTAL"], tag=file_tag)
     # read the transit file to dataframe
     transit_df = read_transit_xls(xls_path=in_table, rename_dict=rename_dict)
+    # reduce precision to collapse points
+    for shp_fld in shape_fields:
+        transit_df[shp_fld] = transit_df[shp_fld].round(decimals=4)
+    transit_df = transit_df.groupby(shape_fields +
+                                    ["TIME_PERIOD"]).agg({"ON": "sum",
+                                                          "OFF": "sum",
+                                                          "TOTAL": "sum"}).reset_index()
+    transit_df["TIME_PERIOD"] = np.where(
+        transit_df["TIME_PERIOD"] == "2:00 AM - 2:45 AM",
+        "EARLY AM 02:45AM-05:59AM",
+        transit_df["TIME_PERIOD"]
+    )
     # convert table to points
     return PMT.dfToPoints(df=transit_df, out_fc=out_fc, shape_fields=shape_fields,
                           from_sr=from_sr, to_sr=to_sr, overwrite=True)
@@ -861,8 +866,7 @@ def clean_parcel_geometry(in_features, fc_key_field, new_fc_key, out_features=No
 
 def prep_parcel_land_use_tbl(parcels_fc, parcel_lu_field, parcel_fields,
                              lu_tbl, tbl_lu_field, dtype_map=None, **kwargs):
-    """
-        Join parcels with land use classifications based on DOR use codes.
+    """Join parcels with land use classifications based on DOR use codes.
     Args:
         parcels_fc (str): path to parcel feature class
         parcel_lu_field (str): String; The column in `parcels_fc` with each parcel's DOR use code.
@@ -899,31 +903,26 @@ def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit=None, bg_id_field="GEOID1
                            par_id_field="PARCELNO", par_lu_field="DOR_UC", par_bld_area="TOT_LVG_AREA",
                            par_sum_fields=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA"]
                            ):
-    """
-    Relates parcels to block groups based on centroid location and summarizes
-    key parcel fields to the block group level, including building floor area
-    by potential activity type (residential, jobs by type, e.g.).
-
-    Parameters
-    ------------
-    bg_fc: String; path
-    parcels_fc: String; path
-    sum_crit: dict
-        Dictionary whose keys reflect column names to be generated to hold sums
-        of parcel-level data in the output block group data frame, and whose
-        values consist of at least one PMT comparator class (`Comp`, `And`).
-        These are used to map parcel land use codes to LODES variables, e.g.
-        An iterable of comparators in a value implies an `Or` operation.
-    par_sum_fields: [String, ...], default=["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA]
-        If provided, these parcel fields will also be summed to the block-group level.
-    bg_id_field: String, default="GEOID10"
-    par_id_field: String, default="PARCELNO"
-    par_lu_field: String, default="DOR_UC"
-    par_bld_area: String, default="TOT_LVG_AREA"
-
-    Returns
-    --------
-    bg_df: DataFrame
+    """Relates parcels to block groups based on centroid location and summarizes
+        key parcel fields to the block group level, including building floor area
+        by potential activity type (residential, jobs by type, e.g.).
+    Args:
+        bg_fc (str): path to block group feature class
+        parcels_fc (str): path to parcel feature class
+        sum_crit (dict): Dictionary whose keys reflect column names to be generated to hold sums
+            of parcel-level data in the output block group data frame, and whose
+            values consist of at least one PMT comparator class (`Comp`, `And`).
+            These are used to map parcel land use codes to LODES variables, e.g.
+            An iterable of comparators in a value implies an `Or` operation.
+        par_sum_fields (list): [String, ...], default=["LND_VAL", "LND_SQFOOT", "JV",
+                                                       "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA]
+            If provided, these parcel fields will also be summed to the block-group level.
+        bg_id_field (str): block group primary key attribute default="GEOID"
+        par_id_field (str): parcel primary key attribute, default="PARCELNO"
+        par_lu_field (str): parcel land use attribute, default="DOR_UC"
+        par_bld_area (str): parcel building area attribute, default="TOT_LVG_AREA"
+    Returns:
+        bg_df (pd.DataFrame): DataFrame of block group ids and related/summarized parcel data
     """
     # Prep output
     if sum_crit is None:
@@ -987,29 +986,37 @@ def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit=None, bg_id_field="GEOID1
         arcpy.Delete_management(parcel_fl)
 
 
-def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, join_fields):
-    """
-    Adds data from another raw table as new columns based on teh fields provided.
-    Parameters
-    ----------
-    tbl_path: String; path
-    tbl_id_field: String; table primary key
-    join_tbl: String; path
-    join_id_field: String; join table foreign key
-    join_fields: [String, ...]; list of fields to include in update
+def get_field_dtype(in_table, field):
+    arc_to_pd = {"Double": np.float, "Integer": np.int, "String": np.str}
+    f_dtype = [f.type for f in arcpy.ListFields(in_table) if f.name == field]
+    return arc_to_pd.get(f_dtype[0])
 
-    Returns
-    -------
-    None
+
+def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, join_fields):
+    """Adds data from another raw table as new columns based on teh fields provided.
+    Args:
+        tbl_path (str): path table being updated
+        tbl_id_field (str): table primary key
+        join_tbl (str): path to table being joined with tbl_path
+        join_id_field (str): join table foreign key
+        join_fields (list): [String, ...]; list of fields to include in update
+    Returns:
+        None
     """
-    # TODO: add checks for join_fields as actual columns in join_tbl
-    if is_gz_file(join_tbl):
-        tbl_df = pd.read_csv(
-            join_tbl, usecols=join_fields, compression='gzip')
-    else:
-        tbl_df = pd.read_csv(join_tbl, usecols=join_fields)
-    PMT.extendTableDf(in_table=tbl_path, table_match_field=tbl_id_field,
-                      df=tbl_df, df_match_field=join_id_field)
+    try:
+        if is_gz_file(join_tbl):
+            tbl_df = pd.read_csv(join_tbl, usecols=join_fields, compression='gzip')
+        else:
+            tbl_df = pd.read_csv(join_tbl, usecols=join_fields)
+        tbl_id_type = get_field_dtype(in_table=tbl_path, field=tbl_id_field)
+        tbl_df[join_id_field] = tbl_df[join_id_field].astype(tbl_id_type)
+        if all(item in tbl_df.columns.values.tolist() for item in join_fields):
+            PMT.extendTableDf(in_table=tbl_path, table_match_field=tbl_id_field,
+                              df=tbl_df, df_match_field=join_id_field)
+        else:
+            raise ValueError
+    except ValueError:
+        print("--- --- fields provided are not in join table (join_tbl)")
 
 
 # TODO: remove default values for fc_key_field and tbl_key_field and ensure these are globals in preparer.py
@@ -1220,7 +1227,7 @@ def analyze_imperviousness(impervious_path, zone_geometries_path, zone_geometrie
     return zonal.reset_index()
 
 
-def analyze_blockgroup_model(bg_enrich_path, acs_years, lodes_years, save_directory):
+def analyze_blockgroup_model(bg_enrich_path, bg_key, fields="*", acs_years=None, lodes_years=None, save_directory=None):
     """
         fit linear models to block group-level total employment, population, and
         commutes at the block group level, and save the model coefficients for
@@ -1253,17 +1260,19 @@ def analyze_blockgroup_model(bg_enrich_path, acs_years, lodes_years, save_direct
     logger.log_msg("--- reading input data (block group)")
     df = []
     years = np.unique(np.concatenate([acs_years, lodes_years]))
-    for y in years:
-        logger.log_msg(' '.join(["----> Loading", str(y)]))
+    for year in years:
+        logger.log_msg(' '.join(["----> Loading", str(year)]))
         # Read
-        load_path = re.sub("{year}", str(y), bg_enrich_path, flags=re.IGNORECASE)
-        fields = [f.name for f in arcpy.ListFields(load_path)]
+        load_path = re.sub("YEAR", str(year), bg_enrich_path, flags=re.IGNORECASE)
+        # fields = [f.name for f in arcpy.ListFields(load_path)]
         tab = pd.DataFrame(
-            arcpy.da.FeatureClassToNumPyArray(in_table=load_path, field_names=fields, null_value=0)
+            arcpy.da.FeatureClassToNumPyArray(
+                in_table=load_path, field_names=fields, null_value=0
+            )
         )
         # Edit
-        tab["Year"] = y
-        tab["Since_2013"] = y - 2013
+        tab["Year"] = year
+        tab["Since_2013"] = year - 2013
         tab["Total_Emp_Area"] = (
                 tab["CNS_01_par"] + tab["CNS_02_par"] + tab["CNS_03_par"] +
                 tab["CNS_04_par"] + tab["CNS_05_par"] + tab["CNS_06_par"] +
@@ -1273,7 +1282,7 @@ def analyze_blockgroup_model(bg_enrich_path, acs_years, lodes_years, save_direct
                 tab["CNS_16_par"] + tab["CNS_17_par"] + tab["CNS_18_par"] +
                 tab["CNS_19_par"] + tab["CNS_20_par"]
         )
-        if y in lodes_years:
+        if year in lodes_years:
             tab["Total_Employment"] = (
                     tab["CNS01"] + tab["CNS02"] + tab["CNS03"] + tab["CNS04"] +
                     tab["CNS05"] + tab["CNS06"] + tab["CNS07"] + tab["CNS08"] +
@@ -1281,7 +1290,7 @@ def analyze_blockgroup_model(bg_enrich_path, acs_years, lodes_years, save_direct
                     tab["CNS13"] + tab["CNS14"] + tab["CNS15"] + tab["CNS16"] +
                     tab["CNS17"] + tab["CNS18"] + tab["CNS19"] + tab["CNS20"]
             )
-        if y in acs_years:
+        if year in acs_years:
             tab["Total_Population"] = (
                     tab["Total_Non_Hisp"] + tab["Total_Hispanic"]
             )
@@ -1320,7 +1329,7 @@ def analyze_blockgroup_model(bg_enrich_path, acs_years, lodes_years, save_direct
     df.loc[(df.Total_Employment.isna()) & df.Year.isin(lodes_years), "Total_Employment"] = 0
     df.loc[(df.Total_Population.isna()) & df.Year.isin(acs_years), "Total_Population"] = 0
     df.loc[(df.Total_Commutes.isna()) & df.Year.isin(acs_years), "Total_Commutes"] = 0
-    keep_cols = ["GEOID10", "Year"] + independent_variables + list(response.keys())
+    keep_cols = [bg_key, "Year"] + independent_variables + list(response.keys())
     df = df[keep_cols]
 
     # Step 2: conduct modeling by extracting a correlation matrix between candidate
@@ -1379,7 +1388,7 @@ def analyze_blockgroup_model(bg_enrich_path, acs_years, lodes_years, save_direct
     return save_path
 
 
-def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
+def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field,
                              model_coefficients_path, save_gdb_location, shares_from=None):
     """
         predict block group-level total employment, population, and commutes using
@@ -1455,10 +1464,10 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
     # Predict using matrix multiplication
     mod_inputs = df[coefs["Variable"]]
     coef_values = coefs.drop(columns="Variable")
-    preds = np.matmul(x1=mod_inputs.to_numpy(), x2=coef_values.to_numpy())
+    preds = np.matmul(mod_inputs.to_numpy(), coef_values.to_numpy())
     preds = pd.DataFrame(data=preds)
     preds.columns = coef_values.columns.tolist()
-    pwrite = pd.concat([df[["GEOID10"]], preds], axis=1)
+    pwrite = pd.concat([df[[bg_id_field]], preds], axis=1)
     # If any prediction is below 0, turn it to 0
     pwrite.loc[pwrite.Total_Employment < 0, "Total_Employment"] = 0
     pwrite.loc[pwrite.Total_Population < 0, "Total_Population"] = 0
@@ -1488,23 +1497,21 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
     # Format
     if shares_from is not None:
         if "LODES" in shares_from.keys():
-            lodes = arcpy.da.FeatureClassToNumPyArray(in_table=shares_from["LODES"],
-                                                      field_names=["GEOID10"] + dependent_variables_emp,
-                                                      null_value=0)
-            lodes = pd.DataFrame(lodes)
+            lodes = PMT.featureclass_to_df(in_fc=shares_from["LODES"],
+                                           keep_fields=[bg_id_field] + dependent_variables_emp, null_val=0.0)
         else:
-            lodes = df[["GEOID10"] + dependent_variables_emp]
+            lodes = df[[bg_id_field] + dependent_variables_emp]
         if "ACS" in shares_from.keys():
-            acs = arcpy.da.FeatureClassToNumPyArray(in_table=shares_from["ACS"],
-                                                    field_names=["GEOID10"] + acs_vars,
-                                                    null_value=0)
-            acs = pd.DataFrame(acs)
+            acs = PMT.featureclass_to_df(in_fc=shares_from["ACS"],
+                                         keep_fields=[bg_id_field] + acs_vars, null_val=0.0)
         else:
-            acs = df[["GEOID10"] + acs_vars]
-    # Merge and replace NA
-    shares_df = pd.merge(lodes, acs, on="GEOID10", how="left")
-    shares_df.fillna(0,
-                     inplace=True)
+            acs = df[[bg_id_field] + acs_vars]
+    else:
+        lodes = df[[bg_id_field] + dependent_variables_emp]
+        acs = df[[bg_id_field] + acs_vars]
+    # merge and replace NA
+    shares_df = pd.merge(lodes, acs, on=bg_id_field, how="left")
+    shares_df.fillna(0, inplace=True)
 
     # Step 2: Calculate shares relative to total
     # This is done relative to the "Total" variable for each group
@@ -1519,7 +1526,7 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
         sdf["TOTAL"] = sdf.sum(axis=1)
         for d in vrs:
             sdf[d] = sdf[d] / sdf["TOTAL"]
-        sdf["GEOID10"] = shares_df["GEOID10"]
+        sdf[bg_id_field] = shares_df[bg_id_field]
         sdf.drop(columns="TOTAL",
                  inplace=True)
         shares_dict[name] = sdf
@@ -1528,16 +1535,16 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
     # variables was 0. For these block groups, take the average share of all
     # block groups that touch that one
     logger.log_msg("--- estimating missing shares")
-    # What touches what?
-    arcpy.PolygonNeighbors_analysis(in_features=bg_geometry_path,
-                                    out_table="in_memory\\neighbors",
-                                    in_fields="GEOID10")
-    touch = arcpy.da.FeatureClassToNumPyArray(in_table="in_memory\\neighbors",
-                                              field_names=["src_GEOID10", "nbr_GEOID10"])
-    touch = pd.DataFrame(touch)
-    touch.rename(columns={"src_GEOID10": "GEOID10",
-                          "nbr_GEOID10": "Neighbor"},
-                 inplace=True)
+    # What touches what? # TODO: add make_inmem
+    temp = PMT.make_inmem_path()
+    arcpy.PolygonNeighbors_analysis(in_features=bg_geometry_path, out_table=temp, in_fields=bg_id_field)
+
+    touch = pd.DataFrame(
+        arcpy.da.FeatureClassToNumPyArray(
+            in_table=temp, field_names=[f"src_{bg_id_field}", f"nbr_{bg_id_field}"]
+        )
+    )
+    touch.rename(columns={f"src_{bg_id_field}": bg_id_field, f"nbr_{bg_id_field}": "Neighbor"}, inplace=True)
     # Loop filling of NA by mean of adjacent non-NAs
     ctf = 1
     i = 1
@@ -1546,37 +1553,27 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
         to_fill = []
         for key, value in shares_dict.items():
             f = value[value.isna().any(axis=1)]
-            f = f[["GEOID10"]]
+            f = f[[bg_id_field]]
             f["Fill"] = key
             to_fill.append(f)
         to_fill = pd.concat(to_fill, ignore_index=True)
         # Create a neighbors table
-        nt = pd.merge(to_fill,
-                      touch,
-                      how="left",
-                      on="GEOID10")
-        nt.rename(columns={"GEOID10": "Source",
-                           "Neighbor": "GEOID10"},
-                  inplace=True)
+        nt = pd.merge(to_fill, touch, how="left", on=bg_id_field)
+        nt.rename(columns={bg_id_field: "Source", "Neighbor": bg_id_field}, inplace=True)
         # Now, merge in the shares data for appropriate rows
         fill_by_touching = {}
         nrem = []
         for key, value in shares_dict.items():
-            fill_df = pd.merge(nt[nt.Fill == key],
-                               value,
-                               how="left",
-                               on="GEOID10")
+            fill_df = pd.merge(nt[nt.Fill == key], value, how="left", on=bg_id_field)
             nv = fill_df.groupby("Source").mean()
             nv["RS"] = nv.sum(axis=1)
-            data_cols = [c for c in nv.columns.tolist() if c != "GEOID10"]
+            data_cols = [c for c in nv.columns.tolist() if c != bg_id_field]
             for d in data_cols:
                 nv[d] = nv[d] / nv["RS"]
-            nv.drop(columns="RS",
-                    inplace=True)
+            nv.drop(columns="RS", inplace=True)
             nv = nv.reset_index()
-            nv.rename(columns={"Source": "GEOID10"},
-                      inplace=True)
-            not_replaced = value[~value.GEOID10.isin(nv.GEOID10)]
+            nv.rename(columns={"Source": bg_id_field}, inplace=True)
+            not_replaced = value[~value[bg_id_field].isin(nv[bg_id_field])]
             replaced = pd.concat([not_replaced, nv])
             fill_by_touching[key] = replaced
             nrem.append(len(replaced[replaced.isna().any(axis=1)].index))
@@ -1590,10 +1587,9 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
 
     # Step 4: merge and format the shares
     logger.log_msg("--- merging and formatting shares")
-    filled_shares = [df.set_index("GEOID10") for df in shares_dict.values()]
+    filled_shares = [df.set_index(bg_id_field) for df in shares_dict.values()]
     cs_shares = pd.concat(filled_shares, axis=1).reset_index()
-    cs_shares.rename(columns={"index": "GEOID10"},
-                     inplace=True)
+    cs_shares.rename(columns={"index": bg_id_field}, inplace=True)
 
     # 4. Block group estimation
     # -------------------------
@@ -1604,7 +1600,7 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
     # First, we'll merge our estimates and shares
     alloc = pd.merge(pwrite,
                      cs_shares,
-                     on="GEOID10")
+                     on=bg_id_field)
     # We'll do employment first
     for d in dependent_variables_emp:
         alloc[d] = alloc[d] * alloc.Total_Employment
@@ -1632,40 +1628,34 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path,
     return save_path
 
 
-def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
-                                parcels_id="FOLIO", parcel_lu="DOR_UC", parcel_liv_area="TOT_LVG_AREA"):
-    """
-    Allocate block group data to parcels using relative abundances of
-    parcel building square footage
-
-    Parameters
-    --- --- --- -
-    parcel_fc: Path
-        path to shape of parcel polygons, containing at a minimum a unique ID
-        field, land use field, and total living area field (Florida DOR)
-    bg_modeled: Path
-        path to table of modeled block group job, populatiom, and commute
-        data for allocation
-    bg_geom: Path
-        path to feature class of block group polygons
-    out_gdb: Path
-        path to location in which the allocated results will be saved
-    parcels_id: str
-        unique ID field in the parcels shape
-        Default is "PARCELNO" for Florida parcels
-    parcel_lu: str
-        land use code field in the parcels shape
-        Default is "DOR_UC" for Florida parcels
-    parcel_liv_area: str
-        building square footage field in the parcels shape
-        Default is "TOT_LVG_AREA" for Florida parcels
-
-
-    Returns
-    --- --- -
-    path of location at which the allocation results are saved.
-    Saving will be completed as part of the function. The allocation estimates
-    will be joined to the original parcels shape
+def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
+                                parcel_fc, parcels_id="FOLIO", parcel_lu="DOR_UC", parcel_liv_area="TOT_LVG_AREA"):
+    """Allocate block group data to parcels using relative abundances of
+        parcel building square footage
+    Args:
+        parcel_fc: Path
+            path to shape of parcel polygons, containing at a minimum a unique ID
+            field, land use field, and total living area field (Florida DOR)
+        bg_modeled: Path
+            path to table of modeled block group job, populatiom, and commute
+            data for allocation
+        bg_geom: Path
+            path to feature class of block group polygons
+        out_gdb: Path
+            path to location in which the allocated results will be saved
+        parcels_id: str
+            unique ID field in the parcels shape
+            Default is "PARCELNO" for Florida parcels
+        parcel_lu: str
+            land use code field in the parcels shape
+            Default is "DOR_UC" for Florida parcels
+        parcel_liv_area: str
+            building square footage field in the parcels shape
+            Default is "TOT_LVG_AREA" for Florida parcels
+    Returns:
+        path of location at which the allocation results are saved.
+        Saving will be completed as part of the function. The allocation estimates
+        will be joined to the original parcels shape
 
     """
 
@@ -1680,15 +1670,16 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
                    'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp']
     commute_attrs = ['Drove', 'Carpool', 'Transit',
                      'NonMotor', 'Work_From_Home', 'AllOther']
-    block_group_attrs = ["GEOID10"] + lodes_attrs + demog_attrs + commute_attrs
+    block_group_attrs = [bg_id_field] + lodes_attrs + demog_attrs + commute_attrs
 
     # Initialize spatial processing by intersecting
     print("--- intersecting blocks and parcels")
-    bg_spatial = makePath("in_memory", "bg_spatial")
-    copyFeatures(bg_geom, bg_spatial)
-    arcpy.AddJoin_management(bg_spatial, "GEOID10", bg_modeled, "GEOID10")
+    temp_spatial = make_inmem_path()
+    copyFeatures(in_fc=bg_geom, out_fc=temp_spatial)
+    arcpy.JoinField_management(in_data=temp_spatial, in_field=bg_id_field,
+                               join_table=bg_modeled, join_field=bg_id_field)
     parcel_fields = [parcels_id, parcel_lu, parcel_liv_area, "Shape_Area"]
-    intersect_fc = intersectFeatures(summary_fc=bg_spatial, disag_fc=parcel_fc, disag_fields=parcel_fields)
+    intersect_fc = intersectFeatures(summary_fc=temp_spatial, disag_fc=parcel_fc, disag_fields=parcel_fields)
     intersect_fields = parcel_fields + block_group_attrs
     intersect_df = featureclass_to_df(in_fc=intersect_fc, keep_fields=intersect_fields)
 
@@ -1707,7 +1698,7 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     # To do this, we define in advance which activities can go to which land uses
 
     # First, we set up this process by matching activities to land uses
-    print("-- setting up activity-land use matches...")
+    print("--- setting up activity-land use matches...")
     lu_mask = {
         'CNS01': ((intersect_df[pluf] >= 50) & (intersect_df[pluf] <= 69)),
         'CNS02': (intersect_df[pluf] == 92),
@@ -1759,7 +1750,7 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     # Next, we'll total parcels by block group (this is just a simple operation
     # to give our living area totals something to join to)
     logger.log_msg("--- initializing living area sums")
-    count_parcels_bg = intersect_df.groupby(['GEOID10'])['GEOID10'].agg(['count'])
+    count_parcels_bg = intersect_df.groupby([bg_id_field])[bg_id_field].agg(['count'])
     count_parcels_bg.rename(columns={'count': 'NumParBG'}, inplace=True)
     count_parcels_bg = count_parcels_bg.reset_index()
 
@@ -1769,49 +1760,49 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     # job type
     pldaf = "Shape_Area"
     for var in lodes_attrs:
-        # mask by LU, group on GEOID10
-        area = intersect_df[lu_mask[var]].groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+        # mask by LU, group on bg_id_field
+        area = intersect_df[lu_mask[var]].groupby([bg_id_field])[parcel_liv_area].agg(['sum'])
         area.rename(columns={'sum': f'{var}_Area'},
                     inplace=True)
         area = area[area[f'{var}_Area'] > 0]
         area = area.reset_index()
         area[f'{var}_How'] = "lu_mask"
-        missing = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+        missing = list(set(count_parcels_bg[bg_id_field]) - set(area[bg_id_field]))
         if (len(missing) > 0):
             lev1 = intersect_df[all_non_res["NR"]]
-            lev1 = lev1[lev1.GEOID10.isin(missing)]
-            area1 = lev1.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+            lev1 = lev1[lev1[bg_id_field].isin(missing)]
+            area1 = lev1.groupby([bg_id_field])[parcel_liv_area].agg(['sum'])
             area1.rename(columns={'sum': f'{var}_Area'},
                          inplace=True)
             area1 = area1[area1[f'{var}_Area'] > 0]
             area1 = area1.reset_index()
             area1[f'{var}_How'] = "non_res"
             area = pd.concat([area, area1])
-            missing1 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+            missing1 = list(set(count_parcels_bg[bg_id_field]) - set(area[bg_id_field]))
             if (len(missing1) > 0):
                 lev2 = intersect_df[all_developed["AD"]]
-                lev2 = lev2[lev2.GEOID10.isin(missing1)]
-                area2 = lev2.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+                lev2 = lev2[lev2[bg_id_field].isin(missing1)]
+                area2 = lev2.groupby([bg_id_field])[parcel_liv_area].agg(['sum'])
                 area2.rename(columns={'sum': f'{var}_Area'},
                              inplace=True)
                 area2 = area2[area2[f'{var}_Area'] > 0]
                 area2 = area2.reset_index()
                 area2[f'{var}_How'] = "all_dev"
                 area = pd.concat([area, area2])
-                missing2 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+                missing2 = list(set(count_parcels_bg[bg_id_field]) - set(area[bg_id_field]))
                 if (len(missing2) > 0):
-                    lev3 = intersect_df[intersect_df.GEOID10.isin(missing2)]
-                    area3 = lev3.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+                    lev3 = intersect_df[intersect_df[bg_id_field].isin(missing2)]
+                    area3 = lev3.groupby([bg_id_field])[parcel_liv_area].agg(['sum'])
                     area3.rename(columns={'sum': f'{var}_Area'},
                                  inplace=True)
                     area3 = area3[area3[f'{var}_Area'] > 0]
                     area3 = area3.reset_index()
                     area3[f'{var}_How'] = "living_area"
                     area = pd.concat([area, area3])
-                    missing3 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+                    missing3 = list(set(count_parcels_bg[bg_id_field]) - set(area[bg_id_field]))
                     if (len(missing3) > 0):
-                        lev4 = intersect_df[intersect_df.GEOID10.isin(missing3)]
-                        area4 = lev4.groupby(['GEOID10'])[pldaf].agg(['sum'])
+                        lev4 = intersect_df[intersect_df[bg_id_field].isin(missing3)]
+                        area4 = lev4.groupby([bg_id_field])[pldaf].agg(['sum'])
                         area4.rename(columns={'sum': f'{var}_Area'},
                                      inplace=True)
                         area4 = area4.reset_index()
@@ -1820,41 +1811,41 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
         area = area.reset_index(drop=True)
         count_parcels_bg = pd.merge(count_parcels_bg, area,
                                     how='left',
-                                    on='GEOID10')
+                                    on=bg_id_field)
 
     # Repeat the above with population
     logger.log_msg("--- totaling living area for population")
-    area = intersect_df[lu_mask['Population']].groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+    area = intersect_df[lu_mask['Population']].groupby([bg_id_field])[parcel_liv_area].agg(['sum'])
     area.rename(columns={'sum': 'Population_Area'},
                 inplace=True)
     area = area[area['Population_Area'] > 0]
     area = area.reset_index()
     area['Population_How'] = "lu_mask"
-    missing1 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+    missing1 = list(set(count_parcels_bg[bg_id_field]) - set(area[bg_id_field]))
     if (len(missing1) > 0):
         lev2 = intersect_df[all_developed["AD"]]
-        lev2 = lev2[lev2.GEOID10.isin(missing1)]
-        area2 = lev2.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+        lev2 = lev2[lev2[bg_id_field].isin(missing1)]
+        area2 = lev2.groupby([bg_id_field])[parcel_liv_area].agg(['sum'])
         area2.rename(columns={'sum': 'Population_Area'},
                      inplace=True)
         area2 = area2[area2['Population_Area'] > 0]
         area2 = area2.reset_index()
         area2['Population_How'] = "all_dev"
         area = pd.concat([area, area2])
-        missing2 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+        missing2 = list(set(count_parcels_bg[bg_id_field]) - set(area[bg_id_field]))
         if (len(missing2) > 0):
-            lev3 = intersect_df[intersect_df.GEOID10.isin(missing2)]
-            area3 = lev3.groupby(['GEOID10'])[parcel_liv_area].agg(['sum'])
+            lev3 = intersect_df[intersect_df[bg_id_field].isin(missing2)]
+            area3 = lev3.groupby([bg_id_field])[parcel_liv_area].agg(['sum'])
             area3.rename(columns={'sum': 'Population_Area'},
                          inplace=True)
             area3 = area3[area3['Population_Area'] > 0]
             area3 = area3.reset_index()
             area3['Population_How'] = "living_area"
             area = pd.concat([area, area3])
-            missing3 = list(set(count_parcels_bg.GEOID10) - set(area.GEOID10))
+            missing3 = list(set(count_parcels_bg[bg_id_field]) - set(area[bg_id_field]))
             if (len(missing3) > 0):
-                lev4 = intersect_df[intersect_df.GEOID10.isin(missing3)]
-                area4 = lev4.groupby(['GEOID10'])[pldaf].agg(['sum'])
+                lev4 = intersect_df[intersect_df[bg_id_field].isin(missing3)]
+                area4 = lev4.groupby([bg_id_field])[pldaf].agg(['sum'])
                 area4.rename(columns={'sum': 'Population_Area'},
                              inplace=True)
                 area4 = area4.reset_index()
@@ -1863,7 +1854,7 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     area = area.reset_index(drop=True)
     count_parcels_bg = pd.merge(count_parcels_bg, area,
                                 how='left',
-                                on='GEOID10')
+                                on=bg_id_field)
 
     # Now, we format and re-merge with our original parcel data
     logger.log_msg("--- merging living area totals with parcel-level data")
@@ -1873,7 +1864,7 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     # 2. merge back to original data
     intersect_df = pd.merge(intersect_df, count_parcels_bg,
                             how='left',
-                            on='GEOID10')
+                            on=bg_id_field)
 
     # Step 2 in allocation is taking parcel-level proportions of living area
     # relative to the block group total, and calculating parcel-level
@@ -1943,7 +1934,7 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     # If what we did worked, all the proportions should sum to 1. This will
     # help us identify if there are any errors
     # v = [f'{var}_Par_Prop' for var in lodes_attrs + ["Population"]]
-    # x = intersect_df.groupby(["GEOID10"])[v].apply(lambda x: x.sum())
+    # x = intersect_df.groupby([bg_id_field])[v].apply(lambda x: x.sum())
     # x[v].apply(lambda x: [min(x), max(x)])
 
     # Now we can sum up totals
@@ -1965,18 +1956,18 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     logger.log_msg("--- allocating commutes")
     # Commutes will be allocated relative to total population, so total by
     # the block group and calculate the parcel share
-    tp_props = intersect_df.groupby("GEOID10")["Total_Population"].sum().reset_index()
-    tp_props.columns = ["GEOID10", "TP_Agg"]
-    geoid_edit = tp_props[tp_props.TP_Agg == 0].GEOID10
+    tp_props = intersect_df.groupby(bg_id_field)["Total_Population"].sum().reset_index()
+    tp_props.columns = [bg_id_field, "TP_Agg"]
+    geoid_edit = tp_props[tp_props.TP_Agg == 0][bg_id_field]
     intersect_df = pd.merge(intersect_df, tp_props,
                             how='left',
-                            on='GEOID10')
+                            on=bg_id_field)
     intersect_df["TP_Par_Prop"] = intersect_df['Total_Population'] / intersect_df['TP_Agg']
     # If there are any 0s (block groups with 0 population) replace with
     # the population area population, in case commutes are predicted where
     # population isn't
-    intersect_df.loc[intersect_df.GEOID10.isin(geoid_edit), "TP_Par_Prop"] = intersect_df["Population_Par_Prop"][
-        intersect_df.GEOID10.isin(geoid_edit)]
+    intersect_df.loc[intersect_df[bg_id_field].isin(geoid_edit), "TP_Par_Prop"] = intersect_df["Population_Par_Prop"][
+        intersect_df[bg_id_field].isin(geoid_edit)]
     # Now we can allocate commutes
     transit_vars = ['Drove', 'Carpool', 'Transit',
                     'NonMotor', 'Work_From_Home', 'AllOther']
@@ -2000,7 +1991,7 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     to_keep = [parcels_id,
                parcel_liv_area,
                parcel_lu,
-               'GEOID10',
+               bg_id_field,
                'Total_Employment',
                'CNS01_PAR', 'CNS02_PAR', 'CNS03_PAR', 'CNS04_PAR',
                'CNS05_PAR', 'CNS06_PAR', 'CNS07_PAR', 'CNS08_PAR',
@@ -2023,9 +2014,9 @@ def analyze_blockgroup_allocate(parcel_fc, bg_modeled, bg_geom, out_gdb,
     # initialized during spatial processing
     logger.log_msg("--- writing table of allocation results")
     sed_path = makePath(out_gdb,
-                        "socioeconomic_and_demographic")
+                        "EconDemog_parcels")
     dfToTable(intersect_df, sed_path)
-
+    print("\n")
     # Then we done!
     return sed_path
 
@@ -2821,12 +2812,12 @@ def taz_travel_stats(skim_table, trip_table, o_field, d_field, dist_field, ):
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
-def contiguity_index(parcels_path, buildings_path, parcels_id_field,
+def contiguity_index(parcels_fc, buildings_fc, parcels_id_field,
                      chunks=20, cell_size=40, weights="nn"):
     """calculate contiguity of developable area
     Args:
-        parcels_path: String; path to parcel polygons; contiguity will be calculated relative to this
-        buildings_path: String; path to building polygons;
+        parcels_fc: String; path to parcel polygons; contiguity will be calculated relative to this
+        buildings_fc: String; path to building polygons;
         parcels_id_field: String; name of a field used to identify the parcels in the future summarized
             parcel results
         chunks: int;  number of chunks in which you want to process contiguity. necessary because of memory issues
@@ -2836,43 +2827,39 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
         weights: str or dict;  weights for neighbors in contiguity calculation. (see notes for how to specify weights)
             Default "nn", all neighbors carry the same weight, regardless of orientation
 
-    Returns
-    -------
+    Returns:
         pandas dataframe; table of polygon-level (sub-parcel) contiguity indices
 
-    Notes
-    -----
-    Weights can be provided in one of two ways:
+    Notes:
+        Weights can be provided in one of two ways:
+            1. one of three defaults: "rook", "queen", or "nn".
+            "rook" weights give all horizontal/vertical neighbors a weight of 1,
+                and all diagonal neighbors a weight of 0
+            "queen" weights give all horizontal/vertical neighbors a weight of 2,
+                and all diagonal neighbors a weight of 1
+            "nn" (nearest neighbor) weights give all neighbors a weight of 1,
+                regardless of orientation
+            For developable area, "nn" makes the most sense to describe contiguity,
+                and thus is the recommended option for weights in this function
 
-        1. one of three defaults: "rook", "queen", or "nn".
-        "rook" weights give all horizontal/vertical neighbors a weight of 1,
-            and all diagonal neighbors a weight of 0
-        "queen" weights give all horizontal/vertical neighbors a weight of 2,
-            and all diagonal neighbors a weight of 1
-        "nn" (nearest neighbor) weights give all neighbors a weight of 1,
-            regardless of orientation
-        For developable area, "nn" makes the most sense to describe contiguity,
-            and thus is the recommended option for weights in this function
+            2. a dictionary of weights for each of 9 possible neighbors. This
+            dictionary must have the keys ["top_left", "top_center", "top_right",
+            "middle_left", "self", "middle_right", "bottom_left", "bottom_center",
+            "bottom_right"]. If providing weights as a dictionary, a good strategy
+            is to set "self"=1, and then set other weights according to a
+            perceived relative importance to the cell itself. It is recommended,
+            however, to use one of the default weighting options; the dictionary
+            option should only be used in rare cases.
 
-        2. a dictionary of weights for each of 9 possible neighbors. This
-        dictionary must have the keys ["top_left", "top_center", "top_right",
-        "middle_left", "self", "middle_right", "bottom_left", "bottom_center",
-        "bottom_right"]. If providing weights as a dictionary, a good strategy
-        is to set "self"=1, and then set other weights according to a
-        perceived relative importance to the cell itself. It is recommended,
-        however, to use one of the default weighting options; the dictionary
-        option should only be used in rare cases.
-
-    Raises
-    ------
-    ValueError:
-        if weights are an invalid string or a dictionary with invalid keys (see Notes)
+    Raises:
+        ValueError:
+            if weights are an invalid string or a dictionary with invalid keys (see Notes)
     """
 
     # Weights setup
     # -------------
 
-    logger.log_msg("---checking weights")
+    logger.log_msg("--- checking weights")
 
     # Before anything else, we need to make sure the weights are set up
     # properly; if not, we need to kill the function. We'll do that through
@@ -2918,11 +2905,11 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
     # Chunking setup
     # --------------
 
-    logger.log_msg("---set up for chunk processing of contiguity")
+    logger.log_msg("--- set up for chunk processing of contiguity")
 
     # Before anything, recognizing this is going to create a LOT of data,
     # we need to set up a location for intermediate files.
-    logger.log_msg("--- ---setting up an intermediates gdb")
+    logger.log_msg("--- --- setting up an intermediates gdb")
 
     temp_dir = tempfile.mkdtemp()
     arcpy.CreateFileGDB_management(out_folder_path=temp_dir,
@@ -2931,14 +2918,14 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
 
     # First, we're going to create our quadrats for chunking. To do this,
     # we need to start with the extent of our parcels
-    logger.log_msg("--- ---extracting parcels extent")
-    desc = arcpy.Describe(parcels_path)
+    logger.log_msg("--- --- extracting parcels extent")
+    desc = arcpy.Describe(parcels_fc)
     parcels_extent = desc.extent
 
     # Next, we find the ratio of dimensions for our parcels. This will inform
     # how our quadrats get structured -- we'll pick the orientation that most
     # closely matches our height/width ratio
-    logger.log_msg("--- ---determining parcels dimension ratio")
+    logger.log_msg("--- --- determining parcels dimension ratio")
     xmin = parcels_extent.XMin
     xmax = parcels_extent.XMax
     ymin = parcels_extent.YMin
@@ -2948,7 +2935,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
     # Now, we define out the orientation of our quadrats by identifying the
     # one that is closest to 'hw_ratio'. This gives us the number of rows
     # and columns for our quadrats
-    logger.log_msg("--- ---defining row/column orientation for quadrats")
+    logger.log_msg("--- --- defining row/column orientation for quadrats")
     candidate_ontns = [[i, chunks // i]
                        for i in range(1, chunks + 1)
                        if chunks % i == 0]
@@ -2960,12 +2947,11 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
 
     # With the extent information and rows/columns, we can create our quadrats
     # by creating a fishnet over the parcels
-    logger.log_msg("--- ---creating quadrats")
+    logger.log_msg("--- --- creating quadrats")
     quadrat_origin = ' '.join([str(xmin), str(ymin)])
     quadrat_ycoord = ' '.join([str(xmin), str(ymin + 10)])
     quadrat_corner = ' '.join([str(xmax), str(ymax)])
-    quadrats_fc = makePath(intmd_gdb,
-                           "quadrats")
+    quadrats_fc = make_inmem_path(file_name="quadrats")
     arcpy.CreateFishnet_management(out_feature_class=quadrats_fc, origin_coord=quadrat_origin,
                                    y_axis_coord=quadrat_ycoord, number_rows=quadrat_nrows, number_columns=quadrat_ncols,
                                    corner_coord=quadrat_corner, template=parcels_extent, geometry_type="POLYGON")
@@ -2980,26 +2966,21 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
 
     # We start by extracting parcel centroids, maintaining the ID field for a
     # future merge back to the polygons
-    logger.log_msg("--- ---extracting parcel centroids")
-    parcels_fields = [parcels_id_field, "SHAPE@X", "SHAPE@Y"]
-    centroids_fc = makePath(intmd_gdb, "centroids")
-    PMT.polygonsToPoints(in_fc=parcels_path,
-                         out_fc=centroids_fc,
-                         fields=parcel_fields,
-                         skip_nulls=False,
-                         null_value=-1)
+    # logger.log_msg("--- --- extracting parcel centroids")
+    # parcel_fields = [parcels_id_field, "SHAPE@X", "SHAPE@Y"]
+    # centroids_fc = makePath(intmd_gdb, "centroids")
+    # PMT.polygonsToPoints(in_fc=parcels_path, out_fc=centroids_fc, fields=parcel_fields,
+    #                      skip_nulls=False, null_value=-1)
 
     # Next, we intersect the parcels centroids with the quadrats to
     # identify quadrat ownership -- the parcels will be enriched with the
     # quadrat FIDs, which can be used for chunk identification. We're now
     # done with the quadrats and centroids, so we can delete them
     logger.log_msg("--- ---identifying parcel membership in quadrats")
-    intersect_fc = makePath(intmd_gdb,
-                            "intersect")
-    arcpy.Intersect_analysis(in_features=[centroids_fc, quadrats_fc],
-                             out_feature_class=intersect_fc)
-    arcpy.Delete_management(quadrats_fc)
-    arcpy.Delete_management(centroids_fc)
+    intersect_fc = intersectFeatures(summary_fc=quadrats_fc, disag_fc=parcels_fc, disag_fields=parcels_id_field)
+    # arcpy.Intersect_analysis(in_features=[centroids_fc, quadrats_fc], out_feature_class=intersect_fc)
+    # arcpy.Delete_management(quadrats_fc)
+    # arcpy.Delete_management(centroids_fc)
 
     # Now that we've identified membership, we pull the parcels ID and the
     # chunk ID (stored as "FID_quadrats" by default from the create fishnet
@@ -3010,61 +2991,46 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
 
     # First, we'll need a copy of the original parcels (this way we don't
     # have to modify the parcels as they are and potentially mess stuff up)
-    logger.log_msg("--- ---copying the parcels feature class to avoid overwriting")
+    logger.log_msg("--- --- copying the parcels feature class to avoid overwriting")
     fmap = arcpy.FieldMappings()
-    fmap.addTable(parcels_path)
-    fields = {f.name: f for f in arcpy.ListFields(parcels_path)}
+    fmap.addTable(parcels_fc)
+    fields = {f.name: f for f in arcpy.ListFields(parcels_fc)}
     for fname, fld in fields.items():
         if fld.type not in ('OID', 'Geometry') and 'shape' not in fname.lower():
             if fname != parcels_id_field:
                 fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
-    arcpy.conversion.FeatureClassToFeatureClass(in_features=parcels_path,
-                                                out_path=intmd_gdb,
-                                                out_name="parcels",
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_fc, out_path=intmd_gdb, out_name="parcels",
                                                 field_mapping=fmap)
-    parcels_fc = makePath(intmd_gdb,
-                          "parcels")
-
+    parcels_fc = makePath(intmd_gdb, "parcels")
     # Now we add the chunk ID to the copied parcels (see the above comment
     # chunk for additional information)
-    logger.log_msg("--- ---tagging parcels with a chunk ID")
-    itsn_fields = [parcels_id_field, "FID_quadrats"]
-    itsn_array = arcpy.da.FeatureClassToNumPyArray(
-        in_table=intersect_fc,
-        field_names=itsn_fields,
-        null_value=-1
-    )
+    logger.log_msg("--- --- tagging parcels with a chunk ID")
+    itsn_fields = [parcels_id_field, "FID__quadrats"]
+    itsn_array = arcpy.da.FeatureClassToNumPyArray(in_table=intersect_fc, field_names=itsn_fields, null_value=-1)
     itsn_array.dtype.names = (parcels_id_field, "ChunkID")
-    arcpy.da.ExtendTable(
-        in_table=parcels_fc,
-        table_match_field=parcels_id_field,
-        in_array=itsn_array,
-        array_match_field=parcels_id_field
-    )
+    arcpy.da.ExtendTable(in_table=parcels_fc, table_match_field=parcels_id_field,
+                         in_array=itsn_array, array_match_field=parcels_id_field)
 
-    # This completes our chunking setup -- next, we need to take our
-    # chunked parcels and difference them with buildings to define
-    # developable area
+    # This completes our chunking setup -- next, we need to take our chunked parcels and difference
+    # them with buildings to define developable area
 
     # Differencing buildings and parcels
-    # ----------------------------------
-
-    logger.log_msg("---differencing parcels and buildings")
-
-    # Contiguity is assessed in terms of parcel area that is not already
-    # developed. To do this, we'll need a spatial difference of parcel
-    # polygons and building polygons. First, we process the difference
-    logger.log_msg("--- ---differencing parcels and buildings")
-    union_fc = makePath(intmd_gdb, "union")
-    arcpy.Union_analysis(in_features=[parcels_fc, buildings_path], out_feature_class=union_fc)
-    difference = arcpy.SelectLayerByAttribute_management(in_layer_or_view=union_fc, selection_type="NEW_SELECTION",
-                                                         where_clause="\"type\" <> 'way'"
-                                                         # pick any variable from buildings
-                                                         )
+    # Contiguity is assessed in terms of parcel area that is not already developed.
+    # To do this, we'll need a spatial difference of parcel polygons and building polygons.
+    # First, we process the difference
+    logger.log_msg("--- --- differencing parcels and buildings")
     difference_fc = makePath(intmd_gdb, "difference")
-    arcpy.CopyFeatures_management(in_features=difference, out_feature_class=difference_fc)
-    arcpy.Delete_management(union_fc)
-    arcpy.Delete_management(difference)
+    # _, buildings_name = os.path.split(buildings_fc)
+    arcpy.SymDiff_analysis(in_features=parcels_fc, update_features=buildings_fc, out_feature_class=difference_fc)
+    # union_fc = makePath(intmd_gdb, "union")
+    # arcpy.Union_analysis(in_features=[parcels_fc, buildings_fc], out_feature_class=union_fc)
+    # where = arcpy.AddFieldDelimiters(buildings_fc, f"FID_{buildings_name}") + "<> -1"
+    # difference = arcpy.SelectLayerByAttribute_management(in_layer_or_view=union_fc, selection_type="NEW_SELECTION",
+    #                                                      where_clause=where)
+    # difference_fc = makePath(intmd_gdb, "difference")
+    # arcpy.CopyFeatures_management(in_features=difference, out_feature_class=difference_fc)
+    # arcpy.Delete_management(union_fc)
+    # arcpy.Delete_management(difference)
 
     # When we completed the differencing, we may have split some parcels
     # into 2. This is a problem for reporting, because contiguity of
@@ -3073,28 +3039,23 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
     # and then use a summary function to get a contiguity for the parcel
     # as a whole. So, we need to split the difference result into single
     # part polygons
-    logger.log_msg("--- ---converting difference to singlepart polygons")
-    difference_sp_fc = os.path.join(intmd_gdb,
-                                    "difference_sp")
-    arcpy.MultipartToSinglepart_management(
-        in_features=difference_fc,
-        out_feature_class=difference_sp_fc
-    )
+    logger.log_msg("--- --- converting difference to singlepart polygons")
+    difference_sp_fc = os.path.join(intmd_gdb, "difference_sp")
+    arcpy.MultipartToSinglepart_management(in_features=difference_fc, out_feature_class=difference_sp_fc)
     arcpy.Delete_management(difference_fc)
 
     # Now, we want an ID to identify each unique polygon, as well be
     # calculating contiguity on a polygon basis. We can create this variable
     # using the same methods as the ProcessID, but we'll call it "PolyID"
-    logger.log_msg("--- ---adding a unique ID field for individual polygons")
-    add_unique_id(feature_class=difference_sp_fc,
-                  new_id_field="PolyID")
+    logger.log_msg("--- --- adding a unique ID field for individual polygons")
+    PMT.add_unique_id(feature_class=difference_sp_fc, new_id_field="PolyID")
 
     # Finally, we can delete every field from 'difference_sp' except
     # ProcessID, PolyID, and ChunkID -- we do this because we're going to
     # be eating a LOT of memory in our contiguity calculations, so every
     # bit counts!
     # Thanks to: https://gis.stackexchange.com/questions/229187/copying-only-certain-fields-columns-from-shapefile-into-new-shapefile-using-mode
-    logger.log_msg("--- ---formatting the singlepart difference")
+    logger.log_msg("--- --- formatting the singlepart difference")
     fkeep = [parcels_id_field, "PolyID", "ChunkID"]
     fmap = arcpy.FieldMappings()
     fmap.addTable(difference_sp_fc)
@@ -3103,25 +3064,23 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
         if fld.type not in ('OID', 'Geometry') and 'shape' not in fname.lower():
             if fname not in fkeep:
                 fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
-    arcpy.conversion.FeatureClassToFeatureClass(in_features=difference_sp_fc,
-                                                out_path=intmd_gdb,
-                                                out_name="diff",
-                                                field_mapping=fmap)
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=difference_sp_fc, out_path=intmd_gdb,
+                                                out_name="diff", field_mapping=fmap)
     arcpy.Delete_management(difference_sp_fc)
-    diff_fc = makePath(intmd_gdb,
-                       "diff")
+    diff_fc = makePath(intmd_gdb, "diff")
 
     # To match contiguity back to our polygons, we'll use the relationship
     # between PolyID and ParcelID. So, we'll create a table of PolyID and
     # ProcessID to merge our contiguity results to. Once we have our results,
     # we can summarize over ProcessID and merge back to the parcel polygons
-    logger.log_msg("--- ---extracting a polygon-parcel ID reference table")
-    ref_df = arcpy.da.FeatureClassToNumPyArray(
-        in_table=diff_fc,
-        field_names=[parcels_id_field, "PolyID"],
-        null_value=-1
+    logger.log_msg("--- --- extracting a polygon-parcel ID reference table")
+    ref_df = pd.DataFrame(
+        arcpy.da.FeatureClassToNumPyArray(
+            in_table=diff_fc,
+            field_names=[parcels_id_field, "PolyID"],
+            null_value=-1
+        )
     )
-    ref_df = pd.DataFrame(ref_df)
 
     # This completes our differencing -- we now are ready to calculate
     # contiguity, which we will do on "diff" relative to "PolyID". But,
@@ -3135,22 +3094,22 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
     # Chunk processing of contiguity
     # ------------------------------
 
-    logger.log_msg("---chunk processing contiguity and developable area")
+    logger.log_msg("--- chunk processing contiguity and developable area")
 
     # Chunks are processed in a loop over the chunk IDs, which are simply
     # 1, 2, ..., chunks. So, we need our chunk IDs, and a place to store
     # the results of each chunk
-    chunk_ids = np.arange(1, chunks + 1)
+
     ctgy = []
 
     # Now, we loop through the chunks to calculate contiguity:
-    for i in chunk_ids:
-        logger.log_msg(''.join(["--- ---chunk ", str(i), " of ", str(chunks)]))
+    for i in range(1, chunks+1):
+        logger.log_msg(f"--- --- chunk {str(i)} of {str(chunks)}")
 
         # First, we need to select our chunk of interest, which we'll do
         # using select by attribute
-        logger.log_msg("--- --- ---selecting chunk")
-        selection = ' '.join(['"ChunkID" =', str(i)])
+        logger.log_msg("--- --- --- selecting chunk")
+        selection = f'"ChunkID" = {str(i)}'
         parcel_chunk = arcpy.SelectLayerByAttribute_management(
             in_layer_or_view=diff_fc,
             selection_type="NEW_SELECTION",
@@ -3159,19 +3118,17 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
 
         # Contiguity is calculated over a raster, so we need to rasterize
         # our chunk for processing
-        logger.log_msg("--- --- ---rasterizing chunk")
-        rp = makePath(intmd_gdb,
-                      ''.join(["chunk_raster_", str(i)]))
+        logger.log_msg("--- --- --- rasterizing chunk")
+        rp = makePath(intmd_gdb, ''.join(["chunk_raster_", str(i)]))
         arcpy.FeatureToRaster_conversion(in_features=parcel_chunk,
                                          field="PolyID",
                                          out_raster=rp,
                                          cell_size=cell_size)
-        # arcpy.Delete_management(parcel_chunk)
 
         # Now we can load the data as a numpy array for processing. This is
         # also the end of spatial processing within the chunk loop -- we deal
         # exclusively with the numpy array from here out in the loop
-        logger.log_msg("--- --- ---loading chunk raster")
+        logger.log_msg("--- --- --- loading chunk raster")
         ras = arcpy.RasterToNumPyArray(in_raster=rp,
                                        nodata_to_value=-1)
         # arcpy.Delete_management(rp)
@@ -3183,7 +3140,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
         # unique values and counts using numpy functions. We'll remove the
         # information regarding the amount of empty space because we don't
         # care about that
-        logger.log_msg("--- --- ---calculating developable area by polygon")
+        logger.log_msg("--- --- --- calculating developable area by polygon")
         poly_ids, counts = np.unique(ras, return_counts=True)
         area = pd.DataFrame.from_dict({"PolyID": poly_ids,
                                        "Count": counts})
@@ -3211,7 +3168,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # represented in each cell. We'll organize these into two copies of
             # the same table: one will initialize cell ID organization, and the
             # other will initialize neighboring cell ID organization
-            logger.log_msg("--- --- ---initializing cell neighbor identification")
+            logger.log_msg("--- --- --- initializing cell neighbor identification")
             ras_dim = ras.shape
             nrow = ras_dim[0]
             ncol = ras_dim[1]
@@ -3228,7 +3185,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # an expensive process, we don't want to calculate neighbors if we
             # don't have to. So, prior to neighbor identification, we'll isolate
             # the cells for which we'll actually calculate contiguity
-            logger.log_msg("--- --- ---identifying non-empty cells")
+            logger.log_msg("--- --- --- identifying non-empty cells")
             row_oi = id_tab_self[id_tab_self.ID != -1].Row.to_list()
             col_oi = id_tab_self[id_tab_self.ID != -1].Col.to_list()
 
@@ -3238,7 +3195,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # index of a cell, we can calculate the index of all its neighbors.
             # That is our next step: we'll organize cells and neighbors into
             # a dataframe
-            logger.log_msg("--- --- ---identifying neighbors of non-empty cells")
+            logger.log_msg("--- --- --- identifying neighbors of non-empty cells")
             row_basic = [np.arange(x - 1, x + 2) for x in row_oi]
             col_basic = [np.arange(x - 1, x + 2) for x in col_oi]
 
@@ -3255,7 +3212,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # is on an edge or corner, it has fewer than 9 neighbors. So we now
             # want to remove any neighbors we might have identified that aren't
             # valid cells
-            logger.log_msg("--- --- ---filtering to valid neighbors by index")
+            logger.log_msg("--- --- --- filtering to valid neighbors by index")
             meshed = meshed[(meshed.NRow >= 0)
                             & (meshed.NRow < nrow)
                             & (meshed.NCol >= 0)
@@ -3265,7 +3222,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # we want to know what the polygon is represented in the cell and
             # what polygons are represented in the neighbors. To do this, we can
             # merge back to our initialized cell-ID and neighbor-ID tables
-            logger.log_msg("--- --- ---tagging cells and their neighbors with polygon IDs")
+            logger.log_msg("--- --- --- tagging cells and their neighbors with polygon IDs")
             meshed = pd.merge(meshed,
                               id_tab_self,
                               left_on=["Row", "Col"],
@@ -3282,7 +3239,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # ID and the neighbor ID match (i.e. the cell and neighbor are from
             # the same polygon). We'll complete that filtering here, and then
             # drop the neighbor ID (for legibility)
-            logger.log_msg("--- --- ---fitering to valid neighbors by ID")
+            logger.log_msg("--- --- --- fitering to valid neighbors by ID")
             meshed = meshed[meshed.ID == meshed.NID]
             meshed = meshed.drop(columns="NID")
 
@@ -3290,7 +3247,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # for contiguity calculations. These are based off the specifications
             # in the 'weights' inputs to the function. So, we tag each
             # cell-neighbor pair in 'valid_neighbors' with a weight.
-            logger.log_msg("--- --- ---tagging cells and neighbors with weights")
+            logger.log_msg("--- --- --- tagging cells and neighbors with weights")
             conditions = [(np.logical_and(meshed["NRow"] == meshed["Row"] - 1, meshed["NCol"] == meshed["Col"] - 1)),
                           (np.logical_and(meshed["NRow"] == meshed["Row"] - 1, meshed["NCol"] == meshed["Col"])),
                           (np.logical_and(meshed["NRow"] == meshed["Row"] - 1, meshed["NCol"] == meshed["Col"] + 1)),
@@ -3308,13 +3265,9 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # To initialize the contiguity calculation, we sum weights by cell.
             # We lose the ID in the groupby though, which we need to get to
             # contiguity, so we need to merge back to our cell-ID table
-            logger.log_msg("--- --- ---summing weight by cell")
+            logger.log_msg("--- --- --- summing weight by cell")
             wtab = meshed.groupby(["Row", "Col"])[["Weight"]].agg("sum").reset_index()
-            wtab = pd.merge(wtab,
-                            id_tab_self,
-                            left_on=["Row", "Col"],
-                            right_on=["Row", "Col"],
-                            how="left")
+            wtab = pd.merge(wtab, id_tab_self, left_on=["Row", "Col"], right_on=["Row", "Col"], how="left")
 
             # We are now finally at the point of calculating contiguity! It's a
             # pretty simple function, which we apply over our IDs. This is the
@@ -3323,7 +3276,7 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
             # which we've calculated contiguity. This will make our life easier
             # when chunk processing is complete, and we move into data formatting
             # and writing
-            logger.log_msg("--- --- ---calculating contiguity by polygon")
+            logger.log_msg("--- --- --- calculating contiguity by polygon")
             weight_max = sum(weights.values())
             contiguity = wtab.groupby("ID").apply(
                 lambda x: (sum(x.Weight) / len(x.Weight) - 1) / (weight_max - 1)).reset_index(name="Contiguity")
@@ -3331,38 +3284,30 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
 
             # For reporting results, we'll merge the contiguity and developable
             # area tables
-            logger.log_msg("--- --- ---merging contiguity and developable area information")
-            contiguity = pd.merge(contiguity,
-                                  area,
-                                  left_on="PolyID",
-                                  right_on="PolyID",
-                                  how="left")
+            logger.log_msg("--- --- --- merging contiguity and developable area information")
+            contiguity = pd.merge(contiguity, area, left_on="PolyID", right_on="PolyID", how="left")
 
             # We're done chunk processing -- we'll put the resulting data frame
             # in our chunk results list as a final step
-            logger.log_msg("--- --- ---appending chunk results to master list")
+            logger.log_msg("--- --- --- appending chunk results to master list")
             ctgy.append(contiguity)
 
     # Contiguity results formatting
     # -----------------------------
 
-    logger.log_msg("---formatting polygon-level results")
+    logger.log_msg("--- formatting polygon-level results")
 
     # The results of our chunks are stored in a list after the loop -- our
     # first formatting step is thus to merge these into a single dataframe
-    logger.log_msg("--- ---combining chunked results into table format")
+    logger.log_msg("--- --- combining chunked results into table format")
     ctgy = pd.concat(ctgy, axis=0)
 
     # Recall that we calculated contiguity relative to ~polygon~, not
     # necessarily the ~parcel~. But, we want our results to be parcel-level.
     # We can merge our contiguity results with our 'ref_df' -- containing
     # ProcessID (parcel) and PolyID (polygon) -- to achieve this
-    logger.log_msg("--- ---filling table with missing polygons")
-    ctgy = pd.merge(ref_df,
-                    ctgy,
-                    left_on="PolyID",
-                    right_on="PolyID",
-                    how="left")
+    logger.log_msg("--- --- filling table with missing polygons")
+    ctgy = pd.merge(ref_df, ctgy, left_on="PolyID", right_on="PolyID", how="left")
 
     # It's possible that a polygon winds up not represented because
     # (1) a building covers the whole polygon or (2) the polygon's developable
@@ -3370,49 +3315,40 @@ def contiguity_index(parcels_path, buildings_path, parcels_id_field,
     # this results in missing data we'll want to fill for completeness.
     # We fill both contiguity and developable area with 0, because these are
     # the values for no contiguity and no area, respectively
-    logger.log_msg("---overwriting missing values with 0")
-    ctgy = ctgy.fillna(value={"Contiguity": 0,
-                              "Developable_Area": 0})
+    logger.log_msg("--- overwriting missing values with 0")
+    ctgy = ctgy.fillna(value={"Contiguity": 0, "Developable_Area": 0})
 
-    # Done
-    # ----
     return ctgy
 
 
-def contiguity_summary(full_results_df,
-                       parcels_id_field,
-                       summary_funs=["min", "max", "median", "mean"],
-                       area_scaling=True):
-    """
-    summarize contiguity/developable area results from
-    `analyze_contiguity_index` from sub-parcel to parcel
+def contiguity_summary(full_results_df, parcels_id_field,
+                       summary_funs=["min", "max", "median", "mean"], area_scaling=True):
+    """summarize contiguity/developable area results from
+        `analyze_contiguity_index` from sub-parcel to parcel
 
-    Parameters
-    ----------
-    full_results_df: pandas dataframe
-        dataframe output of `analyze_contiguity_index`
-    parcels_id_field: str
-        name of a field used to identify the parcels in the summarized
-        parcel results
-    summary_funs: list of strs
-        functions to be used to summarize contiguity to the parcel; available
-        options include min, max, mean, and median
-        Default is all options
-    area_scaling: boolean
-        should a scaled version of developable area be calculated? If `True`,
-        a "scaled_area" statistic will be calculated as developable area times
-        contiguity index (at the parcel level). The default is True
-
-    Returns
-    -------
-    pandas dataframe
-        a table of summarized results attributed with:
-            1. A parcel identifier (as specified in `analyze_contiguity_index`
-            when the featur class was initialized)
-            2. Parcel developable area (summed to the parcel)
-            3. {fun}-summarized contiguity, for each function in `summary_funs`
-            4. {fun}-scaled area, for each of {fun}-summarized contiguity, if
-            `area_scaling = True`
+    Args:
+        full_results_df: pandas dataframe
+            dataframe output of `analyze_contiguity_index`
+        parcels_id_field: str
+            name of a field used to identify the parcels in the summarized
+            parcel results
+        summary_funs: list of strs
+            functions to be used to summarize contiguity to the parcel; available
+            options include min, max, mean, and median
+            Default is all options
+        area_scaling: boolean
+            should a scaled version of developable area be calculated? If `True`,
+            a "scaled_area" statistic will be calculated as developable area times
+            contiguity index (at the parcel level). The default is True
+    Returns:
+        pandas dataframe
+            a table of summarized results attributed with:
+                1. A parcel identifier (as specified in `analyze_contiguity_index`
+                when the featur class was initialized)
+                2. Parcel developable area (summed to the parcel)
+                3. {fun}-summarized contiguity, for each function in `summary_funs`
+                4. {fun}-scaled area, for each of {fun}-summarized contiguity, if
+                `area_scaling = True`
     """
 
     # Summarizing up to the parcel
@@ -3932,69 +3868,47 @@ def lu_diversity(parcels_path,
     return div_frames
 
 
-def prep_permits_units_reference(parcels_path,
-                                 permits_path,
-                                 lu_match_field,
-                                 parcels_living_area_field,
-                                 permits_units_field,
-                                 permits_living_area_name,
+def prep_permits_units_reference(parcels_path, permits_path,
+                                 lu_match_field, parcels_living_area_field,
+                                 permits_units_field, permits_living_area_name,
                                  units_match_dict={}):
-    '''
-    creates a reference table by which to convert various units provided in
-    the Florida permits data to building square footage
-    
-    Parameters
-    ----------
-    parcels_path: path
-        path to MOST RECENT parcels data (see notes)
-    permits_path: path
-        path to the building permits data
-    lu_match_field: str
-        field name for a land use field present in BOTH the parcels and
-        permits data
-    parcels_living_area_field: str
-        field name in the parcels for the total living area (building area)
-    permits_units_field: str
-        field name in the permits for the unit of measurement for permit
-        types
-    permits_living_area_name: str
-        unit name for building area in the `permits_units_field`
-    units_match_dict: dict
-        a dictionary of the format `{unit_name: parcel_field, ...}`, where the
-        `unit_name` is one of the unit names present in the permits data's
-        `permits_units_field`, and the `parcel_field` is the field name in the
-        parcels corresponding to that unit. It should be used to identify
-        non-building area fields in the parcels for which we can calculate
-        a building area/unit for the multiplier. `parcel_field` can also
-        take the form of a basic function (+,-,/,*) of a column, see Notes for
-        specifications
-        
-    Notes
-    -----
-    The most up-to-date parcels data available should be used, because units 
-    multipliers for the short term should be based on the most current data
-    
-    To specify a function for the units_match_field, use the format
-    "{field} {function sign} {number}". So, for example, to map an 'acre' unit
-    in the permits to a 'land_square_foot' field in the parcels, you'd use the
-    dictionary entry `'acre': 'land_square_foot' / 43560`
-    
-    Returns
-    -------
-    pandas dataframe
-        a table of units multipliers/overwrites by land use
-    '''
+    """creates a reference table by which to convert various units provided in
+        the Florida permits_df data to building square footage
+
+    Args:
+        parcels_path (str): path to MOST RECENT parcels_df data (see notes)
+        permits_path (str): path to the building permits_df data
+        lu_match_field (str): field name for a land use field present in BOTH the parcels_df and permits_df data
+        parcels_living_area_field (str): field name in the parcels_df for the total living area (building area)
+        permits_units_field (str): field name in the permits_df for the unit of measurement for permit types
+        permits_living_area_name (str): unit name for building area in the `permits_units_field`
+        units_match_dict (dict): a dictionary of the format `{unit_name: parcel_field, ...}`, where the
+            `unit_name` is one of the unit names present in the permits_df data's `permits_units_field`, and
+            the `parcel_field` is the field name in the parcels_df corresponding to that unit. It should
+            be used to identify non-building area fields in the parcels_df for which we can calculate
+            a building area/unit for the multiplier. `parcel_field` can also take the form of a basic
+            function (+,-,/,*) of a column, see Notes for specifications
+
+    Notes:
+        The most up-to-date parcels_df data available should be used, because units multipliers for the
+        short term should be based on the most current data
+
+        To specify a function for the units_match_field, use the format "{field} {function sign} {number}".
+        So, for example, to map an 'acre' unit in the permits_df to a 'land_square_foot' field in the parcels_df,
+        you'd use the dictionary entry `'acre': 'land_square_foot' / 43560`
+
+    Returns:
+        pandas dataframe: a table of units multipliers/overwrites by land use
+    """
 
     # Loading data
-    # ------------
-
-    # To set up for loading the parcels, we'll need to identify desired unit 
+    # To set up for loading the parcels_df, we'll need to identify desired unit
     # fields that are not building square footage. These are provided in the 
     # values of the units_match_dict; however, some of them might be given
-    # as functions (i.e. to match to a unit, a function of a parcels field is
+    # as functions (i.e. to match to a unit, a function of a parcels_df field is
     # required). So, we need to isolate the field names and the functional 
     # components
-    logger.log_msg("---identifying relevant parcel fields")
+    logger.log_msg("--- identifying relevant parcel fields")
 
     match_fields = []
     match_functions = []
@@ -4007,194 +3921,154 @@ def prep_permits_units_reference(parcels_path,
         # Function
         fun = units_match_dict[key].replace(field, "")
         if fun != "":
-            fun = ''.join(['parcels["',
-                           field,
-                           '"] = parcels["',
-                           field,
-                           '"]',
-                           fun])
+            fun = ''.join(['parcels_df["', field, '"] = parcels_df["', field, '"]', fun])
             if field not in match_functions:
                 match_functions.append(fun)
                 # Overwrite value
         units_match_dict[key] = field
 
-    # Parcels: we only need to keep a few fields from the parcels: the 
-    # lu_match_field, the parcels_living_area_field, and any values in the 
-    # match_fields (calculated above from units_match_dict). If we have any 
-    # functions to apply (again, calcualted above from units_match_dict),
+    # Parcels: we only need to keep a few fields from the parcels_df: the lu_match_field,
+    # the parcels_living_area_field, and any values in the  match_fields (calculated above
+    # from units_match_dict). If we have any  functions to apply (again, calculated above from units_match_dict),
     # we'll do that too.
-    logger.log_msg("---reading/formatting parcels")
-
-    parcels_sr = arcpy.Describe(parcels_path).spatialReference
+    logger.log_msg("--- reading/formatting parcels_df")
     parcels_fields = [lu_match_field, parcels_living_area_field] + match_fields
-    parcels = arcpy.da.FeatureClassToNumPyArray(in_table=parcels_path,
-                                                field_names=parcels_fields,
-                                                spatial_reference=parcels_sr,
-                                                null_value=0)
-    parcels = pd.DataFrame(parcels)
+    parcels_df = PMT.featureclass_to_df(in_fc=parcels_path, keep_fields=parcels_fields, null_val=0.0)
     for fun in match_functions:
         exec(fun)
 
-    # Permits: like with the parcels, we only need to keep a few fields: 
-    # the lu_match_field, and the units_field. Also, we only need to keep
-    # unique rows of this frame (otherwise we'd just be repeating
-    # calculations!)
-    logger.log_msg("---reading/formatting permits")
-
-    permits_sr = arcpy.Describe(permits_path).spatialReference
+    # Permits: like with the parcels_df, we only need to keep a few fields: the lu_match_field, and the units_field.
+    # Also, we only need to keep unique rows of this frame (otherwise we'd just be repeating calculations!)
+    logger.log_msg("--- reading/formatting permits_df")
     permits_fields = [lu_match_field, permits_units_field]
-    permits = arcpy.da.FeatureClassToNumPyArray(in_table=permits_path,
-                                                field_names=permits_fields,
-                                                spatial_reference=permits_sr,
-                                                null_value=0)
-    permits = pd.DataFrame(permits)
-    permits = permits.drop_duplicates().reset_index(drop=True)
+    permits_df = PMT.featureclass_to_df(in_fc=permits_path, keep_fields=permits_fields, null_val=0.0)
+    permits_df = permits_df.drop_duplicates().reset_index(drop=True)
 
     # Multipliers and overwrites 
-    # --------------------------
-    # Now, we loop through the units to calculate multipliers. We'll actually
-    # have two classes: multipliers and overwrites. Multipliers imply that
-    # the unit can be converted to square footage using some function of the 
-    # unit; overwrites imply that this conversion unavailable
+    # Now, we loop through the units to calculate multipliers. We'll actually have two classes: multipliers
+    # and overwrites. Multipliers imply that the unit can be converted to square footage using some function
+    # of the unit; overwrites imply that this conversion unavailable
 
-    # To do this, we loop over the rows of permits. There are 3 possible
-    # paths for each row
-    # 1. If the unit of the row is already square footage, we don't need any
-    # additional processing
-    #   Multiplier: 1
-    #   Overwrite: None
-    # 2. If the unit is one of the keys in units_match_dict, this means we can
-    # calculate a square footage / unit from the parcels. We do this relative
-    # to all parcels with that row's land use
+    # To do this, we loop over the rows of permits_df. There are 3 possible paths for each row
+    # 1. If the unit of the row is already square footage, we don't need any additional processing
+    #   Multiplier: 1 [used to mitigate null values in df to make table]
+    #   Overwrite: -1 [used to mitigate null values in df to make table]
+    # 2. If the unit is one of the keys in units_match_dict, this means we can calculate a
+    # square footage / unit from the parcels_df. We do this relative to all parcels_df with that row's land use
     #   Multiplier: median(square footage / unit)
-    #   Overwrite: None
-    # 2. If the unit is NOT one of the keys in units_match_dict, this means 
-    # we have to rely on average square footage. This is an overwrite, not a
-    # multiplier, and is calculated relative to all parcels with that row's
+    #   Overwrite: -1
+    # 3. If the unit is NOT one of the keys in units_match_dict, this means  we have to rely on average square
+    # footage. This is an overwrite, not a multiplier, and is calculated relative to all parcels_df with that row's
     # land use
-    #   Multiplier: None
+    #   Multiplier: -1
     #   Overwrite: median(square footage)
-    logger.log_msg("---calculating multipliers and overwrites")
-
-    # First we initialize the loop with a looping index and lists to store
-    # the results    
-    rows = np.arange(len(permits.index))
+    logger.log_msg("--- calculating multipliers and overwrites")
+    rows = np.arange(len(permits_df.index))
     units_multipliers = []
     units_overwrites = []
 
     for row in rows:
         # Unit and land use for the row
-        unit = permits[permits_units_field][row]
-        lu = permits[lu_match_field][row]
+        unit = permits_df[permits_units_field][row]
+        lu = permits_df[lu_match_field][row]
+        # Parcels of the row's land use
+        plu = parcels_df[parcels_df[lu_match_field] == lu]
 
         # Case (1)
         if unit == permits_living_area_name:
-            units_multipliers.append(1)
-            units_overwrites.append(None)
+            units_multipliers.append(1.0)
+            units_overwrites.append(-1.0)
 
         # Cases (2) and (3)
         else:
-            # Parcels of the row's land use
-            plu = parcels[parcels[lu_match_field] == lu]
-
             # Case (2)
             if unit in units_match_dict.keys():
-                per = plu[parcels_living_area_field] / plu[units_match_dict[unit]]
-                median_value = np.median(per)
+                sqft_per_unit = plu[parcels_living_area_field] / plu[units_match_dict[unit]]
+                median_value = np.nanmedian(sqft_per_unit)
                 units_multipliers.append(median_value)
-                units_overwrites.append(None)
+                units_overwrites.append(-1.0)
 
             # Case (3)
             else:
-                per = plu[parcels_living_area_field]
-                median_value = np.median(per)
-                units_multipliers.append(None)
+                sq_ft = plu[parcels_living_area_field]
+                if len(sq_ft) > 0:
+                    median_value = np.nanmedian(sq_ft)
+                else:
+                    median_value = -1.0
+                units_multipliers.append(-1.0)
                 units_overwrites.append(median_value)
 
-    # Since our results are lists, we can just attach them back to the permits
-    # as new columns
-    logger.log_msg("---binding results to the permits data")
+    # Since our results are lists, we can just attach them back to the permits_df as new columns
+    logger.log_msg("--- binding results to the permits_df data")
+    permits_df["Multiplier"] = units_multipliers
+    permits_df["Overwrite"] = units_overwrites
 
-    permits["Multiplier"] = units_multipliers
-    permits["Overwrite"] = units_overwrites
-
-    # Done 
-    # ----
-    return permits
+    # Done
+    return permits_df
 
 
-def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
-                             parcels_id_field, parcels_lu_field, parcels_living_area_field, parcels_land_value_field,
+def build_short_term_parcels(parcels_path, permits_path, permits_ref_df,
+                             parcels_id_field, parcels_lu_field,
+                             parcels_living_area_field, parcels_land_value_field,
                              parcels_total_value_field, parcels_buildings_field,
-                             permits_id_field, permits_lu_field, permits_units_field, permits_values_field,
-                             permits_cost_field,
+                             permits_id_field, permits_lu_field, permits_units_field,
+                             permits_values_field, permits_cost_field,
                              save_gdb_location, units_field_match_dict={}):
     # First, we need to initialize a save feature class. The feature class
     # will be a copy of the parcels with a unique ID (added by the function)
-    logger.log_msg("---initializing a save feature class")
+    logger.log_msg("--- initializing a save feature class")
 
     # Add a unique ID field to the parcels called "ProcessID"
-    logger.log_msg("--- ---adding a unique ID field for individual parcels")
+    logger.log_msg("--- --- adding a unique ID field for individual parcels")
     # creating a temporary copy of parcels
-    temp_parcels = PMT.makePath("in_memory", "temp_parcels")
-    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path="in_memory", out_name="temp_parcels")
+    temp_parcels = make_inmem_path()
+    temp_dir, temp_name = os.path.split(temp_parcels)
+    # temp_dir = tempfile.TemporaryDirectory()
+    # temp_gdb = arcpy.CreateFileGDB_management(out_folder_path=temp_dir.name, out_name="temp_data.gdb")
+    # temp_parcels = arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path,
+    #                                                            out_path=temp_gdb, out_name="temp_parcels")
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path,
+                                                out_path=temp_dir, out_name=temp_name)
     process_id_field = PMT.add_unique_id(feature_class=temp_parcels)
 
-    logger.log_msg("--- ---reading/formatting parcels")
+    logger.log_msg("--- --- reading/formatting parcels")
     # read in all of our data
-    #   - read the parcels (after which we'll remove the added unique ID from the original data). T
-    parcels_sr = arcpy.Describe(temp_parcels).spatialReference
-    parcels_fields = [f.name for f in arcpy.ListFields(temp_parcels) if
-                      not f.name in ["OID", "Shape", "Shape_Length", "Shape_Area"]]
-    parcels_arr = arcpy.da.FeatureClassToNumPyArray(in_table=temp_parcels, field_names=parcels_fields,
-                                                    spatial_reference=parcels_sr, null_value=0)
-    parcels_df = pd.DataFrame(parcels_arr)
+    #   - read the parcels (after which we'll remove the added unique ID from the original data).
+    parcels_fields = [f.name for f in arcpy.ListFields(temp_parcels)
+                      if f.name not in ["OBJECTID", "Shape", "Shape_Length", "Shape_Area"]]
+    parcels_df = PMT.featureclass_to_df(in_fc=temp_parcels, keep_fields=parcels_fields, null_val=0.0)
 
     # create output dataset keeping only process_id and delete temp file
-    logger.log_msg("--- ---creating save feature class")
+    logger.log_msg("--- --- creating save feature class")
     fmap = arcpy.FieldMappings()
     fm = arcpy.FieldMap()
-    fm.addInputField(temp_parcels, process_id_field)
+    fm.addInputField(temp_parcels, 'ProcessID')
     fmap.addFieldMap(fm)
     short_term_parcels = arcpy.FeatureClassToFeatureClass_conversion(
         in_features=temp_parcels, out_path=save_gdb_location, out_name="Parcels", field_mapping=fmap
     )[0]
-    arcpy.Delete_management(in_data=temp_parcels)
+    # temp_dir.cleanup()
 
-    # Now we're ready to process the permits to create the short term parcels
-    # data
-    logger.log_msg("---creating short term parcels")
+    # Now we're ready to process the permits to create the short term parcels data
+    logger.log_msg("--- creating short term parcels")
 
     # First we read the permits
-    logger.log_msg("--- ---reading/formatting permits_df")
-    permits_sr = arcpy.Describe(permits_path).spatialReference
+    logger.log_msg("--- --- reading/formatting permits_df")
     permits_fields = [permits_id_field, permits_lu_field, permits_units_field, permits_values_field, permits_cost_field]
-    permit_array = arcpy.da.FeatureClassToNumPyArray(in_table=permits_path, field_names=permits_fields,
-                                                     spatial_reference=permits_sr, null_value=0)
-    permits_df = pd.DataFrame(permit_array)
+    permits_df = PMT.featureclass_to_df(in_fc=permits_path, keep_fields=permits_fields, null_val=0.0)
     permits_df = permits_df[permits_df[permits_values_field] >= 0]
-
-    # Now the permits reference table,
-    logger.log_msg("--- ---reading/formatting permits reference")
-    if fnmatch.fnmatch(name=permits_reference_path, pat="*gdb*"):
-        ref_fields = [f.name for f in arcpy.ListFields(permits_reference_path)]
-        ref_array = arcpy.da.TableToNumPyArray(in_table=permits_reference_path,
-                                               field_names=ref_fields)
-        ref_df = pd.DataFrame(ref_array)
-    else:
-        ref_df = pd.read_csv(permits_reference_path)
 
     # Merge the permits_df and permits_df reference
     #   - join the two together on the permits_lu_field and permits_units_field
-    logger.log_msg("--- ---merging permits_df and permits_df reference")
-    permits_df = pd.merge(left=permits_df, right=ref_df,
+    logger.log_msg("--- --- merging permits_df and permits_df reference")
+    permits_df = pd.merge(left=permits_df, right=permits_ref_df,
                           left_on=[permits_lu_field, permits_units_field],
                           right_on=[permits_lu_field, permits_units_field], how="left")
 
     # Now we add to permits_df the field matches to the parlces (which will be
     # helpful come the time of updating parcels from the permits_df)
     if units_field_match_dict is not None:
-        logger.log_msg("--- ---joining units-field matches")
+        logger.log_msg("--- --- joining units-field matches")
         ufm = pd.DataFrame.from_dict(units_field_match_dict, orient="index").reset_index()
         ufm.columns = [permits_units_field, "Parcel_Field"]
         permits_df = pd.merge(left=permits_df, right=ufm,
@@ -4202,20 +4076,20 @@ def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
 
     # calculate the new building square footage for parcel in the permit features
     # using the reference table multipliers and overwrites
-    logger.log_msg("--- ---applying unit multipliers and overwrites")
+    logger.log_msg("--- --- applying unit multipliers and overwrites")
     new_living_area = []
     for value, multiplier, overwrite in zip(
             permits_df[permits_values_field],
             permits_df["Multiplier"],
             permits_df["Overwrite"]):
-        if np.isnan(overwrite) and not np.isnan(multiplier):
+        if (overwrite == -1.0) and (multiplier != -1.0):
             new_living_area.append(value * multiplier)
-        elif np.isnan(multiplier) and not np.isnan(overwrite):
+        elif (multiplier == -1.0) and (overwrite != -1.0):
             new_living_area.append(overwrite)
         else:
             new_living_area.append(0)
 
-    logger.log_msg("--- ---appending new living area values to permits_df data")
+    logger.log_msg("--- --- appending new living area values to permits_df data")
     permits_df["UpdTLA"] = new_living_area
     permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
 
@@ -4223,7 +4097,7 @@ def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
     #   - match building permits_df to the parcels using id_match_field,
     #   - overwrite parcel LU, building square footage, and anything specified in the match dict
     #   - add replacement flag
-    logger.log_msg("--- ---collecting updated parcel data")
+    logger.log_msg("--- --- collecting updated parcel data")
     pids = np.unique(permits_df[permits_id_field])
     update = []
     for i in pids:
@@ -4281,7 +4155,7 @@ def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
 
     # make the replacements. - drop all the rows from the parcels whose IDs are in the permits_df, - add all the rows
     # for the data we just collected. and retain the process ID from the parcels we're dropping for the sake of joining
-    logger.log_msg("--- ---replacing parcel data with updated information")
+    logger.log_msg("--- --- replacing parcel data with updated information")
     to_drop = parcels_df[parcels_df[parcels_id_field].isin(pids)]
     process_ids = to_drop.groupby(parcels_id_field)["ProcessID"].min().reset_index()
     update = pd.merge(update, process_ids, on=parcels_id_field, how="left")
@@ -4290,20 +4164,13 @@ def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
     final_update = pd.concat([parcel_update, update], axis=0).reset_index(drop=True)
 
     # Now we just write!
-    logger.log_msg("")
-    logger.log_msg("Writing results")
-
-    # join to initialized feature class using extend table (and delete the
-    # created ID when its all over)
-    logger.log_msg("--- ---joining results to save feature class (be patient, this will take a while)")
+    logger.log_msg("\nWriting results")
+    # join to initialized feature class using extend table (and delete the created ID when its all over)
+    logger.log_msg("--- --- joining results to save feature class (be patient, this will take a while)")
     PMT.extendTableDf(in_table=short_term_parcels, table_match_field=process_id_field,
                       df=final_update, df_match_field="ProcessID")
     arcpy.DeleteField_management(in_table=short_term_parcels, drop_field=process_id_field)
-
-    # Then we're done -- return the file path
-    logger.log_msg("")
-    logger.log_msg("Done!")
-    logger.log_msg("")
+    logger.log_msg("\nDone!")
     return short_term_parcels
 
 # DEPRECATED

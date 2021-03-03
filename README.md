@@ -27,7 +27,7 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
     ```
 6) _Install conda packages using **conda-forge** channel_
     ```
-    conda install -c conda-forge momepy osmnx geopandas rasterio spyder sphinx rasterstats fiona 
+    conda install -c conda-forge momepy osmnx sphinx dask
     * enter 'y/yes' and return when asked
     * spyder is optional if you want to install a Data Science focused IDE
     ```
