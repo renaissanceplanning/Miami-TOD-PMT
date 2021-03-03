@@ -354,7 +354,7 @@ def checkOverwriteOutput(output, overwrite=False):
         overwrite: Boolean
             If True, `output` will be deleted if it already exists.
             If False, raises `RuntimeError`.
-    
+
     Raises:
         RuntimeError:
             If `output` exists and `overwrite` is False.
@@ -749,6 +749,7 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
         skip_nulls (bool): Boolean, default=False
         null_value (int): Integer, default=0
     """
+    # TODO: adapt to search-cursor-based derivation of polygon.centroid to ensure point is within polygon
     sr = arcpy.Describe(in_fc).spatialReference
     if fields == "*":
         fields = [f.name for f in arcpy.ListFields(in_fc) if not f.required]
@@ -996,7 +997,7 @@ def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
     # Field mappings
     fmap_fields = ["Name"]
     fmap_vals = [name_field]
-    if net_location_fields is not None:
+    if net_location_fields is not None and net_location_fields != "":
         fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
                         "SnapX", "SnapY", "Distance"]
         fmap_vals += net_location_fields
@@ -1024,7 +1025,7 @@ def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
     print("... ...generating service areas")
     arcpy.na.Solve(in_network_analysis_layer=net_layer,
                    ignore_invalids="SKIP",
-                   terminate_on_solve_error="TERMINATE"
+                   terminate_on_solve_error="CONTINUE"
                    )
 
 
@@ -1165,7 +1166,7 @@ def genSALines(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         non-hierarchical solve is executed.
     net_location_fields: [String,...], default=None
         If provided, list the fields in the `facilities` attribute table that
-        define newtork loading locations. Fields must be provided in the 
+        define newtork loading locations. Fields must be provided in the
         following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
         SnapY, Distance.
 
@@ -1230,7 +1231,7 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
                restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
                net_location_fields=None):
     """
-    
+
 
     Parameters
     ------------
@@ -1269,7 +1270,7 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         non-hierarchical solve is executed.
     net_location_fields: [String,...], default=None
         If provided, list the fields in the `facilities` attribute table that
-        define newtork loading locations. Fields must be provided in the 
+        define newtork loading locations. Fields must be provided in the
         following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
         SnapY, Distance.
 

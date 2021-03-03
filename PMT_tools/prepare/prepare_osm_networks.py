@@ -82,54 +82,54 @@ def classifyBikability(bike_edges):
     return bike_edges
 
 
-def makeCleanNetworkGDB(clean_path, gdb_name="osm_networks"):
-    """
-    Creates a file geodatabase in the "cleaned" data directory within which to
-    build network datasets for walking and biking analyses. If the gdb already 
-    exists, it is deleted and replaced.
+# def makeCleanNetworkGDB(clean_path, gdb_name="osm_networks"):
+#     """
+#     Creates a file geodatabase in the "cleaned" data directory within which to
+#     build network datasets for walking and biking analyses. If the gdb already 
+#     exists, it is deleted and replaced.
 
-    Parameters
-    ------------
-    clean_path: Path
-        A path the cleaned data directory where the network data will be built.
-    gdb_name: String, default="osm_networks"
-        The name of the new geodatabase to be created.
+#     Parameters
+#     ------------
+#     clean_path: Path
+#         A path the cleaned data directory where the network data will be built.
+#     gdb_name: String, default="osm_networks"
+#         The name of the new geodatabase to be created.
 
-    Returns
-    -------
-    out_gdb: geodatabase
-        Creates a new geodabase at `{clean_path}/{gdb_name}`
-    """
-    # Handle inputs
-    if gdb_name[-4:] != ".gdb":
-        gdb_name = gdb_name + ".gdb"
-    # Delete the gdb if it exists
-    gdb_path = PMT.makePath(clean_path, gdb_name)
-    if arcpy.Exists(gdb_path):
-        arcpy.Delete_management(gdb_path)
-    # Create the new gdb
-    print(f"...creating geodatabase {clean_path}\\{gdb_name}")
-    return arcpy.CreateFileGDB_management(clean_path, gdb_name)
+#     Returns
+#     -------
+#     out_gdb: geodatabase
+#         Creates a new geodabase at `{clean_path}/{gdb_name}`
+#     """
+#     # Handle inputs
+#     if gdb_name[-4:] != ".gdb":
+#         gdb_name = gdb_name + ".gdb"
+#     # Delete the gdb if it exists
+#     gdb_path = PMT.makePath(clean_path, gdb_name)
+#     if arcpy.Exists(gdb_path):
+#         arcpy.Delete_management(gdb_path)
+#     # Create the new gdb
+#     print(f"...creating geodatabase {clean_path}\\{gdb_name}")
+#     return arcpy.CreateFileGDB_management(clean_path, gdb_name)
 
 
-def makeNetFeatureDataSet(gdb_path, name, sr):
-    """
-    Make a feature dataset in a geodatbase.
+# def makeNetFeatureDataSet(gdb_path, name, sr):
+#     """
+#     Make a feature dataset in a geodatbase.
 
-    Parameters
-    ---------------
-    gdb_path: Path
-    name: String
-    sr: Spatial Reference
+#     Parameters
+#     ---------------
+#     gdb_path: Path
+#     name: String
+#     sr: Spatial Reference
 
-    Returns
-    --------
-    net_fd: Feature dataset
-        Creates a new feature dataset at `{gdb_path}/{name}`
-    """
-    sr = arcpy.SpatialReference(sr)
-    print(f"... ...creating feature dataset {name}")
-    return arcpy.CreateFeatureDataset_management(gdb_path, name, sr)
+#     Returns
+#     --------
+#     net_fd: Feature dataset
+#         Creates a new feature dataset at `{gdb_path}/{name}`
+#     """
+#     sr = arcpy.SpatialReference(sr)
+#     print(f"... ...creating feature dataset {name}")
+#     return arcpy.CreateFeatureDataset_management(gdb_path, name, sr)
 
 
 def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
@@ -165,7 +165,7 @@ def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
     """
     # Set appropriate output fc name
     if fc_name is None:
-        fc_name, ext = os.path.splitext(os.path.split(osm_fc)[0])
+        fc_name, ext = os.path.splitext(os.path.split(osm_fc)[1])
     # Check if output already exists
     out_path = PMT.makePath(str(to_feature_dataset), fc_name)
     PMT.checkOverwriteOutput(output=out_path, overwrite=overwrite)
@@ -203,7 +203,8 @@ def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
     arcpy.na.CreateNetworkDatasetFromTemplate(
         template_xml, out_feature_dataset)
     print("...building network dataset")
-    arcpy.na.BuildNetwork(in_network_dataset=PMT.makePath(out_feature_dataset, net_name))
+    nd = PMT.makePath(out_feature_dataset, net_name)
+    arcpy.na.BuildNetwork(in_network_dataset=nd)
 
     # save build errors
     print("...saving build errors")
@@ -244,39 +245,39 @@ def makeNetworkDatasetTemplate(from_nd, template_xml):
 
 
 # %% MAIN
-if __name__ == "__main__":
-    # Setup variables
-    sr = 2881
+# if __name__ == "__main__":
+#     # Setup variables
+#     sr = 2881
 
-    # Make gdb
-    net_path = PMT.makePath(PMT.CLEANED, "OSM_Networks")
+#     # Make gdb
+#     net_path = PMT.makePath(PMT.CLEANED, "OSM_Networks")
 
-    for net_version in NET_VERSIONS:
-        print(net_version)
-        # Bike
-        bike_name = f"bike{net_version}"
-        bike_gdb = makeCleanNetworkGDB(net_path, gdb_name=bike_name)
-        bike_fd = makeNetFeatureDataSet(bike_gdb, "osm", sr)
+#     for net_version in NET_VERSIONS:
+#         print(net_version)
+#         # Bike
+#         bike_name = f"bike{net_version}"
+#         bike_gdb = makeCleanNetworkGDB(net_path, gdb_name=bike_name)
+#         bike_fd = makeNetFeatureDataSet(bike_gdb, "osm", sr)
 
-        # Walk
-        walk_name = f"walk{net_version}"
-        walk_gdb = makeCleanNetworkGDB(net_path, gdb_name=walk_name)
-        walk_fd = makeNetFeatureDataSet(walk_gdb, "osm", sr)
+#         # Walk
+#         walk_name = f"walk{net_version}"
+#         walk_gdb = makeCleanNetworkGDB(net_path, gdb_name=walk_name)
+#         walk_fd = makeNetFeatureDataSet(walk_gdb, "osm", sr)
 
-        # Import edges
-        osm_raw = PMT.makePath(PMT.RAW, "osm_networks")
-        bike_raw = PMT.makePath(osm_raw, bike_name, "edges.shp")
-        walk_raw = PMT.makePath(osm_raw, walk_name, "edges.shp")
+#         # Import edges
+#         osm_raw = PMT.makePath(PMT.RAW, "osm_networks")
+#         bike_raw = PMT.makePath(osm_raw, bike_name, "edges.shp")
+#         walk_raw = PMT.makePath(osm_raw, walk_name, "edges.shp")
 
-        # Transfer features
-        bike_edges = importOSMShape(bike_raw, bike_fd, overwrite=True)
-        walk_edges = importOSMShape(walk_raw, walk_fd, overwrite=True)
+#         # Transfer features
+#         bike_edges = importOSMShape(bike_raw, bike_fd, overwrite=True)
+#         walk_edges = importOSMShape(walk_raw, walk_fd, overwrite=True)
 
-        # Enrich features
-        classifyBikability(bike_edges)
+#         # Enrich features
+#         classifyBikability(bike_edges)
 
-        # Build network datasets
-        bike_template = PMT.makePath(PMT.REF, "osm_bike_template.xml")
-        walk_template = PMT.makePath(PMT.REF, "osm_walk_template.xml")
-        bike_net = makeNetworkDataset(bike_template, bike_fd, "osm_ND")
-        walk_net = makeNetworkDataset(walk_template, walk_fd, "osm_ND")
+#         # Build network datasets
+#         bike_template = PMT.makePath(PMT.REF, "osm_bike_template.xml")
+#         walk_template = PMT.makePath(PMT.REF, "osm_walk_template.xml")
+#         bike_net = makeNetworkDataset(bike_template, bike_fd, "osm_ND")
+#         walk_net = makeNetworkDataset(walk_template, walk_fd, "osm_ND")
