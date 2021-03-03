@@ -9,3 +9,4 @@ R_Scripts/R_Data_Processing
 PMT_Tools/__pycache__
 /.vscode/
 *.pyc
+*.pyc
