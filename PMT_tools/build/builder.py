@@ -151,8 +151,7 @@ def build_elongated_tables():
 # TODO: define process_near_term
 # TODO: define process_long_term
 def process_year_to_snapshot():
-    """
-    process cleaned yearly data to a Snapshot database
+    """ process cleaned yearly data to a Snapshot database
     Returns:
 
     """
