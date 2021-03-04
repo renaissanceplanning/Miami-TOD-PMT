@@ -383,13 +383,15 @@ def dbf_to_df(dbf_file, upper=False):
     return dbf_df
 
 
-def intersectFeatures(summary_fc, disag_fc, disag_fields="*"):
+def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False):
     """
         creates a temporary intersected feature class for disaggregation of data
     Args:
         summary_fc: String; path to path to polygon feature class with data to be disaggregated from
         disag_fc: String; path to polygon feature class with data to be disaggregated to
         disag_fields: [String,...]; list of fields to pass over to intersect function
+        as_df: Boolean; if True, returns a data frame (table) of the resulting intersect. Otherwise
+            returns the path to a temporary feature class
     Returns:
         int_fc: String; path to temp intersected feature class
     """
@@ -408,7 +410,10 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*"):
     arcpy.Intersect_analysis(in_features=[summary_fc, disag_pts], out_feature_class=int_fc)
 
     # return intersect
-    return int_fc
+    if as_df:
+        return featureclass_to_df(int_fc, keep_fields="*")
+    else:
+        return int_fc
 
 
 def jsonToFeatureClass(json_obj, out_file, new_id_field='ROW_ID',
@@ -699,7 +704,7 @@ def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
     return out_fc
 
 
-def featureclass_to_df(in_fc, keep_fields="*", null_val=0):
+def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
     """
         converts feature class/feature layer to pandas DataFrame object, keeping
         only a subset of fields if provided
@@ -708,7 +713,8 @@ def featureclass_to_df(in_fc, keep_fields="*", null_val=0):
         in_fc: String; path to a feature class
         keep_fields: List or Tuple; field names to return in the dataframe,
             "*" is default and will return all fields
-        null_val: value to be used for nulls found in the data
+        null_val: value to be used for nulls found in the data. canbe given as a 
+            dict of default values by field
     Returns:
         pandas Dataframe
     """
@@ -721,7 +727,7 @@ def featureclass_to_df(in_fc, keep_fields="*", null_val=0):
     return pd.DataFrame(
         arcpy.da.FeatureClassToNumPyArray(
             in_table=in_fc, field_names=keep_fields,
-            skip_nulls=False, null_value=null_val)
+            skip_nulls=skip_nulls, null_value=null_val)
     )
 
 
@@ -959,6 +965,7 @@ def sumToAggregateGeo(
 
     except:
         raise
+
     finally:
         # delete all temp layers
         arcpy.Delete_management("__disag_fc__")
@@ -966,7 +973,6 @@ def sumToAggregateGeo(
         arcpy.Delete_management("__disag_subset__")
         # Delete output fc
         arcpy.Delete_management(output_fc)
-        raise
 
 
 def add_unique_id(feature_class, new_id_field=None):
@@ -996,6 +1002,84 @@ def add_unique_id(feature_class, new_id_field=None):
                                     expression="unique_ID()", expression_type="PYTHON3",
                                     code_block=CODEBLOCK, field_type="LONG")
     return new_id_field
+
+
+def count_rows(in_table, groupby_field=None, out_field=None, skip_nulls=False,
+               null_value=None, inplace=True):
+    """
+    Counts rows in a table.
+
+    Parameters
+    ----------
+    in_table: fc path, feature layer, table path, table view, DataFrame
+    groupby_field: [String,...]
+    out_field: String, default=None
+    skip_nulls: Boolean
+    null_value: Var or dict
+    inplace: Boolean, default=True
+        Only matters if `out_field` is given.
+    
+    Returns
+    -------
+    Int, DataFrame, or None
+    """
+    if isinstance(in_table, pd.DataFrame):
+        # Df operations
+        if skip_nulls:
+            _in_table_ = in_table.dropna()
+        else:
+            # TODO: handle dict to set defaults by column
+            _in_table_ =  in_table.fillna(null_value)
+
+        if groupby_field is None:
+            # No grouping required, just get the length
+            result = len(_in_table_)
+            if out_field is not None:
+                if inplace:
+                    in_table[out_field] = result
+                    return
+                else:
+                    return in_table.assign(out_field=result)
+            else:
+                return result
+        else:
+            # Grouping
+            result = _in_table_.groupby(groupby_field).size()
+            if out_field is not None:
+                result.name = out_field
+                merge = in_table.merge(
+                    result, how="left", left_on=groupby_field, right_index=True)
+                if inplace:
+                    result[out_field] = merge[out_field]
+                    return
+                else:
+                    return in_table.assign(out_field=merge[out_field])
+            else:
+                return result.reset_index()
+    else:
+        # assume feature class/table operations
+        # - dump fc to data frame
+        oid_field = arcpy.Describe(in_table).OIDFieldName
+        fields = ["OID@"]
+        if groupby_field is not None:
+            if isinstance(groupby_field, string_types):
+                fields.append(groupby_field)
+            else:
+                fields += groupby_field
+        df = featureclass_to_df(
+            in_table, fields, skip_nulls=skip_nulls, null_val=null_value)
+        df.rename(columns={"OID@": oid_field}, inplace=True)
+        # Run this method on the data frame and handle output
+        result = count_rows(
+                df, groupby_field, out_field=out_field, inplace=True,
+                skip_nulls=skip_nulls, null_value=null_value
+                )
+        if out_field is None:
+            return result
+        else:
+            result.drop(columns=groupby_field, inplace=True)
+            extendTableDf(in_table, oid_field, result, oid_field)
+
 
 
 # Network analysis helpers
