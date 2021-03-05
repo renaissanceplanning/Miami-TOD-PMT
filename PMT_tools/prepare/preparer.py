@@ -67,7 +67,7 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    ROOT = r'D:\Users\AK7\Documents\PMT'
+    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
     RAW = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     DATA = ROOT
@@ -781,18 +781,22 @@ def process_access():
 
 
 def process_contiguity(overwrite=True):
+    county_fc = makePath(BASIC_FEATURES, "MiamiDadeCountyBoundary")
+    chunk_fishnet = generate_chunking_fishnet(template_fc=county_fc, out_fishnet_name="quadrats", chunks=CTGY_CHUNKS)
     for year in YEARS:
+        print(f"Processing Contiguity for {year}")
         gdb = YEAR_GDB_FORMAT.replace("YEAR", str(year))
         parcel_fc = makePath(gdb, "Polygons", "Parcels")
         buildings = makePath(RAW, "OpenStreetMap", "buildings_q1_2021", "OSM_Buildings_20210201074346.shp")
-        ctgy_full = contiguity_index(parcels_fc=parcel_fc, buildings_fc=buildings,
-                                     parcels_id_field=PARCEL_COMMON_KEY, chunks=CTGY_CHUNKS,
+
+        ctgy_full = contiguity_index(quadrats_fc=chunk_fishnet, parcels_fc=parcel_fc, buildings_fc=buildings,
+                                     parcels_id_field=PARCEL_COMMON_KEY,
                                      cell_size=CTGY_CELL_SIZE, weights=CTGY_WEIGHTS)
         if CTGY_SAVE_FULL:
             full_path = makePath(gdb, "Contiguity_full_singlepart")
             dfToTable(df=ctgy_full, out_table=full_path, overwrite=True)
         ctgy_summarized = contiguity_summary(full_results_df=ctgy_full, parcels_id_field=PARCEL_COMMON_KEY,
-                                             summary_funs=CTGY_SUMMARY_FUNCTIONS, area_scaling=CTGY_SCALE_AREA)
+                                             summary_funcs=CTGY_SUMMARY_FUNCTIONS, area_scaling=CTGY_SCALE_AREA)
         summarized_path = makePath(gdb, "Contiguity_parcels")
         dfToTable(df=ctgy_summarized, out_table=summarized_path, overwrite=overwrite)
 

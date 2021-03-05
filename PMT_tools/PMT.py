@@ -147,7 +147,7 @@ class MeltColumn(CollCollection):
         self.label_col = label_col
         self.val_col = val_col
         self.domain = domain
-    
+
     def applyDomain(self, df):
         super().applyDomain(df, col=self.label_col)
 
@@ -376,23 +376,20 @@ def make_inmem_path(file_name=None):
         if arcpy.Exists(in_mem_path):
             raise ValueError
         else:
-            return  in_mem_path
+            return in_mem_path
     except ValueError:
         print('The file_name supplied already exists in the in_memory space')
 
 
 def checkOverwriteOutput(output, overwrite=False):
-    """
-        A helper function that checks if an output file exists and
+    """A helper function that checks if an output file exists and
         deletes the file if an overwrite is expected.
-
     Args:
         output: Path
             The file to be checked/deleted
         overwrite: Boolean
             If True, `output` will be deleted if it already exists.
             If False, raises `RuntimeError`.
-
     Raises:
         RuntimeError:
             If `output` exists and `overwrite` is False.
@@ -406,8 +403,7 @@ def checkOverwriteOutput(output, overwrite=False):
 
 
 def dbf_to_df(dbf_file):
-    """
-        # Reads in dbf file and returns Pandas DataFrame object
+    """Reads in dbf file and returns Pandas DataFrame object
     Args:
         dbf_file: String; path to dbf file
         upper: Boolean; convert columns to uppercase if wanted
@@ -439,9 +435,8 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False):
     # disag_full_path = arcpy.Describe(disag_fc).catalogPath
     # disag_ws, disag_name = os.path.split(disag_full_path)
     # out_fc = makePath(int_gdb, disag_name)
-    out_fc = make_inmem_path()
     int_fc = make_inmem_path()
-    disag_pts = polygonsToPoints(in_fc=disag_fc, out_fc=out_fc,
+    disag_pts = polygonsToPoints(in_fc=disag_fc, out_fc=make_inmem_path(),
                                  fields=disag_fields, skip_nulls=False, null_value=0)
     # Run intersection
     arcpy.Intersect_analysis(in_features=[summary_fc, disag_pts], out_feature_class=int_fc)
@@ -745,7 +740,7 @@ def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
         in_fc: String; path to a feature class
         keep_fields: List or Tuple; field names to return in the dataframe,
             "*" is default and will return all fields
-        null_val: value to be used for nulls found in the data. canbe given as a 
+        null_val: value to be used for nulls found in the data. canbe given as a
             dict of default values by field
     Returns:
         pandas Dataframe
@@ -1038,7 +1033,7 @@ def count_rows(in_table, groupby_field=None, out_field=None, skip_nulls=False,
     null_value: Var or dict
     inplace: Boolean, default=True
         Only matters if `out_field` is given.
-    
+
     Returns
     -------
     Int, DataFrame, or None

@@ -313,7 +313,7 @@ def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
             ]
             renames = dict(cols)
             ddfs[-1] = ddfs[-1].rename(columns=renames)
-        #zip ddfs and suffixes
+        # zip ddfs and suffixes
         specs = zip(ddfs, suffixes)
         df = reduce(
             lambda this, next: _merge_df_(this, next, on=merge_fields), specs
@@ -2324,7 +2324,7 @@ def network_centrality(in_nd, in_features, net_loader,
     )
     # Step 2 - add all origins
     print("Load all origins")
-    #in_features = in_features
+    # in_features = in_features
     arcpy.AddLocations_na(
         in_network_analysis_layer="OD Cost Matrix",
         sub_layer="Origins",
@@ -2813,8 +2813,334 @@ def taz_travel_stats(skim_table, trip_table, o_field, d_field, dist_field, ):
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
-def contiguity_index(parcels_fc, buildings_fc, parcels_id_field,
-                     chunks=20, cell_size=40, weights="nn"):
+def generate_chunking_fishnet(template_fc, out_fishnet_name, chunks=20):
+    """ generates a fishnet feature class that minimizes the rows and columns based on
+        number of chunks and template_fc proportions
+    Args:
+        template_fc (str): path to template feature class
+        out_fishnet_name (str): name of output file
+        chunks (int): number of chunks to be used for processing
+    Returns:
+        quadrat_fc (str): path to fishnet generated for chunking
+    """
+    desc = arcpy.Describe(template_fc)
+    ext = desc.extent
+    xmin, xmax, ymin, ymax = (ext.XMin, ext.XMax, ext.YMin, ext.YMax)
+    hw_ratio = (ymax - ymin) / (xmax - xmin)
+    candidate_orientations = [[i, chunks // i]
+                              for i in range(1, chunks + 1)
+                              if chunks % i == 0]
+
+    orientation_matching = np.argmin([abs(orientation[0] / orientation[1] - hw_ratio)
+                                      for orientation in candidate_orientations])
+    orientation = candidate_orientations[orientation_matching]
+    quadrat_nrows = orientation[0]
+    quadrat_ncols = orientation[1]
+
+    # With the extent information and rows/columns, we can create our quadrats
+    # by creating a fishnet over the parcels
+    quadrat_origin = ' '.join([str(xmin), str(ymin)])
+    quadrat_ycoord = ' '.join([str(xmin), str(ymin + 10)])
+    quadrat_corner = ' '.join([str(xmax), str(ymax)])
+    quadrats_fc = make_inmem_path(file_name=out_fishnet_name)
+    arcpy.CreateFishnet_management(out_feature_class=quadrats_fc, origin_coord=quadrat_origin,
+                                   y_axis_coord=quadrat_ycoord, number_rows=quadrat_nrows, number_columns=quadrat_ncols,
+                                   corner_coord=quadrat_corner, template=ext, geometry_type="POLYGON")
+    return quadrats_fc
+
+
+def symmetric_difference(in_fc, diff_fc, out_fc_name):
+    # TODO: add capability to define output location instead of in_memory space
+    """if Advanced arcpy license not available this will calculate the
+        symmetrical difference of two sets of polygons
+    Args:
+        in_fc:
+        diff_fc:
+        out_fc_name:
+    Returns:
+        out_fc (str): path to output file in in_memory space
+    """
+    _, diff_name = os.path.split(os.path.splitext(diff_fc)[0])
+    # union datasets
+    out_fc = make_inmem_path(file_name=out_fc_name)
+    arcpy.Union_analysis(in_features=[in_fc, diff_fc], out_feature_class=out_fc)
+    # select features from the diff fc uisng the -1 FID code to ID
+    where = arcpy.AddFieldDelimiters(diff_fc, f"FID_{diff_name}") + " <> -1"
+    temp = arcpy.MakeFeatureLayer_management(in_features=out_fc, out_layer="_temp_", where_clause=where)
+    if int(arcpy.GetCount_management(temp)[0]) > 0:
+        arcpy.DeleteRows_management(temp)
+    return out_fc
+
+
+def validate_weights(weights):
+    if type(weights) == str:
+        weights = weights.lower()
+        if weights == "rook":
+            return dict({"top_left": 0, "top_center": 1, "top_right": 0,
+                         "middle_left": 1, "self": 1, "middle_right": 1,
+                         "bottom_left": 0, "bottom_center": 1, "bottom_right": 0})
+        elif weights == "queen":
+            return dict({"top_left": 1, "top_center": 2, "top_right": 1,
+                         "middle_left": 2, "self": 1, "middle_right": 2,
+                         "bottom_left": 1, "bottom_center": 2, "bottom_right": 1})
+        elif weights == "nn":
+            return dict({"top_left": 1, "top_center": 1, "top_right": 1,
+                         "middle_left": 1, "self": 1, "middle_right": 1,
+                         "bottom_left": 1, "bottom_center": 1, "bottom_right": 1})
+        else:
+            raise ValueError("Invalid string specification for 'weights'; "
+                             "'weights' can only take 'rook', 'queen', or 'nn' as a string\n")
+    elif type(weights) == dict:
+        k = weights.keys()
+        missing = list({"top_left", "top_center", "top_right",
+                        "middle_left", "self", "middle_right",
+                        "bottom_left", "bottom_center", "bottom_right"} - set(k))
+        if len(missing) != 0:
+            raise ValueError(f'Necessary keys missing from "weights"; '
+                             f'missing keys include: '
+                             f'{", ".join([str(m) for m in missing])}')
+    else:
+        raise ValueError(''.join(["'weights' must be a string or dictionary; ",
+                                  "if string, it must be 'rook', 'queen', or 'nn', and "
+                                  "if dictionary, it must have keys 'top_left','top_center','top_right',"
+                                  "'middle_left','self','middle_right','bottom_left','bottom_center',"
+                                  "'bottom_right'\n"]))
+
+
+def contiguity_index(quadrats_fc, parcels_fc, buildings_fc, parcels_id_field,
+                     cell_size=40, weights="nn"):
+    """calculate contiguity of developable area
+    Args:
+        quadrats_fc (str): path to fishnet of chunks for processing
+        parcels_copy (str): path to parcel polygons; contiguity will be calculated relative to this
+        buildings_fc (str): path to building polygons;
+        parcels_id_field (str): name of parcel primary key field
+        cell_size (int): cell size for raster over which contiguity will be calculated.
+            (in the units of the input data crs) Default 40 (works for PMT)
+        weights (str or dict): weights for neighbors in contiguity calculation. (see notes for how to specify weights)
+            Default "nn", all neighbors carry the same weight, regardless of orientation
+    Returns:
+        pandas dataframe; table of polygon-level (sub-parcel) contiguity indices
+    Notes:
+        Weights can be provided in one of two ways:
+            1. one of three defaults: "rook", "queen", or "nn".
+            "rook" weights give all horizontal/vertical neighbors a weight of 1,
+                and all diagonal neighbors a weight of 0
+            "queen" weights give all horizontal/vertical neighbors a weight of 2,
+                and all diagonal neighbors a weight of 1
+            "nn" (nearest neighbor) weights give all neighbors a weight of 1,
+                regardless of orientation
+            For developable area, "nn" makes the most sense to describe contiguity,
+                and thus is the recommended option for weights in this function
+
+            2. a dictionary of weights for each of 9 possible neighbors. This dictionary must have the keys
+                ["top_left", "top_center", "top_right",
+                "middle_left", "self", "middle_right",
+                "bottom_left", "bottom_center", "bottom_right"].
+                If providing weights as a dictionary, a good strategy is to set "self"=1,
+                and then set other weights according to a perceived relative importance to the cell itself.
+                It is recommended, however, to use one of the default weighting options; the dictionary
+                option should only be used in rare cases.
+    Raises:
+        ValueError:
+            if weights are an invalid string or a dictionary with invalid keys (see Notes)
+    """
+
+    # Weights setup
+    logger.log_msg("--- checking weights")
+    weights = validate_weights(weights)
+
+    logger.log_msg("--- --- Creating temporary processing workspace")
+    temp_dir = tempfile.mkdtemp()
+    arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
+    intmd_gdb = makePath(temp_dir, "Intermediates.gdb")
+
+    logger.log_msg("--- --- copying the parcels feature class to avoid overwriting")
+    fmap = arcpy.FieldMappings()
+    fmap.addTable(parcels_fc)
+    fields = {f.name: f for f in arcpy.ListFields(parcels_fc)}
+    for fname, fld in fields.items():
+        if fld.type not in ('OID', 'Geometry') and 'shape' not in fname.lower():
+            if fname != parcels_id_field:
+                fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
+    parcels_copy = makePath(intmd_gdb, "parcels")
+    p_path, p_name = os.path.split(parcels_copy)
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_fc, out_path=p_path,
+                                                out_name=p_name, field_mapping=fmap)
+
+    logger.log_msg("--- --- tagging parcels with a chunk ID")
+    arcpy.AddField_management(in_table=parcels_copy, field_name="ChunkID", field_type="LONG")
+    p_layer = arcpy.MakeFeatureLayer_management(in_features=parcels_copy, out_layer="_p_layer")
+    chunks = []
+    with arcpy.da.SearchCursor(quadrats_fc, ["OID@", "SHAPE@"]) as search:
+        for srow in search:
+            chunk_id, geom = srow
+            arcpy.SelectLayerByLocation_management(in_layer=p_layer, overlap_type="HAVE_THEIR_CENTER_IN",
+                                                   select_features=geom)
+            arcpy.CalculateField_management(in_table=p_layer, field="ChunkID", expression=chunk_id)
+            chunks.append(chunk_id)
+    # difference parcels and buildings
+    logger.log_msg("--- --- differencing parcels and buildings")
+    difference_fc = symmetric_difference(in_fc=parcels_copy, diff_fc=buildings_fc, out_fc_name="difference")
+
+    logger.log_msg("--- --- converting difference to singlepart polygons")
+    diff_fc = make_inmem_path(file_name="diff")
+    arcpy.MultipartToSinglepart_management(in_features=difference_fc, out_feature_class=diff_fc)
+
+    logger.log_msg("--- --- adding a unique ID field for individual polygons")
+    PMT.add_unique_id(feature_class=diff_fc, new_id_field="PolyID")
+
+    logger.log_msg("--- --- extracting a polygon-parcel ID reference table")
+    ref_df = featureclass_to_df(in_fc=diff_fc, keep_fields=[parcels_id_field, "PolyID"], null_val=-1.0)
+    arcpy.Delete_management(difference_fc)
+
+    # loop through the chunks to calculate contiguity:
+    logger.log_msg("--- chunk processing contiguity and developable area")
+    contiguity_stack = []
+    diff_lyr = arcpy.MakeFeatureLayer_management(in_features=diff_fc, out_layer="_diff_lyr_")
+    for i in chunks:
+        logger.log_msg(f"--- --- chunk {str(i)} of {str(len(chunks))}")
+
+        logger.log_msg("--- --- --- selecting chunk")
+        selection = f'"ChunkID" = {str(i)}'
+        parcel_chunk = arcpy.SelectLayerByAttribute_management(in_layer_or_view=diff_lyr,
+                                                               selection_type="NEW_SELECTION",
+                                                               where_clause=selection)
+
+        logger.log_msg("--- --- --- rasterizing chunk")
+        rp = make_inmem_path()
+        arcpy.FeatureToRaster_conversion(in_features=parcel_chunk, field="PolyID",
+                                         out_raster=rp, cell_size=cell_size)
+
+        logger.log_msg("--- --- --- loading chunk raster")
+        ras_array = arcpy.RasterToNumPyArray(in_raster=rp, nodata_to_value=-1)
+        arcpy.Delete_management(rp)
+
+        # calculate total developable area
+        logger.log_msg("--- --- --- calculating developable area by polygon")
+        poly_ids, counts = np.unique(ras_array, return_counts=True)
+        area = pd.DataFrame.from_dict({"PolyID": poly_ids, "Count": counts})
+        area = area[area.PolyID != -1]
+        area["Developable_Area"] = area.Count * (cell_size ** 2) / 43560
+        # ASSUMES FEET IS THE INPUT CRS, MIGHT WANT TO MAKE THIS AN
+        # ACTUAL CONVERSION IF WE USE THIS OUTSIDE OF PMT. SEE THE
+        # LINEAR UNITS CODE/NAME BOOKMARKS
+        # spatial_reference.linearUnitName and .linearUnitCode
+        area = area.drop(columns="Count")
+
+
+        npolys = len(area.index)
+        if npolys == 0:
+            logger.log_msg("*** no polygons in this quadrat, proceeding to next chunk ***")
+        else:
+            logger.log_msg("--- --- --- initializing cell neighbor identification")
+            ras_dim = ras_array.shape
+            nrow = ras_dim[0]
+            ncol = ras_dim[1]
+
+            id_tab_self = pd.DataFrame({"Row": np.repeat(np.arange(nrow), ncol),
+                                        "Col": np.tile(np.arange(ncol), nrow),
+                                        "ID": ras_array.flatten()})
+            id_tab_neighbor = pd.DataFrame({"NRow": np.repeat(np.arange(nrow), ncol),
+                                            "NCol": np.tile(np.arange(ncol), nrow),
+                                            "NID": ras_array.flatten()})
+
+            logger.log_msg("--- --- --- identifying non-empty cells")
+            row_oi = id_tab_self[id_tab_self.ID != -1].Row.to_list()
+            col_oi = id_tab_self[id_tab_self.ID != -1].Col.to_list()
+
+            logger.log_msg("--- --- --- identifying neighbors of non-empty cells")
+            row_basic = [np.arange(x - 1, x + 2) for x in row_oi]
+            col_basic = [np.arange(x - 1, x + 2) for x in col_oi]
+
+            meshed = [np.array(np.meshgrid(x, y)).reshape(2, 9).T
+                      for x, y in zip(row_basic, col_basic)]
+            meshed = np.concatenate(meshed, axis=0)
+            meshed = pd.DataFrame(meshed, columns=["NRow", "NCol"])
+
+            meshed.insert(1, "Col", np.repeat(col_oi, 9))
+            meshed.insert(0, "Row", np.repeat(row_oi, 9))
+
+            logger.log_msg("--- --- --- filtering to valid neighbors by index")
+            meshed = meshed[(meshed.NRow >= 0) & (meshed.NRow < nrow)
+                            & (meshed.NCol >= 0) & (meshed.NCol < ncol)]
+
+            logger.log_msg("--- --- --- tagging cells and their neighbors with polygon IDs")
+            meshed = pd.merge(meshed, id_tab_self,
+                              left_on=["Row", "Col"], right_on=["Row", "Col"], how="left")
+            meshed = pd.merge(meshed, id_tab_neighbor,
+                              left_on=["NRow", "NCol"], right_on=["NRow", "NCol"], how="left")
+
+            logger.log_msg("--- --- --- fitering to valid neighbors by ID")
+            meshed = meshed[meshed.ID == meshed.NID]
+            meshed = meshed.drop(columns="NID")
+
+            # With neighbors identified, we now need to define cell weights for contiguity calculations.
+            # These are based off the specifications in the 'weights' inputs to the function. So, we tag each
+            # cell-neighbor pair in 'valid_neighbors' with a weight.
+            logger.log_msg("--- --- --- tagging cells and neighbors with weights")
+            conditions = [(np.logical_and(meshed["NRow"] == meshed["Row"] - 1, meshed["NCol"] == meshed["Col"] - 1)),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"] - 1, meshed["NCol"] == meshed["Col"])),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"] - 1, meshed["NCol"] == meshed["Col"] + 1)),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"], meshed["NCol"] == meshed["Col"] - 1)),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"], meshed["NCol"] == meshed["Col"])),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"], meshed["NCol"] == meshed["Col"] + 1)),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"] + 1, meshed["NCol"] == meshed["Col"] - 1)),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"] + 1, meshed["NCol"] == meshed["Col"])),
+                          (np.logical_and(meshed["NRow"] == meshed["Row"] + 1, meshed["NCol"] == meshed["Col"] + 1))]
+            choices = ["top_left", "top_center", "top_right", "middle_left", "self", "middle_right", "bottom_left",
+                       "bottom_center", "bottom_right"]
+            meshed["Type"] = np.select(conditions, choices)
+            meshed["Weight"] = [weights[key] for key in meshed["Type"]]
+
+            # To initialize the contiguity calculation, we sum weights by cell.
+            # We lose the ID in the groupby though, which we need to get to contiguity,
+            # so we need to merge back to our cell-ID table
+            logger.log_msg("--- --- --- summing weight by cell")
+            weight_tbl = meshed.groupby(["Row", "Col"])[["Weight"]].agg("sum").reset_index()
+            weight_tbl = pd.merge(weight_tbl, id_tab_self, left_on=["Row", "Col"], right_on=["Row", "Col"], how="left")
+
+            # We are now finally at the point of calculating contiguity! It's a pretty simple function,
+            # which we apply over our IDs. This is the final result of our chunk process, so we'll also rename our "ID"
+            # field to "PolyID", because this is the proper name for the ID over which we've calculated contiguity.
+            # This will make our life easier when chunk processing is complete, and we move into data formatting
+            # and writing
+            logger.log_msg("--- --- --- calculating contiguity by polygon")
+            weight_max = sum(weights.values())
+            contiguity = weight_tbl.groupby("ID").apply(
+                lambda x: (sum(x.Weight) / len(x.Weight) - 1) / (weight_max - 1)).reset_index(name="Contiguity")
+            contiguity.columns = ["PolyID", "Contiguity"]
+
+            # For reporting results, we'll merge the contiguity and developable
+            # area tables
+            logger.log_msg("--- --- --- merging contiguity and developable area information")
+            contiguity = pd.merge(contiguity, area, left_on="PolyID", right_on="PolyID", how="left")
+
+            # We're done chunk processing -- we'll put the resulting data frame
+            # in our chunk results list as a final step
+            logger.log_msg("--- --- --- appending chunk results to master list")
+            contiguity_stack.append(contiguity)
+
+    # Contiguity results formatting
+    logger.log_msg("--- formatting polygon-level results")
+    logger.log_msg("--- --- combining chunked results into table format")
+    contiguity_df = pd.concat(contiguity_stack, axis=0)
+
+    logger.log_msg("--- --- filling table with missing polygons")
+    contiguity_df = pd.merge(ref_df, contiguity_df, left_on="PolyID", right_on="PolyID", how="left")
+
+    logger.log_msg("--- overwriting missing values with 0")
+    contiguity_df = contiguity_df.fillna(value={"Contiguity": 0, "Developable_Area": 0})
+
+    # clean up in_memory space and temporary data
+    arcpy.Delete_management(parcels_copy)
+    arcpy.Delete_management(intmd_gdb)
+    arcpy.Delete_management(diff_fc)
+    return contiguity_df
+
+
+def contiguity_index_dep(parcels_fc, buildings_fc, parcels_id_field,
+                         chunks=20, cell_size=40, weights="nn"):
     """calculate contiguity of developable area
     Args:
         parcels_fc: String; path to parcel polygons; contiguity will be calculated relative to this
@@ -2977,7 +3303,7 @@ def contiguity_index(parcels_fc, buildings_fc, parcels_id_field,
     # identify quadrat ownership -- the parcels will be enriched with the
     # quadrat FIDs, which can be used for chunk identification. We're now
     # done with the quadrats and centroids, so we can delete them
-    logger.log_msg("--- ---identifying parcel membership in quadrats")
+    logger.log_msg("--- --- identifying parcel membership in quadrats")
     intersect_fc = intersectFeatures(summary_fc=quadrats_fc, disag_fc=parcels_fc, disag_fields=parcels_id_field)
     # arcpy.Intersect_analysis(in_features=[centroids_fc, quadrats_fc], out_feature_class=intersect_fc)
     # arcpy.Delete_management(quadrats_fc)
@@ -3020,9 +3346,11 @@ def contiguity_index(parcels_fc, buildings_fc, parcels_id_field,
     # To do this, we'll need a spatial difference of parcel polygons and building polygons.
     # First, we process the difference
     logger.log_msg("--- --- differencing parcels and buildings")
-    difference_fc = makePath(intmd_gdb, "difference")
+    difference_fc = symmetric_difference(in_fc=parcels_fc, diff_fc=buildings_fc, out_fc_name="difference")
+
     # _, buildings_name = os.path.split(buildings_fc)
-    arcpy.SymDiff_analysis(in_features=parcels_fc, update_features=buildings_fc, out_feature_class=difference_fc)
+    # arcpy.SymDiff_analysis(in_features=parcels_fc, update_features=buildings_fc, out_feature_class=difference_fc)
+
     # union_fc = makePath(intmd_gdb, "union")
     # arcpy.Union_analysis(in_features=[parcels_fc, buildings_fc], out_feature_class=union_fc)
     # where = arcpy.AddFieldDelimiters(buildings_fc, f"FID_{buildings_name}") + "<> -1"
@@ -3104,7 +3432,7 @@ def contiguity_index(parcels_fc, buildings_fc, parcels_id_field,
     ctgy = []
 
     # Now, we loop through the chunks to calculate contiguity:
-    for i in range(1, chunks+1):
+    for i in range(0, chunks + 1):
         logger.log_msg(f"--- --- chunk {str(i)} of {str(chunks)}")
 
         # First, we need to select our chunk of interest, which we'll do
@@ -3319,11 +3647,12 @@ def contiguity_index(parcels_fc, buildings_fc, parcels_id_field,
     logger.log_msg("--- overwriting missing values with 0")
     ctgy = ctgy.fillna(value={"Contiguity": 0, "Developable_Area": 0})
 
+    arcpy.Delete_management(quadrats_fc)
     return ctgy
 
 
 def contiguity_summary(full_results_df, parcels_id_field,
-                       summary_funs=["min", "max", "median", "mean"], area_scaling=True):
+                       summary_funcs=["min", "max", "median", "mean"], area_scaling=True):
     """summarize contiguity/developable area results from
         `analyze_contiguity_index` from sub-parcel to parcel
 
@@ -3333,7 +3662,7 @@ def contiguity_summary(full_results_df, parcels_id_field,
         parcels_id_field: str
             name of a field used to identify the parcels in the summarized
             parcel results
-        summary_funs: list of strs
+        summary_funcs: list of strs
             functions to be used to summarize contiguity to the parcel; available
             options include min, max, mean, and median
             Default is all options
@@ -3355,17 +3684,17 @@ def contiguity_summary(full_results_df, parcels_id_field,
     # Summarizing up to the parcel
     # ----------------------------
 
-    logger.log_msg("---summarizing contiguity and developable area to the parcels")
+    logger.log_msg("--- summarizing contiguity and developable area to the parcels")
 
     # We want to summarize contiguity to the parcel. We'll do that using
     # every function in 'summary_funs'.
-    logger.log_msg("--- ---summarizing contiguity to the parcels")
+    logger.log_msg("--- --- summarizing contiguity to the parcels")
     ctgy_summary = []
     ctgy_variables = []
-    for i in summary_funs:
-        logger.log_msg("--- --- --- " + i)
-        var_name = '_'.join([i.title(), "Contiguity"])
-        ci = full_results_df.groupby(parcels_id_field).agg({"Contiguity": getattr(np, i)}).reset_index()
+    for func in summary_funcs:
+        logger.log_msg(f"--- --- --- {func}")
+        var_name = f'{func.title()}_Contiguity'
+        ci = full_results_df.groupby(parcels_id_field).agg({"Contiguity": getattr(np, func)}).reset_index()
         ci.columns = [parcels_id_field, var_name]
         ctgy_summary.append(ci)
         ctgy_variables.append(var_name)
@@ -3385,11 +3714,8 @@ def contiguity_summary(full_results_df, parcels_id_field,
     # The final summary step is then merging the contiguity and developable
     # area summary results
     logger.log_msg("--- ---merging contiguity and developable area summaries")
-    df = pd.merge(area_summary,
-                  ctgy_summary,
-                  left_on=parcels_id_field,
-                  right_on=parcels_id_field,
-                  how="left")
+    df = pd.merge(area_summary, ctgy_summary,
+                  left_on=parcels_id_field, right_on=parcels_id_field, how="left")
 
     # If an area scaling is requested (area_scaling = True), that means
     # we need to create a combined statistic for contiguity and area. To do
@@ -3397,13 +3723,11 @@ def contiguity_summary(full_results_df, parcels_id_field,
     # we're weighting developable area by how contiguous it is). We do this
     # for all contiguity summaries we calculated
     if area_scaling == True:
-        logger.log_msg("--- ---calculating combined contiguity-developable area statistics")
+        logger.log_msg("--- --- calculating combined contiguity-developable area statistics")
         for i in ctgy_variables:
             var_name = i.replace("Contiguity", "Scaled_Area")
             df[var_name] = df["Developable_Area"] * df[i]
 
-    # Done
-    # ----
     return df
 
 
@@ -3817,8 +4141,7 @@ def build_short_term_parcels(parcels_path, permits_path, permits_ref_df,
     # temp_gdb = arcpy.CreateFileGDB_management(out_folder_path=temp_dir.name, out_name="temp_data.gdb")
     # temp_parcels = arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path,
     #                                                            out_path=temp_gdb, out_name="temp_parcels")
-    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path,
-                                                out_path=temp_dir, out_name=temp_name)
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path=temp_dir, out_name=temp_name)
     process_id_field = PMT.add_unique_id(feature_class=temp_parcels)
 
     logger.log_msg("--- --- reading/formatting parcels")
@@ -3936,8 +4259,7 @@ def build_short_term_parcels(parcels_path, permits_path, permits_ref_df,
     logger.log_msg("--- ---estimating parcel value after permit development")
     pv = parcels_df[parcels_df[parcels_id_field].isin(pids)]
     pv = pv.groupby(parcels_id_field)[[parcels_land_value_field, parcels_total_value_field]].sum().reset_index()
-    update = pd.merge(update, pv,
-                      on=parcels_id_field, how="left")
+    update = pd.merge(update, pv, on=parcels_id_field, how="left")
     update["NV"] = update[parcels_land_value_field] + update[permits_cost_field]
     update[parcels_total_value_field] = np.maximum(update["NV"], update[parcels_total_value_field])
     update.drop(columns=["NV", parcels_land_value_field, "COST"],

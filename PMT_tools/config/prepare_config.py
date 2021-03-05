@@ -609,7 +609,7 @@ CTGY_CHUNKS = 20
 CTGY_CELL_SIZE = 40
 CTGY_WEIGHTS = "nn"
 CTGY_SAVE_FULL = False  # should the table of sub-polygon results be saved to?
-CTGY_SUMMARY_FUNCTIONS = ["min", "max", "median", "mean"],
+CTGY_SUMMARY_FUNCTIONS = ["min", "max", "median", "mean"]
 CTGY_SCALE_AREA = True
 # TODO: fill in the PROPER buildings path
 BUILDINGS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\OSM_Buildings\OSM_Buildings_20201001111703.shp"
