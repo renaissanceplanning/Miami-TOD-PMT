@@ -12,8 +12,8 @@ import uuid
 # import geopandas as gpd
 import pandas as pd
 import numpy as np
-#import pysal as ps
-# from shapely.geometry.polygon import Polygon as POLY
+
+from simpledbf import Dbf5
 
 import os
 import tempfile
@@ -265,22 +265,19 @@ class NetLoader():
 
 
 class ServiceAreaAnalysis():
-    """
-    Specifies elements of a Network Analyst Service Area Problem and
-    provides a method for solving and exporting service arae lines
-    and polygons.
+    """Specifies elements of a Network Analyst Service Area Problem and
+        provides a method for solving and exporting service arae lines
+        and polygons.
 
-    Parameters
-    ------------
-    name: String
-    network_dataset: Path
-    facilities: Path or Feature Layer
-    name_field: String
-    net_loader: NetLoader
+    Args:
+        name: String
+        network_dataset: Path
+        facilities: Path or Feature Layer
+        name_field: String
+        net_loader: NetLoader
     """
 
-    def __init__(self, name, network_dataset, facilities, name_field,
-                 net_loader):
+    def __init__(self, name, network_dataset, facilities, name_field, net_loader):
         self.name = name
         self.network_dataset = network_dataset
         self.facilities = facilities
@@ -291,25 +288,23 @@ class ServiceAreaAnalysis():
 
     def solve(self, imped_attr, cutoff, out_ws, restrictions="",
               use_hierarchy=False, net_location_fields=""):
-        """
-        Create service area lines and polygons for this object's `facilities`.
+        """Create service area lines and polygons for this object's `facilities`.
 
-        Parameters
-        -----------
-        imped_attr: String
-            The impedance attribute in this object's `network_dataset` to use
-            in estimating service areas.
-        cutoff: Numeric
-            The size of the service area to create (in units corresponding to
-            those used by `imped_attr`).
-        out_was: Path
-            A workspace where service area feature class ouptuts will be
-            stored.
-        restrictions: String
-            A semi-colon-separated list of restriction attributes in
-            `self.network_dataset` to honor when creating service areas.
-        use_hierarchy: Boolean, default=False
-        net_location_fields: String, default=""
+        Args:
+            imped_attr: String
+                The impedance attribute in this object's `network_dataset` to use
+                in estimating service areas.
+            cutoff: Numeric
+                The size of the service area to create (in units corresponding to
+                those used by `imped_attr`).
+            out_was: Path
+                A workspace where service area feature class ouptuts will be
+                stored.
+            restrictions: String
+                A semi-colon-separated list of restriction attributes in
+                `self.network_dataset` to honor when creating service areas.
+            use_hierarchy: Boolean, default=False
+            net_location_fields: String, default=""
         """
         for overlap, merge in zip(self.overlaps, self.merges):
             print(f"...{overlap}/{merge}")
@@ -352,14 +347,11 @@ class ServiceAreaAnalysis():
 
 # %% FUNCTIONS
 def makePath(in_folder, *subnames):
-    """
-        Dynamically set a path (e.g., for iteratively referencing
+    """Dynamically set a path (e.g., for iteratively referencing
         year-specific geodatabases)
-
     Args:
-        in_folder: String or Path
-        subnames:
-            A list of arguments to join in making the full path
+        in_folder (str): String or Path
+        subnames (list/tuple): A list of arguments to join in making the full path
             `{in_folder}/{subname_1}/.../{subname_n}
     Returns:
         Path
@@ -367,15 +359,26 @@ def makePath(in_folder, *subnames):
     return os.path.join(in_folder, *subnames)
 
 
-def make_inmem_path():
-    """
-        generates an in_memory path usable by arcpy that is
-        unique to avoid any overlapping names
+def make_inmem_path(file_name=None):
+    """generates an in_memory path usable by arcpy that is
+        unique to avoid any overlapping names. If a file_name
     Returns:
         String; in_memory path
+    Raises:
+        ValueError, if file_name has been used already
     """
-    unique_name = str(uuid.uuid4().hex)
-    return makePath("in_memory", f"_{unique_name}")
+    if not file_name:
+        unique_name = f"_{str(uuid.uuid4().hex)}"
+    else:
+        unique_name = f"_{file_name}"
+    try:
+        in_mem_path = makePath("in_memory", unique_name)
+        if arcpy.Exists(in_mem_path):
+            raise ValueError
+        else:
+            return  in_mem_path
+    except ValueError:
+        print('The file_name supplied already exists in the in_memory space')
 
 
 def checkOverwriteOutput(output, overwrite=False):
@@ -389,7 +392,7 @@ def checkOverwriteOutput(output, overwrite=False):
         overwrite: Boolean
             If True, `output` will be deleted if it already exists.
             If False, raises `RuntimeError`.
-    
+
     Raises:
         RuntimeError:
             If `output` exists and `overwrite` is False.
@@ -402,7 +405,7 @@ def checkOverwriteOutput(output, overwrite=False):
             raise RuntimeError(f"Output file {output} already exists")
 
 
-def dbf_to_df(dbf_file, upper=False):
+def dbf_to_df(dbf_file):
     """
         # Reads in dbf file and returns Pandas DataFrame object
     Args:
@@ -411,13 +414,8 @@ def dbf_to_df(dbf_file, upper=False):
     Returns:
         pandas DataFrame object
     """
-    db = ps.open(dbf_file)  # Pysal to open DBF
-    d = {col: db.by_col(col) for col in db.header}  # Convert dbf to dictionary
-    dbf_df = pd.DataFrame(d)  # Convert to Pandas DF
-    if upper:
-        dbf_df.columns = map(str.upper, db.header)
-    db.close()
-    return dbf_df
+    db = Dbf5(dbf=dbf_file)
+    return db.to_dataframe()
 
 
 def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False):
@@ -433,17 +431,19 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False):
         int_fc: String; path to temp intersected feature class
     """
     # Create a temporary gdb for storing the intersection result
-    temp_dir = tempfile.mkdtemp()
-    arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
-    int_gdb = makePath(temp_dir, "Intermediates.gdb")
-    # Convert disag features to centroids
-    disag_full_path = arcpy.Describe(disag_fc).catalogPath
-    disag_ws, disag_name = os.path.split(disag_full_path)
-    out_fc = makePath(int_gdb, disag_name)
+    # temp_dir = tempfile.mkdtemp()
+    # arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
+    # int_gdb = makePath(temp_dir, "Intermediates.gdb")
+    # int_gdb = "in_memory"
+    # # Convert disag features to centroids
+    # disag_full_path = arcpy.Describe(disag_fc).catalogPath
+    # disag_ws, disag_name = os.path.split(disag_full_path)
+    # out_fc = makePath(int_gdb, disag_name)
+    out_fc = make_inmem_path()
+    int_fc = make_inmem_path()
     disag_pts = polygonsToPoints(in_fc=disag_fc, out_fc=out_fc,
                                  fields=disag_fields, skip_nulls=False, null_value=0)
     # Run intersection
-    int_fc = makePath(int_gdb, f"int_{disag_name}")
     arcpy.Intersect_analysis(in_features=[summary_fc, disag_pts], out_feature_class=int_fc)
 
     # return intersect
@@ -575,24 +575,19 @@ def iterRowsAsChunks(in_table, chunksize=1000):
 
 
 def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
-    """
-    Copy features from a raw directory to a cleaned directory.
-    During copying, columns may be dropped or renamed.
-
-    Parameters
-    ------------
-    in_fc: Path
-    out_fc: Path
-    drop_columns: [String,...]
-        A list of column names to drop when copying features.
-    rename_columns: {String: String,...}
-        A dictionary with keys that reflect raw column names and
-        values that assign new names to these columns.
-
-    Returns
-    ---------
-    out_fc: Path
-        Path to the file location for the copied features.
+    """Copy features from a raw directory to a cleaned directory.
+        During copying, columns may be dropped or renamed.
+    Args:
+        in_fc: Path
+        out_fc: Path
+        drop_columns: [String,...]
+            A list of column names to drop when copying features.
+        rename_columns: {String: String,...}
+            A dictionary with keys that reflect raw column names and
+            values that assign new names to these columns.
+    Returns:
+        out_fc: Path
+            Path to the file location for the copied features.
     """
     _unmapped_types_ = ["Geometry", "OID", "GUID"]
     field_mappings = arcpy.FieldMappings()
@@ -790,17 +785,14 @@ def multipolygon_to_polygon_arc(file_path):
 
 
 def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
-    """
-    Convenience function to dump polygon features to centroids and
-    save as a new feature class.
-
-    Parameters
-    -------------
-    in_fc: Path
-    out_fc: Path
-    fields: [String,...], default="*"
-    skip_nulls: Boolean, default=False
-    null_value: Integer, default=0
+    """ Convenience function to dump polygon features to centroids and
+        save as a new feature class.
+   Args:
+        in_fc (str): path to input feature class
+        out_fc (str): path to output point fc
+        fields (str/list): [String,...], default="*", fields to include in conversion
+        skip_nulls (bool): Boolean, default=False
+        null_value (int): Integer, default=0
     """
     # TODO: adapt to search-cursor-based derivation of polygon.centroid to ensure point is within polygon
     sr = arcpy.Describe(in_fc).spatialReference
@@ -813,6 +805,7 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
                                           skip_nulls=skip_nulls, null_value=null_value)
     arcpy.da.NumPyArrayToFeatureClass(in_array=a, out_table=out_fc,
                                       shape_fields="SHAPE@XY", spatial_reference=sr)
+    fields.remove("SHAPE@XY")
     return out_fc
 
 
@@ -1013,31 +1006,21 @@ def sumToAggregateGeo(
 
 
 def add_unique_id(feature_class, new_id_field=None):
-    """
-        adds a unique incrementing integer value to a feature class and returns that name
+    """adds a unique incrementing integer value to a feature class and returns that name
     Args:
         feature_class: String; path to a feature class
         new_id_field: String; name of new id field, if none is provided, ProcessID is used
-
     Returns:
         new_id_field: String; name of new id field
     """
-    CODEBLOCK = """
-        val = 0 
-        def unique_ID(): 
-            global val 
-            start = 1 
-            if (val == 0):  
-                val = start
-            else:  
-                val += 1  
-            return val
-         """
     if new_id_field is None:
         new_id_field = "ProcessID"
-    arcpy.CalculateField_management(in_table=feature_class, field=new_id_field,
-                                    expression="unique_ID()", expression_type="PYTHON3",
-                                    code_block=CODEBLOCK, field_type="LONG")
+    arcpy.AddField_management(in_table=feature_class, field_name=new_id_field, field_type="LONG")
+    with arcpy.da.UpdateCursor(feature_class, new_id_field) as ucur:
+        for i, row in enumerate(ucur):
+            row[0] = i
+            ucur.updateRow(row)
+
     return new_id_field
 
 
@@ -1306,7 +1289,7 @@ def genSALines(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         non-hierarchical solve is executed.
     net_location_fields: [String,...], default=None
         If provided, list the fields in the `facilities` attribute table that
-        define newtork loading locations. Fields must be provided in the 
+        define newtork loading locations. Fields must be provided in the
         following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
         SnapY, Distance.
 
@@ -1371,7 +1354,7 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
                restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
                net_location_fields=None):
     """
-    
+
 
     Parameters
     ------------
@@ -1410,7 +1393,7 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         non-hierarchical solve is executed.
     net_location_fields: [String,...], default=None
         If provided, list the fields in the `facilities` attribute table that
-        define newtork loading locations. Fields must be provided in the 
+        define newtork loading locations. Fields must be provided in the
         following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
         SnapY, Distance.
 

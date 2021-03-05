@@ -35,7 +35,6 @@ BASIC_RENAME_DICT = {
     "AllCorridors": "(All corridors)"
 }
 
-
 """ Bike Ped Crash Configs """
 # cleaning configuration
 CRASH_FIELDS_DICT = dict(
@@ -244,18 +243,18 @@ OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 
 # Transit Ridership Tables
 TRANSIT_FIELDS_DICT = {
-    "ADAY": "DAY_OF_WEEK",
+    # "ADAY": "DAY_OF_WEEK",
     "ATIMEPER": "TIME_PERIOD",
-    "AROUTE": "ROUTE",
-    "ATRIP": "TRIP_TIME",
-    "ABLOCK": "BLOCK_OPERATED",
-    "ADIR": "DIRECTION",
-    "ASTOP": "SEQUENTIAL_STOP_NO",
-    "AQSTOP": "UNIQUE_STOP_NO",
-    "ANAMSTP": "STOP_NAME",
+    # "AROUTE": "ROUTE",
+    # "ATRIP": "TRIP_TIME",
+    # "ABLOCK": "BLOCK_OPERATED",
+    # "ADIR": "DIRECTION",
+    # "ASTOP": "SEQUENTIAL_STOP_NO",
+    # "AQSTOP": "UNIQUE_STOP_NO",
+    # "ANAMSTP": "STOP_NAME",
     "ALAT": "LAT",
     "ALONG": "LONG",
-    "ADWELL_TIME": "DWELL_TIME",
+    # "ADWELL_TIME": "DWELL_TIME",
 }
 TRANSIT_RIDERSHIP_TABLES = {
     2014: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1411_2015_APR_standard_format.XLS",
@@ -647,10 +646,14 @@ PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Da
 # Use PARCEL_BLD_AREA for parcels_living_area_field
 PERMITS_UNITS_FIELD = "UNITS"
 PERMITS_BLD_AREA_NAME = "sq. ft."
-REF_TABLE_UNITS_MATCH = {"bed": "NO_RES_UNTS",
-                         "room": "NO_RES_UNTS",
-                         "unit": "NO_RES_UNTS",
-                         "acre": "LND_SQFOOT / 43560"}
+# format -->
+PARCEL_REF_TABLE_UNITS_MATCH = {"bed": "NO_RES_UNTS",
+                                "room": "NO_RES_UNTS",
+                                "unit": "NO_RES_UNTS",
+                                "acre": "LND_SQFOOT / 43560", }
+PERMITS_REF_TABLE_UNITS_MATCH = {"student_20": "NO_RES_UNITS",
+                                 "student_25": "NO_RES_UNITS",
+                                 "student_30": "NO_RES_UNITS"}
 
 # For building the short term parcels
 # Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
@@ -662,7 +665,7 @@ PERMITS_REF_TABLE_PATH = r"K:\Projects\MiamiDade\PMT\Data\Reference\permits_unit
 PARCEL_LAND_VALUE = "LND_VAL"
 PARCEL_JUST_VALUE = "JV"
 PARCEL_BUILDINGS = "NO_BULDNG"
-PERMITS_ID_FIELD = "PARCELNO"
+PERMITS_ID_FIELD = PARCEL_COMMON_KEY
 PERMITS_LU_FIELD = "DOR_UC"
 # Use PERMITS_UNITS_FIELD for permits units field
 PERMITS_VALUES_FIELD = "UNITS_VAL"
