@@ -1,18 +1,15 @@
-from PMT_tools import PMT
-from PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
+from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
 from PMT_tools.config import prepare_config as pconfig
 import numpy as np
-from datetime import datetime
-
 
 # GLOBALS
-
-#SNAPSHOT_YEAR = PMT.YEARS[-1] not a config item? always take a snapshot of each year in PMT.YEARS?
+# SNAPSHOT_YEAR = PMT.YEARS[-1] not a config item? always take a snapshot of each year in PMT.YEARS?
 MODES = ["Auto", "Transit", "Walk", "Bike"]
 NM_MODES = ["walk", "Bike"]
 ACTIVITIES = ["TotalJobs", "ConsJobs", "HCJobs", "EnrollAdlt", "EnrollK12", "HH"]
 TIME_BREAKS = [15, 30, 45, 60]
 PAR_SUM_FIELDS = ["NO_RES_UNTS", "Total_Employment", "TOT_LVG_AREA", "JV", "TV_NSD", "LND_VAL", "LND_SQFOOT"]
+
 
 def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
     cols = []
@@ -31,27 +28,28 @@ def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
 
 
 # fc_name, id, FDS data resides
-BLOCK_FC_SPECS = ("Blocks", "GEOID10", "Polygons") # TODO: define common key
-PARCEL_FC_SPECS = ("Parcels", pconfig.PARCEL_COMMON_KEY, "Polygons")
+BLOCK_FC_SPECS = ("Blocks", "GEOID10", "Polygons")  # TODO: define common key
+PAR_FC_SPECS = ("Parcels", pconfig.PARCEL_COMMON_KEY, "Polygons")
 MAZ_FC_SPECS = ("MAZ", pconfig.MAZ_COMMON_KEY, "Polygons")
 TAZ_FC_SPECS = ("TAZ", pconfig.TAZ_COMMON_KEY, "Polygons")
 SUM_AREA_FC_SPECS = ("SummaryAreas", pconfig.SUMMARY_AREAS_COMMON_KEY, "Polygons")
-NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks") #TODO: define common key
-TRANSIT_FC_SPECS = ("TransitRidership", "OBJECTID", "Points") #TODO: define common key
-PARKS_FC_SPECS = ("Park_points", "OBJECTID_1", "Points") #TODO: assign/define common key
-EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks") #TODO: define common key
+NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks")  # TODO: define common key
+TRANSIT_FC_SPECS = ("TransitRidership", "OBJECTID", "Points")  # TODO: define common key
+PARKS_FC_SPECS = ("Park_points", "OBJECTID_1", "Points")  # TODO: assign/define common key
+EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks")  # TODO: define common key
 
 FC_SPECS = [
-    BLOCK_FC_SPECS, PARCEL_FC_SPECS, MAZ_FC_SPECS,
-    TAZ_FC_SPECS, SUM_AREA_FC_SPECS,NODES_FC_SPECS,
+    BLOCK_FC_SPECS, PAR_FC_SPECS, MAZ_FC_SPECS,
+    TAZ_FC_SPECS, SUM_AREA_FC_SPECS, NODES_FC_SPECS,
     TRANSIT_FC_SPECS, PARKS_FC_SPECS, EDGES_FC_SPECS
-    ]
+]
 
 # fields and rename fields for MAZ/TAZ
 MAZ_WALK_FIELDS, MAZ_WALK_RENAMES = _makeAccessColSpecs(activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Walk")
 MAZ_BIKE_FIELDS, MAZ_BIKE_RENAMES = _makeAccessColSpecs(activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Bike")
 TAZ_AUTO_FIELDS, TAZ_AUTO_RENAMES = _makeAccessColSpecs(activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Auto")
-TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES = _makeAccessColSpecs(activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Transit")
+TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES = _makeAccessColSpecs(activities=ACTIVITIES, time_breaks=TIME_BREAKS,
+                                                              mode="Transit")
 # table_name, id, fields
 TABLE_SPECS = [
     ("Access_maz_Walk", pconfig.MAZ_COMMON_KEY, MAZ_WALK_FIELDS),
@@ -61,8 +59,8 @@ TABLE_SPECS = [
     ("Contiguity_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*"),
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
-    #("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
-    ("Imperviousness_blocks", "GEIOID10", "*"), #TODO: BLOCK COMMON KEY?
+    # ("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
+    ("Imperviousness_blocks", "GEIOID10", "*"),  # TODO: BLOCK COMMON KEY?
     ("LandUseCodes_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
     ("TripStats_TAZ", pconfig.TAZ_COMMON_KEY),
     ("WalkTime_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
@@ -73,14 +71,14 @@ TABLE_SPECS = [
 # Assumes all table results have been joined to corresponding feature classes
 # (e.g., parcel tables in CLEANED gdbs are now joined to parcels fc in snapshot gdb)
 BLOCK_PAR_ENRICH = {
-    "sources": (BLOCK_FC_SPECS, PARCEL_FC_SPECS),
+    "sources": (BLOCK_FC_SPECS, PAR_FC_SPECS),
     "grouping": Column(BLOCK_FC_SPECS[1]),
     "agg_cols":
         [AggColumn("NO_RES_UNTS"), AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
          AggColumn("TV_NSD"), AggColumn("LND_SQFOOT"), AggColumn("Total_Commutes"),
          AggColumn("Drove"), AggColumn("Carpool"), AggColumn("Transit"),
          AggColumn("NonMotor"), AggColumn("Work_From_Home"), AggColumn("AllOther"),
-         #AggColumn("BTU_RES"), AggColumn("NRES_BTU"), 
+         # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
          AggColumn("Developable_Area"), AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
          AggColumn("Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
          AggColumn("Max_Scaled_Area", rename="Scaled_Area"),
@@ -95,7 +93,7 @@ BLOCK_PAR_ENRICH = {
     "melt_cols": []
 }
 SA_PAR_ENRICH = {
-    "sources": (SUM_AREA_FC_SPECS, PARCEL_FC_SPECS),
+    "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": Column(SUM_AREA_FC_SPECS[1]),
     "agg_cols":
         [AggColumn(pconfig.PARCEL_COMMON_KEY, agg_method="size", rename="NParcels"),
@@ -104,13 +102,13 @@ SA_PAR_ENRICH = {
          AggColumn("Total_Commutes"),
          AggColumn("Drove"), AggColumn("Carpool"), AggColumn("Transit"),
          AggColumn("NonMotor"), AggColumn("Work_From_Home"), AggColumn("AllOther"),
-         #AggColumn("BTU_RES"), AggColumn("NRES_BTU"), 
+         # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
          AggColumn("Developable_Area"), AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
          AggColumn("Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
          AggColumn("Max_Scaled_Area", rename="Scaled_Area"),
          AggColumn("MinTimeStn_walk", agg_method="mean"), AggColumn("MinTimePark_walk", agg_method="mean"),
          AggColumn("DirIdx_stn", agg_method=np.nanmedian), AggColumn("DirIdx_park", agg_method=np.nanmedian),
-         #AggColumn("NStn_walk", agg_method="mean"), AggColumn("NPark_walk", agg_method="mean"),
+         # AggColumn("NStn_walk", agg_method="mean"), AggColumn("NPark_walk", agg_method="mean"),
          AggColumn("stn_in_15"), AggColumn("park_in_15"),
          AggColumn("Total_Employment"), AggColumn("CNS16", rename="HCJobs"), AggColumn("CNS15", rename="EdJobs")],
     "consolidate":
@@ -177,10 +175,10 @@ SA_EDGES_ENRICH = {
     "melt_cols": []
 }
 ENRICH_INTS = [BLOCK_PAR_ENRICH, SA_PAR_ENRICH, SA_BLOCK_ENRICH, SA_MAZ_ENRICH, SA_TAZ_ENRICH,
-                SA_NODES_ENRICH, SA_TRANSIT_ENRICH, SA_PARKS_ENRICH, SA_EDGES_ENRICH]
+               SA_NODES_ENRICH, SA_TRANSIT_ENRICH, SA_PARKS_ENRICH, SA_EDGES_ENRICH]
 
 # elongate var dicts
-YEAR_COL = AggColumn("Year", agg_method="mean", default=-9999) #TODO: set default for each PMT year in builder
+YEAR_COL = AggColumn("Year", agg_method="mean", default=-9999)  # TODO: set default for each PMT year in builder
 SA_GROUP_COLS = [Column(SUM_AREA_FC_SPECS[1]), Column("Name"), Column("Corridor")]
 # ---------- DOMAIN DEFS
 LU_CAT_DOM = DomainColumn(
@@ -241,23 +239,23 @@ WALK_DOM = DomainColumn(
 #         '45 to 60 minutes': 4
 #     }
 # )
-#------------ Based on intersects
+# ------------ Based on intersects
 SA_PARCELS_LU_LONG = {
-    "sources": (SUM_AREA_FC_SPECS, PARCEL_FC_SPECS),
+    "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping":
-        SA_GROUP_COLS + [Column("GN_VA_LU", default="Unknown", domain=LU_DOM)],
+        SA_GROUP_COLS + [Column("GN_VA_LU", default="Unknown", domain=LU_CAT_DOM)],
     "agg_cols":
         [YEAR_COL, AggColumn("NO_RES_UNTS"), AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
          AggColumn("TV_NSD"), AggColumn("LND_SQFOOT"), AggColumn("JV_SF", agg_method=np.nanmedian),
-          AggColumn("TV_SF", agg_method=np.nanmedian), AggColumn("LV_SF", agg_method=np.nanmedian),
-         #AggColumn("BTU_RES"), AggColumn("NRES_BTU")
+         AggColumn("TV_SF", agg_method=np.nanmedian), AggColumn("LV_SF", agg_method=np.nanmedian),
+         # AggColumn("BTU_RES"), AggColumn("NRES_BTU")
          ],
     "consolidate": [],
     "melt_cols": None,
     "out_table": "AttrByLU"
 }
 SA_PARCELS_COMMUTE_LONG = {
-    "sources": (SUM_AREA_FC_SPECS, PARCEL_FC_SPECS),
+    "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS,
     "agg_cols": [YEAR_COL, AggColumn("Total_Commutes"), AggColumn("NonAuto_Commutes")],
     "consolidate": [],
@@ -267,7 +265,7 @@ SA_PARCELS_COMMUTE_LONG = {
     "out_table": "CommutesByMode"
 }
 # SA_PARCELS_JTYPE_LONG = {
-#     "grouping": Column(PARCEL_FC_SPECS[1]),
+#     "grouping": Column(PAR_FC_SPECS[1]),
 #     "aggregation": [AggColumn("CNS16", rename="HCJobs"), AggColumn("CNS15", rename="EdJobs")],
 #     "consolidate":
 #         [Consolidation("RsrcJobs", ["CNS01", "CNS02"]), Consolidation("IndJobs", ["CNS05", "CNS06", "CNS08"]),
@@ -277,7 +275,7 @@ SA_PARCELS_COMMUTE_LONG = {
 #     "melt_col": None
 # }
 SA_PARCELS_JSECTOR_LONG = {
-    "sources": (SUM_AREA_FC_SPECS, PARCEL_FC_SPECS),
+    "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS,
     "aggregation": [YEAR_COL, AggColumn("Total_Employment")],
     "consolidate": [],
@@ -286,11 +284,11 @@ SA_PARCELS_JSECTOR_LONG = {
     "out_table": "JobsBySector"
 }
 SA_PARCELS_WALK_STA_LONG = {
-    "sources": (SUM_AREA_FC_SPECS, PARCEL_FC_SPECS),
+    "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS + [
-        Column("GN_VA_LU", default="Unknown", domain=LU_DOM),
+        Column("GN_VA_LU", default="Unknown", domain=LU_CAT_DOM),
         Column("BinStn_walk", domain=WALK_DOM)
-        ],
+    ],
     "aggregation": [YEAR_COL, AggColumn("TOT_LVG_AREA"), AggColumn("NO_RES_UNTS"),
                     AggColumn(pconfig.PARCEL_COMMON_KEY, agg_method="size", rename="NParcels"),
                     AggColumn("Stn_in_15")],
@@ -299,7 +297,7 @@ SA_PARCELS_WALK_STA_LONG = {
     "out_table": "WalkTimeToStations"
 }
 SA_PARCELS_WALK_PARK_LONG = {
-    "sources": (SUM_AREA_FC_SPECS, PARCEL_FC_SPECS),
+    "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS + [Column("BinStn_walk", domain=WALK_DOM)],
     "aggregation": [YEAR_COL, AggColumn("TOT_LVG_AREA"), AggColumn("NO_RES_UNTS"),
                     AggColumn(pconfig.PARCEL_COMMON_KEY, agg_method="size", rename="NParcels"),
@@ -334,45 +332,44 @@ SA_BIKE_LONG = {
     "melt_col": None
 }
 ELONGATE_SPECS = [SA_PARCELS_LU_LONG, SA_PARCELS_COMMUTE_LONG,
-                  SA_PARCELS_JSECTOR_LONG, #SA_PARCELS_JTYPE_LONG
+                  SA_PARCELS_JSECTOR_LONG,  # SA_PARCELS_JTYPE_LONG
                   SA_PARCELS_WALK_STA_LONG, SA_PARCELS_WALK_PARK_LONG,
                   SA_BLOCK_DEV_STATUS_LONG, SA_BIKE_LONG]
 
-
 # CALC FIELD SPECS
-RES_DENS =  {
+RES_DENS = {
     "tables": [PAR_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "RES_DENS",
     "field_type": "FLOAT",
     "expr": "!NO_RES_UNTS!/(!RES_AREA! / 43560.0)",
     "code_block": ""
 }
-NRES_DENS =  {
-    "tables": [PAR_FC_SPECS, SUM_AREA_FC_SPECS]S,
+NRES_DENS = {
+    "tables": [PAR_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "NRES_DENS",
     "field_type": "FLOAT",
     "expr": "!Total_Employment!/(!RES_AREA! / 43560.0)",
     "code_block": ""
 }
-FAR_DENS =  {
+FAR_DENS = {
     "tables": [PAR_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "FAR",
     "field_type": "FLOAT",
     "expr": "!TOT_LVG_AREA!/!LND_SQFOOT!",
     "code_block": ""
 }
-JH_RATIO =  {
+JH_RATIO = {
     "tables": [BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "JHRatio",
     "field_type": "FLOAT",
     "expr": "!Total_Employment!/!NO_RES_UNTS!",
     "code_block": ""
 }
-GRID_DENS =  {
+GRID_DENS = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "GRID_DENS",
     "field_type": "FLOAT",
-    "expr": "!NBlocks!/(!LND_SQ_FOOT! / (43560.0 * 640.0))", # Convert sq feet to sq miles via acres to sq miles
+    "expr": "!NBlocks!/(!LND_SQ_FOOT! / (43560.0 * 640.0))",  # Convert sq feet to sq miles via acres to sq miles
     "code_block": ""
 }
 NA_MODE_SHARE = {
@@ -387,25 +384,25 @@ ACCESS_IN30 = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "{0}in30{1}",
     "field_type": "FLOAT",
-    "expr": "!{0}15Min{1}! + !{0}30Min{1}!,
+    "expr": "!{0}15Min{1}! + !{0}30Min{1}!",
     "code_block": ""
 }
 NM_JH_BAL = {
     "params": NM_MODES,
-    "tables": [SUM_AREA_FC_SPECS, PARCEL_FC_SPECS],
+    "tables": [SUM_AREA_FC_SPECS, PAR_FC_SPECS],
     "new_field": "{0}_JHBal",
     "field_type": "FLOAT",
     "expr": "!{0}in30TotalJobs! / !{0}in30HH!",
     "code_block": ""
 }
 DIRECT_IDX = {
-    "params": ["stn", "park"] # TODO: fix field naming inconsistency
-    "tables": [PARCEL_FC_SPECS],
+    "params": ["stn", "park"],  # TODO: fix field naming inconsistency
+    "tables": [PAR_FC_SPECS],
     "new_field": "DirIdx_{0}",
     "field_type": "FLOAT",
-    "expr": "dir_idx(!min_time_{0}_walk!, !min_time_{0}!)"
-    "code_block": 
-    """
+    "expr": "dir_idx(!min_time_{0}_walk!, !min_time_{0}!)",
+    "code_block":
+        """
     def dir_idx(walk_time, ideal_time):
         if ideal_time is None:
             return -1
@@ -443,21 +440,21 @@ SHR_LVG_AREA = {
     "code_block": ""
 }
 TV_SF = {
-    "tables": [PARCEL_FC_SPECS],
+    "tables": [PAR_FC_SPECS],
     "new_field": "TV_SF",
     "field_type": "FLOAT",
     "expr": "!TV_NSD! / !LND_SQFOOT!",
     "code_block": ""
 }
 JV_SF = {
-    "tables": [PARCEL_FC_SPECS],
+    "tables": [PAR_FC_SPECS],
     "new_field": "JV_SF",
     "field_type": "FLOAT",
     "expr": "!JV! / !LND_SQFOOT!",
     "code_block": ""
 }
 LV_SF = {
-    "tables": [PARCEL_FC_SPECS],
+    "tables": [PAR_FC_SPECS],
     "new_field": "LV_SF",
     "field_type": "FLOAT",
     "expr": "!LND_VAL! / !LND_SQFOOT!",
@@ -485,13 +482,13 @@ LV_IDX = {
     "code_block": ""
 }
 IS_IN_15 = {
-    "params": ["stn", "park"]
-    "tables": [PARCEL_FC_SPECS],
+    "params": ["stn", "park"],
+    "tables": [PAR_FC_SPECS],
     "new_field": "{0}_in_15",
     "field_type": "FLOAT",
-    "expr": "tag_in_15(!min_time_{0}_walk!)"
-    "code_block": 
-    """
+    "expr": "tag_in_15(!min_time_{0}_walk!)",
+    "code_block":
+        """
     def tag_in_15(walk_time):
         if walk_time is None:
             return 0
@@ -502,7 +499,7 @@ IS_IN_15 = {
     """
 }
 PROP_IN15 = {
-    "params": ["stn", "park"]
+    "params": ["stn", "park"],
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "Prop_{0}15",
     "field_type": "FLOAT",
@@ -518,12 +515,11 @@ BIKE_MILES = {
     "tables": [EDGES_FC_SPECS],
     "new_field": "Bike_Miles",
     "field_type": "FLOAT",
-    "expr": "!Length!/1609.344" # meters to miles conversion
+    "expr": "!Length!/1609.344"  # meters to miles conversion
 }
 ACCESS_TIME_DOMAIN = {
     "tables": []
 }
-
 
 REG_REF_CALCS = [
     (SHR_RES_UNTS, "NO_RES_UNTS"),
@@ -533,9 +529,6 @@ REG_REF_CALCS = [
     (JV_IDX, ["JV", "LND_SQFOOT"]),
     (LV_IDX, ["LND_VAL", "LND_SQFOOT"])
 ]
-
-
-
 
 PRECALCS = [DIRECT_IDX, TV_SF, JV_SF, LV_SF, IS_IN_15, BIKE_FAC, BIKE_MILES]
 CALCS = [RES_DENS, NRES_DENS, FAR_DENS, JH_RATIO, GRID_DENS, NA_MODE_SHARE,

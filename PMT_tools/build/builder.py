@@ -47,7 +47,7 @@ import arcpy
 
 # SNAPSHOT Functions
 def build_access_by_mode(sum_area_fc, modes, out_gdb):
-    id_fields = ["RowID", "Name", "Corridor", YEAR_COL.name]
+    id_fields = ["RowID", "Name", "Corridor", bconfig.YEAR_COL.name]
     for mode in modes:
         print(f"... ... {mode}")
         df = _createLongAccess(int_fc=sum_area_fc, id_field=id_fields,
@@ -93,20 +93,13 @@ def process_joins(in_gdb, out_gdb):
     return joined_fcs
 
 
-def build_intersections(gdb, enrich_specs): #blocks_fc, parcels_fc, maz_fc, taz_fc, sum_area_fc, )
+def build_intersections(gdb, enrich_specs):  # blocks_fc, parcels_fc, maz_fc, taz_fc, sum_area_fc, )
     """
     performs a batch intersection of polygon feature classes
     Args:
-        blocks_fc: String; path to Census Blocks feature class
-        parcels_fc: String; path to parcels feature class
-        maz_fc: String; path to MAZ feature class
-        taz_fc: String; path to TAZ feature class
-        sum_area_fc: String; path to SummaryArea feature class
-        nodes_fc: Strin; path to Nodes feature class
-
+        enrich_specs:
+        gdb:
     Returns:
-    [String,...]; list of paths to intersected feature classes
-    int_block_par, int_sumarea_par, int_sumarea_block, int_sumarea_maz, int_sumarea_taz
     """
     # Intersect features for long tables
     int_out = {}
@@ -153,7 +146,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
 
 
 def apply_field_calcs(gdb, new_field_specs):
-    #Iterate over new fields
+    # Iterate over new fields
     for nf_spec in new_field_specs:
         # Get params
         tables = nf_spec["tables"]
@@ -201,6 +194,7 @@ def apply_field_calcs(gdb, new_field_specs):
                 arcpy.AddField_management(**add_args)
                 arcpy.CalculateField_management(**calc_args)
 
+
 def sum_parcel_cols(gdb, par_spec, columns):
     par_name, par_id, par_fds = par_spec
     par_fc = PMT.makePath(gdb, par_fds, par_name)
@@ -208,13 +202,13 @@ def sum_parcel_cols(gdb, par_spec, columns):
         in_fc=par_fc, keep_fields=columns, skip_nulls=False, null_val=0)
     return df.sum()
 
+
 # TODO: complete process_year_to_snapshot
 # TODO: define process_years_to_trend
 # TODO: define process_near_term
 # TODO: define process_long_term
 def process_year_to_snapshot(year):
-    """
-    process cleaned yearly data to a Snapshot database
+    """process cleaned yearly data to a Snapshot database
     Returns:
 
     """
@@ -224,11 +218,11 @@ def process_year_to_snapshot(year):
     in_gdb = dh.validate_geodatabase(
         PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False)
     out_gdb = _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
-    
+
     # Join tables to the features
     joined_fcs = process_joins(in_gdb=in_gdb, out_gdb=out_gdb)
 
-    # Calculate values as neeed prior to intersections
+    # Calculate values as need prior to intersections
     apply_field_calcs(out_gdb, bconfig.PRECALCS)
 
     # Summarize reference values
@@ -242,13 +236,13 @@ def process_year_to_snapshot(year):
 
     # elongate tables
     build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=bconfig.ELONGATE_SPECS)
-    
+
     # build access by mode tables
     print("... Access scores by activity and time bin")
     sa_fc, sa_id, sa_fds = bconfig.SUM_AREA_FC_SPECS
     sum_areas_fc = PMT.makePath(out_gdb, sa_fds, sa_fc)
     id_fields = [sa_id, "Name", "Corridor", bconfig.YEAR_COL.name]
-    
+
     for mode in bconfig.MODES:
         print(f"... ... {mode}")
         df = _createLongAccess(
@@ -263,7 +257,7 @@ def process_year_to_snapshot(year):
         if isinstance(ref_field, string_types):
             ref_val = [par_sums[ref_field]]
         else:
-            #assume iterable
+            # assume iterable
             ref_val = [[] for _ in ref_field]
             for ref_i, rf in enumerate(ref_field):
                 ref_val[ref_i].append(par_sums[rf])
@@ -285,8 +279,6 @@ def process_near_term():
 
 def process_long_term():
     pass
-
-
 
 
 # MAIN
