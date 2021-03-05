@@ -12,7 +12,8 @@ from PMT_tools.config.prepare_config import (BASIC_STATIONS, STN_NAME_FIELD, STN
                                              STN_DISS_FIELDS, STN_CORRIDOR_FIELDS)
 from PMT_tools.config.prepare_config import BASIC_ALIGNMENTS, ALIGN_BUFF_DIST, ALIGN_DISS_FIELDS, CORRIDOR_NAME_FIELD
 from PMT_tools.config.prepare_config import (BASIC_STN_AREAS, BASIC_CORRIDORS, BASIC_LONG_STN,
-                                             BASIC_SUM_AREAS, BASIC_RENAME_DICT, STN_LONG_CORRIDOR)
+                                             BASIC_SUM_AREAS, BASIC_RENAME_DICT, STN_LONG_CORRIDOR,
+                                             SUMMARY_AREAS_COMMON_KEY)
 from PMT_tools.config.prepare_config import (CRASH_FIELDS_DICT, USE_CRASH)
 from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FIELDS_DICT, TRANSIT_LONG, TRANSIT_LAT
 from PMT_tools.config.prepare_config import LODES_YEARS, ACS_YEARS
@@ -33,10 +34,7 @@ from PMT_tools.config.prepare_config import (ACCESS_MODES, MODE_SCALE_REF, ACCES
                                              ACCESS_UNITS, O_ACT_FIELDS, D_ACT_FIELDS)
 from PMT_tools.config.prepare_config import (CTGY_CHUNKS, CTGY_CELL_SIZE, CTGY_WEIGHTS, CTGY_SAVE_FULL,
                                              CTGY_SUMMARY_FUNCTIONS, CTGY_SCALE_AREA, BUILDINGS_PATH)
-from PMT_tools.config.prepare_config import DIV_ON_FIELD, LU_RECODE_TABLE, LU_RECODE_FIELD
-from PMT_tools.config.prepare_config import DIV_AGG_GEOM_FORMAT, DIV_AGG_GEOM_ID, DIV_AGG_GEOM_BUFFER
-from PMT_tools.config.prepare_config import (DIV_RELEVANT_LAND_USES, DIV_METRICS, DIV_CHISQ_PROPS,
-                                             DIV_REGIONAL_ADJ, DIV_REGIONAL_CONSTS)
+from PMT_tools.config.prepare_config import LU_RECODE_FIELD, DIV_RELEVANT_LAND_USES
 from PMT_tools.config.prepare_config import ZONE_GEOM_FORMAT, ZONE_GEOM_ID
 from PMT_tools.config.prepare_config import (PERMITS_PATH, PERMITS_REF_TABLE_PATH, PARCEL_REF_TABLE_UNITS_MATCH,
                                              SHORT_TERM_PARCELS_UNITS_MATCH)
@@ -298,8 +296,14 @@ def process_parcel_land_use():
         par_fields = [PARCEL_COMMON_KEY, "LND_SQFOOT"]
         tbl_lu_field = "DOR_UC"
         dtype = {"DOR_UC": int}
+        default_vals = {
+            PARCEL_COMMON_KEY: "-1",
+            "LND_SQFOOT": 0,
+            par_lu_field: 999
+        }
         par_df = prep_parcel_land_use_tbl(parcels_fc, par_lu_field, par_fields,
-                                          lu_table, tbl_lu_field, dtype_map=dtype)
+                                          lu_table, tbl_lu_field, dtype_map=dtype,
+                                          null_value=default_vals)
         # Calculate area columns
         for par_lu_col in PARCEL_LU_AREAS.keys():
             ref_col, crit = PARCEL_LU_AREAS[par_lu_col]
@@ -333,10 +337,6 @@ def process_imperviousness():
 
 def process_osm_networks():
     net_versions = sorted({v[0] for v in NET_BY_YEAR.values()})
-    # TODO: DROP DEBUG PLACEHOLDER default of net_versions
-    # ********
-    net_versions = ["q1_2021"]
-    # ********
     for net_version in net_versions:
         # Import edges
         osm_raw = PMT.makePath(RAW, "OpenStreetMap")
@@ -363,10 +363,17 @@ def process_osm_networks():
                 # Enrich features
                 classifyBikability(edges)
 
+                # Copy bike edges to year geodatabases
+                for year, nv in NET_BY_YEAR.items():
+                    if nv == net_version:
+                        out_path = makePath(CLEANED, "PMT_{year}.gdb", "Networks")
+                        out_name = "edges_bike"
+                        arcpy.FeatureClassToFeatureClass_conversion(
+                            in_features=edges, out_path=out_path, out_name=out_name)
+
             # Build network datasets
             template = makePath(REF, f"osm_{net_type}_template.xml")
             makeNetworkDataset(template, net_type_fd, "osm_ND")
-
 
 def process_bg_estimate_activity_models():
     bg_enrich = makePath(YEAR_GDB_FORMAT, "Enrichment_blockgroups")
@@ -659,6 +666,7 @@ def process_centrality():
             arcpy.Delete_management(nodes)
             # Keep track of solved networks
             solved.append(net_suffix)
+        arcpy.CalculateField_management(out_fc, "Year", str(year), field_type="LONG")
         solved_years.append(year)
 
 
@@ -702,7 +710,7 @@ def process_walk_times():
 
 
 def process_ideal_walk_times():
-    targets = ["stn", "parks"]
+    targets = ["stn", "park"]
     for year in YEARS:
         print(year)
         # Key paths
@@ -710,7 +718,7 @@ def process_ideal_walk_times():
         parcels_fc = makePath(year_gdb, "Polygons", "Parcels")
         stations_fc = makePath(BASIC_FEATURES, "SMART_Plan_Stations")
         parks_fc = makePath(CLEANED, "Park_Points.shp")
-        out_table = makePath(year_gdb, "IdealWalkTime_parcels")
+        out_table = makePath(year_gdb, "WalkTimeIdeal_parcels")
         target_fcs = [stations_fc, parks_fc]
         # Analyze ideal walk times
         dfs = []
@@ -794,24 +802,50 @@ def process_contiguity(overwrite=True):
 
 
 def process_lu_diversity():
+    summary_areas_fc = makePath(BASIC_FEATURES, "SummaryAreas")
+    lu_recode_table = makePath(REF, "Land_Use_Recode.csv")
+    usecols = [PARCEL_LU_COL, LU_RECODE_FIELD]
+    recode_df = pd.read_csv(lu_recode_table, usecols=usecols)
+    # Filter recode table
+    fltr = np.in1d(recode_df[LU_RECODE_FIELD], DIV_RELEVANT_LAND_USES)
+    recode_df = recode_df[fltr].copy()
+    # Iterate over analysis years
     for year in YEARS:
-        gdb = YEAR_GDB_FORMAT.replace("YEAR", str(year))
+        print(year)
+        gdb = makePath(CLEANED, f"PMT_{year}.gdb")
         parcel_fc = makePath(gdb, "Polygons", "Parcels")
-        if "{year}" in DIV_AGG_GEOM_FORMAT:
-            agg_fc = DIV_AGG_GEOM_FORMAT.replace("{year}", str(year))
-        else:
-            agg_fc = DIV_AGG_GEOM_FORMAT
-        lu_dict = lu_diversity(parcels_path=parcel_fc, parcels_id_field=PARCEL_COMMON_KEY,
-                               parcels_land_use_field=PARCEL_LU_COL,
-                               land_use_recode_path=LU_RECODE_TABLE, land_use_recode_field=LU_RECODE_FIELD,
-                               on_field=DIV_ON_FIELD,
-                               aggregate_geometry_path=agg_fc, aggregate_geometry_id_field=DIV_AGG_GEOM_ID,
-                               buffer_diversity=DIV_AGG_GEOM_BUFFER, relevant_land_uses=DIV_RELEVANT_LAND_USES,
-                               how=DIV_METRICS, chisq_props=DIV_CHISQ_PROPS,
-                               regional_adjustment=DIV_REGIONAL_ADJ, regional_constants=DIV_REGIONAL_CONSTS)
-        for key, value in lu_dict.items():
-            write_to = makePath(gdb, ''.join(["Diversity_", key]))
-            dfToTable(df=value, out_table=write_to)
+        out_fc = makePath(gdb, "Diversity_summaryareas")
+        
+        # Intersect parcels and summary areas
+        print(" - intersecting parcels with summary areas")
+        par_fields = [PARCEL_COMMON_KEY, PARCEL_LU_COL, PARCEL_BLD_AREA]
+        par_sa_int = assign_features_to_agg_area(
+            parcel_fc, agg_features=summary_areas_fc, in_fields=par_fields, buffer=None, as_df=True)
+
+        # Merge generalized land uses
+        in_df = par_sa_int.merge(recode_df, how="inner", on=PARCEL_LU_COL)
+        # Adjust floor area since sqft are large numbers
+        in_df[PARCEL_BLD_AREA] /= 1000
+
+        # Calculate div indices
+        print(" - calculating diversity indices")
+        div_funcs = [
+            simpson_diversity,
+            shannon_diversity,
+            berger_parker_diversity,
+            enp_diversity,
+            #chi_squared_diversity
+        ]
+        count_lu=len(DIV_RELEVANT_LAND_USES)
+        div_df = lu_diversity(in_df, SUMMARY_AREAS_COMMON_KEY, LU_RECODE_FIELD,
+                              div_funcs, weight_field=PARCEL_BLD_AREA,
+                              count_lu=count_lu, regional_comp=True)
+
+        # Export results
+        print(" - exporting results")
+        dfToTable(div_df, out_fc, overwrite=True)
+
+
 
 
 def process_permits_units_reference():
@@ -892,10 +926,10 @@ if __name__ == "__main__":
 
     # TODO: check use validate_fds method instead of makePath in these and helper funcs
     # record parcel land use groupings and multipliers
-    # process_parcel_land_use()
+    # process_parcel_land_use() # Tested by AB 3/3/21
 
     # prepare MAZ and TAZ socioeconomic/demographic data
-    # process_model_se_data()
+    # process_model_se_data() # TODO: AB to test
 
     # generate contiguity index for all years
     process_contiguity()
@@ -921,20 +955,24 @@ if __name__ == "__main__":
     # process_ideal_walk_times() # Tested by AB 3/2/21
 
     # prepare serpm TAZ-level travel skims
-    # process_model_skims()
+    # process_model_skims() #TODO: AB to test
 
     # DEPENDENT ANALYSIS
     # -----------------------------------------------
     # analyze access by MAZ, TAZ
-    # process_access()
+    # process_access() TODO: AB to test
 
     # prepare TAZ trip length and VMT rates
-    # process_travel_stats() #AB
+    # process_travel_stats() #TODO: AB to write and test
     # TODO: script to calculate rates so year-over-year diffs can be estimated
 
     # only updated when new impervious data are made available
     # process_imperviousness() # AW
     # TODO: ISGM for year-over-year changes? (low priority)
+
+    # process_lu_diversity() # Tested by AB 3/4/21
+
+    # process contiguity()
 
 # TODO: incorporate a project setup script or at minimum a yearly build geodatabase function/logic
 # TODO: handle multi-year data as own function
