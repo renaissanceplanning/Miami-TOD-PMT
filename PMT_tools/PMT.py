@@ -338,23 +338,20 @@ def make_inmem_path(file_name=None):
         if arcpy.Exists(in_mem_path):
             raise ValueError
         else:
-            return  in_mem_path
+            return in_mem_path
     except ValueError:
         print('The file_name supplied already exists in the in_memory space')
 
 
 def checkOverwriteOutput(output, overwrite=False):
-    """
-        A helper function that checks if an output file exists and
+    """A helper function that checks if an output file exists and
         deletes the file if an overwrite is expected.
-
     Args:
         output: Path
             The file to be checked/deleted
         overwrite: Boolean
             If True, `output` will be deleted if it already exists.
             If False, raises `RuntimeError`.
-
     Raises:
         RuntimeError:
             If `output` exists and `overwrite` is False.
@@ -368,8 +365,7 @@ def checkOverwriteOutput(output, overwrite=False):
 
 
 def dbf_to_df(dbf_file):
-    """
-        # Reads in dbf file and returns Pandas DataFrame object
+    """Reads in dbf file and returns Pandas DataFrame object
     Args:
         dbf_file: String; path to dbf file
         upper: Boolean; convert columns to uppercase if wanted
@@ -398,9 +394,8 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*"):
     # disag_full_path = arcpy.Describe(disag_fc).catalogPath
     # disag_ws, disag_name = os.path.split(disag_full_path)
     # out_fc = makePath(int_gdb, disag_name)
-    out_fc = make_inmem_path()
     int_fc = make_inmem_path()
-    disag_pts = polygonsToPoints(in_fc=disag_fc, out_fc=out_fc,
+    disag_pts = polygonsToPoints(in_fc=disag_fc, out_fc=make_inmem_path(),
                                  fields=disag_fields, skip_nulls=False, null_value=0)
     # Run intersection
     arcpy.Intersect_analysis(in_features=[summary_fc, disag_pts], out_feature_class=int_fc)
@@ -693,8 +688,7 @@ def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
 
 
 def featureclass_to_df(in_fc, keep_fields="*", null_val=0):
-    """
-        converts feature class/feature layer to pandas DataFrame object, keeping
+    """converts feature class/feature layer to pandas DataFrame object, keeping
         only a subset of fields if provided
         - drops all spatial data
     Args:
