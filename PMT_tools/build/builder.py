@@ -44,6 +44,25 @@ from six import string_types
 import itertools
 import arcpy
 
+DEBUG = True
+if DEBUG:
+    '''
+    if DEBUG is True, you can change the path of the root directory and test any
+    changes to the code you might need to handle without munging the existing data
+    '''
+    from PMT_tools.download.download_helper import validate_directory
+
+    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
+    RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
+    CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
+    BUILD = validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
+    DATA = ROOT
+    BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
+    REF = PMT.makePath(ROOT, "Reference")
+    RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
+    DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
+    YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
+
 
 # SNAPSHOT Functions
 def build_access_by_mode(sum_area_fc, modes, out_gdb):
@@ -78,17 +97,16 @@ def process_joins(in_gdb, out_gdb):
     joined_fcs = []  # --> blocks, parcels, maz, taz, sa, net_nodes
     for fc_spec, table_spec in zip(fc_specs, table_specs):
         fc_name, fc_id, fds = fc_spec
-        fc = PMT.makePath(out_gdb, fc_name, fds)
+        fc = PMT.makePath(out_gdb, fds, fc_name)
+
         for spec in table_spec:
             tbl_name, tbl_id, tbl_fields = spec
             tbl = PMT.makePath(in_gdb, tbl_name)
-            joinAttributes(
-                to_table=fc,
-                to_id_field=fc_id,
-                from_table=tbl,
-                from_id_field=tbl_id,
-                join_fields=tbl_fields,
-                renames={})
+            if tbl_name == "Diversity_summaryareas":
+                print("hhhhold up")
+            joinAttributes(to_table=fc, to_id_field=fc_id,
+                           from_table=tbl, from_id_field=tbl_id,
+                           join_fields=tbl_fields, renames={}, drop_dup_cols=True)
             joined_fcs.append(fc)
     return joined_fcs
 
@@ -217,8 +235,8 @@ def process_year_to_snapshot(year):
     out_path = dh.validate_directory(BUILD)
     in_gdb = dh.validate_geodatabase(
         PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False)
-    out_gdb = _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
-
+    # out_gdb = _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
+    out_gdb = PMT.makePath(BUILD, '_f65a0d17191246719529495b88eb6792.gdb')
     # Join tables to the features
     joined_fcs = process_joins(in_gdb=in_gdb, out_gdb=out_gdb)
 

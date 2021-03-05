@@ -26,9 +26,9 @@ def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
     renames = dict(zip(cols, new_names))
     return cols, renames
 
-
+# TODO: check for misreferences to Blocks, or BlockGroups
 # fc_name, id, FDS data resides
-BLOCK_FC_SPECS = ("Blocks", "GEOID10", "Polygons")  # TODO: define common key
+BLOCK_FC_SPECS = ("Census_Blocks", "GEOID10", "Polygons")  # TODO: define common key
 PAR_FC_SPECS = ("Parcels", pconfig.PARCEL_COMMON_KEY, "Polygons")
 MAZ_FC_SPECS = ("MAZ", pconfig.MAZ_COMMON_KEY, "Polygons")
 TAZ_FC_SPECS = ("TAZ", pconfig.TAZ_COMMON_KEY, "Polygons")
@@ -60,9 +60,9 @@ TABLE_SPECS = [
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*"),
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
     # ("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
-    ("Imperviousness_blocks", "GEIOID10", "*"),  # TODO: BLOCK COMMON KEY?
+    ("Imperviousness_census_blocks", "GEOID10", "*"),  # TODO: BLOCK COMMON KEY?
     ("LandUseCodes_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
-    ("TripStats_TAZ", pconfig.TAZ_COMMON_KEY),
+    ("TripStats_TAZ", pconfig.TAZ_COMMON_KEY, "*"),
     ("WalkTime_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
     ("WalkTimeIdeal_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
 ]

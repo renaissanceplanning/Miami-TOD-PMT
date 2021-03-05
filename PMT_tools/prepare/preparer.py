@@ -67,15 +67,16 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
+    from PMT_tools.download.download_helper import validate_directory
     ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
-    RAW = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
+    RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
+    CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     DATA = ROOT
-    BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb")
-    REF = makePath(ROOT, "Reference")
-    RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
-    DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
-    YEAR_GDB_FORMAT = makePath(CLEANED, "PMT_YEAR.gdb")
+    BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
+    REF = PMT.makePath(ROOT, "Reference")
+    RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
+    DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
+    YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
 
 
 def process_normalized_geometries(overwrite=True):
@@ -895,6 +896,7 @@ if __name__ == "__main__":
 
     # setup any basic normalized geometries
     # process_normalized_geometries()  # TESTED # TODO: standardize column names
+        # TODO: ensure SummaryAreas get copied in also
 
     # copies downloaded parcel data and only minimally necessary attributes into yearly gdb
     # process_parcels() # TESTED

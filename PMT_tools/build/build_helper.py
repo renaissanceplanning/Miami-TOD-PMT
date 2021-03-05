@@ -6,13 +6,14 @@ import pandas as pd
 from six import string_types
 from collections.abc import Iterable
 import PMT_tools.PMT as PMT
-from PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
+from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
 import arcpy
 
 
 def _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False):
     if not out_gdb_name:
         out_gdb_name = f"_{uuid.uuid4().hex}.gdb"
+        out_gdb = PMT.makePath(out_path, out_gdb_name)
     elif out_gdb_name and overwrite:
         out_gdb = PMT.makePath(out_path, out_gdb_name)
         PMT.checkOverwriteOutput(output=out_gdb, overwrite=overwrite)
@@ -20,7 +21,7 @@ def _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False
         out_gdb = PMT.makePath(out_path, out_gdb_name)
     # copy in the geometry data containing minimal tabular data
     arcpy.CreateFileGDB_management(out_path, out_gdb_name)
-    for fds in ["Network", "Points", "Polygons"]:
+    for fds in ["Networks", "Points", "Polygons"]:
         print(f"... copying FDS {fds}")
         source_fd = PMT.makePath(in_gdb, fds)
         out_fd = PMT.makePath(out_gdb, fds)
@@ -52,12 +53,21 @@ def _validateAggSpecs(var, expected_type):
 
 
 def joinAttributes(to_table, to_id_field, from_table, from_id_field,
-                   join_fields, null_value=0.0, renames={}):
+                   join_fields, null_value=0.0, renames={}, drop_dup_cols=False):
     """
     """
     if join_fields == "*":
         join_fields = [f.name for f in arcpy.ListFields(from_table)
                        if not f.required and f.name != from_id_field]
+    if drop_dup_cols:
+        tbl_fields = [f.name for f in arcpy.ListFields(to_table)
+                      if f.name != to_id_field]
+        drop_fields = [d for d in join_fields
+                       if d in tbl_fields]
+        if len(join_fields) == len(drop_fields):
+            return
+        else:
+            join_fields = [jf for jf in join_fields if jf not in drop_fields]
     print(f"... {join_fields} to {to_table}")
     dump_fields = [from_id_field] + join_fields
     df = pd.DataFrame(
@@ -67,7 +77,7 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
     )
     if renames:
         df.rename(columns=renames, inplace=True)
-    PMT.extendTableDf(to_table, to_id_field, df, from_id_field)
+    PMT.extendTableDf(to_table, to_id_field, df, from_id_field, drop_dup_cols=True)
 
 
 def summarizeAttributes(in_fc, group_fields, agg_cols,
