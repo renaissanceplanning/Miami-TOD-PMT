@@ -6,6 +6,7 @@ import pandas as pd
 from six import string_types
 from collections.abc import Iterable
 import PMT_tools.PMT as PMT
+from PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
 import arcpy
 
 
@@ -75,7 +76,7 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
 
     """
     # Validation (listify inputs, validate values)
-    # - Group fields
+    # - Group fields (domain possible)
     group_fields = _validateAggSpecs(group_fields, Column)
     gb_fields = [gf.name for gf in group_fields]
     dump_fields = [gf.name for gf in group_fields]
@@ -83,7 +84,7 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
     null_dict = dict([(gf.name, gf.default) for gf in group_fields])
     renames = [
         (gf.name, gf.rename) for gf in group_fields if gf.rename is not None]
-    # - Agg columns
+    # - Agg columns (no domain expected)
     agg_cols = _validateAggSpecs(agg_cols, AggColumn)
     agg_methods = {}
     for ac in agg_cols:
@@ -93,7 +94,7 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         agg_methods[ac.name] = ac.agg_method
         if ac.rename is not None:
             renames.append((ac.name, ac.rename))
-    # - Consolidations
+    # - Consolidations (no domain expected)
     if consolidations:
         consolidations = _validateAggSpecs(consolidations, Consolidation)
         for c in consolidations:
@@ -103,7 +104,7 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
             agg_methods[c.name] = c.agg_method
     else:
         consolidations = []
-    # - Melt columns
+    # - Melt columns (domain possible)
     if melt_col:
         melt_col = _validateAggSpecs(melt_col, MeltColumn)[0]
         dump_fields += [ic for ic in melt_col.input_cols]
@@ -132,6 +133,16 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
             var_name=melt_col.label_col,
             value_name=melt_col.val_col
         ).reset_index()
+    # Domains
+    for group_field in group_fields:
+        if group_field.domain is not None:
+            group_field.applyDomain(int_df)
+            gb_fields.append(group_field.domain.name)
+    if melt_col:
+        if melt_col.domain is not None:
+            melt_col.applyDomain(int_df)
+            gb_fields.append(melt_col.domain.name)
+
 
     # Group by - summarize
     all_fields = gb_fields + keep_cols
@@ -160,7 +171,7 @@ def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
     return cols, renames
 
 
-def _createLongAccess(int_fc, id_field, activities, time_breaks, mode):
+def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=None):
     # result is long on id_field, activity, time_break
     # TODO: update to use Column objects? (null handling, e.g.)
     # --------------

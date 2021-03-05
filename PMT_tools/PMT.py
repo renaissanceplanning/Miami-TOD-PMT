@@ -11,6 +11,7 @@ import urllib3
 import uuid
 # import geopandas as gpd
 import pandas as pd
+import numpy as np
 #import pysal as ps
 # from shapely.geometry.polygon import Polygon as POLY
 
@@ -34,6 +35,7 @@ DATA = os.path.join(ROOT, "Data")
 RAW = os.path.join(DATA, "Raw")
 CLEANED = os.path.join(DATA, "Cleaned")
 REF = os.path.join(DATA, "Reference")
+BUILD = os.path.join(DATA, "Build")
 BASIC_FEATURES = os.path.join(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
@@ -51,20 +53,51 @@ SR_WEB_MERCATOR = arcpy.SpatialReference(EPSG_WEB_MERC)
 
 # column and aggregation classes
 class Column():
-    def __init__(self, name, default=0.0, rename=None):
+    def __init__(self, name, default=0.0, rename=None, domain=None):
         self.name = name
         self.default = default
         self.rename = rename
+        self.domain = domain
+
+    def __setattr__(self, name, value):
+        if name == "domain":
+            if value is not None and not isinstance(value, DomainColumn):
+                raise TypeError(
+                    f"`domain` must be DomainColumn, got {type(value)}")
+        super().__setattr__(name, value)
+
+    def applyDomain(self, df, col=None):
+        if self.domain is not None:
+            if col is None:
+                col = self.name
+            criteria = []
+            results = []
+            for ref_val, dom_val in self.domain.domain_map.items():
+                criteria.append(df[col] == ref_val)
+                results.append(dom_val)
+                df[self.domain.name] = np.select(
+                    condlist = criteria,
+                    choicelist=results,
+                    default=self.domain.default
+                    )
+
+
+class DomainColumn(Column):
+    def __init__(self, name, default=-1, domain_map={}):
+        # domain_map = {value_in_ref_col: domain_val}
+        # TODO: validate to confirm domain_val as int
+        Column.__init__(self, name, default)
+        self.domain_map = domain_map
 
 
 class AggColumn(Column):
-    def __init__(self, name, agg_method=sum, default=0.0, rename=None):
-        Column.__init__(self, name, default, rename)
+    def __init__(self, name, agg_method=sum, default=0.0, rename=None, domain=None):
+        Column.__init__(self, name, default, rename, domain)
         self.agg_method = agg_method
 
 
 class CollCollection(AggColumn):
-    def __init__(self, name, input_cols, agg_method=sum, default=0.0):
+    def __init__(self, name, input_cols, agg_method=sum, default=0.0, domain=None):
         AggColumn.__init__(self, name, agg_method, default)
         self.input_cols = input_cols
 
@@ -109,10 +142,14 @@ class Consolidation(CollCollection):
 
 class MeltColumn(CollCollection):
     def __init__(self, label_col, val_col, input_cols,
-                 agg_method=sum, default=0.0):
+                 agg_method=sum, default=0.0, domain=None):
         CollCollection.__init__(self, val_col, input_cols, agg_method, default)
         self.label_col = label_col
         self.val_col = val_col
+        self.domain = domain
+    
+    def applyDomain(self, df):
+        super().applyDomain(df, col=self.label_col)
 
 
 class Join(CollCollection):

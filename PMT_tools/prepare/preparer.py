@@ -337,10 +337,6 @@ def process_imperviousness():
 
 def process_osm_networks():
     net_versions = sorted({v[0] for v in NET_BY_YEAR.values()})
-    # TODO: DROP DEBUG PLACEHOLDER default of net_versions
-    # ********
-    net_versions = ["q1_2021"]
-    # ********
     for net_version in net_versions:
         # Import edges
         osm_raw = PMT.makePath(RAW, "OpenStreetMap")
@@ -367,10 +363,17 @@ def process_osm_networks():
                 # Enrich features
                 classifyBikability(edges)
 
+                # Copy bike edges to year geodatabases
+                for year, nv in NET_BY_YEAR.items():
+                    if nv == net_version:
+                        out_path = makePath(CLEANED, "PMT_{year}.gdb", "Networks")
+                        out_name = "edges_bike"
+                        arcpy.FeatureClassToFeatureClass_conversion(
+                            in_features=edges, out_path=out_path, out_name=out_name)
+
             # Build network datasets
             template = makePath(REF, f"osm_{net_type}_template.xml")
             makeNetworkDataset(template, net_type_fd, "osm_ND")
-
 
 def process_bg_estimate_activity_models():
     bg_enrich = makePath(YEAR_GDB_FORMAT, "Enrichment_blockgroups")
@@ -702,7 +705,7 @@ def process_walk_times():
 
 
 def process_ideal_walk_times():
-    targets = ["stn", "parks"]
+    targets = ["stn", "park"]
     for year in YEARS:
         print(year)
         # Key paths
@@ -910,7 +913,7 @@ if __name__ == "__main__":
     # process_parcel_land_use() # Tested by AB 3/3/21
 
     # prepare MAZ and TAZ socioeconomic/demographic data
-    # process_model_se_data()
+    # process_model_se_data() # TODO: AB to test
 
     # NETWORK ANALYSES
     # -----------------------------------------------
@@ -933,15 +936,15 @@ if __name__ == "__main__":
     # process_ideal_walk_times() # Tested by AB 3/2/21
 
     # prepare serpm TAZ-level travel skims
-    # process_model_skims()
+    # process_model_skims() #TODO: AB to test
 
     # DEPENDENT ANALYSIS
     # -----------------------------------------------
     # analyze access by MAZ, TAZ
-    # process_access()
+    # process_access() TODO: AB to test
 
     # prepare TAZ trip length and VMT rates
-    # process_travel_stats() #AB
+    # process_travel_stats() #TODO: AB to write and test
     # TODO: script to calculate rates so year-over-year diffs can be estimated
 
     # only updated when new impervious data are made available
