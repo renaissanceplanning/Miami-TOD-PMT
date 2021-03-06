@@ -68,7 +68,7 @@ if DEBUG:
     changes to the code you might need to handle without munging the existing data
     '''
     from PMT_tools.download.download_helper import validate_directory
-    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
+    ROOT = r'D:\Users\AK7\Documents\PMT'
     RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     DATA = ROOT
@@ -807,6 +807,7 @@ def process_lu_diversity():
     lu_recode_table = makePath(REF, "Land_Use_Recode.csv")
     usecols = [PARCEL_LU_COL, LU_RECODE_FIELD]
     recode_df = pd.read_csv(lu_recode_table, usecols=usecols)
+    print ([f.name for f in arcpy.ListFields(summary_areas_fc)]) #**************
     # Filter recode table
     fltr = np.in1d(recode_df[LU_RECODE_FIELD], DIV_RELEVANT_LAND_USES)
     recode_df = recode_df[fltr].copy()
@@ -823,6 +824,11 @@ def process_lu_diversity():
         par_sa_int = assign_features_to_agg_area(
             parcel_fc, agg_features=summary_areas_fc, in_fields=par_fields, buffer=None, as_df=True)
 
+        # Intersect can alter field name
+        print(par_sa_int.columns)
+        col_rename = {f"{SUMMARY_AREAS_COMMON_KEY}_": SUMMARY_AREAS_COMMON_KEY}
+        par_sa_int.rename(columns=col_rename, inplace=True)
+        print(par_sa_int.columns)
         # Merge generalized land uses
         in_df = par_sa_int.merge(recode_df, how="inner", on=PARCEL_LU_COL)
         # Adjust floor area since sqft are large numbers
@@ -933,9 +939,6 @@ if __name__ == "__main__":
     # prepare MAZ and TAZ socioeconomic/demographic data
     # process_model_se_data() # TODO: AB to test
 
-    # generate contiguity index for all years
-    process_contiguity()
-
     # NETWORK ANALYSES
     # -----------------------------------------------
     # build osm networks from templates
@@ -972,9 +975,10 @@ if __name__ == "__main__":
     # process_imperviousness() # AW
     # TODO: ISGM for year-over-year changes? (low priority)
 
-    # process_lu_diversity() # Tested by AB 3/4/21
+    process_lu_diversity() # Tested by AB 3/4/21
 
-    # process contiguity()
+    # generate contiguity index for all years
+    # process_contiguity()
 
 # TODO: incorporate a project setup script or at minimum a yearly build geodatabase function/logic
 # TODO: handle multi-year data as own function
