@@ -3979,7 +3979,7 @@ def lu_diversity(in_df, groupby_field, lu_field, div_funcs, weight_field=None,
             comp_col = f"{col}_Adj"
             div_df[comp_col] = div_df[col] / reg_df[col][0]
     
-    return div_df
+    return div_df.reset_index()
 
 
 def prep_permits_units_reference(parcels_path, permits_path,
