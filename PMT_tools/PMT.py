@@ -13,7 +13,7 @@ import uuid
 import pandas as pd
 import numpy as np
 
-from simpledbf import Dbf5
+#from simpledbf import Dbf5
 
 import os
 import tempfile
@@ -414,7 +414,8 @@ def dbf_to_df(dbf_file):
     return db.to_dataframe()
 
 
-def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False):
+def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False, 
+                      in_temp_dir=False, full_geometries=False):
     """
         creates a temporary intersected feature class for disaggregation of data
     Args:
@@ -423,29 +424,39 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False):
         disag_fields: [String,...]; list of fields to pass over to intersect function
         as_df: Boolean; if True, returns a data frame (table) of the resulting intersect. Otherwise
             returns the path to a temporary feature class
+        in_temp_dir: Boolean; if True, intersected features are stored in a temp directory, otherwise
+            they are stored in memory
+        full_geometries: Boolean; if True, intersections are run against the complete geometries of
+            features in `disag_fc`, otherwise only centroids are used.
     Returns:
         int_fc: String; path to temp intersected feature class
     """
-    # Create a temporary gdb for storing the intersection result
-    # temp_dir = tempfile.mkdtemp()
-    # arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
-    # int_gdb = makePath(temp_dir, "Intermediates.gdb")
-    # int_gdb = "in_memory"
-    # # Convert disag features to centroids
-    # disag_full_path = arcpy.Describe(disag_fc).catalogPath
-    # disag_ws, disag_name = os.path.split(disag_full_path)
-    # out_fc = makePath(int_gdb, disag_name)
-    int_fc = make_inmem_path()
-    disag_pts = polygonsToPoints(in_fc=disag_fc, out_fc=make_inmem_path(),
-                                 fields=disag_fields, skip_nulls=False, null_value=0)
+    if in_temp_dir:
+        # Create a temporary gdb for storing the intersection result
+        temp_dir = tempfile.mkdtemp()
+        arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
+        out_gdb = makePath(temp_dir, "Intermediates.gdb")
+        # Convert disag features to centroids
+        disag_full_path = arcpy.Describe(disag_fc).catalogPath
+        disag_ws, disag_name = os.path.split(disag_full_path)
+        out_fc = makePath(out_gdb, disag_name)
+        points_fc = makePath(out_gdb, f"{disag_name}_pts")
+    else:
+        out_fc = make_inmem_path()
+        points_fc = make_inmem_path()
+
+    if not full_geometries:
+        # dump to centroids
+        disag_fc = polygonsToPoints(in_fc=disag_fc, out_fc=points_fc,
+                                    fields=disag_fields, skip_nulls=False, null_value=0)
     # Run intersection
-    arcpy.Intersect_analysis(in_features=[summary_fc, disag_pts], out_feature_class=int_fc)
+    arcpy.Intersect_analysis(in_features=[summary_fc, disag_fc], out_feature_class=out_fc)
 
     # return intersect
     if as_df:
-        return featureclass_to_df(int_fc, keep_fields="*")
+        return featureclass_to_df(out_fc, keep_fields="*")
     else:
-        return int_fc
+        return out_fc
 
 
 def jsonToFeatureClass(json_obj, out_file, new_id_field='ROW_ID',

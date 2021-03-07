@@ -9,6 +9,21 @@ import PMT_tools.PMT as PMT
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
 import arcpy
 
+def _add_year_columns(in_gdb, year):
+    print("checking for/adding year columns")
+    old_ws = arcpy.env.workspace
+    arcpy.env.workspace = in_gdb
+    fds = arcpy.ListDatasets()
+    for fd in fds:
+        fcs = arcpy.ListFeatureClasses(feature_dataset=fd)
+        for fc in fcs:
+            arcpy.AddField_management(fc, "Year", "LONG")
+            arcpy.CalculateField_management(fc, "Year", str(year))
+    tables = arcpy.ListTables()
+    for table in tables:
+        arcpy.AddField_management(table, "Year", "LONG")
+        arcpy.CalculateField_management(table, "Year", str(year))
+    arcpy.env.workspace = old_ws
 
 def _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False):
     if not out_gdb_name:
@@ -56,27 +71,40 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
                    join_fields, null_value=0.0, renames={}, drop_dup_cols=False):
     """
     """
+    # If all columns, get their names
     if join_fields == "*":
         join_fields = [f.name for f in arcpy.ListFields(from_table)
                        if not f.required and f.name != from_id_field]
+    # List expected columns based on renames dict
+    expected_fields = [renames.get(jf, jf) for jf in join_fields]
+    # Check if expected outcomes will collide with fields in the table
     if drop_dup_cols:
+        # All relevant fields in table (excluding the field to join by)
         tbl_fields = [f.name for f in arcpy.ListFields(to_table)
                       if f.name != to_id_field]
-        drop_fields = [d for d in join_fields
+        # List of which fields to drop
+        drop_fields = [d for d in expected_fields #join_fields
                        if d in tbl_fields]
+        # If all the fields to join will be dropped, exit
         if len(join_fields) == len(drop_fields):
-            return
-        else:
-            join_fields = [jf for jf in join_fields if jf not in drop_fields]
-    print(f"... {join_fields} to {to_table}")
+            print('... no new fields')
+            return #TODO: what if we want to update these fields?
+        # else:
+        #     join_fields = [jf for jf in join_fields if jf not in drop_fields]
+    # Dump from_table to df
     dump_fields = [from_id_field] + join_fields
     df = pd.DataFrame(
         arcpy.da.TableToNumPyArray(
             from_table, dump_fields, null_value=null_value
         )
     )
+    # Rename columns and drop columns as needed
     if renames:
         df.rename(columns=renames, inplace=True)
+    if drop_fields:
+        df.drop(columns=drop_fields, inplace=True)
+    # Join cols from df to to_table
+    print(f"... {list(df.columns)} to {to_table}")
     PMT.extendTableDf(to_table, to_id_field, df, from_id_field, drop_dup_cols=True)
 
 

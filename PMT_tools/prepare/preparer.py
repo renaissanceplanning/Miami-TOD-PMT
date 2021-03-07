@@ -371,6 +371,9 @@ def process_osm_networks():
                         out_name = "edges_bike"
                         arcpy.FeatureClassToFeatureClass_conversion(
                             in_features=edges, out_path=out_path, out_name=out_name)
+                        out_fc = makePath(out_path, out_name)
+                        arcpy.CalculateField_management(
+                            in_table=out_fc, field="Year", expression=str(year), field_type="LONG")
 
             # Build network datasets
             template = makePath(REF, f"osm_{net_type}_template.xml")
@@ -974,7 +977,7 @@ if __name__ == "__main__":
     # process_imperviousness() # AW
     # TODO: ISGM for year-over-year changes? (low priority)
 
-    process_lu_diversity() # Tested by AB 3/4/21
+    # process_lu_diversity() # Tested by AB 3/4/21
 
     # generate contiguity index for all years
     # process_contiguity()
