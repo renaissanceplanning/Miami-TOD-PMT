@@ -9,23 +9,53 @@ import PMT_tools.PMT as PMT
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
 import arcpy
 
-def _add_year_columns(in_gdb, year):
+def _list_table_paths(gdb, criteria="*"):
+    old_ws = arcpy.env.workspace
+    arcpy.env.workspace = gdb
+    if isinstance(criteria, string_types):
+        criteria = [criteria]
+    # Get tables
+    tables = []
+    for c in criteria:
+        tables += arcpy.ListTables(c)
+    arcpy.env.workspace = old_ws
+    return [PMT.makePath(gdb, table) for table in tables]
+
+def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
+    old_ws = arcpy.env.workspace
+    arcpy.env.workspace = gdb
+    paths = []
+    if isinstance(fds_criteria, string_types):
+        fds_criteria = [fds_criteria]
+    if isinstance(fc_criteria, string_types):
+        fc_criteria = [fc_criteria]
+    # Get feature datasets
+    fds = []
+    for fdc in fds_criteria:
+        fds += arcpy.ListDatasets(fdc)
+    # Get feature classes
+    for fd in fds:
+        for fc_crit in fc_criteria:
+            fcs = arcpy.ListFeatureClasses(feature_dataset=fd, wild_card=fc_crit)
+            paths += [PMT.makePath(gdb, fd, fc) for fc in fcs]
+    arcpy.env.workspace = old_ws
+    return paths
+
+def add_year_columns(in_gdb, year):
     print("checking for/adding year columns")
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = in_gdb
-    fds = arcpy.ListDatasets()
-    for fd in fds:
-        fcs = arcpy.ListFeatureClasses(feature_dataset=fd)
-        for fc in fcs:
-            arcpy.AddField_management(fc, "Year", "LONG")
-            arcpy.CalculateField_management(fc, "Year", str(year))
-    tables = arcpy.ListTables()
+    fcs = _list_fc_paths(in_gdb)
+    tables = _list_table_paths(in_gdb)
+    for fc in fcs:
+        arcpy.AddField_management(fc, "Year", "LONG")
+        arcpy.CalculateField_management(fc, "Year", str(year))
     for table in tables:
         arcpy.AddField_management(table, "Year", "LONG")
         arcpy.CalculateField_management(table, "Year", str(year))
     arcpy.env.workspace = old_ws
 
-def _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False):
+def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
     if not out_gdb_name:
         out_gdb_name = f"_{uuid.uuid4().hex}.gdb"
         out_gdb = PMT.makePath(out_path, out_gdb_name)
@@ -34,8 +64,12 @@ def _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False
         PMT.checkOverwriteOutput(output=out_gdb, overwrite=overwrite)
     else:
         out_gdb = PMT.makePath(out_path, out_gdb_name)
-    # copy in the geometry data containing minimal tabular data
     arcpy.CreateFileGDB_management(out_path, out_gdb_name)
+    return out_gdb
+
+def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False):
+    out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
+    # copy in the geometry data containing minimal tabular data
     for fds in ["Networks", "Points", "Polygons"]:
         print(f"... copying FDS {fds}")
         source_fd = PMT.makePath(in_gdb, fds)
@@ -43,6 +77,13 @@ def _make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False
         arcpy.Copy_management(source_fd, out_fd)
     return out_gdb
 
+def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
+    out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
+    for fds in ["Networks", "Points", "Polygons"]:
+        arcpy.CreateFeatureDataset_management(
+            out_dataset_path=out_gdb, out_name=fds,
+            spatial_reference=PMT.SR_FL_SPF)
+    return out_gdb
 
 def _validateAggSpecs(var, expected_type):
     e_type = expected_type.__name__
@@ -241,3 +282,32 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=No
     df.reset_index(inplace=True)
     # Melt
     return df.melt(id_vars=id_field)
+
+
+def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
+    """
+    this_table minus base_table
+    """
+    # Fetch data frames
+    this_df = PMT.featureclass_to_df(this_table, keep_fields=fields, **kwargs)
+    base_df = PMT.featureclass_to_df(base_table, keep_fields=fields, **kwargs)
+    # Set index columns
+    base_df.set_index(idx_cols, inplace=True)
+    this_df.set_index(idx_cols, inplace=True)
+    this_df = this_df.reindex(base_df.index, fill_value=0) # is this necessary?
+    # Drop all remaining non-numeric columns
+    base_df_n = base_df.select_dtypes(["number"])
+    this_df_n = this_df.select_dtypes(["number"])
+    # Take difference
+    diff_df = this_df_n - base_df_n
+    # Restore index columns
+    diff_df.reset_index(inplace=True)
+
+    return diff_df
+
+
+def finalize_output(temp_gdb, final_gdb):
+    if arcpy.Exists(final_gdb):
+        arcpy.Delete_management(final_gdb)
+    arcpy.Copy_management(in_data=temp_gdb, out_data=final_gdb)
+    arcpy.Delete_management(temp_gdb)

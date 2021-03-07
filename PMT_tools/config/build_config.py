@@ -555,3 +555,81 @@ PRECALCS = [DIRECT_IDX, TV_SF, JV_SF, LV_SF, IS_IN_15, BIKE_FAC, BIKE_MILES]
 CALCS = [RES_DENS, NRES_DENS, FAR_DENS, JH_RATIO, GRID_DENS, NA_MODE_SHARE,
          ACCESS_IN30, ACCESS_IN30_MAZ, NM_JH_BAL, PROP_IN15
          ]
+
+
+## TREND PARAMS
+STD_IDX_COLS = [pconfig.SUMMARY_AREAS_COMMON_KEY, "Name", "Corridor"]
+ACC_IDX_COLS = ["Activity", "TimeBin"]
+AUTO_ACC_DIFF = {
+    "table": "ActivityByTime_Auto",
+    "index_cols": STD_IDX_COLS + ACC_IDX_COLS
+}
+TRAN_ACC_DIFF = {
+    "table": "ActivityByTime_Transit",
+    "index_cols": STD_IDX_COLS + ACC_IDX_COLS
+}
+BIKE_ACC_DIFF = {
+    "table": "ActivityByTime_Bike",
+    "index_cols": STD_IDX_COLS + ACC_IDX_COLS
+}
+WALK_ACC_DIFF = {
+    "table": "ActivityByTime_Walk",
+    "index_cols": STD_IDX_COLS + ACC_IDX_COLS
+}
+DEV_STATUS_DIFF = {
+    "table": "AreaByDevStatus",
+    "index_cols": STD_IDX_COLS + ["DevStatus", "DEV_ST_DOM"]
+}
+ATTR_LU_DIFF = {
+    "table": "AttrByLU",
+    "index_cols": STD_IDX_COLS + ["GN_VA_LU", "LU_CAT_DOM"]
+}
+BIKE_FAC_DIFF = {
+    "table": "BikeFacilityMilesByTier",
+    "index_cols": STD_IDX_COLS + ["Bike_Fac"]
+}
+COMMUTE_DIFF = {
+    "table": "CommutesByMode",
+    "index_cols": STD_IDX_COLS + ["CommMode"]
+}
+JOBS_DIFF = {
+    "table": "JobsBySector",
+    "index_cols": STD_IDX_COLS + ["Sector"]
+}
+WALK_PARK_DIFF = {
+    "table": "WalkTimeToParks",
+    "index_cols": STD_IDX_COLS + ["bin_park_walk", "WALK_DOM"]
+}
+WALK_STN_DIFF = {
+    "table": "WalkTimeToStations",
+    "index_cols": STD_IDX_COLS + ["GN_VA_LU", "bin_stn_walk", "LU_CAT_DOM", "WALK_DOM"]
+}
+DIFF_TABLES = [AUTO_ACC_DIFF, TRAN_ACC_DIFF, BIKE_ACC_DIFF, WALK_ACC_DIFF,
+                DEV_STATUS_DIFF, ATTR_LU_DIFF, COMMUTE_DIFF, JOBS_DIFF,
+                WALK_PARK_DIFF, WALK_STN_DIFF]
+
+# Feature diffs
+SUM_AREA_DIFF = {
+    "table": SUM_AREA_FC_SPECS,
+    "index_cols": STD_IDX_COLS
+}
+BLOCK_DIFF = {
+    "table": BLOCK_FC_SPECS,
+    "index_cols": BLOCK_FC_SPECS[1]
+}
+MAZ_DIFF ={
+    "table": MAZ_FC_SPECS,
+    "index_cols": pconfig.MAZ_COMMON_KEY
+}
+TAZ_DIFF ={
+    "table": TAZ_FC_SPECS,
+    "index_cols": pconfig.TAZ_COMMON_KEY
+}
+DIFF_FEATURES = [SUM_AREA_DIFF, BLOCK_DIFF, MAZ_DIFF, TAZ_DIFF]
+
+# Long features
+SUM_AREA_LONG ={
+    "table": SUM_AREA_FC_SPECS,
+    "index_cols": STD_IDX_COLS
+}
+LONG_FEATURES = [SUM_AREA_LONG]
