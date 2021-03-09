@@ -21,19 +21,15 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
     ```
     activate pmt_tools
     ```
-5) _Update python to ensure its in sync with the arcgis pro need_
-    ```
-    conda update python
-    ```
-6) _Install conda packages using **conda-forge** channel_
+5) _Install conda packages using **conda-forge** channel_
     ```
     conda install -c conda-forge momepy osmnx sphinx dask
     * enter 'y/yes' and return when asked
     * spyder is optional if you want to install a Data Science focused IDE
     ```
-7) _Install pip packages_
+6) _Install pip packages_
     ```
-    pip install esridump censusdata
+    pip install esridump censusdata simpledbf
     ```
 
 #### _WARNING_
