@@ -2979,7 +2979,8 @@ def contiguity_index(quadrats_fc, parcels_fc, buildings_fc, parcels_id_field,
                                                    select_features=geom)
             arcpy.CalculateField_management(in_table=p_layer, field="ChunkID", expression=chunk_id)
             chunks.append(chunk_id)
-    # difference parcels and buildings
+    # difference parcels and buildings/water bodies/protected areas
+    # TODO: add water bodies and protected areas (ie merge builidngs, water, protected areas)
     logger.log_msg("--- --- differencing parcels and buildings")
     difference_fc = symmetric_difference(in_fc=parcels_copy, diff_fc=buildings_fc, out_fc_name="difference")
 
