@@ -399,9 +399,9 @@ PARCEL_COLS = {
         'STATE_PAR_': 'STATE_PARCEL_ID'
     }
 }
-PARCEL_LU_COL = "DOR_UC"
+LAND_USE_COMMON_KEY = "DOR_UC"
 PARCEL_AREA_COL = "LND_SQFOOT"
-PARCEL_BLD_AREA = "TOT_LVG_AREA"
+PARCEL_BLD_AREA_COL = "TOT_LVG_AREA"
 PARCEL_LU_AREAS = {  # COL_NAME: (which_field, criteria)
     "VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
     "RES_AREA": ["RES_NRES", "RES"],

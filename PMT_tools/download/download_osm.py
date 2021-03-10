@@ -24,23 +24,19 @@
     networks in python. The networks are pickled as networkx graphs.
 """
 import os
-
-import osmnx as ox
-ox.config()
-import geopandas as gpd
-
+from six import string_types
 from datetime import datetime
 import pickle
 
-from six import string_types
+import geopandas as gpd
+import osmnx as ox
 
-from PMT_tools.download.download_helper import validate_directory
-from PMT_tools.PMT import EPSG_LL, EPSG_FLSPF, EPSG_WEB_MERC
-from PMT_tools.PMT import multipolygonToPolygon, makePath
+from PMT_tools.PMT import makePath, validate_directory
 
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
-
+EPSG_LL = 4326
+EPSG_FLSPF = 2881
 
 def validate_bbox(bbox):
     """

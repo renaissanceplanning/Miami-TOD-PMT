@@ -4,22 +4,15 @@ preparation scripts used set up cleaned geodatabases
 import os, sys
 
 sys.path.insert(0, os.getcwd())
-# TODO: move these functions to a general helper file as they apply more broadly
-from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 # config global variables
-from PMT_tools.config.prepare_config import IN_CRS, OUT_CRS
-from PMT_tools.config.prepare_config import (BASIC_STATIONS, STN_NAME_FIELD, STN_BUFF_DIST, STN_BUFF_METERS,
-                                             STN_DISS_FIELDS, STN_CORRIDOR_FIELDS)
-from PMT_tools.config.prepare_config import BASIC_ALIGNMENTS, ALIGN_BUFF_DIST, ALIGN_DISS_FIELDS, CORRIDOR_NAME_FIELD
-from PMT_tools.config.prepare_config import (BASIC_STN_AREAS, BASIC_CORRIDORS, BASIC_LONG_STN,
-                                             BASIC_SUM_AREAS, BASIC_RENAME_DICT, STN_LONG_CORRIDOR,
-                                             SUMMARY_AREAS_COMMON_KEY)
-from PMT_tools.config.prepare_config import (CRASH_FIELDS_DICT, USE_CRASH)
+import PMT_tools.config.prepare_config as prep_conf
+
 from PMT_tools.config.prepare_config import TRANSIT_RIDERSHIP_TABLES, TRANSIT_FIELDS_DICT, TRANSIT_LONG, TRANSIT_LAT
 from PMT_tools.config.prepare_config import LODES_YEARS, ACS_YEARS
 from PMT_tools.config.prepare_config import (PARCEL_COMMON_KEY, PARCEL_DOR_KEY, PARCEL_NAL_KEY, PARCEL_COLS,
-                                             PARCEL_USE_COLS, PARCEL_AREA_COL, PARCEL_LU_AREAS, PARCEL_BLD_AREA)
-from PMT_tools.config.prepare_config import BG_COMMON_KEY, ACS_COMMON_KEY, LODES_COMMON_KEY, MAZ_COMMON_KEY, TAZ_COMMON_KEY
+                                             PARCEL_USE_COLS, PARCEL_AREA_COL, PARCEL_LU_AREAS, PARCEL_BLD_AREA_COL)
+from PMT_tools.config.prepare_config import BG_COMMON_KEY, ACS_COMMON_KEY, LODES_COMMON_KEY, MAZ_COMMON_KEY, \
+    TAZ_COMMON_KEY
 from PMT_tools.config.prepare_config import (BG_PAR_SUM_FIELDS, ACS_RACE_FIELDS, ACS_COMMUTE_FIELDS, LODES_FIELDS,
                                              LODES_CRITERIA)
 from PMT_tools.config.prepare_config import SKIM_O_FIELD, SKIM_D_FIELD, SKIM_IMP_FIELD, SKIM_DTYPES, SKIM_RENAMES
@@ -41,7 +34,7 @@ from PMT_tools.config.prepare_config import (PERMITS_PATH, PERMITS_REF_TABLE_PAT
 from PMT_tools.config.prepare_config import (PERMITS_VALUES_FIELD, PERMITS_UNITS_FIELD, PERMITS_BLD_AREA_NAME,
                                              PERMITS_ID_FIELD, PERMITS_LU_FIELD, PERMITS_VALUES_FIELD,
                                              PERMITS_COST_FIELD)
-from PMT_tools.config.prepare_config import PARCEL_LAND_VALUE, PARCEL_JUST_VALUE, PARCEL_BUILDINGS, PARCEL_LU_COL
+from PMT_tools.config.prepare_config import PARCEL_LAND_VALUE, PARCEL_JUST_VALUE, PARCEL_BUILDINGS, LAND_USE_COMMON_KEY
 
 # prep/clean helper functions
 from PMT_tools.prepare.prepare_helpers import *
@@ -67,10 +60,9 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    from PMT_tools.download.download_helper import validate_directory
-    ROOT = r'D:\Users\AK7\Documents\PMT'
-    RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
+    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data'
+    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
+    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     DATA = ROOT
     BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
     REF = PMT.makePath(ROOT, "Reference")
@@ -80,12 +72,11 @@ if DEBUG:
 
 
 def process_normalized_geometries(overwrite=True):
-    ''' Census Data and TAZ/MAZ
+    """ Census Data and TAZ/MAZ
         - these are geometries that only consist of a dataset key
         - copies census block groups and blocks into yearly GDB, subsets to county and tags with year
         - copied TAZ and MAZ into yearly GDB, subsets to county and tags with year
-
-    '''
+    """
     # RAW
     raw_block = makePath(RAW, "CENSUS", "tl_2019_12_tabblock10", "tl_2019_12_tabblock10.shp")
     raw_block_groups = makePath(RAW, "CENSUS", "tl_2019_12_bg", "tl_2019_12_bg.shp")
@@ -102,7 +93,7 @@ def process_normalized_geometries(overwrite=True):
                                       [blocks, block_groups, TAZ, MAZ],
                                       ["GEOID10", "GEOID", TAZ, MAZ]):
             temp_file = make_inmem_path()
-            out_path = validate_feature_dataset(makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF)
+            out_path = PMT.validate_feature_dataset(makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF)
             logger.log_msg(f"--- building normalized {cleaned} in {out_path}")
             out_data = makePath(out_path, cleaned)
             prep_feature_class(in_fc=raw, geom="POLYGON", out_fc=temp_file, use_cols=cols, rename_dict=None)
@@ -122,17 +113,18 @@ def process_normalized_geometries(overwrite=True):
 def process_basic_features():
     # TODO: add check for existing basic features, and compare for changes
     print("Making basic features")
-    makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=BASIC_STATIONS, stn_diss_fields=STN_DISS_FIELDS,
-                      stn_corridor_fields=STN_CORRIDOR_FIELDS, alignments_fc=BASIC_ALIGNMENTS,
-                      align_diss_fields=ALIGN_DISS_FIELDS, stn_buff_dist=STN_BUFF_DIST,
-                      align_buff_dist=ALIGN_BUFF_DIST, stn_areas_fc=BASIC_STN_AREAS,
-                      corridors_fc=BASIC_CORRIDORS, long_stn_fc=BASIC_LONG_STN,
-                      rename_dict=BASIC_RENAME_DICT, overwrite=True)
+    makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS,
+                      stn_diss_fields=prep_conf.STN_DISS_FIELDS, stn_corridor_fields=prep_conf.STN_CORRIDOR_FIELDS,
+                      alignments_fc=prep_conf.BASIC_ALIGNMENTS, align_diss_fields=prep_conf.ALIGN_DISS_FIELDS,
+                      stn_buff_dist=prep_conf.STN_BUFF_DIST, align_buff_dist=prep_conf.ALIGN_BUFF_DIST,
+                      stn_areas_fc=prep_conf.BASIC_STN_AREAS, corridors_fc=prep_conf.BASIC_CORRIDORS, long_stn_fc=prep_conf.BASIC_LONG_STN,
+                      rename_dict=prep_conf.BASIC_RENAME_DICT, overwrite=True)
 
     print("Making summarization features")
-    makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=BASIC_LONG_STN, corridors_fc=BASIC_CORRIDORS,
-                        cor_name_field=CORRIDOR_NAME_FIELD, out_fc=BASIC_SUM_AREAS, stn_buffer_meters=STN_BUFF_METERS,
-                        stn_name_field=STN_NAME_FIELD, stn_cor_field=STN_LONG_CORRIDOR, overwrite=True)
+    makeSummaryFeatures(bf_gdb=prep_conf.BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN, corridors_fc=prep_conf.BASIC_CORRIDORS,
+                        cor_name_field=prep_conf.CORRIDOR_NAME_FIELD, out_fc=prep_conf.BASIC_SUM_AREAS,
+                        stn_buffer_meters=prep_conf.STN_BUFF_METERS, stn_name_field=prep_conf.STN_NAME_FIELD,
+                        stn_cor_field=prep_conf.STN_LONG_CORRIDOR, overwrite=True)
 
 
 def process_parks(overwrite=True):
@@ -161,11 +153,11 @@ def process_crashes():
     all_features = geojson_to_feature_class_arc(geojson_path=crash_json, geom_type='POINT')
     arcpy.FeatureClassToFeatureClass_conversion(all_features, RAW, "DELETE_crashes.shp")
     # reformat attributes and keep only useful
-    clean_and_drop(feature_class=all_features, use_cols=USE_CRASH, rename_dict=CRASH_FIELDS_DICT)
+    clean_and_drop(feature_class=all_features, use_cols=prep_conf.USE_CRASH, rename_dict=prep_conf.CRASH_FIELDS_DICT)
     for year in YEARS:
         # use year variable to setup outputs
-        out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
-        FDS = validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
+        out_gdb = PMT.validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
+        FDS = PMT.validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
         out_name = 'BikePedCrashes'
         year_wc = f'"YEAR" = {year}'
         # clean and format crash data
@@ -178,10 +170,10 @@ def process_permits(overwrite=True):
     ''' permits '''
     permit_csv = makePath(RAW, "BUILDING_PERMITS", "Road Impact Fee Collection Report -- 2019.csv")
 
-    out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_2019.gdb"))
-    in_fds = validate_feature_dataset(fds_path=makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
+    out_gdb = PMT.validate_geodatabase(os.path.join(CLEANED, f"PMT_2019.gdb"))
+    in_fds = PMT.validate_feature_dataset(fds_path=makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
     parcels = makePath(in_fds, "Parcels")
-    out_fds = validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
+    out_fds = PMT.validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
     permits_out = makePath(out_fds, "BuildingPermits")
     if overwrite:
         checkOverwriteOutput(output=permits_out, overwrite=overwrite)
@@ -205,21 +197,21 @@ def process_transit(overwrite=True):
         - converts a list of ridership files to points with attributes cleaned
         - NOTE: transit folder reflects current location, needs update to reflect cleaner structure
     '''
-    transit_folder = validate_directory(makePath(RAW, "TRANSIT", "TransitRidership_byStop"))
-    transit_shape_fields = [TRANSIT_LONG, TRANSIT_LAT]
+    transit_folder = PMT.validate_directory(makePath(RAW, "TRANSIT", "TransitRidership_byStop"))
+    transit_shape_fields = [prep_conf.TRANSIT_LONG, prep_conf.TRANSIT_LAT]
     print("PROCESSING TRANSIT RIDERSHIP... ")
     for year in YEARS:
         print(f"--- cleaning ridership for {year}")
-        out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
-        FDS = validate_feature_dataset(fds_path=makePath(out_gdb, "Points"), sr=SR_FL_SPF)
+        out_gdb = PMT.validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
+        FDS = PMT.validate_feature_dataset(fds_path=makePath(out_gdb, "Points"), sr=SR_FL_SPF)
         out_name = 'TransitRidership'
-        transit_xls_file = makePath(transit_folder, TRANSIT_RIDERSHIP_TABLES[year])
+        transit_xls_file = makePath(transit_folder, prep_conf.TRANSIT_RIDERSHIP_TABLES[year])
         transit_out_path = makePath(FDS, out_name)
         if overwrite:
             checkOverwriteOutput(output=transit_out_path, overwrite=overwrite)
-        prep_transit_ridership(in_table=transit_xls_file, rename_dict=TRANSIT_FIELDS_DICT,
-                               shape_fields=transit_shape_fields, from_sr=IN_CRS,
-                               to_sr=OUT_CRS, out_fc=transit_out_path)
+        prep_transit_ridership(in_table=transit_xls_file, rename_dict=prep_conf.TRANSIT_FIELDS_DICT,
+                               shape_fields=transit_shape_fields, from_sr=prep_conf.IN_CRS,
+                               to_sr=prep_conf.OUT_CRS, out_fc=transit_out_path)
         print(f"--- ridership cleaned for {year} and located in {transit_out_path}")
 
 
@@ -228,8 +220,8 @@ def process_parcels(overwrite=True):
     parcel_folder = makePath(RAW, "Parcels")
     for year in YEARS:
         print(f"Setting up parcels for {year}")
-        out_gdb = validate_geodatabase(makePath(CLEANED, f"PMT_{year}.gdb"))
-        out_fds = validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
+        out_gdb = PMT.validate_geodatabase(makePath(CLEANED, f"PMT_{year}.gdb"))
+        out_fds = PMT.validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
         # source data
         in_fc = makePath(parcel_folder, f"Miami_{year}.shp")
         in_csv = makePath(parcel_folder, f"NAL_{year}_23Dade_F.csv")
@@ -266,7 +258,7 @@ def enrich_block_groups():
         # Enrich BGs with parcel data
         bg_df = enrich_bg_with_parcels(bg_fc=bg_fc, bg_id_field=BG_COMMON_KEY,
                                        parcels_fc=parcels_fc, par_id_field=PARCEL_COMMON_KEY,
-                                       par_lu_field=PARCEL_LU_COL, par_bld_area=PARCEL_BLD_AREA,
+                                       par_lu_field=LAND_USE_COMMON_KEY, par_bld_area=PARCEL_BLD_AREA_COL,
                                        sum_crit=LODES_CRITERIA, par_sum_fields=BG_PAR_SUM_FIELDS)
         # Save enriched data
         dfToTable(bg_df, out_tbl, overwrite=True)
@@ -319,7 +311,7 @@ def process_parcel_land_use():
 def process_imperviousness():
     impervious_download = makePath(RAW, "Imperviousness.zip")
     county_boundary = makePath(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures", "MiamiDadeCountyBoundary")
-    out_dir = validate_directory(makePath(CLEANED, "IMPERVIOUS"))
+    out_dir = PMT.validate_directory(makePath(CLEANED, "IMPERVIOUS"))
     impv_raster = prep_imperviousness(zip_path=impervious_download, clip_path=county_boundary, out_dir=out_dir,
                                       transform_crs=EPSG_FLSPF)
     for year in YEARS:
@@ -344,16 +336,16 @@ def process_osm_networks():
         for net_type in ["bike", "walk"]:
             net_type_version = f"{net_type}_{net_version}"
             # Make output geodatabase
-            clean_gdb = validate_geodatabase(
+            clean_gdb = PMT.validate_geodatabase(
                 makePath(NETS_DIR, f"{net_type_version}.gdb"),
                 overwrite=True
-                )
+            )
             # make output feature dataset
-            net_type_fd = validate_feature_dataset(
+            net_type_fd = PMT.validate_feature_dataset(
                 makePath(clean_gdb, "osm"),
-                sr=OUT_CRS,
+                sr=prep_conf.OUT_CRS,
                 overwrite=True
-                )
+            )
 
             # import edges
             net_raw = PMT.makePath(osm_raw, net_type_version, "edges.shp")
@@ -378,6 +370,7 @@ def process_osm_networks():
             # Build network datasets
             template = makePath(REF, f"osm_{net_type}_template.xml")
             makeNetworkDataset(template, net_type_fd, "osm_ND")
+
 
 def process_bg_estimate_activity_models():
     bg_enrich = makePath(YEAR_GDB_FORMAT, "Enrichment_blockgroups")
@@ -483,8 +476,8 @@ def process_model_se_data():
     # Summarize parcel data to MAZ
     for year in YEARS:
         # Set output
-        out_gdb = validate_geodatabase(makePath(CLEANED, f"PMT_{year}.gdb"))
-        out_fds = validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
+        out_gdb = PMT.validate_geodatabase(makePath(CLEANED, f"PMT_{year}.gdb"))
+        out_fds = PMT.validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
         out_fc = makePath(out_fds, "MAZ")
         maz_se_data = makePath(RAW, "SERPM", "V7", "maz_data.csv")  # TODO: standardize SERPM pathing
         # Summarize parcels to MAZ
@@ -557,7 +550,7 @@ def process_osm_service_areas():
     # For each analysis year, analyze networks (avoid redundant solves)
     solved = []
     solved_years = []
-    modes = ["walk"] #["walk", "bike"]
+    modes = ["walk"]  # ["walk", "bike"]
     dest_grp = ["stn", "parks"]
     runs = ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]
     expected_fcs = [f"{mode}_to_{dg}_{run}"
@@ -567,7 +560,7 @@ def process_osm_service_areas():
                     ]
     for year in YEARS:
         out_fds_path = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
-        out_fds = validate_feature_dataset(out_fds_path, SR_FL_SPF, overwrite=False)
+        out_fds = PMT.validate_feature_dataset(out_fds_path, SR_FL_SPF, overwrite=False)
         # Network setup
         net_suffix = NET_BY_YEAR[year][0]
         if net_suffix in solved:
@@ -618,7 +611,7 @@ def process_centrality():
     for year in YEARS:
         net_suffix = NET_BY_YEAR[year][0]
         out_fds_path = makePath(CLEANED, f"PMT_{year}.gdb", "Networks")
-        out_fds = validate_feature_dataset(out_fds_path, SR_FL_SPF, overwrite=False)
+        out_fds = PMT.validate_feature_dataset(out_fds_path, SR_FL_SPF, overwrite=False)
         out_fc_name = "nodes_bike"
         out_fc = makePath(out_fds, out_fc_name)
         checkOverwriteOutput(out_fc, overwrite=True)
@@ -808,9 +801,9 @@ def process_contiguity(overwrite=True):
 def process_lu_diversity():
     summary_areas_fc = makePath(BASIC_FEATURES, "SummaryAreas")
     lu_recode_table = makePath(REF, "Land_Use_Recode.csv")
-    usecols = [PARCEL_LU_COL, LU_RECODE_FIELD]
+    usecols = [LAND_USE_COMMON_KEY, LU_RECODE_FIELD]
     recode_df = pd.read_csv(lu_recode_table, usecols=usecols)
-    
+
     # Filter recode table
     fltr = np.in1d(recode_df[LU_RECODE_FIELD], DIV_RELEVANT_LAND_USES)
     recode_df = recode_df[fltr].copy()
@@ -820,21 +813,21 @@ def process_lu_diversity():
         gdb = makePath(CLEANED, f"PMT_{year}.gdb")
         parcel_fc = makePath(gdb, "Polygons", "Parcels")
         out_fc = makePath(gdb, "Diversity_summaryareas")
-        
+
         # Intersect parcels and summary areas
         print(" - intersecting parcels with summary areas")
-        par_fields = [PARCEL_COMMON_KEY, PARCEL_LU_COL, PARCEL_BLD_AREA]
+        par_fields = [PARCEL_COMMON_KEY, LAND_USE_COMMON_KEY, PARCEL_BLD_AREA_COL]
         par_sa_int = assign_features_to_agg_area(
             parcel_fc, agg_features=summary_areas_fc, in_fields=par_fields, buffer=None, as_df=True)
 
         # Intersect can alter field name
-        col_rename = {f"{SUMMARY_AREAS_COMMON_KEY}_": SUMMARY_AREAS_COMMON_KEY}
+        col_rename = {f"{prep_conf.SUMMARY_AREAS_COMMON_KEY}_": prep_conf.SUMMARY_AREAS_COMMON_KEY}
         par_sa_int.rename(columns=col_rename, inplace=True)
 
         # Merge generalized land uses
-        in_df = par_sa_int.merge(recode_df, how="inner", on=PARCEL_LU_COL)
+        in_df = par_sa_int.merge(recode_df, how="inner", on=LAND_USE_COMMON_KEY)
         # Adjust floor area since sqft are large numbers
-        in_df[PARCEL_BLD_AREA] /= 1000
+        in_df[PARCEL_BLD_AREA_COL] /= 1000
 
         # Calculate div indices
         print(" - calculating diversity indices")
@@ -843,11 +836,11 @@ def process_lu_diversity():
             shannon_diversity,
             berger_parker_diversity,
             enp_diversity,
-            #chi_squared_diversity
+            # chi_squared_diversity
         ]
-        count_lu=len(DIV_RELEVANT_LAND_USES)
-        div_df = lu_diversity(in_df, SUMMARY_AREAS_COMMON_KEY, LU_RECODE_FIELD,
-                              div_funcs, weight_field=PARCEL_BLD_AREA,
+        count_lu = len(DIV_RELEVANT_LAND_USES)
+        div_df = lu_diversity(in_df, prep_conf.SUMMARY_AREAS_COMMON_KEY, LU_RECODE_FIELD,
+                              div_funcs, weight_field=PARCEL_BLD_AREA_COL,
                               count_lu=count_lu, regional_comp=True)
 
         # Export results
@@ -855,37 +848,19 @@ def process_lu_diversity():
         dfToTable(div_df, out_fc, overwrite=True)
 
 
-
-
-def process_permits_units_reference():
-    parcels = makePath(YEAR_GDB_FORMAT.replace("YEAR", str(max(YEARS))), "Polygons", "Parcels")
-    permits = makePath(YEAR_GDB_FORMAT.replace("YEAR", str(max(YEARS))), "Points", "BuildingPermits")
-    purt = prep_permits_units_reference(parcels_path=parcels, permits_path=permits,
-                                        lu_match_field=PARCEL_LU_COL,
-                                        parcels_living_area_field=PARCEL_BLD_AREA,
-                                        permits_units_field=PERMITS_UNITS_FIELD,
-                                        permits_living_area_name=PERMITS_BLD_AREA_NAME,
-                                        units_match_dict=PARCEL_REF_TABLE_UNITS_MATCH)
-    save_to = makePath(REF, "permits_units_reference_table.csv")
-    purt.to_csv(save_to)
-    # dfToTable(df=purt, out_table=save_to, overwrite=True)
-
-
 def process_short_term_parcels():
     parcels = makePath(YEAR_GDB_FORMAT.replace("YEAR", str(max(YEARS))), "Polygons", "Parcels")
     permits = makePath(YEAR_GDB_FORMAT.replace("YEAR", str(max(YEARS))), "Points", "BuildingPermits")
     # TODO: needs a permenant solution for this temporary dataset
-    # TODO: assess whether this needs to be done in builder.py
-    save_gdb = validate_geodatabase(makePath(ROOT, CLEANED, "near_term_parcels.gdb"))
-    permits_ref_df = prep_permits_units_reference(parcels_path=parcels, permits_path=permits,
-                                                  lu_match_field=PARCEL_LU_COL,
-                                                  parcels_living_area_field=PARCEL_BLD_AREA,
-                                                  permits_units_field=PERMITS_UNITS_FIELD,
-                                                  permits_living_area_name=PERMITS_BLD_AREA_NAME,
+    save_gdb = PMT.validate_geodatabase(makePath(ROOT, CLEANED, "near_term_parcels.gdb"))
+    permits_ref_df = prep_permits_units_reference(parcels=parcels, permits=permits, lu_key=LAND_USE_COMMON_KEY,
+                                                  parcels_living_area_key=PARCEL_BLD_AREA_COL,
+                                                  permit_value_key=PERMITS_UNITS_FIELD,
+                                                  permits_units_name=PERMITS_BLD_AREA_NAME,
                                                   units_match_dict=PARCEL_REF_TABLE_UNITS_MATCH)
     build_short_term_parcels(parcels_path=parcels, permits_path=permits,
                              permits_ref_df=permits_ref_df, parcels_id_field=PARCEL_COMMON_KEY,
-                             parcels_lu_field=PARCEL_LU_COL, parcels_living_area_field=PARCEL_BLD_AREA,
+                             parcels_lu_field=LAND_USE_COMMON_KEY, parcels_living_area_field=PARCEL_BLD_AREA_COL,
                              parcels_land_value_field=PARCEL_LAND_VALUE, parcels_total_value_field=PARCEL_JUST_VALUE,
                              parcels_buildings_field=PARCEL_BUILDINGS, permits_id_field=PERMITS_ID_FIELD,
                              permits_lu_field=PERMITS_LU_FIELD, permits_units_field=PERMITS_UNITS_FIELD,
@@ -904,13 +879,20 @@ if __name__ == "__main__":
 
     # setup any basic normalized geometries
     # process_normalized_geometries()  # TESTED # TODO: standardize column names
-        # TODO: ensure SummaryAreas get copied in also
+    # TODO: ensure SummaryAreas get copied in also
 
+
+    # cleans and geocodes permits to associated parcels
+    # process_permits() # TESTED CR 03/01/21 #TODO: add prep_permits_units_reference to this procedure
     # copies downloaded parcel data and only minimally necessary attributes into yearly gdb
     # process_parcels() # TESTED
 
-    # cleans and geocodes permits to associated parcels
-    # process_permits() # TESTED CR 03/01/21
+
+
+    # Updates parcels based on permits for near term analysis
+    # process_short_term_parcels()  # TESTED 3/1/21 #TODO: needs to be broken down into smaller functions
+
+
 
     # merges park data into a single point featureset and polygon feartureset
     # process_parks() # TESTED 02/26/21 CR
@@ -923,9 +905,7 @@ if __name__ == "__main__":
 
     # ENRICH DATA
     # -----------------------------------------------
-    # Updates parcels based on permits for near term analysis
-    # process_permits_units_reference() # deprecated, the output df is now just part of the following process
-    # process_short_term_parcels() # TESTED 3/1/21 # TODO: needs to be broken down into smaller functions
+
 
     # prepare near term parcels
     # enrich_block_groups() # TESTED CR 03/01/21
