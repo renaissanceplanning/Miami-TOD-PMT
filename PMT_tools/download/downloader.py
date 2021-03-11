@@ -23,7 +23,7 @@ import PMT_tools.PMT as PMT
 from PMT_tools.PMT import (RAW, YEARS)
 
 # specialized modules
-from esridump.dumper import EsriDumper  # DEPRECATED usage given BikePed crash data unused
+# from esridump.dumper import EsriDumper  # DEPRECATED usage given BikePed crash data unused
 
 
 DEBUG = True

@@ -418,16 +418,13 @@ def validate_geodatabase(gdb_path, overwrite=False):
 
 
 def validate_feature_dataset(fds_path, sr, overwrite=False):
-    """
-    validate that a feature dataset exists and is the correct sr, otherwise create it and return the path
-    Parameters
-    ----------
-    fds_path: String; path to existing or desired feature dataset
-    sr: arcpy.SpatialReference object
-
-    Returns
-    -------
-    fds_path: String; path to existing or newly created feature dataset
+    """validate that a feature dataset exists and is the correct sr,
+        otherwise create it and return the path
+    Args:
+        fds_path (str): String; path to existing or desired feature dataset
+        sr (spatial reference): arcpy.SpatialReference object
+    Returns:
+        fds_path (str): String; path to existing or newly created feature dataset
     """
     try:
         # verify the path is through a geodatabase

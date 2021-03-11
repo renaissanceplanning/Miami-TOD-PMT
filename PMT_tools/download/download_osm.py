@@ -37,6 +37,7 @@ from PMT_tools.PMT import makePath, validate_directory
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
 EPSG_LL = 4326
 EPSG_FLSPF = 2881
+EPSG_WEB_MERC = 3857
 
 def validate_bbox(bbox):
     """
@@ -161,12 +162,14 @@ def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
     # Fetch network features
     mode_nets = {}
     for net_type in net_types:
+        print(f"{net_type:}")
         net_folder = f"{net_type}_{suffix}"
         print(f"OSMnx {net_type} network extraction")
         print("-- extracting a composed network by bounding box...")
         g = ox.graph_from_bbox(north=bounding_box["north"], south=bounding_box["south"],
                                east=bounding_box["east"], west=bounding_box["west"],
                                network_type=net_type, retain_all=True)
+        # TODO: if walk/bike create subgraphs of nodes and drop vesitgal elements
 
         # Pickle if requested
         if pickle_save:

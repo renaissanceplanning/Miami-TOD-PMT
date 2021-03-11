@@ -5,6 +5,7 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
 ##### Assumptions
 - ArcGIS Pro is installed in a standard location
     ex: C:\Program Files\ArcGIS\Pro
+- ArcGIS Pro version > 2.7
 - Familiarity with command line interactions
 
 ##### Building python CONDA environment
@@ -21,23 +22,23 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
     ```
     activate pmt_tools
     ```
-5) _Update python to ensure its in sync with the arcgis pro need_
+5) _Install conda packages using **conda-forge** channel_
     ```
-    conda update python
+    conda install -c conda-forge osmnx sphinx dask fiona geopandas rtree --yes
+    * spyder is an optional install if you want a Data Science focused IDE
     ```
-6) _Install conda packages using **conda-forge** channel_
-    ```
-    conda install -c conda-forge momepy osmnx sphinx dask
-    * enter 'y/yes' and return when asked
-    * spyder is optional if you want to install a Data Science focused IDE
-    ```
+6) _Update conda packages
+   ```
+   conda update --all --yes
+   ```
 7) _Install pip packages_
     ```
-    pip install esridump censusdata
+    pip install censusdata
     ```
 
 #### _WARNING_
-If you have recently updated ArcGIS Pro, you will need to remove the existing environment and recreate it.
+If you have recently updated ArcGIS Pro, you will need to remove the existing environment and recreate it using 
+steps 4-7 again. 
 - Remove env
     ```
     conda env remove -n pmt_tools

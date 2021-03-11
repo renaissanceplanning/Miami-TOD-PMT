@@ -1,6 +1,4 @@
 # global configurations
-# TODO: shuffle global imports to preparer and update functions to take in new variables accordingly
-from PMT_tools.download.download_helper import (validate_directory, validate_geodatabase, validate_feature_dataset)
 from PMT_tools.config.prepare_config import (CRASH_CODE_TO_STRING, CRASH_CITY_CODES,
                                              CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES)
 from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STATUS_DICT, PERMITS_FIELDS_DICT,
@@ -120,13 +118,24 @@ def field_mapper(in_fcs, use_cols, rename_dicts):
     return field_mappings
 
 
-def geojson_to_feature_class_arc(geojson_path, geom_type, encoding='utf8'):
+def geojson_to_feature_class_arc(geojson_path, geom_type, encoding='utf8', unique_id=None):
+    """Converts geojson to feature class in memory and adds unique_id attribute if provided
+    Args:
+        geojson_path:
+        geom_type:
+        encoding:
+        unique_id:
+    Returns:
+        temp_feature (str): path to temporary feature class
+    """
     if validate_json(json_file=geojson_path, encoding=encoding):
         try:
             # convert json to temp feature class
             temp_feature = make_inmem_path()
             arcpy.JSONToFeatures_conversion(in_json_file=geojson_path, out_features=temp_feature,
                                             geometry_type=geom_type)
+            if unique_id:
+                PMT.add_unique_id(feature_class=temp_feature, new_id_field=unique_id)
             return temp_feature
         except:
             logger.log_msg("something went wrong converting geojson to feature class")
@@ -446,11 +455,9 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
                         out_fc, stn_buffer_meters=804.672,
                         stn_name_field="Name", stn_cor_field="Corridor",
                         overwrite=False):
-    """Creates a single feature class for data summarization based on station
-        area and corridor geographies. The output feature class includes each
-        station area, all combined station areas, the entire corridor area,
+    """Creates a single feature class for data summarization based on station area and corridor geographies.
+        The output feature class includes each station area, all combined station areas, the entire corridor area,
         and the portion of the corridor that is outside station areas.
-
     Args:
         bf_gdb (str): Path to basic features gdb
         long_stn_fc (str): path to long station points feature class
@@ -474,8 +481,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     print(f"--- creating output feature class {out_fc}")
     PMT.checkOverwriteOutput(out_fc, overwrite)
     out_path, out_name = os.path.split(out_fc)
-    arcpy.CreateFeatureclass_management(
-        out_path, out_name, "POLYGON", spatial_reference=sr)
+    arcpy.CreateFeatureclass_management(out_path, out_name, "POLYGON", spatial_reference=sr)
     # - Add fields
     arcpy.AddField_management(out_fc, "Name", "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, "Corridor", "TEXT", field_length=80)
@@ -567,7 +573,7 @@ def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
 
 
 # parks functions
-def prep_park_polys(in_fcs, geom, out_fc, use_cols=None, rename_dicts=None):
+def prep_park_polys(in_fcs, geom, out_fc, use_cols=None, rename_dicts=None, unique_id=None):
     # Align inputs
     if rename_dicts is None:
         rename_dicts = [{} for _ in in_fcs]
@@ -585,15 +591,16 @@ def prep_park_polys(in_fcs, geom, out_fc, use_cols=None, rename_dicts=None):
     # merge into one feature class temporarily
     fm = field_mapper(in_fcs=in_fcs, use_cols=use_cols, rename_dicts=rename_dicts)
     arcpy.Merge_management(inputs=in_fcs, output=out_fc, field_mappings=fm)
+    PMT.add_unique_id(feature_class=out_fc, new_id_field=unique_id)
 
 
-def prep_feature_class(in_fc, geom, out_fc, use_cols=None, rename_dict=None):
+def prep_feature_class(in_fc, geom, out_fc, use_cols=None, rename_dict=None, unique_id=None):
     if rename_dict is None:
         rename_dict = {}
     if use_cols is None:
         use_cols = []
     if in_fc.endswith("json"):
-        in_fc = geojson_to_feature_class_arc(in_fc, geom_type=geom)
+        in_fc = geojson_to_feature_class_arc(in_fc, geom_type=geom, unique_id=unique_id)
     out_dir, out_name = os.path.split(out_fc)
     fms = field_mapper(in_fcs=in_fc, use_cols=use_cols, rename_dicts=rename_dict)
     arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_dir,
@@ -799,11 +806,12 @@ def update_dict(d, values, tag):
     return d
 
 
-def prep_transit_ridership(in_table, rename_dict, shape_fields, from_sr, to_sr, out_fc):
+def prep_transit_ridership(in_table, rename_dict, unique_id, shape_fields, from_sr, to_sr, out_fc):
     """converts transit ridership data to a feature class and reformats attributes
     Args:
         in_table (str): xls file path
         rename_dict (dict): dictionary of {existing: new attribute} names
+        unique_id (str): name of id field added
         shape_fields (list): [String,...] columns to be used as shape field (x,y)
         from_sr (SpatialReference): the spatial reference definition for coordinates listed in 'shape_fields'
         to_sr (SpatialReference): the spatial reference definition for output features
@@ -828,6 +836,8 @@ def prep_transit_ridership(in_table, rename_dict, shape_fields, from_sr, to_sr, 
         "EARLY AM 02:45AM-05:59AM",
         transit_df["TIME_PERIOD"]
     )
+    transit_df.reset_index(inplace=True)
+    transit_df.rename(columns={"index": unique_id}, inplace=True)
     # convert table to points
     return PMT.dfToPoints(df=transit_df, out_fc=out_fc, shape_fields=shape_fields,
                           from_sr=from_sr, to_sr=to_sr, overwrite=True)
@@ -867,11 +877,9 @@ def clean_parcel_geometry(in_features, fc_key_field, new_fc_key, out_features=No
         logger.log_msg("output feature class path must be provided")
 
 
-def prep_parcel_land_use_tbl(parcels_fc, parcel_lu_field, parcel_fields,
-                             lu_tbl, tbl_lu_field, null_value=None, dtype_map=None,
-                             **kwargs):
+def prep_parcel_land_use_tbl(parcels_fc, parcel_lu_field, parcel_fields, lu_tbl, tbl_lu_field,
+                             null_value=None, dtype_map=None, **kwargs):
     """Join parcels with land use classifications based on DOR use codes.
-
     Args:
         parcels_fc (str): path to parcel feature class
         parcel_lu_field (str): String; The column in `parcels_fc` with each parcel's DOR use code.
@@ -886,7 +894,6 @@ def prep_parcel_land_use_tbl(parcels_fc, parcel_lu_field, parcel_fields,
             to properly parse `lu_tbl` provide them as a dictionary.
         **kwargs:
             Any other keyword arguments given are passed to the `pd.read_csv` method when reading `lu_tbl`.
-
     Returns:
         par_df: DataFrame
     """
@@ -1235,11 +1242,9 @@ def analyze_imperviousness(impervious_path, zone_geometries_path, zone_geometrie
 
 
 def analyze_blockgroup_model(bg_enrich_path, bg_key, fields="*", acs_years=None, lodes_years=None, save_directory=None):
-    """
-        fit linear models to block group-level total employment, population, and
+    """fit linear models to block group-level total employment, population, and
         commutes at the block group level, and save the model coefficients for
         future prediction
-
     Args:
         bg_enrich_path : str
             path to enriched block group data, with a fixed-string wild card for
@@ -1252,13 +1257,11 @@ def analyze_blockgroup_model(bg_enrich_path, bg_key, fields="*", acs_years=None,
         save_directory : str
             directory to which to save the model coefficients (results will be
             saved as a csv)
-
     Notes:
         in `bg_enrich_path`, replace the presence of a year with the string
         "{year}". For example, if your enriched block group data for 2010-2015 is
         stored at "Data_2010.gdb/enriched", "Data_2010.gdb/enriched", ..., then
         `bg_enrich_path = "Data_{year}.gdb/enriched"`.
-
     Returns:
         save_path : str
             path to a table of model coefficients
@@ -1271,56 +1274,33 @@ def analyze_blockgroup_model(bg_enrich_path, bg_key, fields="*", acs_years=None,
         logger.log_msg(' '.join(["----> Loading", str(year)]))
         # Read
         load_path = re.sub("YEAR", str(year), bg_enrich_path, flags=re.IGNORECASE)
-        # fields = [f.name for f in arcpy.ListFields(load_path)]
-        tab = pd.DataFrame(
-            arcpy.da.FeatureClassToNumPyArray(
-                in_table=load_path, field_names=fields, null_value=0
-            )
-        )
+        tab = PMT.featureclass_to_df(in_fc=load_path, keep_fields=fields, null_val=0.0)
+
         # Edit
         tab["Year"] = year
         tab["Since_2013"] = year - 2013
-        tab["Total_Emp_Area"] = (
-                tab["CNS_01_par"] + tab["CNS_02_par"] + tab["CNS_03_par"] +
-                tab["CNS_04_par"] + tab["CNS_05_par"] + tab["CNS_06_par"] +
-                tab["CNS_07_par"] + tab["CNS_08_par"] + tab["CNS_09_par"] +
-                tab["CNS_10_par"] + tab["CNS_11_par"] + tab["CNS_12_par"] +
-                tab["CNS_13_par"] + tab["CNS_14_par"] + tab["CNS_15_par"] +
-                tab["CNS_16_par"] + tab["CNS_17_par"] + tab["CNS_18_par"] +
-                tab["CNS_19_par"] + tab["CNS_20_par"]
-        )
+        tab["Total_Emp_Area"] = (tab["CNS_01_par"] + tab["CNS_02_par"] + tab["CNS_03_par"] + tab["CNS_04_par"] +
+                                 tab["CNS_05_par"] + tab["CNS_06_par"] + tab["CNS_07_par"] + tab["CNS_08_par"] +
+                                 tab["CNS_09_par"] + tab["CNS_10_par"] + tab["CNS_11_par"] + tab["CNS_12_par"] +
+                                 tab["CNS_13_par"] + tab["CNS_14_par"] + tab["CNS_15_par"] + tab["CNS_16_par"] +
+                                 tab["CNS_17_par"] + tab["CNS_18_par"] + tab["CNS_19_par"] + tab["CNS_20_par"])
         if year in lodes_years:
-            tab["Total_Employment"] = (
-                    tab["CNS01"] + tab["CNS02"] + tab["CNS03"] + tab["CNS04"] +
-                    tab["CNS05"] + tab["CNS06"] + tab["CNS07"] + tab["CNS08"] +
-                    tab["CNS09"] + tab["CNS10"] + tab["CNS11"] + tab["CNS12"] +
-                    tab["CNS13"] + tab["CNS14"] + tab["CNS15"] + tab["CNS16"] +
-                    tab["CNS17"] + tab["CNS18"] + tab["CNS19"] + tab["CNS20"]
-            )
+            tab["Total_Employment"] = (tab["CNS01"] + tab["CNS02"] + tab["CNS03"] + tab["CNS04"] + tab["CNS05"] +
+                                       tab["CNS06"] + tab["CNS07"] + tab["CNS08"] + tab["CNS09"] + tab["CNS10"] +
+                                       tab["CNS11"] + tab["CNS12"] + tab["CNS13"] + tab["CNS14"] + tab["CNS15"] +
+                                       tab["CNS16"] + tab["CNS17"] + tab["CNS18"] + tab["CNS19"] + tab["CNS20"])
         if year in acs_years:
-            tab["Total_Population"] = (
-                    tab["Total_Non_Hisp"] + tab["Total_Hispanic"]
-            )
-        # Store
+            tab["Total_Population"] = (tab["Total_Non_Hisp"] + tab["Total_Hispanic"])
         df.append(tab)
-
-    # Bind up the table, filling empty rows
     df = pd.concat(df, ignore_index=True)
 
     # 2. Model
-    # --------
-
     # Variable setup: defines our variables of interest for modeling
-    independent_variables = ["LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA",
-                             "NO_BULDNG", "NO_RES_UNTS", "RES_par",
-                             "CNS_01_par", "CNS_02_par", "CNS_03_par",
-                             "CNS_04_par", "CNS_05_par", "CNS_06_par",
-                             "CNS_07_par", "CNS_08_par", "CNS_09_par",
-                             "CNS_10_par", "CNS_11_par", "CNS_12_par",
-                             "CNS_13_par", "CNS_14_par", "CNS_15_par",
-                             "CNS_16_par", "CNS_17_par", "CNS_18_par",
-                             "CNS_19_par", "CNS_20_par", "Total_Emp_Area",
-                             "Since_2013"]
+    independent_variables = ["LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA", "NO_BULDNG", "NO_RES_UNTS", "RES_par",
+                             "CNS_01_par", "CNS_02_par", "CNS_03_par", "CNS_04_par", "CNS_05_par", "CNS_06_par",
+                             "CNS_07_par", "CNS_08_par", "CNS_09_par", "CNS_10_par", "CNS_11_par", "CNS_12_par",
+                             "CNS_13_par", "CNS_14_par", "CNS_15_par", "CNS_16_par", "CNS_17_par", "CNS_18_par",
+                             "CNS_19_par", "CNS_20_par", "Total_Emp_Area", "Since_2013"]
     response = {"Total_Employment": lodes_years,
                 "Total_Population": acs_years,
                 "Total_Commutes": acs_years}
@@ -1331,8 +1311,7 @@ def analyze_blockgroup_model(bg_enrich_path, bg_key, fields="*", acs_years=None,
     # -- dem variables should be there for `acs_years`: fill these with 0
     logger.log_msg("--- replacing missing values")
     parcel_na_dict = {iv: 0 for iv in independent_variables}
-    df.fillna(parcel_na_dict,
-              inplace=True)
+    df.fillna(parcel_na_dict, inplace=True)
     df.loc[(df.Total_Employment.isna()) & df.Year.isin(lodes_years), "Total_Employment"] = 0
     df.loc[(df.Total_Population.isna()) & df.Year.isin(acs_years), "Total_Population"] = 0
     df.loc[(df.Total_Commutes.isna()) & df.Year.isin(acs_years), "Total_Commutes"] = 0
@@ -1356,8 +1335,7 @@ def analyze_blockgroup_model(bg_enrich_path, bg_key, fields="*", acs_years=None,
         cwr = cwr[~cwr.isna()]
         # Calculate t statistic and p-value for correlation test
         t_stat = cwr * np.sqrt((n - 2) / (1 - cwr ** 2))
-        p_values = pd.Series(scipy.stats.t.sf(t_stat, n - 2) * 2,
-                             index=t_stat.index)
+        p_values = pd.Series(scipy.stats.t.sf(t_stat, n - 2) * 2, index=t_stat.index)
         # Variables for the model
         mod_vars = []
         cutoff = 0.05
@@ -1366,42 +1344,27 @@ def analyze_blockgroup_model(bg_enrich_path, bg_key, fields="*", acs_years=None,
             cutoff += 0.05
         # Fit a multiple linear regression
         regr = linear_model.LinearRegression()
-        regr.fit(X=mdf[mod_vars],
-                 y=mdf[[key]])
+        regr.fit(X=mdf[mod_vars], y=mdf[[key]])
         # Save the model coefficients
-        fits.append(pd.Series(regr.coef_[0],
-                              index=mod_vars,
-                              name=key))
+        fits.append(pd.Series(regr.coef_[0], index=mod_vars, name=key))
 
     # Step 3: combine results into a single df
     logger.log_msg("--- formatting model coefficients into a single table")
     coefs = pd.concat(fits, axis=1).reset_index()
-    coefs.rename(columns={"index": "Variable"},
-                 inplace=True)
-    coefs.fillna(0,
-                 inplace=True)
-
-    # 3. Write
-    # --------
+    coefs.rename(columns={"index": "Variable"}, inplace=True)
+    coefs.fillna(0, inplace=True)
 
     logger.log_msg("--- writing results")
-    save_path = makePath(save_directory,
-                         "block_group_model_coefficients.csv")
-    coefs.to_csv(save_path,
-                 index=False)
-
-    # Done
-    # ----
+    save_path = makePath(save_directory, "block_group_model_coefficients.csv")
+    coefs.to_csv(save_path, index=False)
     return save_path
 
 
 def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field,
                              model_coefficients_path, save_gdb_location, shares_from=None):
-    """
-        predict block group-level total employment, population, and commutes using
+    """predict block group-level total employment, population, and commutes using
         pre-fit linear models, and apply a shares-based approach to subdivide
         totals into relevant subgroups
-
     Args:
         year : int
             year of the `bg_enrich` data
@@ -1427,7 +1390,6 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
             ACS variables.
             The default is None, which assumes LODES and ACS data are available
             for the year of interest in the provided `bg_enrich` file
-
     Returns:
         save_path : str
             path to a table of model application results
@@ -1440,26 +1402,17 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
     )
 
     df["Since_2013"] = year - 2013
-    df["Total_Emp_Area"] = (
-            df["CNS_01_par"] + df["CNS_02_par"] + df["CNS_03_par"] +
-            df["CNS_04_par"] + df["CNS_05_par"] + df["CNS_06_par"] +
-            df["CNS_07_par"] + df["CNS_08_par"] + df["CNS_09_par"] +
-            df["CNS_10_par"] + df["CNS_11_par"] + df["CNS_12_par"] +
-            df["CNS_13_par"] + df["CNS_14_par"] + df["CNS_15_par"] +
-            df["CNS_16_par"] + df["CNS_17_par"] + df["CNS_18_par"] +
-            df["CNS_19_par"] + df["CNS_20_par"]
-    )
+    df["Total_Emp_Area"] = (df["CNS_01_par"] + df["CNS_02_par"] + df["CNS_03_par"] + df["CNS_04_par"] +
+                            df["CNS_05_par"] + df["CNS_06_par"] + df["CNS_07_par"] + df["CNS_08_par"] +
+                            df["CNS_09_par"] + df["CNS_10_par"] + df["CNS_11_par"] + df["CNS_12_par"] +
+                            df["CNS_13_par"] + df["CNS_14_par"] + df["CNS_15_par"] + df["CNS_16_par"] +
+                            df["CNS_17_par"] + df["CNS_18_par"] + df["CNS_19_par"] + df["CNS_20_par"])
     # Fill na
-    independent_variables = ["LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA",
-                             "NO_BULDNG", "NO_RES_UNTS", "RES_par",
-                             "CNS_01_par", "CNS_02_par", "CNS_03_par",
-                             "CNS_04_par", "CNS_05_par", "CNS_06_par",
-                             "CNS_07_par", "CNS_08_par", "CNS_09_par",
-                             "CNS_10_par", "CNS_11_par", "CNS_12_par",
-                             "CNS_13_par", "CNS_14_par", "CNS_15_par",
-                             "CNS_16_par", "CNS_17_par", "CNS_18_par",
-                             "CNS_19_par", "CNS_20_par", "Total_Emp_Area",
-                             "Since_2013"]
+    independent_variables = ["LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA", "NO_BULDNG", "NO_RES_UNTS", "RES_par",
+                             "CNS_01_par", "CNS_02_par", "CNS_03_par", "CNS_04_par", "CNS_05_par", "CNS_06_par",
+                             "CNS_07_par", "CNS_08_par", "CNS_09_par", "CNS_10_par", "CNS_11_par", "CNS_12_par",
+                             "CNS_13_par", "CNS_14_par", "CNS_15_par", "CNS_16_par", "CNS_17_par", "CNS_18_par",
+                             "CNS_19_par", "CNS_20_par", "Total_Emp_Area", "Since_2013"]
     parcel_na_dict = {iv: 0 for iv in independent_variables}
     df.fillna(parcel_na_dict, inplace=True)
 
@@ -1481,21 +1434,14 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
     pwrite.loc[pwrite.Total_Commutes < 0, "Total_Commutes"] = 0
 
     # 3. Shares
-    # ---------
-
     # Variable setup: defines our variables of interest for modeling
-    dependent_variables_emp = ["CNS01", "CNS02", "CNS03", "CNS04", "CNS05",
-                               "CNS06", "CNS07", "CNS08", "CNS09", "CNS10",
-                               "CNS11", "CNS12", "CNS13", "CNS14", "CNS15",
-                               "CNS16", "CNS17", "CNS18", "CNS19", "CNS20"]
+    dependent_variables_emp = ["CNS01", "CNS02", "CNS03", "CNS04", "CNS05", "CNS06", "CNS07", "CNS08", "CNS09", "CNS10",
+                               "CNS11", "CNS12", "CNS13", "CNS14", "CNS15", "CNS16", "CNS17", "CNS18", "CNS19", "CNS20"]
     dependent_variables_pop_tot = ["Total_Hispanic", "Total_Non_Hisp"]
-    dependent_variables_pop_sub = ["White_Hispanic", "Black_Hispanic",
-                                   "Asian_Hispanic", "Multi_Hispanic",
-                                   "Other_Hispanic", "White_Non_Hisp",
-                                   "Black_Non_Hisp", "Asian_Non_Hisp",
+    dependent_variables_pop_sub = ["White_Hispanic", "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic",
+                                   "Other_Hispanic", "White_Non_Hisp", "Black_Non_Hisp", "Asian_Non_Hisp",
                                    "Multi_Non_Hisp", "Other_Non_Hisp"]
-    dependent_variables_trn = ["Drove", "Carpool", "Transit",
-                               "NonMotor", "Work_From_Home", "AllOther"]
+    dependent_variables_trn = ["Drove", "Carpool", "Transit", "NonMotor", "Work_From_Home", "AllOther"]
     acs_vars = dependent_variables_pop_tot + dependent_variables_pop_sub + dependent_variables_trn
 
     # Pull shares variables from appropriate sources, recognizing that they
@@ -1524,38 +1470,30 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
     # This is done relative to the "Total" variable for each group
     logger.log_msg("--- calculating shares")
     shares_dict = {}
-    for name, vrs in zip(["Emp", "Pop_Tot", "Pop_Sub", "Comm"],
-                         [dependent_variables_emp,
-                          dependent_variables_pop_tot,
-                          dependent_variables_pop_sub,
-                          dependent_variables_trn]):
-        sdf = shares_df[vrs]
+    for name, variables in zip(["Emp", "Pop_Tot",
+                                "Pop_Sub", "Comm"],
+                               [dependent_variables_emp, dependent_variables_pop_tot,
+                                dependent_variables_pop_sub, dependent_variables_trn]):
+        sdf = shares_df[variables]
         sdf["TOTAL"] = sdf.sum(axis=1)
-        for d in vrs:
+        for d in variables:
             sdf[d] = sdf[d] / sdf["TOTAL"]
         sdf[bg_id_field] = shares_df[bg_id_field]
-        sdf.drop(columns="TOTAL",
-                 inplace=True)
+        sdf.drop(columns="TOTAL", inplace=True)
         shares_dict[name] = sdf
 
-    # Step 3: some rows have NA shares because the total for that class of
-    # variables was 0. For these block groups, take the average share of all
-    # block groups that touch that one
+    # Step 3: some rows have NA shares because the total for that class of variables was 0. For these block groups,
+    # take the average share of all block groups that touch that one
     logger.log_msg("--- estimating missing shares")
     # What touches what? # TODO: add make_inmem
     temp = PMT.make_inmem_path()
     arcpy.PolygonNeighbors_analysis(in_features=bg_geometry_path, out_table=temp, in_fields=bg_id_field)
-
-    touch = pd.DataFrame(
-        arcpy.da.FeatureClassToNumPyArray(
-            in_table=temp, field_names=[f"src_{bg_id_field}", f"nbr_{bg_id_field}"]
-        )
-    )
+    touch = PMT.featureclass_to_df(in_fc=temp, keep_fields=[f"src_{bg_id_field}", f"nbr_{bg_id_field}"])
     touch.rename(columns={f"src_{bg_id_field}": bg_id_field, f"nbr_{bg_id_field}": "Neighbor"}, inplace=True)
     # Loop filling of NA by mean of adjacent non-NAs
     ctf = 1
     i = 1
-    while (ctf > 0):
+    while ctf > 0:
         # First, identify cases where we need to fill NA
         to_fill = []
         for key, value in shares_dict.items():
@@ -1565,13 +1503,13 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
             to_fill.append(f)
         to_fill = pd.concat(to_fill, ignore_index=True)
         # Create a neighbors table
-        nt = pd.merge(to_fill, touch, how="left", on=bg_id_field)
-        nt.rename(columns={bg_id_field: "Source", "Neighbor": bg_id_field}, inplace=True)
+        neightbor_table = pd.merge(to_fill, touch, how="left", on=bg_id_field)
+        neightbor_table.rename(columns={bg_id_field: "Source", "Neighbor": bg_id_field}, inplace=True)
         # Now, merge in the shares data for appropriate rows
         fill_by_touching = {}
         nrem = []
         for key, value in shares_dict.items():
-            fill_df = pd.merge(nt[nt.Fill == key], value, how="left", on=bg_id_field)
+            fill_df = pd.merge(neightbor_table[neightbor_table.Fill == key], value, how="left", on=bg_id_field)
             nv = fill_df.groupby("Source").mean()
             nv["RS"] = nv.sum(axis=1)
             data_cols = [c for c in nv.columns.tolist() if c != bg_id_field]
@@ -1584,9 +1522,8 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
             replaced = pd.concat([not_replaced, nv])
             fill_by_touching[key] = replaced
             nrem.append(len(replaced[replaced.isna().any(axis=1)].index))
-        # Now, it's possible that some block group/year combos to be filled had
-        # 0 block groups in that year touching them that had data. If this happened,
-        # we're goisadfsdfsdfng to repeat the process. Check by summing nrem
+        # Now, it's possible that some block group/year combos to be filled had 0 block groups in that year
+        # touching them that had data. If this happened, we're going to repeat the process. Check by summing nrem
         # and initialize by resetting the shares dict
         ctf = sum(nrem)
         i += 1
@@ -1627,8 +1564,7 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
     # Here we write block group for allocation
     save_path = makePath(save_gdb_location,
                          "Modeled_blockgroups")
-    dfToTable(df=alloc,
-              out_table=save_path)
+    dfToTable(df=alloc, out_table=save_path)
 
     # Done
     # --- -
@@ -1637,8 +1573,7 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
 
 def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
                                 parcel_fc, parcels_id="FOLIO", parcel_lu="DOR_UC", parcel_liv_area="TOT_LVG_AREA"):
-    """Allocate block group data to parcels using relative abundances of
-        parcel building square footage
+    """Allocate block group data to parcels using relative abundances of parcel building square footage
     Args:
         parcel_fc: Path
             path to shape of parcel polygons, containing at a minimum a unique ID
@@ -1667,24 +1602,19 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
     """
 
     # Organize constants for allocation
-    lodes_attrs = ['CNS01', 'CNS02', 'CNS03', 'CNS04', 'CNS05',
-                   'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10',
-                   'CNS11', 'CNS12', 'CNS13', 'CNS14', 'CNS15',
-                   'CNS16', 'CNS17', 'CNS18', 'CNS19', 'CNS20']
-    demog_attrs = ['Total_Hispanic', 'White_Hispanic', 'Black_Hispanic',
-                   'Asian_Hispanic', 'Multi_Hispanic', 'Other_Hispanic',
-                   'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp',
-                   'Asian_Non_Hisp', 'Multi_Non_Hisp', 'Other_Non_Hisp']
-    commute_attrs = ['Drove', 'Carpool', 'Transit',
-                     'NonMotor', 'Work_From_Home', 'AllOther']
+    lodes_attrs = ['CNS01', 'CNS02', 'CNS03', 'CNS04', 'CNS05', 'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10',
+                   'CNS11', 'CNS12', 'CNS13', 'CNS14', 'CNS15', 'CNS16', 'CNS17', 'CNS18', 'CNS19', 'CNS20']
+    demog_attrs = ['Total_Hispanic', 'White_Hispanic', 'Black_Hispanic', 'Asian_Hispanic', 'Multi_Hispanic',
+                   'Other_Hispanic', 'Total_Non_Hisp', 'White_Non_Hisp', 'Black_Non_Hisp', 'Asian_Non_Hisp',
+                   'Multi_Non_Hisp', 'Other_Non_Hisp']
+    commute_attrs = ['Drove', 'Carpool', 'Transit', 'NonMotor', 'Work_From_Home', 'AllOther']
     block_group_attrs = [bg_id_field] + lodes_attrs + demog_attrs + commute_attrs
 
     # Initialize spatial processing by intersecting
     print("--- intersecting blocks and parcels")
     temp_spatial = make_inmem_path()
     copyFeatures(in_fc=bg_geom, out_fc=temp_spatial)
-    arcpy.JoinField_management(in_data=temp_spatial, in_field=bg_id_field,
-                               join_table=bg_modeled, join_field=bg_id_field)
+    arcpy.JoinField_management(in_data=temp_spatial, in_field=bg_id_field, join_table=bg_modeled, join_field=bg_id_field)
     parcel_fields = [parcels_id, parcel_lu, parcel_liv_area, "Shape_Area"]
     intersect_fc = intersectFeatures(summary_fc=temp_spatial, disag_fc=parcel_fc, disag_fields=parcel_fields)
     intersect_fields = parcel_fields + block_group_attrs
@@ -1703,7 +1633,6 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
 
     # Step 1 in allocation is totaling the living area by activity in each block group.
     # To do this, we define in advance which activities can go to which land uses
-
     # First, we set up this process by matching activities to land uses
     print("--- setting up activity-land use matches...")
     lu_mask = {
@@ -1739,14 +1668,10 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
     #   - and 'all developed' ('all non-res' + any residential land uses).
     #  ['all non-res' will be used if a land use isn't present for a given activity;
     #  [ the 'all developed' will be used if 'all non-res' fails]
-    non_res_lu_codes = [11, 12, 13, 14, 15, 16, 17, 18, 19,
-                        20, 21, 22, 23, 24, 27, 28, 29,
-                        30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
-                        41, 42, 48, 49,
-                        72, 73,
+    non_res_lu_codes = [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29,
+                        30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 41, 42, 48, 49, 72, 73,
                         82, 84, 85, 86, 87, 88, 89]
-    all_dev_lu_codes = non_res_lu_codes + [1, 2, 3, 4, 5, 6, 7, 8, 9,
-                                           100, 101, 102]
+    all_dev_lu_codes = non_res_lu_codes + [1, 2, 3, 4, 5, 6, 7, 8, 9, 100, 101, 102]
     all_non_res = {'NR': (intersect_df[pluf].isin(non_res_lu_codes))}
     all_developed = {'AD': (intersect_df[pluf].isin(all_dev_lu_codes))}
 

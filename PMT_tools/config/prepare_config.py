@@ -206,6 +206,14 @@ CRASH_CITY_CODES = OrderedDict(
 )
 
 """
+Park Configurations
+"""
+PARK_POINT_COLS = ['FOLIO', 'ID', 'NAME', 'ADDRESS', 'CITY', 'ZIPCODE', 'PHONE', 'CONTACT',
+                   'TOTACRE', 'LAT', 'LON', 'POINT_X', 'POINT_Y', 'CLASS', 'TYPE', 'MNGTAGCY']
+PARK_POINTS_COMMON_KEY = "PARK_PT_ID"
+PARK_POLY_COMMON_KEY = "PARK_PY_ID"
+
+"""
 Configuration variables to be used with building permit data
 """
 PERMITS_CAT_CODE_PEDOR = "PD"
@@ -242,6 +250,7 @@ IN_CRS = 4326  # WGS84 latitude/longitude
 OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 
 # Transit Ridership Tables
+TRANSIT_COMMON_KEY = "TRANSIT_ID"
 TRANSIT_FIELDS_DICT = {
     # "ADAY": "DAY_OF_WEEK",
     "ATIMEPER": "TIME_PERIOD",
@@ -263,6 +272,7 @@ TRANSIT_RIDERSHIP_TABLES = {
     2017: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1803_2018_APR_standard_format.XLS",
     2018: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1811_2019_APR_standard_format.XLS",
     2019: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS",
+    "NearTerm": "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS"
 }
 TRANSIT_LAT = "LAT"
 TRANSIT_LONG = "LONG"
@@ -411,6 +421,7 @@ PARCEL_LU_AREAS = {  # COL_NAME: (which_field, criteria)
 # Block groups config
 BG_COMMON_KEY = "GEOID"
 BG_PAR_SUM_FIELDS = ["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA"]
+BLOCK_COMMON_KEY = "GEOID10"
 
 # LODES/ACS config
 ACS_COMMON_KEY = "GEOID10"
