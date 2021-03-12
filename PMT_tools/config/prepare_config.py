@@ -403,9 +403,12 @@ PARCEL_LU_COL = "DOR_UC"
 PARCEL_AREA_COL = "LND_SQFOOT"
 PARCEL_BLD_AREA = "TOT_LVG_AREA"
 PARCEL_LU_AREAS = {  # COL_NAME: (which_field, criteria)
-    "VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
-    "RES_AREA": ["RES_NRES", "RES"],
-    "NRES_AREA": ["RES_NRES", "NRES"]
+    #"VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
+    #"RES_AREA": ["RES_NRES", "RES"],
+    #"NRES_AREA": ["RES_NRES", "NRES"]
+    "VAC_AREA": ["GN_VA_LU", Comp("==", "Vacant/Undeveloped")],
+    "RES_AREA": ["NO_RES_UNTS", Comp(">", 0)],
+    "NRES_AREA": ["Total_Employment", Comp(">", 0)]
 }
 
 # Block groups config
