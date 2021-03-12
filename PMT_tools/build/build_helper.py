@@ -298,6 +298,8 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     # Drop all remaining non-numeric columns
     base_df_n = base_df.select_dtypes(["number"])
     this_df_n = this_df.select_dtypes(["number"])
+    # Reindex columns
+    #this_df_n.reindex(columns=base_df_n.columns, inplace=True)
     # Take difference
     diff_df = this_df_n - base_df_n
     # Restore index columns
