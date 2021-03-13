@@ -256,10 +256,10 @@ def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
     pts_sdf = pd.DataFrame.spatial.from_featureclass(pts)
 
     esri_ids = ["OBJECTID", "FID"]
-    if set(esri_ids).issubset(set(pts_sdf.columns.to_list())):
+    if any(item in pts_sdf.columns.to_list() for item in esri_ids):
         pts_sdf.drop(labels=esri_ids, axis=1, inplace=True, errors='ignore')
     # join permits to parcel points MANY-TO-ONE
-    print('--- merging polygon data to tabular')
+    print('--- merging geo data to tabular')
     pts = table_df.merge(right=pts_sdf, how="inner", on=table_key)
     return pts
     # with tempfile.TemporaryDirectory() as temp_dir:
@@ -608,19 +608,16 @@ def prep_feature_class(in_fc, geom, out_fc, use_cols=None, rename_dict=None, uni
 
 
 # permit functions
-def clean_permit_data(permit_csv, poly_features, permit_key, poly_key, out_file, out_crs):
-    """
-        reformats and cleans RER road impact permit data, specific to the PMT
+def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out_crs):
+    """reformats and cleans RER road impact permit data, specific to the PMT
     Args:
         permit_csv:
-        poly_features:
+        parcel_fc:
         permit_key:
         poly_key:
         out_file:
         out_crs:
-
     Returns:
-
     """
     # TODO: add validation
     # read permit data to dataframe
@@ -655,12 +652,17 @@ def clean_permit_data(permit_csv, poly_features, permit_key, poly_key, out_file,
     permit_df.drop(columns=PERMITS_DROPS, inplace=True)
 
     # convert to points
-    permit_sdf = add_xy_from_poly(poly_fc=poly_features, poly_key=poly_key,
-                                  table_df=permit_df, table_key=permit_key)
-    permit_sdf.fillna(0.0, inplace=True)
-    permit_sdf.spatial.to_featureclass(out_file)
-    # PMT.gdfToFeatureClass(gdf=permit_sdf, out_fc=out_file, new_id_field="ROW_ID",
-    #                       exclude=['OBJECTID'], sr=out_crs, overwrite=True)
+    sdf = add_xy_from_poly(poly_fc=parcel_fc, poly_key=poly_key, table_df=permit_df, table_key=permit_key)
+    sdf.fillna(0.0, inplace=True)
+
+    # get xy coords and drop SHAPE
+    sdf['X'] = sdf[sdf.spatial.name].apply(lambda c: c.x)
+    sdf['Y'] = sdf[sdf.spatial.name].apply(lambda c: c.y)
+    sdf.drop(columns="SHAPE", inplace=True)
+    # TODO: assess why sanitize columns as false fails (low priority)
+    # sdf.spatial.to_featureclass(location=out_file, sanitize_columns=False)
+    PMT.dfToPoints(df=sdf, out_fc=out_file, shape_fields=["X", "Y"], from_sr=out_crs, to_sr=out_crs)
+    return out_file
 
 
 # Urban Growth Boundary
@@ -868,7 +870,8 @@ def clean_parcel_geometry(in_features, fc_key_field, new_fc_key, out_features=No
             arcpy.AlterField_management(in_table=temp_fc, field=fc_key_field,
                                         new_field_name=new_fc_key, new_field_alias=new_fc_key)
             # Dissolve polygons
-            logger.log_msg(f"--- dissolving parcel polygons on {new_fc_key}, and add count of polygons")
+            logger.log_msg(f"--- dissolving parcel polygons on {new_fc_key}, "
+                           f"and adding polygon count per {new_fc_key}")
             arcpy.Dissolve_management(in_features=temp_fc, out_feature_class=out_features,
                                       dissolve_field=new_fc_key,
                                       statistics_fields="{} COUNT".format(new_fc_key), multi_part="MULTI_PART")
@@ -956,8 +959,7 @@ def enrich_bg_with_parcels(bg_fc, parcels_fc, sum_crit=None, bg_id_field="GEOID1
         print("--- analyzing block group features")
         bg_fields = ["SHAPE@", bg_id_field]
         bg_stack = []
-        with arcpy.da.SearchCursor(
-                bg_fc, bg_fields, spatial_reference=sr) as bgc:
+        with arcpy.da.SearchCursor(bg_fc, bg_fields, spatial_reference=sr) as bgc:
             for bgr in bgc:
                 bg_poly, bg_id = bgr
                 # Select parcels in this BG
@@ -1007,7 +1009,7 @@ def get_field_dtype(in_table, field):
 
 
 def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, join_fields):
-    """Adds data from another raw table as new columns based on teh fields provided.
+    """Adds data from another raw table as new columns based on the fields provided.
     Args:
         tbl_path (str): path table being updated
         tbl_id_field (str): table primary key
@@ -1056,7 +1058,6 @@ def prep_parcels(in_fc, in_tbl, out_fc, fc_key_field="PARCELNO", new_fc_key_fiel
         tbl_renames: dict; default={}
             Dictionary for renaming columns from `in_csv`. Keys are current column
             names; values are new column names.
-        overwrite (bool): true/false value to determine whether to overwrite an exisiting parcel layer
         kwargs:
             Keyword arguments for reading csv data into pandas (dtypes, e.g.)
     Returns:
@@ -1397,9 +1398,7 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
 
     logger.log_msg("--- reading input data (block group)")
     fields = [f.name for f in arcpy.ListFields(bg_enrich_path)]
-    df = pd.DataFrame(
-        arcpy.da.FeatureClassToNumPyArray(in_table=bg_enrich_path, field_names=fields, null_value=0)
-    )
+    df = PMT.featureclass_to_df(in_fc=bg_enrich_path, keep_fields=fields, null_val=0.0)
 
     df["Since_2013"] = year - 2013
     df["Total_Emp_Area"] = (df["CNS_01_par"] + df["CNS_02_par"] + df["CNS_03_par"] + df["CNS_04_par"] +
@@ -1542,9 +1541,7 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
     # Now, our allocations are simple multiplication problems! Hooray!
     # So, all we have to do is multiply the shares by the appropriate column
     # First, we'll merge our estimates and shares
-    alloc = pd.merge(pwrite,
-                     cs_shares,
-                     on=bg_id_field)
+    alloc = pd.merge(pwrite, cs_shares, on=bg_id_field)
     # We'll do employment first
     for d in dependent_variables_emp:
         alloc[d] = alloc[d] * alloc.Total_Employment
@@ -1562,8 +1559,7 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
 
     logger.log_msg("--- writing outputs")
     # Here we write block group for allocation
-    save_path = makePath(save_gdb_location,
-                         "Modeled_blockgroups")
+    save_path = makePath(save_gdb_location, "Modeled_blockgroups")
     dfToTable(df=alloc, out_table=save_path)
 
     # Done
@@ -3929,8 +3925,8 @@ def match_units_fields(d):
     return match_fields, match_functions
 
 
-def prep_permits_units_reference(parcels, permits, lu_key, parcels_living_area_key,
-                                 permit_value_key, permits_units_name="sq. ft.", units_match_dict=None):
+def create_permits_units_reference(parcels, permits, lu_key, parcels_living_area_key,
+                                   permit_value_key, permits_units_name="sq. ft.", units_match_dict=None):
     """creates a reference table by which to convert various units provided in
         the Florida permits_df data to building square footage
 
@@ -4042,13 +4038,154 @@ def prep_permits_units_reference(parcels, permits, lu_key, parcels_living_area_k
     return permits_df
 
 
-def build_short_term_parcels(parcels_path, permits_path, permits_ref_df,
+def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
+                             parcels_living_area_field, parcels_land_value_field,
+                             parcels_total_value_field, parcels_buildings_field,
+                             permit_fc, permits_ref_df, permits_id_field,
+                             permits_lu_field, permits_units_field, permits_values_field, permits_cost_field,
+                             units_field_match_dict={}):
+    # First, we need to initialize a save feature class. The feature class
+    # will be a copy of the parcels with a unique ID (added by the function)
+    print("--- initializing a save feature class")
+
+    ''' read in parcels and make blank copy '''
+    # setup temp_fc to hold parcel data
+    temp_parcels = PMT.make_inmem_path()
+    temp_dir, temp_name = os.path.split(temp_parcels)
+    # add unique_id to parcels (roll back if failure
+    print("--- --- adding a unique ID field for individual parcels")
+    process_id_field = PMT.add_unique_id(feature_class=parcel_fc,
+                                         new_id_field="ProcessID")
+
+    print("--- --- reading/formatting parcels")
+    # read in all of our data
+    #   - read the parcels (after which we'll remove the added unique ID from the original data).
+    parcels_fields = [f.name for f in arcpy.ListFields(parcel_fc)
+                      if f.name not in ["OBJECTID", "Shape", "Shape_Length", "Shape_Area"]]
+    parcels_df = PMT.featureclass_to_df(in_fc=parcel_fc, keep_fields=parcels_fields, null_val=0.0)
+    # update year to increment forward one, and add PERMIT flag
+    parcels_df["PERMIT"] = 0
+
+    # copy parcels to temp location keeping only process_id temp file
+    print("--- --- creating empty copy of feature class")
+    fmap = arcpy.FieldMappings()
+    fm = arcpy.FieldMap()
+    fm.addInputField(parcel_fc, 'ProcessID')
+    fmap.addFieldMap(fm)
+    arcpy.FeatureClassToFeatureClass_conversion(in_features=parcel_fc, out_path=temp_dir,
+                                                out_name=temp_name, field_mapping=fmap)
+
+    ''' read the permits in and format '''
+    print("--- --- reading/formatting permits_df")
+    permits_fields = [permits_id_field, permits_lu_field, permits_units_field, permits_values_field,
+                      permits_cost_field]
+    permits_df = PMT.featureclass_to_df(in_fc=permit_fc, keep_fields=permits_fields, null_val=0.0)
+    permits_df = permits_df[permits_df[permits_values_field] >= 0]
+
+    #   - join the permits and ref together on the permits_lu_field and permits_units_field
+    print("--- --- merging permits_df and permits_df reference")
+    permits_df = pd.merge(left=permits_df, right=permits_ref_df,
+                          left_on=[permits_lu_field, permits_units_field],
+                          right_on=[permits_lu_field, permits_units_field], how="left")
+    # Now we add to permits_df the field matches to the parcels (which will be
+    # helpful come the time of updating parcels from the permits_df)
+    if units_field_match_dict is not None:
+        print("--- --- joining units-field matches")
+        ufm = pd.DataFrame.from_dict(units_field_match_dict, orient="index").reset_index()
+        ufm.columns = [permits_units_field, "Parcel_Field"]
+        permits_df = pd.merge(left=permits_df, right=ufm,
+                              left_on=permits_units_field, right_on=permits_units_field, how="left")
+    # calculate the new building square footage for parcel in the permit features
+    # using the reference table multipliers and overwrites
+    print("--- --- applying unit multipliers and overwrites")
+    new_living_area = []
+    for value, multiplier, overwrite in zip(
+            permits_df[permits_values_field],
+            permits_df["Multiplier"],
+            permits_df["Overwrite"]):
+        if (overwrite == -1.0) and (multiplier != -1.0):
+            new_living_area.append(value * multiplier)
+        elif (multiplier == -1.0) and (overwrite != -1.0):
+            new_living_area.append(overwrite)
+        else:
+            new_living_area.append(0)
+
+    print("--- --- appending new living area values to permits_df data")
+    permits_df["UpdTLA"] = new_living_area
+    permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
+
+    # update the parcels with the info from the permits_df
+    #   - match building permits_df to the parcels using id_match_field,
+    #   - overwrite parcel LU, building square footage, and anything specified in the match dict
+    #   - add replacement flag
+    print("--- --- collecting updated parcel data")
+    pids = np.unique(permits_df[permits_id_field])
+    permit_update = []
+    for i in pids:
+        df = permits_df[permits_df[permits_id_field] == i]
+        if len(df.index) > 1:
+            pid = pd.Series(i, index=[permits_id_field])
+            # Living area by land use
+            total_living_area = df.groupby(permits_lu_field)["UpdTLA"].agg("sum").reset_index()
+            # Series for land use [with most living area]
+            land_use = pd.Series(total_living_area[permits_lu_field][np.argmax(total_living_area["UpdTLA"])],
+                                 index=[permits_lu_field])
+            # Series for living area (total across all land uses)
+            ba = pd.Series(sum(total_living_area["UpdTLA"]), index=[parcels_living_area_field])
+            # Series for other fields (from units-field match)
+            others = df.groupby("Parcel_Field")[permits_values_field].agg("sum")
+            # Series for cost
+            cost = pd.Series(sum(df[permits_cost_field]), index=[permits_cost_field])
+            # Bind
+            df = pd.DataFrame(pd.concat([pid, land_use, ba, others, cost], axis=0)).T
+        else:
+            # Rename columns to match parcels
+            df.rename(columns={"UpdTLA": parcels_living_area_field,
+                               permits_values_field: df.Parcel_Field.values[0]},
+                      inplace=True)
+            # Drop unnecessary columns (including nulls from units-field match)
+            df.drop(columns=[permits_units_field, "Parcel_Field"], inplace=True)
+            df = df.loc[:, df.columns.notnull()]
+        # Append the results to our storage list
+        permit_update.append(df)
+    # merge rows, add 2 columns:
+    permit_update = pd.concat(permit_update, axis=0).reset_index(drop=True)
+    permit_update.fillna(0, inplace=True)
+    permit_update[parcels_buildings_field] = 1
+    permit_update.loc[permit_update[parcels_living_area_field] == 0, parcels_buildings_field] = 0
+    permit_update["PERMIT"] = 1
+    permit_update.rename(columns={permits_id_field: parcels_id_field,
+                                  permits_lu_field: parcels_lu_field},
+                         inplace=True)
+    # Finally, we want to update the value field
+    print("--- --- estimating parcel value after permit development")
+    pv = parcels_df[parcels_df[parcels_id_field].isin(pids)]
+    pv = pv.groupby(parcels_id_field)[[parcels_land_value_field, parcels_total_value_field]].sum().reset_index()
+    permit_update = pd.merge(permit_update, pv, on=parcels_id_field, how="left")
+    permit_update["NV"] = permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
+    permit_update[parcels_total_value_field] = np.maximum(permit_update["NV"],
+                                                          permit_update[parcels_total_value_field])
+    permit_update = permit_update.set_index("FOLIO")
+
+    # make the replacements.
+    print("--- --- replacing parcel data with updated information")
+    parcel_update = parcels_df.set_index("FOLIO")
+    parcel_update.update(permit_update)
+    parcel_update.reset_index(inplace=True)
+    print("--- --- joining results to save feature class (be patient, this will take a while)")
+    PMT.extendTableDf(in_table=temp_parcels, table_match_field=process_id_field,
+                      df=parcel_update, df_match_field="ProcessID")
+    arcpy.DeleteField_management(in_table=temp_parcels, drop_field=process_id_field)
+    return temp_parcels
+
+
+def build_short_term_parcels_dep(parcels_path, permits_path, permits_ref_df,
                              parcels_id_field, parcels_lu_field,
                              parcels_living_area_field, parcels_land_value_field,
                              parcels_total_value_field, parcels_buildings_field,
                              permits_id_field, permits_lu_field, permits_units_field,
                              permits_values_field, permits_cost_field,
-                             save_gdb_location, units_field_match_dict={}):
+                             save_gdb_location=None, units_field_match_dict={}):
     # First, we need to initialize a save feature class. The feature class
     # will be a copy of the parcels with a unique ID (added by the function)
     logger.log_msg("--- initializing a save feature class")
@@ -4102,7 +4239,7 @@ def build_short_term_parcels(parcels_path, permits_path, permits_ref_df,
                           left_on=[permits_lu_field, permits_units_field],
                           right_on=[permits_lu_field, permits_units_field], how="left")
 
-    # Now we add to permits_df the field matches to the parlces (which will be
+    # Now we add to permits_df the field matches to the parcels (which will be
     # helpful come the time of updating parcels from the permits_df)
     if units_field_match_dict is not None:
         logger.log_msg("--- --- joining units-field matches")
@@ -4187,8 +4324,6 @@ def build_short_term_parcels(parcels_path, permits_path, permits_ref_df,
     permit_update["NV"] = permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
     permit_update[parcels_total_value_field] = np.maximum(permit_update["NV"], permit_update[parcels_total_value_field])
     permit_update = permit_update.set_index("FOLIO")
-    # permit_update.drop(columns=["NV", parcels_land_value_field, "COST"],
-    #                    inplace=True)
 
     # make the replacements. - drop all the rows from the parcels whose IDs are in the permits_df, - add all the rows
     # for the data we just collected. and retain the process ID from the parcels we're dropping for the sake of joining
@@ -4196,13 +4331,6 @@ def build_short_term_parcels(parcels_path, permits_path, permits_ref_df,
     parcel_update = parcels_df.set_index("FOLIO")
     parcel_update.update(permit_update)
     parcel_update.reset_index(inplace=True)
-    # to_drop = parcels_df[parcels_df[parcels_id_field].isin(pids)]
-    # process_ids = to_drop.groupby(parcels_id_field)["ProcessID"].min().reset_index()
-    # permit_update = pd.merge(permit_update, process_ids, on=parcels_id_field, how="left")
-    # parcel_update = parcels_df[~parcels_df[parcels_id_field].isin(pids)]
-    # parcel_update["PERMIT"] = 0
-    # parcel_update["Year"] = parcels_df["Year"].mode()[0] + 1
-    # final_update = pd.concat([parcel_update, permit_update], axis=0).reset_index(drop=True)
 
     # Now we just write!
     logger.log_msg("\nWriting results")

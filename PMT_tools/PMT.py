@@ -729,14 +729,11 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, drop_dup_cols
 
 
 def dfToTable(df, out_table, overwrite=False):
-    """
-        Use a pandas data frame to export an arcgis table.
-
+    """Use a pandas data frame to export an arcgis table.
     Args:
         df: DataFrame
         out_table: Path
         overwrite: Boolean, default=False
-
     Returns:
         out_table: Path
     """
@@ -748,9 +745,7 @@ def dfToTable(df, out_table, overwrite=False):
 
 
 def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
-    """
-        Use a pandas data frame to export an arcgis point feature class.
-
+    """Use a pandas data frame to export an arcgis point feature class.
     Args:
         df: DataFrame
         out_fc: Path
@@ -806,8 +801,7 @@ def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
 
 
 def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
-    """
-        converts feature class/feature layer to pandas DataFrame object, keeping
+    """converts feature class/feature layer to pandas DataFrame object, keeping
         only a subset of fields if provided
         - drops all spatial data
     Args:
@@ -1519,6 +1513,80 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
     finally:
         print("... ...deleting network problem")
         arcpy.Delete_management(net_layer)
+
+
+def _sanitize_column_names(geo,
+                           remove_special_char=True,
+                           rename_duplicates=True,
+                           inplace=False,
+                           use_snake_case=True):
+    """
+    Implementation for pd.DataFrame.spatial.sanitize_column_names()
+    """
+    original_col_names = list(geo._data.columns)
+
+    # convert to string
+    new_col_names = [str(x) for x in original_col_names]
+
+    # use snake case
+    if use_snake_case:
+        import re
+        for ind, val in enumerate(new_col_names):
+            # skip reserved cols
+            if val == geo.name:
+                continue
+            # replace Pascal and camel case using RE
+            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', val)
+            name = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+            # remove leading spaces
+            name = name.lstrip(" ")
+            # replace spaces with _
+            name = name.replace(" ", "_")
+            # clean up too many _
+            name = re.sub('_+', '_', name)
+            new_col_names[ind] = name
+
+    # remove special characters
+    if remove_special_char:
+        for ind, val in enumerate(new_col_names):
+            name = "".join(i for i in val if i.isalnum() or "_" in i)
+
+            # remove numeral prefixes
+            for ind2, element in enumerate(name):
+                if element.isdigit():
+                    continue
+                else:
+                    name = name[ind2:]
+                    break
+            new_col_names[ind] = name
+
+    # fill empty column names
+    for ind, val in enumerate(new_col_names):
+        if val == "":
+            new_col_names[ind] = "column"
+
+    # rename duplicates
+    if rename_duplicates:
+        for ind, val in enumerate(new_col_names):
+            if val == geo.name:
+                pass
+            if new_col_names.count(val) > 1:
+                counter = 1
+                new_name = val + str(counter)  # adds a integer suffix to column name
+                while new_col_names.count(new_name) > 0:
+                    counter += 1
+                    new_name = val + str(counter)  # if a column with the suffix exists, increment suffix
+                new_col_names[ind] = new_name
+
+    # if inplace
+    if inplace:
+        geo._data.columns = new_col_names
+    else:
+        # return a new dataframe
+        df = geo._data.copy()
+        df.columns = new_col_names
+        return df
+    return True
 
 
 if __name__ == "__main__":

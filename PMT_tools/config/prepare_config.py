@@ -285,12 +285,12 @@ PARCEL_USE_COLS = {
     2019: [
         "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
         "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AR", "NO_BULDNG",
-        "NO_RES_UNT", #"ACT_YR_BLT"
+        "NO_RES_UNT",  # "ACT_YR_BLT"
     ],
     "DEFAULT": [
         "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
         "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AREA", "NO_BULDNG",
-        "NO_RES_UNTS", #"ACT_YR_BLT"
+        "NO_RES_UNTS",  # "ACT_YR_BLT"
     ]
 }
 PARCEL_COLS = {
@@ -681,6 +681,7 @@ PERMITS_LU_FIELD = "DOR_UC"
 # Use PERMITS_UNITS_FIELD for permits units field
 PERMITS_VALUES_FIELD = "UNITS_VAL"
 PERMITS_COST_FIELD = "COST"
+                                # permit unit: parcel_field
 SHORT_TERM_PARCELS_UNITS_MATCH = {"bed": "NO_RES_UNTS",
                                   "room": "NO_RES_UNTS",
                                   "unit": "NO_RES_UNTS"}
