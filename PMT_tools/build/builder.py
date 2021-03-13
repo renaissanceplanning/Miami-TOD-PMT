@@ -419,7 +419,9 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         PMT.extendTableDf(
             in_table=out_table, table_match_field=fc_id, df=diff_df, df_match_field=fc_id)
 
-    print("Finalizing the snapshot")
+    # TODO: calculate percent change in value over base for summary areas
+
+    print("Finalizing the trend")
     final_gdb = PMT.makePath(BUILD, f"Trend.gdb")
     bh.finalize_output(out_gdb, final_gdb)
 

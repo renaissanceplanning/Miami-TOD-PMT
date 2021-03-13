@@ -359,10 +359,14 @@ def process_parcel_land_use():
                                           lu_tbl=lu_table, tbl_lu_field=tbl_lu_field,
                                           dtype_map=dtype, null_value=default_vals)
         # Calculate area columns
-        for par_lu_col in prep_conf.PARCEL_LU_AREAS.keys():
-            ref_col, crit = prep_conf.PARCEL_LU_AREAS[par_lu_col]
+        for par_lu_col in PARCEL_LU_AREAS.keys():
+            # ref_col, crit = PARCEL_LU_AREAS[par_lu_col]
+            # par_df[par_lu_col] = np.select(
+            #     [par_df[ref_col] == crit], [par_df[PARCEL_AREA_COL]], 0.0
+            # )
+            ref_col, comp = PARCEL_LU_AREAS[par_lu_col]
             par_df[par_lu_col] = np.select(
-                [par_df[ref_col] == crit], [par_df[prep_conf.PARCEL_AREA_COL]], 0.0
+                [comp.eval(par_df[ref_col])], [par_df[PARCEL_AREA_COL]], 0.0
             )
         # Export result
         checkOverwriteOutput(out_table, overwrite=True)
