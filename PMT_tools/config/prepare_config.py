@@ -206,6 +206,14 @@ CRASH_CITY_CODES = OrderedDict(
 )
 
 """
+Park Configurations
+"""
+PARK_POINT_COLS = ['FOLIO', 'ID', 'NAME', 'ADDRESS', 'CITY', 'ZIPCODE', 'PHONE', 'CONTACT',
+                   'TOTACRE', 'LAT', 'LON', 'POINT_X', 'POINT_Y', 'CLASS', 'TYPE', 'MNGTAGCY']
+PARK_POINTS_COMMON_KEY = "PARK_PT_ID"
+PARK_POLY_COMMON_KEY = "PARK_PY_ID"
+
+"""
 Configuration variables to be used with building permit data
 """
 PERMITS_CAT_CODE_PEDOR = "PD"
@@ -242,6 +250,7 @@ IN_CRS = 4326  # WGS84 latitude/longitude
 OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 
 # Transit Ridership Tables
+TRANSIT_COMMON_KEY = "TRANSIT_ID"
 TRANSIT_FIELDS_DICT = {
     # "ADAY": "DAY_OF_WEEK",
     "ATIMEPER": "TIME_PERIOD",
@@ -263,6 +272,7 @@ TRANSIT_RIDERSHIP_TABLES = {
     2017: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1803_2018_APR_standard_format.XLS",
     2018: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1811_2019_APR_standard_format.XLS",
     2019: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS",
+    "NearTerm": "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS"
 }
 TRANSIT_LAT = "LAT"
 TRANSIT_LONG = "LONG"
@@ -275,12 +285,12 @@ PARCEL_USE_COLS = {
     2019: [
         "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
         "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AR", "NO_BULDNG",
-        "NO_RES_UNT", #"ACT_YR_BLT"
+        "NO_RES_UNT",  # "ACT_YR_BLT"
     ],
     "DEFAULT": [
         "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
         "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AREA", "NO_BULDNG",
-        "NO_RES_UNTS", #"ACT_YR_BLT"
+        "NO_RES_UNTS",  # "ACT_YR_BLT"
     ]
 }
 PARCEL_COLS = {
@@ -399,9 +409,9 @@ PARCEL_COLS = {
         'STATE_PAR_': 'STATE_PARCEL_ID'
     }
 }
-PARCEL_LU_COL = "DOR_UC"
+LAND_USE_COMMON_KEY = "DOR_UC"
 PARCEL_AREA_COL = "LND_SQFOOT"
-PARCEL_BLD_AREA = "TOT_LVG_AREA"
+PARCEL_BLD_AREA_COL = "TOT_LVG_AREA"
 PARCEL_LU_AREAS = {  # COL_NAME: (which_field, criteria)
     #"VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
     #"RES_AREA": ["RES_NRES", "RES"],
@@ -414,6 +424,7 @@ PARCEL_LU_AREAS = {  # COL_NAME: (which_field, criteria)
 # Block groups config
 BG_COMMON_KEY = "GEOID"
 BG_PAR_SUM_FIELDS = ["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA"]
+BLOCK_COMMON_KEY = "GEOID10"
 
 # LODES/ACS config
 ACS_COMMON_KEY = "GEOID10"
@@ -493,16 +504,17 @@ SKIM_DTYPES = {
 MAZ_AGG_COLS = [
     AggColumn("NO_RES_UNTS", rename="HH"),
     AggColumn("Total_Employment", rename="TotalJobs"),
-    AggColumn("CNS16", rename="HCJobs"),
-    AggColumn("CNS15", rename="EdJobs")
+    AggColumn("CNS16_PAR", rename="HCJobs"),
+    AggColumn("CNS15_PAR", rename="EdJobs")
 ]
 # - MAZ consolidation specs (from parcels)
 MAZ_PAR_CONS = [
-    Consolidation(name="RsrcJobs", input_cols=["CNS01", "CNS02"]),
-    Consolidation(name="IndJobs", input_cols=["CNS05", "CNS06", "CNS08"]),
-    Consolidation(name="ConsJobs", input_cols=["CNS07", "CNS17", "CNS18"]),
-    Consolidation(name="OffJobs", input_cols=["CNS09", "CNS10", "CNS11", "CNS12", "CNS13", "CNS20"]),
-    Consolidation(name="OthJobs", input_cols=["CNS03", "CNS04", "CNS14", "CNS19"])
+    Consolidation(name="RsrcJobs", input_cols=["CNS01_PAR", "CNS02_PAR"]),
+    Consolidation(name="IndJobs", input_cols=["CNS05_PAR", "CNS06_PAR", "CNS08_PAR"]),
+    Consolidation(name="ConsJobs", input_cols=["CNS07_PAR", "CNS17_PAR", "CNS18_PAR"]),
+    Consolidation(name="OffJobs", input_cols=["CNS09_PAR", "CNS10_PAR", "CNS11_PAR", "CNS12_PAR",
+                                              "CNS13_PAR", "CNS20_PAR"]),
+    Consolidation(name="OthJobs", input_cols=["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"])
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
@@ -571,7 +583,9 @@ CENTRALITY_NET_LOADER = NetLoader(
 # walk times config
 TIME_BIN_CODE_BLOCK = """
 def assignBin(value):
-    if value <= 5:
+    if value is None:
+        return ""
+    elif value <= 5:
         return "0 to 5 minutes"
     elif value <= 10:
         return "5 to 10 minutes"
@@ -673,6 +687,7 @@ PERMITS_LU_FIELD = "DOR_UC"
 # Use PERMITS_UNITS_FIELD for permits units field
 PERMITS_VALUES_FIELD = "UNITS_VAL"
 PERMITS_COST_FIELD = "COST"
+                                # permit unit: parcel_field
 SHORT_TERM_PARCELS_UNITS_MATCH = {"bed": "NO_RES_UNTS",
                                   "room": "NO_RES_UNTS",
                                   "unit": "NO_RES_UNTS"}

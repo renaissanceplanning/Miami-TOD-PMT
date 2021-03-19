@@ -5,16 +5,17 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
 ##### Assumptions
 - ArcGIS Pro is installed in a standard location
     ex: C:\Program Files\ArcGIS\Pro
+- ArcGIS Pro version > 2.7
 - Familiarity with command line interactions
 
 ##### Building python CONDA environment
-1) Select Windows Start 
+1) Select Windows Start
 2) Navigate to 'Python Command Prompt' under ArcGIS folder --> Open
 3) In the command window run the below commands:
 4) _Clone the existing ArcGIS python environment_
-    ``` 
+    ```
     conda create --clone arcgispro-py3 --name %LocalAppData%\ESRI\conda\envs\pmt_tools
-    
+
     * (this may take some time, so be patient)
     ```
 4) _Activate the newly created environment_
@@ -33,12 +34,10 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
     ```
 
 #### _WARNING_
-If you have recently updated ArcGIS Pro, you will need to remove the existing environment and recreate it.
+If you have recently updated ArcGIS Pro, you will need to remove the existing environment and recreate it using
+steps 4-7 again.
 - Remove env
     ```
     conda env remove -n pmt_tools
     ```
 - Follow the above steps to recreate the environment
-
-        
-        
