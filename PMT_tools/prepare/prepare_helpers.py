@@ -5,6 +5,9 @@ from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STA
                                              PERMITS_USE, PERMITS_DROPS, )
 from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 
+# temporary
+import PMT_tools.build.build_helper as b_help
+
 from datetime import time
 import numpy as np
 import pandas as pd
@@ -1610,7 +1613,8 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
     print("--- intersecting blocks and parcels")
     temp_spatial = make_inmem_path()
     copyFeatures(in_fc=bg_geom, out_fc=temp_spatial)
-    arcpy.JoinField_management(in_data=temp_spatial, in_field=bg_id_field, join_table=bg_modeled, join_field=bg_id_field)
+    arcpy.JoinField_management(in_data=temp_spatial, in_field=bg_id_field, join_table=bg_modeled,
+                               join_field=bg_id_field)
     parcel_fields = [parcels_id, parcel_lu, parcel_liv_area, "Shape_Area"]
     intersect_fc = intersectFeatures(summary_fc=temp_spatial, disag_fc=parcel_fc, disag_fields=parcel_fields)
     intersect_fields = parcel_fields + block_group_attrs
@@ -1790,9 +1794,7 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
     # by nesting structure
     # tot_bg = tot_bg.fillna(0)
     # 2. merge back to original data
-    intersect_df = pd.merge(intersect_df, count_parcels_bg,
-                            how='left',
-                            on=bg_id_field)
+    intersect_df = pd.merge(intersect_df, count_parcels_bg, how='left', on=bg_id_field)
 
     # Step 2 in allocation is taking parcel-level proportions of living area
     # relative to the block group total, and calculating parcel-level
@@ -1916,23 +1918,17 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
     # maintain the parcels_id_field here, because our save file has been
     # initialized with this already!
     logger.log_msg("--- selecting columns of interest")
-    to_keep = [parcels_id,
-               parcel_liv_area,
-               parcel_lu,
-               bg_id_field,
+    to_keep = [parcels_id, parcel_liv_area, parcel_lu, bg_id_field,
                'Total_Employment',
-               'CNS01_PAR', 'CNS02_PAR', 'CNS03_PAR', 'CNS04_PAR',
-               'CNS05_PAR', 'CNS06_PAR', 'CNS07_PAR', 'CNS08_PAR',
-               'CNS09_PAR', 'CNS10_PAR', 'CNS11_PAR', 'CNS12_PAR',
-               'CNS13_PAR', 'CNS14_PAR', 'CNS15_PAR', 'CNS16_PAR',
-               'CNS17_PAR', 'CNS18_PAR', 'CNS19_PAR', 'CNS20_PAR',
+               'CNS01_PAR', 'CNS02_PAR', 'CNS03_PAR', 'CNS04_PAR', 'CNS05_PAR',
+               'CNS06_PAR', 'CNS07_PAR', 'CNS08_PAR', 'CNS09_PAR', 'CNS10_PAR',
+               'CNS11_PAR', 'CNS12_PAR', 'CNS13_PAR', 'CNS14_PAR', 'CNS15_PAR',
+               'CNS16_PAR', 'CNS17_PAR', 'CNS18_PAR', 'CNS19_PAR', 'CNS20_PAR',
                'Total_Population',
-               'Total_Hispanic_PAR',
-               'White_Hispanic_PAR', 'Black_Hispanic_PAR', 'Asian_Hispanic_PAR',
-               'Multi_Hispanic_PAR', 'Other_Hispanic_PAR',
-               'Total_Non_Hisp_PAR',
-               'White_Non_Hisp_PAR', 'Black_Non_Hisp_PAR', 'Asian_Non_Hisp_PAR',
-               'Multi_Non_Hisp_PAR', 'Other_Non_Hisp_PAR',
+               'Total_Hispanic_PAR', 'White_Hispanic_PAR', 'Black_Hispanic_PAR',
+               'Asian_Hispanic_PAR', 'Multi_Hispanic_PAR', 'Other_Hispanic_PAR',
+               'Total_Non_Hisp_PAR', 'White_Non_Hisp_PAR', 'Black_Non_Hisp_PAR',
+               'Asian_Non_Hisp_PAR', 'Multi_Non_Hisp_PAR', 'Other_Non_Hisp_PAR',
                'Total_Commutes',
                'Drove_PAR', 'Carpool_PAR', 'Transit_PAR',
                'NonMotor_PAR', 'Work_From_Home_PAR', 'AllOther_PAR']
@@ -1941,116 +1937,92 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
     # For saving, we join the allocation estimates back to the ID shape we
     # initialized during spatial processing
     logger.log_msg("--- writing table of allocation results")
-    sed_path = makePath(out_gdb,
-                        "EconDemog_parcels")
+    sed_path = makePath(out_gdb, "EconDemog_parcels")
     dfToTable(intersect_df, sed_path)
-    print("\n")
-    # Then we done!
+    print("")
     return sed_path
 
 
+# TODO: move joinAttributes and summarizeAttributes from build_helper.py to PMT.py
 # MAZ/TAZ data prep helpers
-def estimate_maz_from_parcels(par_fc, par_id_field, maz_fc, maz_id_field,
-                              taz_id_field, se_data, se_id_field, agg_cols,
-                              consolidations):
-    """
-    Estimate jobs, housing, etc. at the MAZ level based on underlying parcel
-    data.
-
-    Parameters
-    --- --- --- ---
-    par_fc: Path
-        Parcel features
-    par_id_field: String
-        Field identifying each parcel feature
-    maz_fc: Path
-        MAZ features
-    maz_id_field: String
-        Field identifying each MAZ feature
-    taz_id_field: String
-        Field in `maz_fc` that defines which TAZ the MAZ feature is in.
-    se_data: Path
-        A gdb table containing parcel-level socio-economic/demographic
-        estimates.
-    se_id_field: String
-        Field identifying each parcel in `se_data`
-    agg_cols: [PMT.AggColumn, ...]
-        Columns to summarize to MAZ level
-    consolidations: [PMT.Consolidation, ...]
-        Columns to consolidated into a single statistic and then summarize
-        to TAZ level.
-
-    Returns
-    --- --- --
-    DataFrame
-
-    See Also
-    --- --- --
-    PMT.AggColumn
-    PMT.Consolidation
+def estimate_maz_from_parcels(par_fc, par_id_field, maz_fc, maz_id_field, taz_id_field, se_data, se_id_field,
+                              agg_cols, consolidations):
+    """Estimate jobs, housing, etc. at the MAZ level based on underlying parcel
+        data.
+    Args:
+        par_fc (str): Path to Parcel features
+        par_id_field (str): Field identifying each parcel feature
+        maz_fc (str): Path to MAZ features
+        maz_id_field (str): Field identifying each MAZ feature
+        taz_id_field (str): Field in `maz_fc` that defines which TAZ the MAZ feature is in.
+        se_data (str): Path to a gdb table containing parcel-level socio-economic/demographic estimates.
+        se_id_field (str): Field identifying each parcel in `se_data`
+        agg_cols (object): [PMT.AggColumn, ...] Columns to summarize to MAZ level
+        consolidations (object): [PMT.Consolidation, ...] Columns to consolidated into a single statistic
+            and then summarize to TAZ level.
+    Returns:
+        DataFrame
+    See Also:
+        PMT.AggColumn
+        PMT.Consolidation
     """
     # intersect
-    int_fc = PMT.intersectFeatures(maz_fc, par_fc)
+    int_fc = PMT.intersectFeatures(summary_fc=maz_fc, disag_fc=par_fc)
     # Join
-    PMT.joinAttributes(int_fc, par_id_field, se_data, se_id_field, "*")
+    b_help.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
+                          join_fields="*", drop_dup_cols=True)
+    # PMT.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
+    #                    join_fields="*")
     # Summarize
     gb_cols = [PMT.Column(maz_id_field), PMT.Column(taz_id_field)]
-    df = PMT.summarizeAttributes(
-        int_fc, gb_cols, agg_cols, consolidations=consolidations)
+    df = b_help.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols,
+                                    consolidations=consolidations)
+    # df = PMT.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols, consolidations=consolidations)
     return df
 
 
 # Consolidate MAZ data (for use in areas outside the study area)
 # TODO: This could become a more generalized method
 def consolidate_cols(df, base_fields, consolidations):
-    """
-    Use the `PMT.Consolidation` class to combine columns and
-    return a clean data frame.
-
-    Parameters
-    --- --- --- --
-    df: DataFrame
-    base_fields: [String, ...]
-        Field(s) in `df` that are not subject to consolidation but which
-        are to be retained in the returned data frame.
-    consolidations: [Consolidation, ...]
-        Specifications for output columns that consolidate columns
-        found in `df`.
-
-    Returns
-    --- --- --
-    clean_df: DataFrame
-        A new data frame with columns reflecting `base_field` and
-        `consolidations`.
-
-    See Also
-    --- --- --- -
-    PMT.Consolidation
+    """ Use the `PMT.Consolidation` class to combine columns and
+        return a clean data frame.
+    Args:
+        df: DataFrame
+        base_fields (list): [String, ...]; Field(s) in `df` that are not subject to consolidation but which
+            are to be retained in the returned data frame.
+        consolidations (iterable): [Consolidation, ...]; Specifications for output columns that consolidate columns
+            found in `df`.
+    Returns:
+        clean_df (pd.DataFrame): DataFrame; A new data frame with columns reflecting `base_field` and
+            `consolidations`.
+    See Also:
+        PMT.Consolidation
     """
     if isinstance(base_fields, str):
         base_fields = [base_fields]
 
     clean_cols = base_fields + [c.name for c in consolidations]
+    renames = {}
     for c in consolidations:
-        df[c.name] = df[c.input_cols].agg(c.cons_method, axis=1)
+        if hasattr(c, "input_cols"):
+            df[c.name] = df[c.input_cols].agg(c.cons_method, axis=1)
+        else:
+            renames[c.name] = c.rename
 
-    clean_df = df[clean_cols].copy()
+    clean_df = df[clean_cols].rename(columns=renames)
     return clean_df
 
 
 def patch_local_regional_maz(maz_par_df, maz_par_key, maz_df, maz_key):
-    """
-    Create a region wide MAZ socioeconomic/demographic data frame based
-    on parcel-level and MAZ-level data. Where MAZ features do not overlap
-    with parcels, use MAZ-level data.
+    """Create a region wide MAZ socioeconomic/demographic data frame based
+        on parcel-level and MAZ-level data. Where MAZ features do not overlap
+        with parcels, use MAZ-level data.
     Args:
         maz_par_df:
         maz_par_key:
         maz_df:
         maz_key:
-
     Returns:
-
     """
     # Create a filter to isolate MAZ features having parcel overlap
     patch_fltr = np.in1d(maz_df[maz_key], maz_par_df[maz_par_key])
@@ -2070,25 +2042,20 @@ def patch_local_regional_maz(maz_par_df, maz_par_key, maz_df, maz_key):
 
 
 def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
-               chunksize=100000, rename={}, **kwargs):
-    """
-    A simple function to read rows from a skim table (csv file), select
-    key columns, and save to an ouptut csv file. Keyword arguments can be
-    given to set column types, etc.
-
-    Parameters
-    -------------
-    in_csv: Path
-    o_field: String
-    d_field: String
-    imp_fields: [String, ...]
-    out_csv: Path
-    chunksize: Integer, default=1000000
-    rename: Dict, default={}
-        A dictionary to rename columns with keys reflecting existing column
-        names and values new column names.
-    kwargs:
-        Keyword arguments parsed by the pandas `read_csv` method.
+               chunk_size=100000, rename={}, **kwargs):
+    """A simple function to read rows from a skim table (csv file), select
+        key columns, and save to an ouptut csv file. Keyword arguments can be
+        given to set column types, etc.
+    Args:
+        in_csv (str): Path to skim table csv
+        o_field (str): field containing origin ids
+        d_field (str): field containing destination ids
+        imp_fields (str, list): [String, ...]; impedance fields
+        out_csv (str): Path to processed table
+        chunk_size (int): Integer, default=1000000; number of rows to process as a subset
+        rename (dict): Dict, default={}; A dictionary to rename columns with keys reflecting 
+            existing column names and values new column names.
+        kwargs: Keyword arguments parsed by the pandas `read_csv` method.
     """
     # Manage vars
     if isinstance(imp_fields, string_types):
@@ -2097,8 +2064,7 @@ def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
     mode = "w"
     header = True
     usecols = [o_field, d_field] + imp_fields
-    for chunk in pd.read_csv(
-            in_csv, usecols=usecols, chunksize=chunksize, **kwargs):
+    for chunk in pd.read_csv(in_csv, usecols=usecols, chunksize=chunk_size, **kwargs):
         if rename:
             chunk.rename(columns=rename, inplace=True)
         # write output
@@ -2109,28 +2075,20 @@ def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
 
 def copy_net_result(source_fds, target_fds, fc_names):
     # TODO: Generalize function name and docstring, as this now just copies one or more fcs across fds's
-    """
-    Since some PMT years use the same OSM network, a solved network analysis
-    can be copied from one year to another to avoid redundant processing.
+    """Since some PMT years use the same OSM network, a solved network analysis
+        can be copied from one year to another to avoid redundant processing.
 
-    This function is a helper function called by PMT wrapper functions. It
-    is not intended to be run indepenently.
-
-    Parameters
-    ------------
-    source_fds: Path, FeatureDataset
-    target_fds: Path, FeatureDataset
-    fc_names: [String, ...]
-        The feature class(es) to be copied from an already-solved
-        analysis. Provide the names only (not paths).
-
-    Returns
-    --------
-    None
-        Copies network service area feature classes to the target year
-        output from a source year using the same OSM data. Any existing
-        features in the feature dataset implied by the target year are
-        overwritten.
+        This function is a helper function called by PMT wrapper functions. It
+        is not intended to be run independently.
+    Args:
+        source_fds (str): Path to source FeatureDataset
+        target_fds (str): Path to destination FeatureDataset
+        fc_names (str, list): [String, ...] The feature class(es) to be copied from an already-solved
+            analysis. Provide the names only (not paths).
+    Returns: None; Copies network service area feature classes to the target year
+            output from a source year using the same OSM data. Any existing
+            features in the feature dataset implied by the target year are
+            overwritten.
     """
     # Coerce fcs to list
     if isinstance(fc_names, string_types):
@@ -2155,14 +2113,14 @@ def copy_net_result(source_fds, target_fds, fc_names):
 
 
 def lines_to_centrality(line_features, impedance_attribute):
-    """
-    Using the "lines" layer output from an OD matrix problem, calculate
-    node centrality statistics and store results in a csv table.
+    """Using the "lines" layer output from an OD matrix problem, calculate
+        node centrality statistics and store results in a csv table.
+    Args:
+        line_features: ODMatrix/Lines feature layer
+        impedance_attribute (str): field
+    Returns:
+        sum_df (pd.DataFrame): summarized df with centrality measure appended
 
-    Parameters
-    -----------
-    line_features: ODMatrix/Lines feature layer
-    impedance_attribute: String
     """
     imp_field = f"Total_{impedance_attribute}"
     # Dump to df
@@ -2171,9 +2129,7 @@ def lines_to_centrality(line_features, impedance_attribute):
     names = ["N", "Node"]
     df[names] = df["Name"].str.split(" - ", n=1, expand=True)
     # Summarize
-    sum_df = df.groupby("Node").agg(
-        {"N": "size", imp_field: sum}
-    ).reset_index()
+    sum_df = df.groupby("Node").agg({"N": "size", imp_field: sum}).reset_index()
     # Calculate centrality
     sum_df["centrality"] = (sum_df.N - 1) / sum_df[imp_field]
     # Add average length
@@ -2185,46 +2141,36 @@ def lines_to_centrality(line_features, impedance_attribute):
 
 def network_centrality(in_nd, in_features, net_loader,
                        name_field="OBJECTID", impedance_attribute="Length",
-                       cutoff="1609", restrictions="", chunksize=1000):
-    """
-    Uses Network Analyst to create and iteratively solve an OD matrix problem
-    to assess connectivity among point features.
+                       cutoff="1609", restrictions="", chunk_size=1000):
+    """Uses Network Analyst to create and iteratively solve an OD matrix problem
+        to assess connectivity among point features.
 
-    The evaluation analyses how many features can reach a given feature and
-    what the total and average travel impedances are. Results are reported
-    for traveling TO each feature (i.e. features as destinations), which may
-    be significant if oneway or similar restrictions are honored.
-
-    in_nd: Path, NetworkDataset
-    in_features: Path, Feature Class or Feature Layer
-        A point feature class or feature layer that will serve as origins and
-        destinations in the OD matrix
-    net_loader: NetLoader
-        Provide network location loading preferences using a NetLoader
-        instance.
-    name_field: String, default="OBJECTID"
-        A field in `in_features` that identifies each feature. Generally this
-        should be a unique value.
-    impedance_attribute: String, default="Length"
-        The attribute in `in_nd` to use when solving shortest paths among
-        features in `in_features`.
-    cutoff: String, default="1609"
-        A number (as a string) that establishes the search radius for
-        evaluating node centrality. Counts and impedances from nodes within
-        this threshold are summarized. Units are implied by the
-        `impedance_attribute`.
-    restrictions: String, default=""
-        If `in_nd` includes restriction attributes, provide a
-        semi-colon-separated string listing which restrictions to honor
-        in solving the OD matrix.
-    chunksize: Integer, default=1000
-        Destination points from `in_features` are loaded iteratively in chunks
-        to manage memory. The `chunksize` determines how many features are
-        analyzed simultaneously (more is faster but consumes more memory).
-
-    Returns
-    -------
-    centrality_df: DataFrame
+        The evaluation analyses how many features can reach a given feature and
+        what the total and average travel impedances are. Results are reported
+        for traveling TO each feature (i.e. features as destinations), which may
+        be significant if oneway or similar restrictions are honored.
+    Args:
+        in_nd (str): Path to  NetworkDataset
+        in_features (str): Path to Feature Class or Feature Layer
+            A point feature class or feature layer that will serve as origins and
+            destinations in the OD matrix
+        net_loader (object): NetLoader; Provide network location loading preferences using a NetLoader
+            instance.
+        name_field (str): String, default="OBJECTID"; A field in `in_features` that identifies each feature.
+            Generally this should be a unique value.
+        impedance_attribute (str): String, default="Length" The attribute in `in_nd` to use when solving
+            shortest paths among features in `in_features`.
+        cutoff (str): String, default="1609";  A number (as a string) that establishes the search radius for
+            evaluating node centrality. Counts and impedances from nodes within this threshold are summarized.
+            Units are implied by the `impedance_attribute`.
+        restrictions (str): String, default=""; If `in_nd` includes restriction attributes, provide a
+            semi-colon-separated string listing which restrictions to honor in solving the OD matrix.
+        chunk_size: Integer, default=1000
+            Destination points from `in_features` are loaded iteratively in chunks
+            to manage memory. The `chunksize` determines how many features are
+            analyzed simultaneously (more is faster but consumes more memory).
+    Returns:
+        centrality_df: DataFrame
     """
     results = []
     # Step 1: OD problem
@@ -2267,7 +2213,7 @@ def network_centrality(in_nd, in_features, net_loader,
     fm = "Name Name #;CurbApproach CurbApproach 0;SourceID SourceID #;SourceOID SourceOID #;PosAlong PosAlong #;SideOfEdge SideOfEdge #"
     dest_src = arcpy.MakeFeatureLayer_management(
         "OD Cost Matrix\Origins", "DEST_SOURCE")
-    for chunk in PMT.iterRowsAsChunks(dest_src, chunksize=chunksize):
+    for chunk in PMT.iterRowsAsChunks(dest_src, chunksize=chunk_size):
         # printed dots track progress over chunks
         print(".", end="")
         arcpy.AddLocations_na(
@@ -2294,63 +2240,54 @@ def network_centrality(in_nd, in_features, net_loader,
 
 
 def parcel_walk_time_bin(in_table, bin_field, time_field, code_block):
+    """Adds a field to create travel time categories in a new `bin_field`
+        based on the walk times recorded in a `time_field` and an extended
+        if/else `code_block` that defines a simple function `assignBin()`.
+    Args:
+        in_table: path
+        bin_field: String
+        time_field: String
+        code_block: String
+            Defines a python function `assignBin()` with if/else statements
+            to group times in `time_field` into bins to be stored as string
+            values in `bin_field`.
     """
-    Adds a field to create travel time categories in a new `bin_field`
-    based on the walk times recorded in a `time_field` and an extended
-    if/else `code_block` that defines a simple function `assignBin()`.
-
-    Parameters
-    -----------
-    in_table: path
-    bin_field: String
-    time_field: String
-    code_block: String
-        Defines a python function `assignBin()` with if/else statements
-        to group times in `time_field` into bins to be stored as string
-        values in `bin_field`.
-    """
-    arcpy.AddField_management(in_table, bin_field, "TEXT", field_length=20)
-    arcpy.CalculateField_management(in_table=in_table, field=bin_field,
-                                    expression=f"assignBin(!{time_field}!)",
-                                    expression_type="PYTHON3", code_block=code_block)
+    arcpy.AddField_management(in_table=in_table, field_name=bin_field, field_type="TEXT", field_length=20)
+    arcpy.CalculateField_management(in_table=in_table, field=bin_field, expression=f"assignBin(!{time_field}!)",
+                                    code_block=code_block)
 
 
 def parcel_walk_times(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
-                      ref_time_field, target_name):
-    """
-    For features in a parcel feature class, summarize walk times reported
-    in a reference features class of service area lines. Generates fields
-    recording the nearest reference feature, walk time to the nearest
-    reference feature, number of reference features within the service
-    area walk time cutoff, and a minimum walk time "category" field.
-
-    Parameters
-    -----------
-    parcel_fc: Path
-        The parcel features to which walk time estimates will be appended.
-    parcel_id_field: String
-        The field in `parcel_fc` that uniquely identifies each feature.
-    ref_fc: Path
-        A feature class of line features with travel time estimates from/to
-        key features (stations, parks, etc.)
-    ref_name_field: String
-        A field in `ref_fc` that identifies key features (which station, e.g.)
-    ref_time_field: String
-        A field in `ref_fc` that reports the time to walk from each line
-        feature from/to key features.
-    target_name: String
-        A string suffix included in output field names.
-
-    Returns
-    --------
-    walk_time_df: DataFrame
-        A data frame with columns storing walk time data:
-        `nearest_{target_name}`, `min_time_{target_name}`,
-        `n_{target_name}`
-
-    See Also
-    ---------
-    parcel_ideal_walk_time
+                      ref_time_field, preselect_fc, target_name):
+    """For features in a parcel feature class, summarize walk times reported
+        in a reference features class of service area lines. Generates fields
+        recording the nearest reference feature, walk time to the nearest
+        reference feature, number of reference features within the service
+        area walk time cutoff, and a minimum walk time "category" field.
+    Args:
+        parcel_fc: Path
+            The parcel features to which walk time estimates will be appended.
+        parcel_id_field: String
+            The field in `parcel_fc` that uniquely identifies each feature.
+        ref_fc: Path
+            A feature class of line features with travel time estimates from/to
+            key features (stations, parks, etc.)
+        ref_name_field: String
+            A field in `ref_fc` that identifies key features (which station, e.g.)
+        ref_time_field: String
+            A field in `ref_fc` that reports the time to walk from each line
+            feature from/to key features.
+        preselect_fc: String
+            A feature class used to subset parcel_fc prior to spatial join
+        target_name: String
+            A string suffix included in output field names.
+    Returns:
+        walk_time_df: DataFrame
+            A data frame with columns storing walk time data:
+            `nearest_{target_name}`, `min_time_{target_name}`,
+            `n_{target_name}`
+    See Also:
+        parcel_ideal_walk_time
     """
     sr = arcpy.Describe(ref_fc).spatialReference
     # Name time fields
@@ -2359,19 +2296,21 @@ def parcel_walk_times(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     number_field = f"n_{target_name}"
     # Intersect layers
     print("--- intersecting parcels and network outputs")
-    int_fc = "in_memory\\par_wt_sj"
-    int_fc = arcpy.SpatialJoin_analysis(parcel_fc, ref_fc, int_fc,
-                                        join_operation="JOIN_ONE_TO_MANY",
-                                        join_type="KEEP_ALL",
-                                        match_option="WITHIN_A_DISTANCE",
-                                        search_radius="80 Feet")
+    parcel_lyr = arcpy.MakeFeatureLayer_management(in_features=parcel_fc, out_layer='parcel_lyr')
+    arcpy.SelectLayerByLocation_management(in_layer=parcel_lyr, overlap_type="HAVE_THEIR_CENTER_IN",
+                                           select_features=preselect_fc)
+    int_fc = PMT.make_inmem_path()
+    int_fc = arcpy.SpatialJoin_analysis(target_features=parcel_lyr, join_features=ref_fc, out_feature_class=int_fc,
+                                        join_operation="JOIN_ONE_TO_MANY", join_type="KEEP_ALL",
+                                        match_option="WITHIN_A_DISTANCE", search_radius="80 Feet"
+                                        )
     # Summarize
     print(f"--- summarizing by {parcel_id_field}, {ref_name_field}")
-    sum_tbl = "in_memory\\par_wt_sj_sum"
+    sum_tbl = PMT.make_inmem_path()
     statistics_fields = [[ref_time_field, "MIN"], [ref_time_field, "MEAN"]]
     case_fields = [parcel_id_field, ref_name_field]
-    sum_tbl = arcpy.Statistics_analysis(
-        int_fc, sum_tbl, statistics_fields, case_fields)
+    sum_tbl = arcpy.Statistics_analysis(in_table=int_fc, out_table=sum_tbl,
+                                        statistics_fields=statistics_fields, case_field=case_fields)
     # Delete intersect features
     arcpy.Delete_management(int_fc)
 
@@ -2379,9 +2318,7 @@ def parcel_walk_times(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     print("--- converting to data frame")
     sum_fields = [f"MEAN_{ref_time_field}"]
     dump_fields = [parcel_id_field, ref_name_field] + sum_fields
-    int_df = pd.DataFrame(
-        arcpy.da.TableToNumPyArray(sum_tbl, dump_fields)
-    )
+    int_df = PMT.table_to_df(in_tbl=sum_tbl, keep_fields=dump_fields, null_val=0.0)
     int_df.columns = [parcel_id_field, ref_name_field, ref_time_field]
     # Delete summary table
     arcpy.Delete_management(sum_tbl)
@@ -2396,8 +2333,7 @@ def parcel_walk_times(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
 
     # Export output table
     print("--- saving walk time results")
-    walk_time_df = pd.concat(
-        [which_name, min_time, number], axis=1).reset_index()
+    walk_time_df = pd.concat([which_name, min_time, number], axis=1).reset_index()
     renames = [parcel_id_field, nearest_field, min_time_field, number_field]
     walk_time_df.columns = renames
     return walk_time_df
@@ -2407,38 +2343,33 @@ def parcel_ideal_walk_time(parcels_fc, parcel_id_field, target_fc,
                            target_name_field, radius, target_name,
                            overlap_type="HAVE_THEIR_CENTER_IN",
                            sr=None, assumed_mph=3):
-    """
-    Estimate walk time between parcels and target features (stations, parks,
-    e.g.) based on a straight-line distance estimate and an assumed walking
-    speed.
-
-    Parameters
-    ------------
-    parcels_fc: Path
-    parcel_id_field: String
-        A field that uniquely identifies features in `parcels_fc`
-    target_fc: Path
-    target_name_field: String
-        A field that uniquely identifies features in `target_fc`
-    radius: String
-        A "linear unit" string for spatial selection ('5280 Feet', e.g.)
-    target_name: String
-        A string suffix included in output field names.
-    overlap_type: String, default="HAVE_THEIR_CENTER_IN"
-        A string specifying selection type (see ArcGIS )
-    sr: SpatialReference, default=None
-        A spatial reference code, string, or object to ensure parcel and
-        target features are projected consistently. If `None`, the spatial
-        reference from `parcels_fc` is used.
-    assumed_mph: numeric, default=3
-        The assumed average walk speed expressed in miles per hour.
-
-    Returns
-    --------
-    walk_time_fc: DataFrame
-        A data frame with columns storing ideal walk time data:
-        `nearest_{target_name}`, `min_time_{target_name}`,
-        `n_{target_name}`
+    """Estimate walk time between parcels and target features (stations, parks,
+        e.g.) based on a straight-line distance estimate and an assumed walking
+        speed.
+    Args:
+        parcels_fc: Path
+        parcel_id_field: String
+            A field that uniquely identifies features in `parcels_fc`
+        target_fc: Path
+        target_name_field: String
+            A field that uniquely identifies features in `target_fc`
+        radius: String
+            A "linear unit" string for spatial selection ('5280 Feet', e.g.)
+        target_name: String
+            A string suffix included in output field names.
+        overlap_type: String, default="HAVE_THEIR_CENTER_IN"
+            A string specifying selection type (see ArcGIS )
+        sr: SpatialReference, default=None
+            A spatial reference code, string, or object to ensure parcel and
+            target features are projected consistently. If `None`, the spatial
+            reference from `parcels_fc` is used.
+        assumed_mph: numeric, default=3
+            The assumed average walk speed expressed in miles per hour.
+    Returns:
+        walk_time_fc: DataFrame
+            A data frame with columns storing ideal walk time data:
+            `nearest_{target_name}`, `min_time_{target_name}`,
+            `n_{target_name}`
     """
     # output_fields
     nearest_field = f"nearest_{target_name}"
@@ -2467,8 +2398,8 @@ def parcel_ideal_walk_time(parcels_fc, parcel_id_field, target_fc,
                 tgt_x = tgt_feature.centroid.X
                 tgt_y = tgt_feature.centroid.Y
                 # select parcels in target buffer
-                arcpy.SelectLayerByLocation_management(
-                    par_lyr, overlap_type, tgt_feature, search_distance=radius)
+                arcpy.SelectLayerByLocation_management(in_layer=par_lyr, overlap_type=overlap_type,
+                                                       select_features=tgt_feature, search_distance=radius)
                 # dump to df
                 par_df = pd.DataFrame(
                     arcpy.da.FeatureClassToNumPyArray(
@@ -2617,28 +2548,25 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
                restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
                o_location_fields=None, d_location_fields=None,
                o_chunk_size=None):
-    """
-    Creates and solves an OD Matrix problem for a collection of origin and
-    destination points using a specified network dataset. Results are
-    exported as a csv file.
-
-    Parameters
-    ----------
-    origin_pts: Path
-    origin_name_field: String
-    dest_pts: Path
-    dest_name_field: String
-    in_nd: Path
-    imped_attr: String
-    cutoff: numeric
-    net_loader: NetLoader
-    out_table: Path
-    restrictions: [String, ...], default=None
-    use_hierarchy: Boolean, default=False
-    uturns: String, default="ALLOW_UTURNS"
-    o_location_fields: [String, ...], default=None
-    d_location_fields: [String, ...], default=None
-    o_chunk_size: Integer, default=None
+    """Creates and solves an OD Matrix problem for a collection of origin and
+        destination points using a specified network dataset. Results are
+        exported as a csv file.
+    Args:
+        origin_pts: Path
+        origin_name_field: String
+        dest_pts: Path
+        dest_name_field: String
+        in_nd: Path
+        imped_attr: String
+        cutoff: numeric
+        net_loader: NetLoader
+        out_table: Path
+        restrictions: [String, ...], default=None
+        use_hierarchy: Boolean, default=False
+        uturns: String, default="ALLOW_UTURNS"
+        o_location_fields: [String, ...], default=None
+        d_location_fields: [String, ...], default=None
+        o_chunk_size: Integer, default=None
     """
     if use_hierarchy:
         hierarchy = "USE_HIERARCHY"
@@ -2663,8 +2591,8 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
     net_layer_ = net_layer.getOutput(0)
 
     try:
-        PMT._loadLocations(net_layer_, "Destinations", dest_pts, dest_name_field,
-                           net_loader, d_location_fields)
+        PMT._loadLocations(net_layer=net_layer_, sublayer="Destinations", points=dest_pts, name_field=dest_name_field,
+                           net_loader=net_loader, net_location_fields=d_location_fields)
         # Iterate solves as needed
         if o_chunk_size is None:
             o_chunk_size = arcpy.GetCount_management(origin_pts)[0]
@@ -2688,9 +2616,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
             columns = ["Name", imped_attr]
             # out_fields += [f"Total_{attr}" for attr in accum]
             # columns += [c for c in accum]
-            df = pd.DataFrame(
-                arcpy.da.TableToNumPyArray(extend_sublayer, out_fields)
-            )
+            df = PMT.table_to_df(in_tbl=extend_sublayer, keep_fields=out_fields)
             df.columns = columns
             # Split outputs
             if len(df) > 0:
@@ -2698,8 +2624,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
                 df[names] = df["Name"].str.split(" - ", n=1, expand=True)
 
                 # Save
-                df.to_csv(
-                    out_table, index=False, mode=write_mode, header=header)
+                df.to_csv(out_table, index=False, mode=write_mode, header=header)
 
                 # Update writing params
                 write_mode = "a"
@@ -4180,12 +4105,12 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
 
 
 def build_short_term_parcels_dep(parcels_path, permits_path, permits_ref_df,
-                             parcels_id_field, parcels_lu_field,
-                             parcels_living_area_field, parcels_land_value_field,
-                             parcels_total_value_field, parcels_buildings_field,
-                             permits_id_field, permits_lu_field, permits_units_field,
-                             permits_values_field, permits_cost_field,
-                             save_gdb_location=None, units_field_match_dict={}):
+                                 parcels_id_field, parcels_lu_field,
+                                 parcels_living_area_field, parcels_land_value_field,
+                                 parcels_total_value_field, parcels_buildings_field,
+                                 permits_id_field, permits_lu_field, permits_units_field,
+                                 permits_values_field, permits_cost_field,
+                                 save_gdb_location=None, units_field_match_dict={}):
     # First, we need to initialize a save feature class. The feature class
     # will be a copy of the parcels with a unique ID (added by the function)
     logger.log_msg("--- initializing a save feature class")

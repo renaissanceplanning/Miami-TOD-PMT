@@ -504,16 +504,17 @@ SKIM_DTYPES = {
 MAZ_AGG_COLS = [
     AggColumn("NO_RES_UNTS", rename="HH"),
     AggColumn("Total_Employment", rename="TotalJobs"),
-    AggColumn("CNS16", rename="HCJobs"),
-    AggColumn("CNS15", rename="EdJobs")
+    AggColumn("CNS16_PAR", rename="HCJobs"),
+    AggColumn("CNS15_PAR", rename="EdJobs")
 ]
 # - MAZ consolidation specs (from parcels)
 MAZ_PAR_CONS = [
-    Consolidation(name="RsrcJobs", input_cols=["CNS01", "CNS02"]),
-    Consolidation(name="IndJobs", input_cols=["CNS05", "CNS06", "CNS08"]),
-    Consolidation(name="ConsJobs", input_cols=["CNS07", "CNS17", "CNS18"]),
-    Consolidation(name="OffJobs", input_cols=["CNS09", "CNS10", "CNS11", "CNS12", "CNS13", "CNS20"]),
-    Consolidation(name="OthJobs", input_cols=["CNS03", "CNS04", "CNS14", "CNS19"])
+    Consolidation(name="RsrcJobs", input_cols=["CNS01_PAR", "CNS02_PAR"]),
+    Consolidation(name="IndJobs", input_cols=["CNS05_PAR", "CNS06_PAR", "CNS08_PAR"]),
+    Consolidation(name="ConsJobs", input_cols=["CNS07_PAR", "CNS17_PAR", "CNS18_PAR"]),
+    Consolidation(name="OffJobs", input_cols=["CNS09_PAR", "CNS10_PAR", "CNS11_PAR", "CNS12_PAR",
+                                              "CNS13_PAR", "CNS20_PAR"]),
+    Consolidation(name="OthJobs", input_cols=["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"])
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
@@ -582,7 +583,9 @@ CENTRALITY_NET_LOADER = NetLoader(
 # walk times config
 TIME_BIN_CODE_BLOCK = """
 def assignBin(value):
-    if value <= 5:
+    if value is None:
+        return ""
+    elif value <= 5:
         return "0 to 5 minutes"
     elif value <= 10:
         return "5 to 10 minutes"

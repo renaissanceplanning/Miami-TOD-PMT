@@ -9,6 +9,7 @@ import PMT_tools.PMT as PMT
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
 import arcpy
 
+
 def _list_table_paths(gdb, criteria="*"):
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = gdb
@@ -20,6 +21,7 @@ def _list_table_paths(gdb, criteria="*"):
         tables += arcpy.ListTables(c)
     arcpy.env.workspace = old_ws
     return [PMT.makePath(gdb, table) for table in tables]
+
 
 def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     old_ws = arcpy.env.workspace
@@ -41,6 +43,7 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     arcpy.env.workspace = old_ws
     return paths
 
+
 def add_year_columns(in_gdb, year):
     print("checking for/adding year columns")
     old_ws = arcpy.env.workspace
@@ -55,6 +58,7 @@ def add_year_columns(in_gdb, year):
         arcpy.CalculateField_management(table, "Year", str(year))
     arcpy.env.workspace = old_ws
 
+
 def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
     if not out_gdb_name:
         out_gdb_name = f"_{uuid.uuid4().hex}.gdb"
@@ -67,6 +71,7 @@ def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
     arcpy.CreateFileGDB_management(out_path, out_gdb_name)
     return out_gdb
 
+
 def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False):
     out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
     # copy in the geometry data containing minimal tabular data
@@ -77,6 +82,7 @@ def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
         arcpy.Copy_management(source_fd, out_fd)
     return out_gdb
 
+
 def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
     out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
     for fds in ["Networks", "Points", "Polygons"]:
@@ -84,6 +90,7 @@ def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
             out_dataset_path=out_gdb, out_name=fds,
             spatial_reference=PMT.SR_FL_SPF)
     return out_gdb
+
 
 def _validateAggSpecs(var, expected_type):
     e_type = expected_type.__name__
@@ -124,21 +131,19 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
         tbl_fields = [f.name for f in arcpy.ListFields(to_table)
                       if f.name != to_id_field]
         # List of which fields to drop
-        drop_fields = [d for d in expected_fields #join_fields
+        drop_fields = [d for d in expected_fields  # join_fields
                        if d in tbl_fields]
         # If all the fields to join will be dropped, exit
         if len(join_fields) == len(drop_fields):
             print('... no new fields')
-            return #TODO: what if we want to update these fields?
+            return  # TODO: what if we want to update these fields?
         # else:
         #     join_fields = [jf for jf in join_fields if jf not in drop_fields]
+    else:
+        drop_fields = []
     # Dump from_table to df
     dump_fields = [from_id_field] + join_fields
-    df = pd.DataFrame(
-        arcpy.da.TableToNumPyArray(
-            from_table, dump_fields, null_value=null_value
-        )
-    )
+    df = PMT.table_to_df(in_tbl=from_table, keep_fields=dump_fields, null_val=null_value)
     # Rename columns and drop columns as needed
     if renames:
         df.rename(columns=renames, inplace=True)
@@ -152,7 +157,6 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
 def summarizeAttributes(in_fc, group_fields, agg_cols,
                         consolidations=None, melt_col=None):
     """
-
     """
     # Validation (listify inputs, validate values)
     # - Group fields (domain possible)
@@ -161,8 +165,8 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
     dump_fields = [gf.name for gf in group_fields]
     keep_cols = []
     null_dict = dict([(gf.name, gf.default) for gf in group_fields])
-    renames = [
-        (gf.name, gf.rename) for gf in group_fields if gf.rename is not None]
+    renames = [(gf.name, gf.rename) for gf in group_fields if gf.rename is not None]
+
     # - Agg columns (no domain expected)
     agg_cols = _validateAggSpecs(agg_cols, AggColumn)
     agg_methods = {}
@@ -173,16 +177,19 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         agg_methods[ac.name] = ac.agg_method
         if ac.rename is not None:
             renames.append((ac.name, ac.rename))
+
     # - Consolidations (no domain expected)
     if consolidations:
         consolidations = _validateAggSpecs(consolidations, Consolidation)
         for c in consolidations:
-            dump_fields += [ic for ic in c.input_cols]
-            keep_cols.append(c.name)
-            null_dict.update(c.defaultsDict())
-            agg_methods[c.name] = c.agg_method
+            if hasattr(c, "input_cols"):
+                dump_fields += [ic for ic in c.input_cols]
+                keep_cols.append(c.name)
+                null_dict.update(c.defaultsDict())
+                agg_methods[c.name] = c.agg_method
     else:
         consolidations = []
+
     # - Melt columns (domain possible)
     if melt_col:
         melt_col = _validateAggSpecs(melt_col, MeltColumn)[0]
@@ -193,14 +200,12 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         agg_methods[melt_col.val_col] = melt_col.agg_method
 
     # Dump the intersect table to df
-    int_df = pd.DataFrame(
-        arcpy.da.TableToNumPyArray(
-            in_fc, dump_fields, null_value=null_dict)
-    )
+    int_df = PMT.table_to_df(in_tbl=in_fc, keep_fields=dump_fields, null_val=null_dict)
 
     # Consolidate columns
     for c in consolidations:
-        int_df[c.name] = int_df[c.input_cols].agg(c.cons_method, axis=1)
+        if hasattr(c, "input_cols"):
+            int_df[c.name] = int_df[c.input_cols].agg(c.cons_method, axis=1)
 
     # Melt columns
     if melt_col:
@@ -221,7 +226,6 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         if melt_col.domain is not None:
             melt_col.applyDomain(int_df)
             gb_fields.append(melt_col.domain.name)
-
 
     # Group by - summarize
     all_fields = gb_fields + keep_cols
@@ -294,12 +298,12 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     # Set index columns
     base_df.set_index(idx_cols, inplace=True)
     this_df.set_index(idx_cols, inplace=True)
-    this_df = this_df.reindex(base_df.index, fill_value=0) # is this necessary?
+    this_df = this_df.reindex(base_df.index, fill_value=0)  # is this necessary?
     # Drop all remaining non-numeric columns
     base_df_n = base_df.select_dtypes(["number"])
     this_df_n = this_df.select_dtypes(["number"])
     # Reindex columns
-    #this_df_n.reindex(columns=base_df_n.columns, inplace=True)
+    # this_df_n.reindex(columns=base_df_n.columns, inplace=True)
     # Take difference
     diff_df = this_df_n - base_df_n
     # Restore index columns
