@@ -173,6 +173,68 @@ def download_commute_vars(year, acs_dataset="acs5", state="fl", county="086", ta
 
     return mode_data.reset_index(drop=True)
 
+  
+def trim_components(G,
+                    min_edges = 2,
+                    message = True):
+    '''
+    remove connected components less than a certain size (in number of edges)
+    from a graph
+
+    Parameters
+    ----------
+    G : networkx graph
+        the network from which to remove small components
+    min_edges : int, optional
+        the minimum number of edges required for a component to remain in the
+        network; any component with FEWER edges will be removed. The default 
+        is 2.
+    message : bool, optional
+        should a message indicating the number of components removed be
+        printed? The default is True.
+
+    Returns
+    -------
+    G : networkx graph
+        the original graph, with connected components smaller than `min_edges`
+        removed
+        
+    '''
+    
+    # Build weakly connected components -- there must be a path from A to B,
+    # but not necessarily from B to A (this accounts for directed graphs)
+    conn_comps = list(nx.weakly_connected_components(G))
+    
+    # To have at least "x" edges, we need at least "x+1" nodes. So, we can
+    # set a node count from the min edges
+    min_nodes = min_edges + 1
+
+    # Loop through the connected components (represented as node sets) to 
+    # count edges -- if we have less than the required number of nodes for
+    # the required number of edges, remove the nodes that create that 
+    # component (thus eliminating that component)
+    for cc in conn_comps:
+        if len(cc) < min_nodes:
+            G.remove_nodes_from(cc)
+        else:
+            pass
+    
+    # If a printout of number of components removed is requested, count and
+    # print here.
+    if message == True:
+        count_removed = sum([len(x) < min_nodes for x in conn_comps])
+        count_message = ' '.join([str(count_removed), 
+                                  "of", 
+                                  str(len(conn_comps)),
+                                  "were removed from the input graph"])
+        print(count_message)
+    else:
+        pass
+        
+    # The graph was updated in the loop, so we can just return here
+    return G
+  
+  
 # bike and pedestrian crashes #DEPRECATED
 # def download_bike_ped_crashes(
 #         all_crashes_url=None, fields='ALL', where_clause=None,
