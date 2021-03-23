@@ -645,20 +645,8 @@ DIV_RELEVANT_LAND_USES = ["auto", "civic", "education",
 # DIV_REGIONAL_CONSTS = None
 
 """
-Configuration variables to be used in imperviousness
-"""
-
-# imperviousness path is the output of the prep function, don't need to specify here
-ZONE_GEOM_FORMAT = r"K:\Projects\MiamiDade\PMT\Data\IDEAL_PMT_{year}.gdb\Polygons\Blocks"
-ZONE_GEOM_ID = "GEOID10"
-
-"""
 Configuration variables to be used in permits/short term parcels prep
 """
-
-# For building the reference table
-# Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
-PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Dade_BuildingPermits.shp"
 # Use PARCEL_LU_COL for lu_match_field
 # Use PARCEL_BLD_AREA for parcels_living_area_field
 PERMITS_UNITS_FIELD = "UNITS"
@@ -672,10 +660,6 @@ PERMITS_REF_TABLE_UNITS_MATCH = {"student_20": "NO_RES_UNITS",
                                  "student_25": "NO_RES_UNITS",
                                  "student_30": "NO_RES_UNITS"}
 
-# For building the short term parcels
-# Use YEAR_GDB_FORMAT and max(YEARS) to find snapshot parcels for parcels_path
-PERMITS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\BuildingPermits\Miami_Dade_BuildingPermits.shp"
-PERMITS_REF_TABLE_PATH = r"K:\Projects\MiamiDade\PMT\Data\Reference\permits_units_reference_table.csv"
 # Use PARCEL_COMMON_KEY for parcels_id_field
 # Use PARCEL_LU_COL for parcels_lu_field
 # USE PARCEL_BLD_AREA parcels_living_area_field

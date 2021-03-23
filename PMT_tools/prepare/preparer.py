@@ -115,7 +115,7 @@ def process_basic_features():
                       rename_dict=prep_conf.BASIC_RENAME_DICT, overwrite=True)
 
     print("Making summarization features")
-    makeSummaryFeatures(bf_gdb=prep_conf.BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
+    makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
                         corridors_fc=prep_conf.BASIC_CORRIDORS,
                         cor_name_field=prep_conf.CORRIDOR_NAME_FIELD, out_fc=prep_conf.BASIC_SUM_AREAS,
                         stn_buffer_meters=prep_conf.STN_BUFF_METERS, stn_name_field=prep_conf.STN_NAME_FIELD,
@@ -374,24 +374,29 @@ def process_parcel_land_use(overwrite=True):
         dfToTable(df=par_df, out_table=out_table)
 
 
-def process_imperviousness():
+def process_imperviousness(overwrite=True):
     impervious_download = makePath(RAW, "Imperviousness.zip")
-    county_boundary = makePath(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures", "MiamiDadeCountyBoundary")
-    out_dir = PMT.validate_directory(makePath(CLEANED, "IMPERVIOUS"))
+    county_boundary = makePath(CLEANED, "PMT_BasicFeatures.gdb", "BasicFeatures", "MiamiDadeCountyBoundary")
+    out_dir = PMT.validate_directory(makePath(RAW, "IMPERVIOUS"))
     impv_raster = prep_imperviousness(zip_path=impervious_download, clip_path=county_boundary, out_dir=out_dir,
                                       transform_crs=EPSG_FLSPF)
+    logger.log_msg("--- --- converting raster to point")
+    points = make_inmem_path(file_name="raster_to_point")
+    arcpy.RasterToPoint_conversion(in_raster=impv_raster, out_point_features=points)
+
+    logger.log_msg("--- grabbing impervious raster cell size")
+    cellx = arcpy.GetRasterProperties_management(in_raster=impv_raster, property_type="CELLSIZEX")
+    celly = arcpy.GetRasterProperties_management(in_raster=impv_raster, property_type="CELLSIZEY")
+    cell_area = float(cellx.getOutput(0)) * float(celly.getOutput(0))
     for year in YEARS:
-        gdb = YEAR_GDB_FORMAT.replace("YEAR", str(year))
-        if "{year}" in prep_conf.ZONE_GEOM_FORMAT:
-            zone_fc = prep_conf.ZONE_GEOM_FORMAT.replace("{year}", str(year))
-        else:
-            zone_fc = prep_conf.ZONE_GEOM_FORMAT
-        impv = analyze_imperviousness(impervious_path=impv_raster,
-                                      zone_geometries_path=zone_fc,
-                                      zone_geometries_id_field=prep_conf.ZONE_GEOM_ID)
+        print(f"\n{str(year)}:")
+        year_gdb = makePath(CLEANED, f"PMT_{year}.gdb")
+        zone_fc = makePath(year_gdb, 'Polygons', 'Census_Blocks')
+        impv = analyze_imperviousness(raster_points=points, rast_cell_area=cell_area,
+                                      zone_fc=zone_fc, zone_id_field=prep_conf.BLOCK_COMMON_KEY)
         zone_name = os.path.split(zone_fc)[1].lower()
-        write_to = makePath(gdb, ''.join(["Imperviousness_", zone_name]))
-        dfToTable(impv, write_to)
+        imp_table = makePath(year_gdb, f"Imperviousness_{zone_name}")
+        dfToTable(df=impv, out_table=imp_table, overwrite=overwrite)
 
 
 def process_osm_networks():
@@ -830,7 +835,7 @@ def process_walk_times():
                                  time_field=min_time_field, code_block=prep_conf.TIME_BIN_CODE_BLOCK)
 
 
-def process_ideal_walk_times():
+def process_ideal_walk_times(overwrite=True):
     print("\nProcessing Ideal Walk Times:")
     targets = ["stn", "park"]
     for year in YEARS:
@@ -838,7 +843,7 @@ def process_ideal_walk_times():
         # Key paths
         year_gdb = makePath(CLEANED, f"PMT_{year}.gdb")
         parcels_fc = makePath(year_gdb, "Polygons", "Parcels")
-        stations_fc = makePath(BASIC_FEATURES, "SMART_Plan_Stations")
+        stations_fc = makePath(BASIC_FEATURES, "SMARTplanStations")
         parks_fc = makePath(CLEANED, "Park_Points.shp")
         out_table = makePath(year_gdb, "WalkTimeIdeal_parcels")
         target_fcs = [stations_fc, parks_fc]
@@ -856,7 +861,7 @@ def process_ideal_walk_times():
         # TODO: This assumes only 2 data frames, but could be generalized to merge multiple frames
         combo_df = reduce(lambda left, right: pd.merge(left, right, on=prep_conf.PARCEL_COMMON_KEY, how="outer"), dfs)
         # combo_df = dfs[0].merge(right=dfs[1], how="outer", on=prep_conf.PARCEL_COMMON_KEY)
-        dfToTable(combo_df, out_table)
+        dfToTable(df=combo_df, out_table=out_table, overwrite=overwrite)
         # Add bin fields
         for target in targets:
             min_time_field = f"min_time_{target}"
@@ -906,17 +911,49 @@ def process_access():
             dfToTable(full_table, out_table, overwrite=True)
 
 
+def get_filename(file_path):
+    basename, ext = os.path.splitext(os.path.split(file_path)[1])
+    return basename
+
+
+def merge_and_subset(fcs, subset_fc):
+    if isinstance(fcs, str):
+        fcs = [fcs]
+    project_crs = arcpy.Describe(subset_fc).spatialReference
+    temp_dir = tempfile.TemporaryDirectory()
+    prj_fcs = []
+    for fc in fcs:
+        print(f'projecting and clipping {fc}')
+        arcpy.env.outputCoordinateSystem = project_crs
+        basename = get_filename(fc)
+        prj_fc = makePath(temp_dir.name, f"{basename}.shp")
+        arcpy.Clip_analysis(in_features=fc, clip_features=subset_fc, out_feature_class=prj_fc)
+        prj_fcs.append(prj_fc)
+
+    merge_fc = PMT.make_inmem_path()
+    arcpy.Merge_management(inputs=prj_fcs, output=merge_fc)
+    return merge_fc
+
+
 def process_contiguity(overwrite=True):
     county_fc = makePath(BASIC_FEATURES, "MiamiDadeCountyBoundary")
+    parks = makePath(CLEANED, "Park_Polys.shp")
+    water_bodies = makePath(RAW, "ENVIRONMENTAL_FEATURES", "NHDPLUS_H_0309_HU4_GDB.gdb", "NHDWaterbody")
+    pad_area = makePath(RAW, "ENVIRONMENTAL_FEATURES", "PADUS2_0FL.gdb",
+                        "PADUS2_0Combined_DOD_Fee_Designation_Easement_FL")
     chunk_fishnet = generate_chunking_fishnet(template_fc=county_fc, out_fishnet_name="quadrats",
                                               chunks=prep_conf.CTGY_CHUNKS)
     for year in YEARS:
         print(f"Processing Contiguity for {year}")
         gdb = YEAR_GDB_FORMAT.replace("YEAR", str(year))
         parcel_fc = makePath(gdb, "Polygons", "Parcels")
-        buildings = makePath(RAW, "OpenStreetMap", "buildings_q1_2021", "OSM_Buildings_20210201074346.shp")
 
-        ctgy_full = contiguity_index(quadrats_fc=chunk_fishnet, parcels_fc=parcel_fc, buildings_fc=buildings,
+        # merge mask layers and subset to County (builidngs held in year loop as future versions may take advantage of
+        #   historical building footprint data via OSM attic
+        buildings = makePath(RAW, "OpenStreetMap", "buildings_q1_2021", "OSM_Buildings_20210201074346.shp")
+        mask = merge_and_subset(fcs=[buildings, water_bodies, pad_area, parks], subset_fc=county_fc)
+
+        ctgy_full = contiguity_index(quadrats_fc=chunk_fishnet, parcels_fc=parcel_fc, mask_fc=mask,
                                      parcels_id_field=prep_conf.PARCEL_COMMON_KEY,
                                      cell_size=prep_conf.CTGY_CELL_SIZE, weights=prep_conf.CTGY_WEIGHTS)
         if prep_conf.CTGY_SAVE_FULL:
@@ -985,24 +1022,24 @@ if __name__ == "__main__":
     # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
     # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
 
-    # process_basic_features() # TESTED # TODO: include the status field to drive selector widget
+    process_basic_features() # TESTED # TODO: include the status field to drive selector widget
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
-    # process_parks()  # TESTED UPDATES 03/10/21 CR
+    process_parks()  # TESTED UPDATES 03/10/21 CR
     #   YEAR over YEARS
     #   - sets up Points FDS and year GDB(unless they exist already
     #   - copies Park_Points in to each year gdb under the Points FDS
     #   - treat NEAR_TERM like any other year
 
     # CLEANS AND GEOCODES TRANSIT INTO INCLUDED LAT/LON
-    # process_transit()  # TESTED 02/26/21 CR
+    process_transit()  # TESTED 02/26/21 CR
     #   YEAR over YEARS
     #     - cleans and consolidates transit data into Year POINTS FDS
     #     - if YEAR == NearTerm:
     #     -     most recent year is copied over
 
     # SETUP ANY BASIC NORMALIZED GEOMETRIES
-    # process_normalized_geometries()  # TESTED 03/11/21 updated names to standarization
+    process_normalized_geometries()  # TESTED 03/11/21 updated names to standarization
     #    YEAR BY YEAR
     #   - Sets up Year GDB, and Polygons FDS
     #   - Adds MAZ, TAZ, Census_Blocks, Census_BlockGroups, SummaryAreas
@@ -1010,7 +1047,7 @@ if __name__ == "__main__":
     #   - for NearTerm, year is set to 9998 (allows for LongTerm to be 9999)
 
     # COPIES DOWNLOADED PARCEL DATA AND ONLY MINIMALLY NECESSARY ATTRIBUTES INTO YEARLY GDB
-    # process_parcels()  # TESTED 03/11/21 CR
+    process_parcels()  # TESTED 03/11/21 CR
     #   YEAR over YEARS
     #   - procedure joins parcels from DOR to NAL table keeping appropriate columns
     #   - if year == NearTerm:
@@ -1018,7 +1055,7 @@ if __name__ == "__main__":
 
     # CLEANS AND GEOCODES PERMITS TO ASSOCIATED PARCELS AND
     #   GENERATES A NEAR TERM PARCELS LAYER WITH PERMIT INFO
-    # process_permits()  # TESTED CR 03/01/21
+    process_permits()  # TESTED CR 03/01/21
 
     # updates parcels based on permits for near term analysis
     # process_short_term_parcels()  # TESTED 3/1/21 #TODO: needs to be broken down into smaller functions
@@ -1028,56 +1065,56 @@ if __name__ == "__main__":
 
     # -----------------ENRICH DATA------------------------------
     # ADD VARIOUS BLOCK GROUP LEVEL DEMOGRAPHIC, EMPLOYMENT AND COMMUTE DATA AS TABLE
-    # enrich_block_groups()  # TESTED CR 03/12/21 added src attributes for enrichement data
+    enrich_block_groups()  # TESTED CR 03/12/21 added src attributes for enrichement data
     #   YEAR over YEARS
     #   - enrich block group with parcel data and race/commute/jobs data as table
     #   - if Year == NearTerm:
     #       process as normal (parcel data have been updated to include permit updates)
 
     # MODELS MISSING DATA WHERE APPROPRIATE AND DISAGGREGATES BLOCK LEVEL DATA DOWN TO PARCEL LEVEL
-    # process_bg_estimate_activity_models()  # TESTED CR 03/02/21
+    process_bg_estimate_activity_models()  # TESTED CR 03/02/21
     #   - creates linear model at block group-level for total employment, population, and commutes
     #       TODO: pull out of this function and insert to bg_apply and process once
-    # process_bg_apply_activity_models()  # TESTED CR 03/02/21
+    process_bg_apply_activity_models()  # TESTED CR 03/02/21
     #   YEAR over YEARS
     #   - applies linear model to block groups and estimates shares for employment, population and commute classes
     #     - if Year == NearTerm:
     #     -   process as normal (enrichment table generated from near_term parcels updated with permits)
     #       TODO: pull this into the allocate_bg function process
-    # process_allocate_bg_to_parcels()
+    process_allocate_bg_to_parcels()
     #   YEAR over YEARS
     #   - allocates the modeled data from previous step to parcels as table
     #   - if Year == NearTerm:
     #   -   process as normal (modeled block group data will be generated from near_term parcels with permit updates)
 
     # ADDS LAND USE TABLE FOR PARCELS INCLUDING VACANT, RES AND NRES AREA
-    # process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
+    process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
     #   YEAR over YEARS
     #   - creates table of parcel records with land use and areas
 
     ''' start here  use YEARS = [2019, "NearTerm"] '''
     # prepare maz and taz socioeconomic/demographic data
-    # process_model_se_data()  # TESTED 3/16/21
+    process_model_se_data()  # TESTED 3/16/21
 
     # ------------------NETWORK ANALYSES-----------------------------
     ''' for NearTerm make copies, processing time is exorbitant and unnecessary to rerun '''
     # BUILD OSM NETWORKS FROM TEMPLATES
-    # process_osm_networks()  # Tested by AB 2/26/21
+    process_osm_networks()  # TESTED by CR 03/18/21 added nearterm
 
     # ASSESS NETWORK CENTRALITY FOR EACH BIKE NETWORK
-    # process_centrality()  # Tested by AB 3/2/21
+    process_centrality()  # TESTED by CR 03/18/21 added nearterm
 
     # ANALYZE OSM NETWORK SERVICE AREAS
-    # process_osm_service_areas()  # Tested by AB 2/28/21
+    process_osm_service_areas()  # TESTED by CR 03/18/21 added nearterm
 
     # ANALYZE WALK/BIKE TIMES AMONG MAZS
-    # process_osm_skims()  # Tested by AB 3/2/21
+    process_osm_skims()  # TESTED by CR 03/18/21 added nearterm
 
     # RECORD PARCEL WALK TIMES
-    process_walk_times()  # Tested by AB 3/2/21
+    process_walk_times()  # TESTED by CR 03/19/21 added nearterm
 
     # RECORD PARCEL IDEAL WALK TIMES
-    # process_ideal_walk_times()  # Tested by AB 3/2/21 NEAR TERM just use parcel geometry so
+    process_ideal_walk_times()  # Tested by AB 3/2/21 NEAR TERM just use parcel geometry so
 
     # prepare serpm taz-level travel skims
     # process_model_skims()  # TODO: AB to test
@@ -1091,13 +1128,13 @@ if __name__ == "__main__":
     # TODO: script to calculate rates so year-over-year diffs can be estimated
 
     # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
-    # process_imperviousness() # AW
+    process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
     # TODO: ISGM for year-over-year changes? (low priority)
 
-    # process_lu_diversity() # Tested by AB 3/4/21
+    process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years
-    # process_contiguity()
+    process_contiguity()
 
 # TODO: !!! incorporate a project setup script or at minimum a yearly build geodatabase function/logic !!!
 # TODO: handle multi-year data as own function
