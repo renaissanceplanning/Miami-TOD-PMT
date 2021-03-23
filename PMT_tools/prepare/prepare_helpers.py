@@ -595,6 +595,7 @@ def prep_park_polys(in_fcs, geom, out_fc, use_cols=None, rename_dicts=None, uniq
     fm = field_mapper(in_fcs=in_fcs, use_cols=use_cols, rename_dicts=rename_dicts)
     arcpy.Merge_management(inputs=in_fcs, output=out_fc, field_mappings=fm)
     PMT.add_unique_id(feature_class=out_fc, new_id_field=unique_id)
+    arcpy.RepairGeometry_management(in_features=out_fc)
 
 
 def prep_feature_class(in_fc, geom, out_fc, use_cols=None, rename_dict=None, unique_id=None):
@@ -1122,23 +1123,17 @@ def get_raster_file(folder):
 
 
 def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
-    """
-    Clean a USGS impervious surface raster by Clipping to the bounding box of a study area
+    """Clean a USGS impervious surface raster by Clipping to the bounding box of a study area
         and transforming the clipped raster to a desired CRS
-
     Args:
-        zip_path: Path
-            .zip folder of downloaded imperviousness raster (see the
+        zip_path (str): Path; .zip folder of downloaded imperviousness raster (see the
             `dl_imperviousness` function)
-        clip_path: Path
-            path of study area polygon(s) whose bounding box will be used to clip
+        clip_path (str): Path; path of study area polygon(s) whose bounding box will be used to clip
             the raster
-        out_dir: Path
-            save location for the clipped and transformed raster
+        out_dir (str): Path; save location for the clipped and transformed raster
         transform_crs: Anything accepted by arcpy.SpatialReference(), optional
             Identifier of spatial reference to which to transform the clipped
             raster; can be any form accepted by arcpy.SpatialReference()
-
     Returns:
         File will be clipped, transformed, and saved to the save directory; the
         save path will be returned upon completion
@@ -1182,66 +1177,39 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
     return out_raster
 
 
-def analyze_imperviousness(impervious_path, zone_geometries_path, zone_geometries_id_field):
-    """
-        Summarize percent impervious surface cover in each of a collection of zones
+def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field):
+    """Summarize percent impervious surface cover in each of a collection of zones
     Args:
-        impervious_path: Path
-            path to clipped/transformed imperviousness raster (see the
+        raster_points (str): Path; path to clipped/transformed imperviousness raster as points (see the
             `prep_imperviousness` function)
-        zone_geometries_path: Path
-            path to polygon geometries to which imperviousness will be summarized
-        zone_geometries_id_field: str
-            id field in the zone geometries
+        zone_fc (str): Path; path to polygon geometries to which imperviousness will be summarized
+        zone_id_field (str): id field in the zone geometries
     Returns:
-        pandas dataframe; table of impervious percent within the zone geometries
+        df (pandas dataframe); table of impervious percent within the zone geometries
     """
-
     logger.log_msg("--- matching imperviousness to zone geometries")
-    logger.log_msg("--- --- setting up an intermediates gdb")
-    with tempfile.TemporaryDirectory() as temp_dir:
-        arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
-        intmd_gdb = makePath(temp_dir, "Intermediates.gdb")
+    intersect = make_inmem_path()
+    arcpy.Intersect_analysis(in_features=[raster_points, zone_fc], out_feature_class=intersect)
 
-        # Convert raster to point (and grabbing cell size)
-        logger.log_msg("--- --- converting raster to point")
-        rtp_path = makePath(intmd_gdb, "raster_to_point")
-        arcpy.RasterToPoint_conversion(in_raster=impervious_path,
-                                       out_point_features=rtp_path)
-
-        # Intersect raster with zones
-        logger.log_msg("--- --- matching raster points to zones")
-        intersection_path = makePath(intmd_gdb, "intersection")
-        arcpy.Intersect_analysis(in_features=[rtp_path, zone_geometries_path],
-                                 out_feature_class=intersection_path)
-
-        # Load the intersection data
-        logger.log_msg("--- --- loading raster/zone data")
-        load_fields = [zone_geometries_id_field, "grid_code"]
-        df = arcpy.da.FeatureClassToNumPyArray(in_table=intersection_path,
-                                               field_names=load_fields)
-        df = pd.DataFrame(df)
-
+    # Load the intersection data
+    logger.log_msg("--- loading raster/zone data and replacing null impervious values with 0")
+    load_fields = [zone_id_field, "grid_code"]
+    df = featureclass_to_df(in_fc=intersect, keep_fields=load_fields, null_val=0)
     # Values with 127 are nulls -- replace with 0
-    logger.log_msg("--- --- replacing null impervious values with 0")
-    df['grid_code'] = df['grid_code'].replace(127, 0)
+    df["grid_code"] = df["grid_code"].replace(127, 0)
+    arcpy.Delete_management(intersect)
 
     logger.log_msg("--- summarizing zonal imperviousness statistics")
-    logger.log_msg("--- grabbing impervious raster cell size")
-    cellx = arcpy.GetRasterProperties_management(in_raster=impervious_path, property_type="CELLSIZEX")
-    celly = arcpy.GetRasterProperties_management(in_raster=impervious_path, property_type="CELLSIZEY")
-    cs = float(cellx.getOutput(0)) * float(celly.getOutput(0))
-
     # Groupby-summarise the variables of interest
     logger.log_msg("--- --- calculating zonal summaries")
-    zonal = df.groupby(zone_geometries_id_field)["grid_code"].agg(
+    zonal = df.groupby(zone_id_field)["grid_code"].agg(
         [("IMP_PCT", np.mean),
-         ("TotalArea", lambda x: x.count() * cs),
-         ("NonDevArea", lambda x: x[x == 0].count() * cs),
-         ("DevOSArea", lambda x: x[x.between(1, 19)].count() * cs),
-         ("DevLowArea", lambda x: x[x.between(20, 49)].count() * cs),
-         ("DevMedArea", lambda x: x[x.between(50, 79)].count() * cs),
-         ("DevHighArea", lambda x: x[x >= 80].count() * cs)])
+         ("TotalArea", lambda x: x.count() * rast_cell_area),
+         ("NonDevArea", lambda x: x[x == 0].count() * rast_cell_area),
+         ("DevOSArea", lambda x: x[x.between(1, 19)].count() * rast_cell_area),
+         ("DevLowArea", lambda x: x[x.between(20, 49)].count() * rast_cell_area),
+         ("DevMedArea", lambda x: x[x.between(50, 79)].count() * rast_cell_area),
+         ("DevHighArea", lambda x: x[x >= 80].count() * rast_cell_area)])
     return zonal.reset_index()
 
 
@@ -2318,7 +2286,7 @@ def parcel_walk_times(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     print("--- converting to data frame")
     sum_fields = [f"MEAN_{ref_time_field}"]
     dump_fields = [parcel_id_field, ref_name_field] + sum_fields
-    int_df = PMT.table_to_df(in_tbl=sum_tbl, keep_fields=dump_fields, null_val=0.0)
+    int_df = PMT.table_to_df(in_tbl=sum_tbl, keep_fields=dump_fields)
     int_df.columns = [parcel_id_field, ref_name_field, ref_time_field]
     # Delete summary table
     arcpy.Delete_management(sum_tbl)
@@ -2753,13 +2721,13 @@ def validate_weights(weights):
                                   "'bottom_right'\n"]))
 
 
-def contiguity_index(quadrats_fc, parcels_fc, buildings_fc, parcels_id_field,
+def contiguity_index(quadrats_fc, parcels_fc, mask_fc, parcels_id_field,
                      cell_size=40, weights="nn"):
     """calculate contiguity of developable area
     Args:
         quadrats_fc (str): path to fishnet of chunks for processing
         parcels_copy (str): path to parcel polygons; contiguity will be calculated relative to this
-        buildings_fc (str): path to building polygons;
+        mask_fc (str): path to mask polygons used to eliminate areas that are not developable;
         parcels_id_field (str): name of parcel primary key field
         cell_size (int): cell size for raster over which contiguity will be calculated.
             (in the units of the input data crs) Default 40 (works for PMT)
@@ -2826,9 +2794,9 @@ def contiguity_index(quadrats_fc, parcels_fc, buildings_fc, parcels_id_field,
             arcpy.CalculateField_management(in_table=p_layer, field="ChunkID", expression=chunk_id)
             chunks.append(chunk_id)
     # difference parcels and buildings/water bodies/protected areas
-    # TODO: add water bodies and protected areas (ie merge builidngs, water, protected areas)
+
     logger.log_msg("--- --- differencing parcels and buildings")
-    difference_fc = symmetric_difference(in_fc=parcels_copy, diff_fc=buildings_fc, out_fc_name="difference")
+    difference_fc = symmetric_difference(in_fc=parcels_copy, diff_fc=mask_fc, out_fc_name="difference")
 
     logger.log_msg("--- --- converting difference to singlepart polygons")
     diff_fc = make_inmem_path(file_name="diff")
