@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.getcwd())
 # config global variables
-import PMT_tools.config.prepare_config as prep_conf
+from PMT_tools.config import prepare_config as prep_conf
 
 # prep/clean helper functions
 from PMT_tools.prepare.prepare_helpers import *
@@ -76,7 +76,7 @@ def process_normalized_geometries(overwrite=True):
                                       [blocks, block_groups, TAZ, MAZ, sum_areas],
                                       [prep_conf.BLOCK_COMMON_KEY, prep_conf.BG_COMMON_KEY,
                                        prep_conf.TAZ_COMMON_KEY, [prep_conf.MAZ_COMMON_KEY, prep_conf.TAZ_COMMON_KEY],
-                                       prep_conf.SUMMARY_AREAS_COMMON_KEY]):
+                                       prep_conf.SUMMARY_AREAS_BASIC_FIELDS]):
             temp_file = make_inmem_path()
             out_path = PMT.validate_feature_dataset(makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF)
             logger.log_msg(f"- {cleaned} normalized here: {out_path}")
@@ -100,6 +100,8 @@ def process_normalized_geometries(overwrite=True):
                 calc_year = year
             arcpy.CalculateField_management(in_table=out_data, field="Year", expression=calc_year,
                                             expression_type="PYTHON3", field_type="LONG")
+            arcpy.Delete_management(lyr)
+            arcpy.Delete_management(temp_file)
         print("")
 
 
@@ -358,17 +360,6 @@ def process_parcel_land_use(overwrite=True):
         par_df = prep_parcel_land_use_tbl(parcels_fc=parcels_fc, parcel_lu_field=par_lu_field, parcel_fields=par_fields,
                                           lu_tbl=lu_table, tbl_lu_field=tbl_lu_field,
                                           dtype_map=dtype, null_value=default_vals)
-        # REMOVED to place area calcs in BUILDER scripts 03/15/21
-        # Calculate area columns
-        # for par_lu_col in prep_conf.PARCEL_LU_AREAS.keys():
-        #     # ref_col, crit = PARCEL_LU_AREAS[par_lu_col]
-        #     # par_df[par_lu_col] = np.select(
-        #     #     [par_df[ref_col] == crit], [par_df[PARCEL_AREA_COL]], 0.0
-        #     # )
-        #     ref_col, comp = prep_conf.PARCEL_LU_AREAS[par_lu_col]
-        #     par_df[par_lu_col] = np.select(
-        #         [comp.eval(par_df[ref_col])], [par_df[prep_conf.PARCEL_AREA_COL]], 0.0
-        #     )
         # Export result
         checkOverwriteOutput(output=out_table, overwrite=overwrite)
         dfToTable(df=par_df, out_table=out_table)
@@ -858,7 +849,6 @@ def process_ideal_walk_times(overwrite=True):
                                         assumed_mph=prep_conf.IDEAL_WALK_MPH)
             dfs.append(df)
         # Combine dfs, dfToTable
-        # TODO: This assumes only 2 data frames, but could be generalized to merge multiple frames
         combo_df = reduce(lambda left, right: pd.merge(left, right, on=prep_conf.PARCEL_COMMON_KEY, how="outer"), dfs)
         # combo_df = dfs[0].merge(right=dfs[1], how="outer", on=prep_conf.PARCEL_COMMON_KEY)
         dfToTable(df=combo_df, out_table=out_table, overwrite=overwrite)
@@ -1025,21 +1015,21 @@ if __name__ == "__main__":
     process_basic_features() # TESTED # TODO: include the status field to drive selector widget
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
-    process_parks()  # TESTED UPDATES 03/10/21 CR
+    # process_parks()  # TESTED UPDATES 03/10/21 CR
     #   YEAR over YEARS
     #   - sets up Points FDS and year GDB(unless they exist already
     #   - copies Park_Points in to each year gdb under the Points FDS
     #   - treat NEAR_TERM like any other year
 
     # CLEANS AND GEOCODES TRANSIT INTO INCLUDED LAT/LON
-    process_transit()  # TESTED 02/26/21 CR
+    # process_transit()  # TESTED 02/26/21 CR
     #   YEAR over YEARS
     #     - cleans and consolidates transit data into Year POINTS FDS
     #     - if YEAR == NearTerm:
     #     -     most recent year is copied over
 
     # SETUP ANY BASIC NORMALIZED GEOMETRIES
-    process_normalized_geometries()  # TESTED 03/11/21 updated names to standarization
+    # process_normalized_geometries()  # TESTED 03/11/21 updated names to standarization
     #    YEAR BY YEAR
     #   - Sets up Year GDB, and Polygons FDS
     #   - Adds MAZ, TAZ, Census_Blocks, Census_BlockGroups, SummaryAreas
@@ -1047,7 +1037,7 @@ if __name__ == "__main__":
     #   - for NearTerm, year is set to 9998 (allows for LongTerm to be 9999)
 
     # COPIES DOWNLOADED PARCEL DATA AND ONLY MINIMALLY NECESSARY ATTRIBUTES INTO YEARLY GDB
-    process_parcels()  # TESTED 03/11/21 CR
+    # process_parcels()  # TESTED 03/11/21 CR
     #   YEAR over YEARS
     #   - procedure joins parcels from DOR to NAL table keeping appropriate columns
     #   - if year == NearTerm:
@@ -1055,7 +1045,7 @@ if __name__ == "__main__":
 
     # CLEANS AND GEOCODES PERMITS TO ASSOCIATED PARCELS AND
     #   GENERATES A NEAR TERM PARCELS LAYER WITH PERMIT INFO
-    process_permits()  # TESTED CR 03/01/21
+    # process_permits()  # TESTED CR 03/01/21
 
     # updates parcels based on permits for near term analysis
     # process_short_term_parcels()  # TESTED 3/1/21 #TODO: needs to be broken down into smaller functions
@@ -1065,23 +1055,23 @@ if __name__ == "__main__":
 
     # -----------------ENRICH DATA------------------------------
     # ADD VARIOUS BLOCK GROUP LEVEL DEMOGRAPHIC, EMPLOYMENT AND COMMUTE DATA AS TABLE
-    enrich_block_groups()  # TESTED CR 03/12/21 added src attributes for enrichement data
+    # enrich_block_groups()  # TESTED CR 03/12/21 added src attributes for enrichement data
     #   YEAR over YEARS
     #   - enrich block group with parcel data and race/commute/jobs data as table
     #   - if Year == NearTerm:
     #       process as normal (parcel data have been updated to include permit updates)
 
     # MODELS MISSING DATA WHERE APPROPRIATE AND DISAGGREGATES BLOCK LEVEL DATA DOWN TO PARCEL LEVEL
-    process_bg_estimate_activity_models()  # TESTED CR 03/02/21
+    # process_bg_estimate_activity_models()  # TESTED CR 03/02/21
     #   - creates linear model at block group-level for total employment, population, and commutes
     #       TODO: pull out of this function and insert to bg_apply and process once
-    process_bg_apply_activity_models()  # TESTED CR 03/02/21
+    # process_bg_apply_activity_models()  # TESTED CR 03/02/21
     #   YEAR over YEARS
     #   - applies linear model to block groups and estimates shares for employment, population and commute classes
     #     - if Year == NearTerm:
     #     -   process as normal (enrichment table generated from near_term parcels updated with permits)
     #       TODO: pull this into the allocate_bg function process
-    process_allocate_bg_to_parcels()
+    # process_allocate_bg_to_parcels()
     #   YEAR over YEARS
     #   - allocates the modeled data from previous step to parcels as table
     #   - if Year == NearTerm:
@@ -1094,27 +1084,27 @@ if __name__ == "__main__":
 
     ''' start here  use YEARS = [2019, "NearTerm"] '''
     # prepare maz and taz socioeconomic/demographic data
-    process_model_se_data()  # TESTED 3/16/21
+    # process_model_se_data()  # TESTED 3/16/21
 
     # ------------------NETWORK ANALYSES-----------------------------
     ''' for NearTerm make copies, processing time is exorbitant and unnecessary to rerun '''
     # BUILD OSM NETWORKS FROM TEMPLATES
-    process_osm_networks()  # TESTED by CR 03/18/21 added nearterm
+    # process_osm_networks()  # TESTED by CR 03/18/21 added nearterm
 
     # ASSESS NETWORK CENTRALITY FOR EACH BIKE NETWORK
-    process_centrality()  # TESTED by CR 03/18/21 added nearterm
+    # process_centrality()  # TESTED by CR 03/18/21 added nearterm
 
     # ANALYZE OSM NETWORK SERVICE AREAS
-    process_osm_service_areas()  # TESTED by CR 03/18/21 added nearterm
+    # process_osm_service_areas()  # TESTED by CR 03/18/21 added nearterm
 
     # ANALYZE WALK/BIKE TIMES AMONG MAZS
-    process_osm_skims()  # TESTED by CR 03/18/21 added nearterm
+    # process_osm_skims()  # TESTED by CR 03/18/21 added nearterm
 
     # RECORD PARCEL WALK TIMES
-    process_walk_times()  # TESTED by CR 03/19/21 added nearterm
+    # process_walk_times()  # TESTED by CR 03/19/21 added nearterm
 
     # RECORD PARCEL IDEAL WALK TIMES
-    process_ideal_walk_times()  # Tested by AB 3/2/21 NEAR TERM just use parcel geometry so
+    # process_ideal_walk_times()  # Tested by AB 3/2/21 NEAR TERM just use parcel geometry so
 
     # prepare serpm taz-level travel skims
     # process_model_skims()  # TODO: AB to test
@@ -1128,7 +1118,7 @@ if __name__ == "__main__":
     # TODO: script to calculate rates so year-over-year diffs can be estimated
 
     # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
-    process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
+    # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
     # TODO: ISGM for year-over-year changes? (low priority)
 
     process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
@@ -1137,7 +1127,6 @@ if __name__ == "__main__":
     process_contiguity()
 
 # TODO: !!! incorporate a project setup script or at minimum a yearly build geodatabase function/logic !!!
-# TODO: handle multi-year data as own function
 # TODO: add logging/print statements for procedure tracking (low priority)
 
 ''' deprecated '''

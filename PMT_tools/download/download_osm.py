@@ -31,13 +31,36 @@ import pickle
 import geopandas as gpd
 import osmnx as ox
 
-from PMT_tools.PMT import makePath, validate_directory
+
+def makePath(in_folder, *subnames):
+    """Dynamically set a path (e.g., for iteratively referencing
+        year-specific geodatabases)
+    Args:
+        in_folder (str): String or Path
+        subnames (list/tuple): A list of arguments to join in making the full path
+            `{in_folder}/{subname_1}/.../{subname_n}
+    Returns:
+        Path
+    """
+    return os.path.join(in_folder, *subnames)
+
+
+def validate_directory(directory):
+    if os.path.isdir(directory):
+        return directory
+    else:
+        try:
+            os.makedirs(directory)
+            return directory
+        except:
+            raise
 
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
 EPSG_LL = 4326
 EPSG_FLSPF = 2881
 EPSG_WEB_MERC = 3857
+
 
 def validate_bbox(bbox):
     """
