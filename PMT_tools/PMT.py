@@ -12,8 +12,9 @@ import uuid
 # import geopandas as gpd
 import pandas as pd
 import numpy as np
+import fnmatch
 
-#from simpledbf import Dbf5
+from simpledbf import Dbf5
 
 import os
 import tempfile
@@ -52,7 +53,7 @@ SR_WEB_MERCATOR = arcpy.SpatialReference(EPSG_WEB_MERC)
 # %% UTILITY CLASSES
 
 # column and aggregation classes
-class Column():
+class Column:
     def __init__(self, name, default=0.0, rename=None, domain=None):
         self.name = name
         self.default = default
@@ -76,10 +77,10 @@ class Column():
                 criteria.append(df[col] == ref_val)
                 results.append(dom_val)
                 df[self.domain.name] = np.select(
-                    condlist = criteria,
+                    condlist=criteria,
                     choicelist=results,
                     default=self.domain.default
-                    )
+                )
 
 
 class DomainColumn(Column):
@@ -134,15 +135,13 @@ class CollCollection(AggColumn):
 
 
 class Consolidation(CollCollection):
-    def __init__(self, name, input_cols, cons_method=sum,
-                 agg_method=sum, default=0.0):
+    def __init__(self, name, input_cols, cons_method=sum, agg_method=sum, default=0.0):
         CollCollection.__init__(self, name, input_cols, agg_method, default)
         self.cons_method = cons_method
 
 
 class MeltColumn(CollCollection):
-    def __init__(self, label_col, val_col, input_cols,
-                 agg_method=sum, default=0.0, domain=None):
+    def __init__(self, label_col, val_col, input_cols, agg_method=sum, default=0.0, domain=None):
         CollCollection.__init__(self, val_col, input_cols, agg_method, default)
         self.label_col = label_col
         self.val_col = val_col
@@ -381,6 +380,71 @@ def make_inmem_path(file_name=None):
         print('The file_name supplied already exists in the in_memory space')
 
 
+def validate_directory(directory):
+    if os.path.isdir(directory):
+        return directory
+    else:
+        try:
+            os.makedirs(directory)
+            return directory
+        except:
+            raise
+
+
+def validate_geodatabase(gdb_path, overwrite=False):
+    exists = False
+    if gdb_path.endswith(".gdb"):
+        if arcpy.Exists(gdb_path):  # TODO: should this be arcpy.Exists and arcpy.Describe.whatever indicates gdb?
+            exists = True
+            if overwrite:
+                checkOverwriteOutput(gdb_path, overwrite=overwrite)
+                exists = False
+    else:
+        raise Exception("path provided does not contain a geodatabase")
+
+    if exists:
+        # If we get here, the gdb exists, and it won't be overwritten
+        return gdb_path
+    else:
+        # The gdb does not or no longer exists and must be created
+        try:
+            out_path, gdb_name = os.path.split(gdb_path)
+            name, ext = os.path.splitext(gdb_name)
+            arcpy.CreateFileGDB_management(out_folder_path=out_path, out_name=name)
+            return gdb_path
+        except:
+            raise Exception(f"could not create geodatabase at {gdb_path}")
+
+
+def validate_feature_dataset(fds_path, sr, overwrite=False):
+    """validate that a feature dataset exists and is the correct sr,
+        otherwise create it and return the path
+    Args:
+        fds_path (str): String; path to existing or desired feature dataset
+        sr (spatial reference): arcpy.SpatialReference object
+    Returns:
+        fds_path (str): String; path to existing or newly created feature dataset
+    """
+    try:
+        # verify the path is through a geodatabase
+        if fnmatch.fnmatch(name=fds_path, pat="*.gdb*"):
+            if arcpy.Exists(fds_path) and arcpy.Describe(fds_path).spatialReference == sr:
+                if overwrite:
+                    checkOverwriteOutput(fds_path, overwrite=overwrite)
+                else:
+                    return fds_path
+            # Snippet below only runs if not exists/overwrite and can be created.
+            out_gdb, name = os.path.split(fds_path)
+            out_gdb = validate_geodatabase(gdb_path=out_gdb)
+            arcpy.CreateFeatureDataset_management(out_dataset_path=out_gdb, out_name=name, spatial_reference=sr)
+            return fds_path
+        else:
+            raise ValueError
+
+    except ValueError:
+        print("...no geodatabase at that location, cannot create feature dataset")
+
+
 def checkOverwriteOutput(output, overwrite=False):
     """A helper function that checks if an output file exists and
         deletes the file if an overwrite is expected.
@@ -406,7 +470,6 @@ def dbf_to_df(dbf_file):
     """Reads in dbf file and returns Pandas DataFrame object
     Args:
         dbf_file: String; path to dbf file
-        upper: Boolean; convert columns to uppercase if wanted
     Returns:
         pandas DataFrame object
     """
@@ -414,7 +477,7 @@ def dbf_to_df(dbf_file):
     return db.to_dataframe()
 
 
-def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False, 
+def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False,
                       in_temp_dir=False, full_geometries=False):
     """
         creates a temporary intersected feature class for disaggregation of data
@@ -544,21 +607,16 @@ def jsonToTable(json_obj, out_file):
 
 
 def iterRowsAsChunks(in_table, chunksize=1000):
-    """
-    A generator to iterate over chunks of a table for arcpy processing.
-    This method cannot be reliably applied to a table view of feature
-    layer with a current selection as it alters selections as part
-    of the chunking process.
-
-    Parameters
-    ------------
-    in_table: Table View or Feature Layer
-    chunksize: Integer, default=1000
-
-    Returns
-    --------
-    in_table: Table View of Feature Layer
-        `in_table` is returned with iterative selections applied
+    """A generator to iterate over chunks of a table for arcpy processing.
+        This method cannot be reliably applied to a table view of feature
+        layer with a current selection as it alters selections as part
+        of the chunking process.
+    Args:
+        in_table: Table View or Feature Layer
+        chunksize: Integer, default=1000
+    Returns:
+        in_table: Table View of Feature Layer
+            `in_table` is returned with iterative selections applied
     """
     # Get OID field
     oid_field = arcpy.Describe(in_table).OIDFieldName
@@ -569,14 +627,9 @@ def iterRowsAsChunks(in_table, chunksize=1000):
     n = len(all_rows)
     for i in range(0, n, chunksize):
         expr_ref = arcpy.AddFieldDelimiters(in_table, oid_field)
-        expr = " AND ".join(
-            [expr_ref + f">{i}",
-             expr_ref + f"<={i + chunksize}"
-             ]
-        )
-        arcpy.SelectLayerByAttribute_management(
-            in_table, "NEW_SELECTION", expr
-        )
+        expr = f"{expr_ref} > {i} AND {expr_ref} <= {i + chunksize}"
+        arcpy.SelectLayerByAttribute_management(in_layer_or_view=in_table, selection_type="NEW_SELECTION",
+                                                where_clause=expr)
         yield in_table
 
 
@@ -664,14 +717,11 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, drop_dup_cols
 
 
 def dfToTable(df, out_table, overwrite=False):
-    """
-        Use a pandas data frame to export an arcgis table.
-
+    """Use a pandas data frame to export an arcgis table.
     Args:
         df: DataFrame
         out_table: Path
         overwrite: Boolean, default=False
-
     Returns:
         out_table: Path
     """
@@ -683,9 +733,7 @@ def dfToTable(df, out_table, overwrite=False):
 
 
 def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
-    """
-        Use a pandas data frame to export an arcgis point feature class.
-
+    """Use a pandas data frame to export an arcgis point feature class.
     Args:
         df: DataFrame
         out_fc: Path
@@ -726,7 +774,7 @@ def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
     )
     # write to temp feature class
     arcpy.da.NumPyArrayToFeatureClass(in_array=in_array, out_table=temp_fc,
-                                      shape_fields=shape_fields, spatial_reference=from_sr,)
+                                      shape_fields=shape_fields, spatial_reference=from_sr, )
     # reproject if needed, otherwise dump to output location
     if from_sr != to_sr:
         arcpy.Project_management(in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=to_sr)
@@ -740,15 +788,33 @@ def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
     return out_fc
 
 
-def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
+def table_to_df(in_tbl, keep_fields="*", skip_nulls=False, null_val=0):
+    """converts a table to a pandas dataframe
+    Args:
+        in_tbl:
+        keep_fields:
+        skip_nulls:
+        null_val:
+    Returns:
+        df (pd.DataFrame): pandas dataframe of the table
     """
-        converts feature class/feature layer to pandas DataFrame object, keeping
+    if keep_fields == "*":
+        keep_fields = [f.name for f in arcpy.ListFields(in_tbl) if not f.required]
+    elif isinstance(keep_fields, string_types):
+        keep_fields = [keep_fields]
+    return pd.DataFrame(arcpy.da.TableToNumPyArray(in_table=in_tbl, field_names=keep_fields,
+                                                   skip_nulls=skip_nulls, null_value=null_val))
+
+
+def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
+    """converts feature class/feature layer to pandas DataFrame object, keeping
         only a subset of fields if provided
         - drops all spatial data
     Args:
         in_fc: String; path to a feature class
         keep_fields: List or Tuple; field names to return in the dataframe,
             "*" is default and will return all fields
+        skip_nulls:
         null_val: value to be used for nulls found in the data. canbe given as a
             dict of default values by field
     Returns:
@@ -1053,7 +1119,7 @@ def count_rows(in_table, groupby_field=None, out_field=None, skip_nulls=False,
             _in_table_ = in_table.dropna()
         else:
             # TODO: handle dict to set defaults by column
-            _in_table_ =  in_table.fillna(null_value)
+            _in_table_ = in_table.fillna(null_value)
 
         if groupby_field is None:
             # No grouping required, just get the length
@@ -1095,15 +1161,14 @@ def count_rows(in_table, groupby_field=None, out_field=None, skip_nulls=False,
         df.rename(columns={"OID@": oid_field}, inplace=True)
         # Run this method on the data frame and handle output
         result = count_rows(
-                df, groupby_field, out_field=out_field, inplace=True,
-                skip_nulls=skip_nulls, null_value=null_value
-                )
+            df, groupby_field, out_field=out_field, inplace=True,
+            skip_nulls=skip_nulls, null_value=null_value
+        )
         if out_field is None:
             return result
         else:
             result.drop(columns=groupby_field, inplace=True)
             extendTableDf(in_table, oid_field, result, oid_field)
-
 
 
 # Network analysis helpers
@@ -1456,9 +1521,82 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         arcpy.Delete_management(net_layer)
 
 
+def _sanitize_column_names(geo,
+                           remove_special_char=True,
+                           rename_duplicates=True,
+                           inplace=False,
+                           use_snake_case=True):
+    """
+    Implementation for pd.DataFrame.spatial.sanitize_column_names()
+    """
+    original_col_names = list(geo._data.columns)
+
+    # convert to string
+    new_col_names = [str(x) for x in original_col_names]
+
+    # use snake case
+    if use_snake_case:
+        import re
+        for ind, val in enumerate(new_col_names):
+            # skip reserved cols
+            if val == geo.name:
+                continue
+            # replace Pascal and camel case using RE
+            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', val)
+            name = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+            # remove leading spaces
+            name = name.lstrip(" ")
+            # replace spaces with _
+            name = name.replace(" ", "_")
+            # clean up too many _
+            name = re.sub('_+', '_', name)
+            new_col_names[ind] = name
+
+    # remove special characters
+    if remove_special_char:
+        for ind, val in enumerate(new_col_names):
+            name = "".join(i for i in val if i.isalnum() or "_" in i)
+
+            # remove numeral prefixes
+            for ind2, element in enumerate(name):
+                if element.isdigit():
+                    continue
+                else:
+                    name = name[ind2:]
+                    break
+            new_col_names[ind] = name
+
+    # fill empty column names
+    for ind, val in enumerate(new_col_names):
+        if val == "":
+            new_col_names[ind] = "column"
+
+    # rename duplicates
+    if rename_duplicates:
+        for ind, val in enumerate(new_col_names):
+            if val == geo.name:
+                pass
+            if new_col_names.count(val) > 1:
+                counter = 1
+                new_name = val + str(counter)  # adds a integer suffix to column name
+                while new_col_names.count(new_name) > 0:
+                    counter += 1
+                    new_name = val + str(counter)  # if a column with the suffix exists, increment suffix
+                new_col_names[ind] = new_name
+
+    # if inplace
+    if inplace:
+        geo._data.columns = new_col_names
+    else:
+        # return a new dataframe
+        df = geo._data.copy()
+        df.columns = new_col_names
+        return df
+    return True
+
+
 if __name__ == "__main__":
     print("nothing set to run")
-
 
 # DEPRECATED GPD functions
 # def fetchJsonUrl(

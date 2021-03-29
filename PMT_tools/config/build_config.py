@@ -26,6 +26,7 @@ def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
     renames = dict(zip(cols, new_names))
     return cols, renames
 
+
 # TODO: check for misreferences to Blocks, or BlockGroups
 # fc_name, id, FDS data resides
 BLOCK_FC_SPECS = ("Census_Blocks", "GEOID10", "Polygons")  # TODO: define common key
@@ -34,8 +35,8 @@ MAZ_FC_SPECS = ("MAZ", pconfig.MAZ_COMMON_KEY, "Polygons")
 TAZ_FC_SPECS = ("TAZ", pconfig.TAZ_COMMON_KEY, "Polygons")
 SUM_AREA_FC_SPECS = ("SummaryAreas", pconfig.SUMMARY_AREAS_COMMON_KEY, "Polygons")
 NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks")  # TODO: define common key
-TRANSIT_FC_SPECS = ("TransitRidership", "OBJECTID", "Points")  # TODO: define common key
-PARKS_FC_SPECS = ("Park_points", "OBJECTID_1", "Points")  # TODO: assign/define common key
+TRANSIT_FC_SPECS = ("TransitRidership", pconfig.TRANSIT_COMMON_KEY, "Points") # previously OBJECTID
+PARKS_FC_SPECS = ("Park_points", pconfig.PARK_POINTS_COMMON_KEY, "Points")  # previously OBJECTID_1
 EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks")  # TODO: define common key
 
 FC_SPECS = [
@@ -112,7 +113,8 @@ SA_PAR_ENRICH = {
          AggColumn("min_time_stn_walk", agg_method="mean"), AggColumn("min_time_park_walk", agg_method="mean"),
          AggColumn("DirIdx_stn", agg_method=np.nanmedian), AggColumn("DirIdx_park", agg_method=np.nanmedian),
          AggColumn("stn_in_15"), AggColumn("park_in_15"),
-         AggColumn("Total_Employment"), AggColumn("CNS16_PAR", rename="HCJobs"), AggColumn("CNS15_PAR", rename="EdJobs")],
+         AggColumn("Total_Employment"), AggColumn("CNS16_PAR", rename="HCJobs"),
+         AggColumn("CNS15_PAR", rename="EdJobs")],
     "consolidate":
         [Consolidation("RsrcJobs", ["CNS01_PAR", "CNS02_PAR"]),
          Consolidation("IndJobs", ["CNS05_PAR", "CNS06_PAR", "CNS08_PAR"]),
@@ -271,8 +273,8 @@ SA_PARCELS_COMMUTE_LONG = {
     "agg_cols": [YEAR_COL, AggColumn("Total_Commutes")],
     "consolidate": [],
     "melt_cols": MeltColumn(label_col="CommMode", val_col="Commutes",
-                           input_cols=["Drove", "Carpool", "Transit",
-                                       "NonMotor", "Work_From_Home", "AllOther"]),
+                            input_cols=["Drove", "Carpool", "Transit",
+                                        "NonMotor", "Work_From_Home", "AllOther"]),
     "out_table": "CommutesByMode"
 }
 SA_PARCELS_JSECTOR_LONG = {
@@ -281,7 +283,7 @@ SA_PARCELS_JSECTOR_LONG = {
     "agg_cols": [YEAR_COL, AggColumn("Total_Employment")],
     "consolidate": [],
     "melt_cols": MeltColumn(label_col="Sector", val_col="Jobs",
-                           input_cols=["RsrcJobs", "IndJobs", "ConsJobs", "OffJobs", "EdJobs", "HCJobs", "OthJobs"]),
+                            input_cols=["RsrcJobs", "IndJobs", "ConsJobs", "OffJobs", "EdJobs", "HCJobs", "OthJobs"]),
     "out_table": "JobsBySector"
 }
 SA_PARCELS_WALK_STA_LONG = {
@@ -291,8 +293,8 @@ SA_PARCELS_WALK_STA_LONG = {
         Column("bin_stn_walk", domain=WALK_DOM)
     ],
     "agg_cols": [YEAR_COL, AggColumn("TOT_LVG_AREA"), AggColumn("NO_RES_UNTS"),
-                    AggColumn(pconfig.PARCEL_COMMON_KEY, agg_method="size", rename="NParcels"),
-                    AggColumn("stn_in_15")],
+                 AggColumn(pconfig.PARCEL_COMMON_KEY, agg_method="size", rename="NParcels"),
+                 AggColumn("stn_in_15")],
     "consolidate": [],
     "melt_cols": None,
     "out_table": "WalkTimeToStations"
@@ -301,8 +303,8 @@ SA_PARCELS_WALK_PARK_LONG = {
     "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS + [Column("bin_park_walk", domain=WALK_DOM)],
     "agg_cols": [YEAR_COL, AggColumn("TOT_LVG_AREA"), AggColumn("NO_RES_UNTS"),
-                    AggColumn(pconfig.PARCEL_COMMON_KEY, agg_method="size", rename="NParcels"),
-                    AggColumn("park_in_15")],
+                 AggColumn(pconfig.PARCEL_COMMON_KEY, agg_method="size", rename="NParcels"),
+                 AggColumn("park_in_15")],
     "consolidate": [],
     "melt_cols": None,
     "out_table": "WalkTimeToParks"
@@ -313,8 +315,8 @@ SA_BLOCK_DEV_STATUS_LONG = {
     "agg_cols": [YEAR_COL, AggColumn("TotalArea")],
     "consolidate": [],
     "melt_cols": MeltColumn(label_col="DevStatus", val_col="Area",
-                           input_cols=["NonDevArea", "DevOSArea", "DevLowArea", "DevMedArea", "DevHighArea"],
-                           domain=DEV_ST_DOM),
+                            input_cols=["NonDevArea", "DevOSArea", "DevLowArea", "DevMedArea", "DevHighArea"],
+                            domain=DEV_ST_DOM),
     "out_table": "AreaByDevStatus"
 }
 SA_TRANSIT_LONG = {
@@ -621,7 +623,6 @@ CALCS = [RES_DENS, NRES_DENS, FAR_DENS, JH_RATIO, CENT_IDX, GRID_DENS, NA_MODE_S
          ACCESS_IN30, ACCESS_IN30_MAZ, NM_JH_BAL, PROP_IN15, TV_SF_AGG, JV_SF_AGG, LV_SF_AGG
          ]
 
-
 ## TREND PARAMS
 STD_IDX_COLS = [pconfig.SUMMARY_AREAS_COMMON_KEY, "Name", "Corridor"]
 ACC_IDX_COLS = ["Activity", "TimeBin"]
@@ -686,18 +687,18 @@ BLOCK_DIFF = {
     "table": BLOCK_FC_SPECS,
     "index_cols": BLOCK_FC_SPECS[1]
 }
-MAZ_DIFF ={
+MAZ_DIFF = {
     "table": MAZ_FC_SPECS,
     "index_cols": pconfig.MAZ_COMMON_KEY
 }
-TAZ_DIFF ={
+TAZ_DIFF = {
     "table": TAZ_FC_SPECS,
     "index_cols": pconfig.TAZ_COMMON_KEY
 }
 DIFF_FEATURES = [SUM_AREA_DIFF, BLOCK_DIFF, MAZ_DIFF, TAZ_DIFF]
 
 # Long features
-SUM_AREA_LONG ={
+SUM_AREA_LONG = {
     "table": SUM_AREA_FC_SPECS,
     "index_cols": STD_IDX_COLS
 }
