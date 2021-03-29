@@ -380,6 +380,38 @@ def val_per_sqft_idx(value, land_sqft):
         return value / land_sqft
     """
 
+NRES_AREA = {
+    "tables": [PAR_FC_SPECS],
+    "new_field": "NRES_AREA",
+    "field_type": "FLOAT",
+    "expr": "calc_area(!LND_SQFOOT!, !Total_Employment!)",
+    "code_block":
+        """
+def calc_area(sq_ft, activity):
+    if activity is None:
+        return 0
+    elif activity <= 0:
+        return 0
+    else:
+        return sq_ft
+    """
+}
+VAC_AREA = {
+    "tables": [PAR_FC_SPECS],
+    "new_field": "VAC_AREA",
+    "field_type": "FLOAT",
+    "expr": "calc_area(!LND_SQFOOT!, !GN_VA_LU!)", #Alternatively, define as all parcels with no building area?
+    "code_block":
+        """
+def calc_area(sq_ft, lu):
+    if lu is None:
+        return 0
+    elif lu == 'Vacant/Undeveloped':
+        return sq_ft
+    else:
+        return 0
+    """
+}
 RES_DENS = {
     "tables": [PAR_FC_SPECS, BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "RES_DENS",
