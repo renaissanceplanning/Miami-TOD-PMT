@@ -294,27 +294,29 @@ def process_parcel_land_use():
 
         # Create combo df
         par_lu_field = "DOR_UC"
-        par_fields = [PARCEL_COMMON_KEY, "LND_SQFOOT"]
+        par_fields = [PARCEL_COMMON_KEY] #, "LND_SQFOOT", "NO_RES_UNTS", "Total_Employment"]
         tbl_lu_field = "DOR_UC"
         dtype = {"DOR_UC": int}
         default_vals = {
             PARCEL_COMMON_KEY: "-1",
-            "LND_SQFOOT": 0,
-            par_lu_field: 999
+            # "LND_SQFOOT": 0,
+            par_lu_field: 999,
+            # "NO_RES_UNTS": 0,
+            # "Total_Employment": 0
         }
         par_df = prep_parcel_land_use_tbl(parcels_fc, par_lu_field, par_fields,
                                           lu_table, tbl_lu_field, dtype_map=dtype,
                                           null_value=default_vals)
         # Calculate area columns
-        for par_lu_col in PARCEL_LU_AREAS.keys():
-            # ref_col, crit = PARCEL_LU_AREAS[par_lu_col]
-            # par_df[par_lu_col] = np.select(
-            #     [par_df[ref_col] == crit], [par_df[PARCEL_AREA_COL]], 0.0
-            # )
-            ref_col, comp = PARCEL_LU_AREAS[par_lu_col]
-            par_df[par_lu_col] = np.select(
-                [comp.eval(par_df[ref_col])], [par_df[PARCEL_AREA_COL]], 0.0
-            )
+        # for par_lu_col in PARCEL_LU_AREAS.keys():
+        #     # ref_col, crit = PARCEL_LU_AREAS[par_lu_col]
+        #     # par_df[par_lu_col] = np.select(
+        #     #     [par_df[ref_col] == crit], [par_df[PARCEL_AREA_COL]], 0.0
+        #     # )
+        #     ref_col, comp = PARCEL_LU_AREAS[par_lu_col]
+        #     par_df[par_lu_col] = np.select(
+        #         [comp.eval(par_df[ref_col])], [par_df[PARCEL_AREA_COL]], 0.0
+        #     )
         # Export result
         checkOverwriteOutput(out_table, overwrite=True)
         dfToTable(par_df, out_table)
@@ -342,6 +344,7 @@ def process_imperviousness():
 
 def process_osm_networks():
     net_versions = sorted({v[0] for v in NET_BY_YEAR.values()})
+    # TODO: check if network dataset already exists
     for net_version in net_versions:
         # Import edges
         osm_raw = PMT.makePath(RAW, "OpenStreetMap")
@@ -935,7 +938,7 @@ if __name__ == "__main__":
     # enrich_block_groups() # TESTED CR 03/01/21
 
     # process_bg_estimate_activity_models() # TESTED CR 03/02/21
-    # process_bg_apply_activity_models()      # TESTED CR 03/02/21
+    # process_bg_apply_activity_models()    # TESTED CR 03/02/21
     # process_allocate_bg_to_parcels()
 
     # TODO: check use validate_fds method instead of makePath in these and helper funcs

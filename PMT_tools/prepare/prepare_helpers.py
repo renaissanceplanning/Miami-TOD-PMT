@@ -11,7 +11,7 @@ from datetime import time
 import numpy as np
 import pandas as pd
 
-import geopandas as gpd #DLL goes missing if env is altered!
+# import geopandas as gpd #DLL goes missing if env is altered!
 
 import xlrd
 
@@ -28,7 +28,7 @@ from sklearn import linear_model
 import scipy
 from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import arcpy
-import dask.dataframe as dd
+# import dask.dataframe as dd
 from six import string_types
 
 from functools import reduce
