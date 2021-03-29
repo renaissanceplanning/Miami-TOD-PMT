@@ -1,10 +1,11 @@
 from collections import OrderedDict
+""" FOLDER LIST """
+RAW_FOLDERS = ["BUILDING_PERMITS", "CENSUS", "LODES", "OPEN_STREET_MAP", "PARCELS", "TRANSIT"]
 
 '''Crash Configuration'''
 # download configuration
 CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/'
 PED_BIKE_QUERY = {"where": "COUNTY_TXT = 'MIAMI-DADE' AND PEDESTRIAN_BICYCLIST_IND = 'Y'"}
-
 
 
 ''' Census Configuration'''
@@ -39,6 +40,8 @@ ACS_MODE_COLUMNS = {
     "020E": "Other",
     "021E": "Work_From_Home"
 }
+''' LODES CONFIGURATION '''
+LODES_FILE_TYPE = "wac"
 
 ''' All downloadable URLs 
     - Impervious Surface data NLCD

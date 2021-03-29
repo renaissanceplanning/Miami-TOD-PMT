@@ -2,7 +2,7 @@ from PMT_tools.config.download_config import (LODES_URL, LODES_YEARS, LODES_FILE
                                               LODES_WORKFORCE_SEGMENTS, LODES_PART,
                                               LODES_JOB_TYPES, LODES_AGG_GEOS)
 
-from download_helper import download_file_from_url, validate_directory
+from download_helper import download_file_from_url
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,7 @@ from datetime import datetime
 
 from six import string_types
 
-from PMT_tools.PMT import makePath
+from PMT_tools.PMT import makePath, validate_directory
 
 current_year = datetime.now().year
 
@@ -92,9 +92,10 @@ def validate_lodes_download(file_type, state, segment, part, job_type, year, agg
     string_list = [file_type, state, segment, part, job_type]
     valids_list = [LODES_FILE_TYPES, LODES_STATES, LODES_WORKFORCE_SEGMENTS,
                    LODES_PART, LODES_JOB_TYPES]
+    st = state.lower()
     try:
         # validate year
-        if validate_year_input(year=year, state=state):
+        if validate_year_input(year=year, state=st):
             # validate string inputs
             for val, valid_list in zip(string_list, valids_list):
                 if validate_string_inputs(value=val, valid_inputs=valid_list):
@@ -172,19 +173,19 @@ def download_aggregate_lodes(output_directory, file_type, state,
         - if validate_agg_geo:
             - download LODES crosswalk
             - aggregate data
-    Returns
-    -------
+    Returns:
 
     """
+    st = state.lower()
     try:
         out_dir = validate_directory(directory=output_directory)
         if validate_lodes_download(file_type, state, segment, part, job_type, year, agg_geog):
             if file_type == "od":
                 # kept for now as it will still download but not aggregate OD
-                lodes_fname = f"{state}_{file_type}_{part}_{job_type}_{str(year)}.csv.gz"
+                lodes_fname = f"{st}_{file_type}_{part}_{job_type}_{str(year)}.csv.gz"
             else:
-                lodes_fname = f"{state}_{file_type}_{segment}_{job_type}_{str(year)}.csv.gz"
-            lodes_download_url = f"{LODES_URL}/{state}/{file_type}/{lodes_fname}"
+                lodes_fname = f"{st}_{file_type}_{segment}_{job_type}_{str(year)}.csv.gz"
+            lodes_download_url = f"{LODES_URL}/{st}/{file_type}/{lodes_fname}"
             lodes_out_path = makePath(out_dir, lodes_fname)
             lodes_out_path = lodes_out_path.replace(".csv.gz", "_blk.csv.gz")
             print(f"...downloading {lodes_fname} to {lodes_out_path}")

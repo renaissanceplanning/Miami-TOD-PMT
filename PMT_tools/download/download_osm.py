@@ -24,23 +24,20 @@
     networks in python. The networks are pickled as networkx graphs.
 """
 import os
-
-import osmnx as ox
-ox.config()
-import geopandas as gpd
-
+from six import string_types
 from datetime import datetime
 import pickle
 
-from six import string_types
+import geopandas as gpd
+import osmnx as ox
 
-from PMT_tools.download.download_helper import validate_directory
-from PMT_tools.PMT import EPSG_LL, EPSG_FLSPF, EPSG_WEB_MERC
-from PMT_tools.PMT import multipolygonToPolygon, makePath
+from PMT_tools.PMT import makePath, validate_directory
 
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
-
+EPSG_LL = 4326
+EPSG_FLSPF = 2881
+EPSG_WEB_MERC = 3857
 
 def validate_bbox(bbox):
     """
@@ -123,35 +120,30 @@ def validate_network_types(network_types):
 
 def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
                           net_types=['drive', 'walk', 'bike'], pickle_save=False, suffix=""):
-    """
-    Download an OpenStreetMap network within the area defined by a polygon
-    feature class of a bounding box.
-
-    Parameters
-    ------------
-    output_dir: Path, Path to output directory. Each modal network (specified by `net_types`)
-            is saved to this directory within an epoynmous folder  as a shape file.
-            If `pickle_save` is True, pickled graph objects are also stored in this directory in the
-            appropriate subfolders.
-    polygon: Path, default=None; Path to study area polygon(s) shapefile. If provided, the polygon
-            features define the area from which to fetch OSM features and `bbox` is ignored.
-            See module notes for performance and suggestions on usage.
-    bbox: dict, default=None; A dictionary with keys 'south', 'west', 'north', and 'east' of
-            EPSG:4326-style coordinates, defining a bounding box for the area from which to
-            fetch OSM features. Only required when `study_area_polygon_path` is not provided.
-            See module notes for performance and suggestions on usage.
-    net_types: list, [String,...], default=["drive", "walk", "bike"]
-            A list containing any or all of "drive", "walk", or "bike", specifying
-            the desired OSM network features to be downloaded.
-    pickle_save: boolean, default=False; If True, the downloaded OSM networks are saved as
-            python `networkx` objects using the `pickle` module. See module notes for usage.
-    suffix: String, default=""; Downloaded datasets may optionally be stored in folders with
-            a suffix appended, differentiating networks by date, for example.
-
-    Returns
-    ---------
-    G: dict; A dictionary of networkx graph objects. Keys are mode names based on
-            `net_types`; values are graph objects.
+    """Download an OpenStreetMap network within the area defined by a polygon
+        feature class of a bounding box.
+    Args:
+        output_dir: Path, Path to output directory. Each modal network (specified by `net_types`)
+                is saved to this directory within an epoynmous folder  as a shape file.
+                If `pickle_save` is True, pickled graph objects are also stored in this directory in the
+                appropriate subfolders.
+        polygon: Path, default=None; Path to study area polygon(s) shapefile. If provided, the polygon
+                features define the area from which to fetch OSM features and `bbox` is ignored.
+                See module notes for performance and suggestions on usage.
+        bbox: dict, default=None; A dictionary with keys 'south', 'west', 'north', and 'east' of
+                EPSG:4326-style coordinates, defining a bounding box for the area from which to
+                fetch OSM features. Only required when `study_area_polygon_path` is not provided.
+                See module notes for performance and suggestions on usage.
+        net_types: list, [String,...], default=["drive", "walk", "bike"]
+                A list containing any or all of "drive", "walk", or "bike", specifying
+                the desired OSM network features to be downloaded.
+        pickle_save: boolean, default=False; If True, the downloaded OSM networks are saved as
+                python `networkx` objects using the `pickle` module. See module notes for usage.
+        suffix: String, default=""; Downloaded datasets may optionally be stored in folders with
+                a suffix appended, differentiating networks by date, for example.
+    Returns:
+        G: dict; A dictionary of networkx graph objects. Keys are mode names based on
+                `net_types`; values are graph objects.
     """
     # Validation of inputs
     # TODO: separate polygon and bbox validation
@@ -165,12 +157,14 @@ def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
     # Fetch network features
     mode_nets = {}
     for net_type in net_types:
+        print(f"{net_type:}")
         net_folder = f"{net_type}_{suffix}"
         print(f"OSMnx {net_type} network extraction")
         print("-- extracting a composed network by bounding box...")
         g = ox.graph_from_bbox(north=bounding_box["north"], south=bounding_box["south"],
                                east=bounding_box["east"], west=bounding_box["west"],
                                network_type=net_type, retain_all=True)
+        # TODO: if walk/bike create subgraphs of nodes and drop vesitgal elements
 
         # Pickle if requested
         if pickle_save:

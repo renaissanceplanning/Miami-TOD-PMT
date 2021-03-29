@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """ builder.py will serve as the final processing tool
 
-This module will do the heavy lifting to build out the PMT time step geodatabases for ingestion to the tool
+This module will do the heavy lifting to build out the PMT time step geodatabases
+for ingestion to AGOL for the tool
 
 Functions:
     _validate_snapshots:
