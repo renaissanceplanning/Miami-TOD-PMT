@@ -1,4 +1,3 @@
-from PMT_tools.config.build_config import *
 
 import uuid
 import numpy as np
@@ -44,16 +43,31 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     return paths
 
 
+def unique_values(table , field):
+    with arcpy.da.SearchCursor(table, [field]) as cursor:
+        return sorted({row[0] for row in cursor})
+
+
 def add_year_columns(in_gdb, year):
-    print("checking for/adding year columns")
+    print("--- checking for/adding year columns")
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = in_gdb
     fcs = _list_fc_paths(in_gdb)
     tables = _list_table_paths(in_gdb)
     for fc in fcs:
+        if "Year" in [f.name for f in arcpy.ListFields(fc)]:
+            values = unique_values(table=fc, field="Year")
+            if len(values) == 1 and values[0] == year:
+                print(f"--- 'Year' already in {fc}...skipping")
+                continue
         arcpy.AddField_management(fc, "Year", "LONG")
         arcpy.CalculateField_management(fc, "Year", str(year))
     for table in tables:
+        if "Year" in [f.name for f in arcpy.ListFields(table)]:
+            values = unique_values(table=fc, field="Year")
+            if len(values) == 1 and values[0] == year:
+                print(f"--- 'Year' already in {fc}...skipping")
+                continue
         arcpy.AddField_management(table, "Year", "LONG")
         arcpy.CalculateField_management(table, "Year", str(year))
     arcpy.env.workspace = old_ws
@@ -116,10 +130,12 @@ def _validateAggSpecs(var, expected_type):
 
 
 def joinAttributes(to_table, to_id_field, from_table, from_id_field,
-                   join_fields, null_value=0.0, renames={}, drop_dup_cols=False):
+                   join_fields, null_value=0.0, renames=None, drop_dup_cols=False):
     """
     """
     # If all columns, get their names
+    if renames is None:
+        renames = {}
     if join_fields == "*":
         join_fields = [f.name for f in arcpy.ListFields(from_table)
                        if not f.required and f.name != from_id_field]
@@ -135,7 +151,7 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
                        if d in tbl_fields]
         # If all the fields to join will be dropped, exit
         if len(join_fields) == len(drop_fields):
-            print('... no new fields')
+            print('--- --- no new fields')
             return  # TODO: what if we want to update these fields?
         # else:
         #     join_fields = [jf for jf in join_fields if jf not in drop_fields]
@@ -150,7 +166,7 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
     if drop_fields:
         df.drop(columns=drop_fields, inplace=True)
     # Join cols from df to to_table
-    print(f"... {list(df.columns)} to {to_table}")
+    print(f"--- --- {list(df.columns)} to {to_table}")
     PMT.extendTableDf(to_table, to_id_field, df, from_id_field, drop_dup_cols=True)
 
 
@@ -264,9 +280,7 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=No
         id_field = [id_field]  # elif isinstance(Column)?
 
     all_fields = id_field + list(renames.values())
-    df = pd.DataFrame(
-        arcpy.da.TableToNumPyArray(int_fc, all_fields, null_value=0.0)
-    )
+    df = PMT.featureclass_to_df(in_fc=int_fc, keep_fields=all_fields, null_val=0.0)
     # Set id field(s) as index
     df.set_index(id_field, inplace=True)
 

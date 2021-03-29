@@ -35,7 +35,7 @@ MAZ_FC_SPECS = ("MAZ", pconfig.MAZ_COMMON_KEY, "Polygons")
 TAZ_FC_SPECS = ("TAZ", pconfig.TAZ_COMMON_KEY, "Polygons")
 SUM_AREA_FC_SPECS = ("SummaryAreas", pconfig.SUMMARY_AREAS_COMMON_KEY, "Polygons")
 NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks")  # TODO: define common key
-TRANSIT_FC_SPECS = ("TransitRidership", pconfig.TRANSIT_COMMON_KEY, "Points") # previously OBJECTID
+TRANSIT_FC_SPECS = ("TransitRidership", pconfig.TRANSIT_COMMON_KEY, "Points")  # previously OBJECTID
 PARKS_FC_SPECS = ("Park_points", pconfig.PARK_POINTS_COMMON_KEY, "Points")  # previously OBJECTID_1
 EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks")  # TODO: define common key
 
@@ -76,12 +76,18 @@ BLOCK_PAR_ENRICH = {
     "grouping": Column(BLOCK_FC_SPECS[1]),
     "agg_cols":
         [AggColumn("Total_Population"), AggColumn("NO_RES_UNTS"), AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
-         AggColumn("TV_NSD"), AggColumn("LND_VAL"), AggColumn("LND_SQFOOT"), AggColumn("Total_Commutes"),
-         AggColumn("Drove_PAR", rename="Drove"), AggColumn("Carpool_PAR", rename="Carpool"),
-         AggColumn("Transit_PAR", rename="Transit"), AggColumn("NonMotor_PAR", rename="NonMotor"),
-         AggColumn("Work_From_Home_PAR", rename="Work_From_Home"), AggColumn("AllOther_PAR", rename="AllOther"),
+         AggColumn("TV_NSD"), AggColumn("LND_VAL"), AggColumn("LND_SQFOOT"),
+         AggColumn("Total_Commutes"),
+         AggColumn("Drove_PAR", rename="Drove"),
+         AggColumn("Carpool_PAR", rename="Carpool"),
+         AggColumn("Transit_PAR", rename="Transit"),
+         AggColumn("NonMotor_PAR", rename="NonMotor"),
+         AggColumn("Work_From_Home_PAR", rename="Work_From_Home"),
+         AggColumn("AllOther_PAR", rename="AllOther"),
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
-         AggColumn("Developable_Area"), AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
+         AggColumn("Developable_Area"),
+        # TODO: add this back when its calculated properly
+         # AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
          AggColumn("Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
          AggColumn("Max_Scaled_Area", rename="Scaled_Area"),
          AggColumn("Total_Employment"),
@@ -103,11 +109,16 @@ SA_PAR_ENRICH = {
          AggColumn("Total_Population"), AggColumn("NO_RES_UNTS"), AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
          AggColumn("TV_NSD"), AggColumn("LND_VAL"), AggColumn("LND_SQFOOT"),
          AggColumn("Total_Commutes"),
-         AggColumn("Drove_PAR", rename="Drove"), AggColumn("Carpool_PAR", rename="Carpool"),
-         AggColumn("Transit_PAR", rename="Transit"), AggColumn("NonMotor_PAR", rename="NonMotor"),
-         AggColumn("Work_From_Home_PAR", rename="Work_From_Home"), AggColumn("AllOther_PAR", rename="AllOther"),
+         AggColumn("Drove_PAR", rename="Drove"),
+         AggColumn("Carpool_PAR", rename="Carpool"),
+         AggColumn("Transit_PAR", rename="Transit"),
+         AggColumn("NonMotor_PAR", rename="NonMotor"),
+         AggColumn("Work_From_Home_PAR", rename="Work_From_Home"),
+         AggColumn("AllOther_PAR", rename="AllOther"),
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
-         AggColumn("Developable_Area"), AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
+         AggColumn("Developable_Area"),
+         # TODO: add this back when its calculated properly
+         # AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
          AggColumn("Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
          AggColumn("Max_Scaled_Area", rename="Scaled_Area"),
          AggColumn("min_time_stn_walk", agg_method="mean"), AggColumn("min_time_park_walk", agg_method="mean"),
@@ -258,7 +269,9 @@ SA_PARCELS_LU_LONG = {
     "grouping":
         SA_GROUP_COLS + [Column("GN_VA_LU", default="Unknown", domain=LU_CAT_DOM)],
     "agg_cols":
-        [YEAR_COL, AggColumn("NO_RES_UNTS"), AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
+        [YEAR_COL,
+         AggColumn("NO_RES_UNTS"),  # TODO: add this back when
+         AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
          AggColumn("TV_NSD"), AggColumn("LND_SQFOOT"), AggColumn("JV_SF", agg_method=np.nanmedian),
          AggColumn("TV_SF", agg_method=np.nanmedian), AggColumn("LV_SF", agg_method=np.nanmedian),
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU")
@@ -340,96 +353,83 @@ ELONGATE_SPECS = [SA_PARCELS_LU_LONG, SA_PARCELS_COMMUTE_LONG,
                   SA_PARCELS_WALK_STA_LONG, SA_PARCELS_WALK_PARK_LONG,
                   SA_BLOCK_DEV_STATUS_LONG, SA_TRANSIT_LONG, SA_BIKE_LONG]
 
-# CALC FIELD SPECS
-RES_AREA = {
-    "tables": [PAR_FC_SPECS],
-    "new_field": "RES_AREA",
-    "field_type": "FLOAT",
-    "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
-    "code_block":
-        """
-def calc_area(sq_ft, activity):
-    if activity is None:
-        return 0
-    elif activity <= 0:
-        return 0
+# CALC FIELD SPECS # TODO: modify all calcs to handle null values in a particular field
+DIVIDE_CODE_BLOCK = """
+def divide(numerator, denominator):
+    if None in [numerator, denominator]:
+        return None
+    elif denominator == 0:
+        return None
     else:
-        return sq_ft
+        return numerator / denominator
     """
-}
-NRES_AREA = {
-    "tables": [PAR_FC_SPECS],
-    "new_field": "NRES_AREA",
-    "field_type": "FLOAT",
-    "expr": "calc_area(!LND_SQFOOT!, !Total_Employment!)",
-    "code_block":
-        """
-def calc_area(sq_ft, activity):
-    if activity is None:
-        return 0
-    elif activity <= 0:
-        return 0
+DENSITY_CODE_BLOCK = """
+def density(numerator, denominator, scalar):
+    if None in [numerator, denominator]:
+        return None
+    elif denominator == 0:
+        return None
     else:
-        return sq_ft
+        return numerator / (denominator / scalar)
     """
-}
-VAC_AREA = {
-    "tables": [PAR_FC_SPECS],
-    "new_field": "VAC_AREA",
-    "field_type": "FLOAT",
-    "expr": "calc_area(!LND_SQFOOT!, !GN_VA_LU!)", #Alternatively, define as all parcels with no building area?
-    "code_block":
-        """
-def calc_area(sq_ft, lu):
-    if lu is None:
-        return 0
-    elif lu == 'Vacant/Undeveloped':
-        return sq_ft
+PER_SQFT_IDX_CODE_BLOCK = """
+def val_per_sqft_idx(value, land_sqft):
+    if None in [value, land_sqft]:
+        return None
     else:
-        return 0
+        return value / land_sqft
     """
-}
+
 RES_DENS = {
     "tables": [PAR_FC_SPECS, BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "RES_DENS",
     "field_type": "FLOAT",
-    "expr": "!NO_RES_UNTS!/(!RES_AREA! / 43560.0)",
-    "code_block": ""
+    "expr": "density(!NO_RES_UNTS!, !RES_AREA!, 43560.0)",
+    "code_block": DENSITY_CODE_BLOCK
 }
 NRES_DENS = {
     "tables": [PAR_FC_SPECS, BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "NRES_DENS",
     "field_type": "FLOAT",
-    "expr": "!Total_Employment!/(!RES_AREA! / 43560.0)",
-    "code_block": ""
+    "expr": "density(!Total_Employment!, !RES_AREA!, 43560.0)",
+    "code_block": DENSITY_CODE_BLOCK
 }
 FAR_DENS = {
     "tables": [PAR_FC_SPECS, BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "FAR",
     "field_type": "FLOAT",
-    "expr": "!TOT_LVG_AREA!/(!LND_SQFOOT! - !VAC_AREA!)",
-    "code_block": ""
+    "expr": "divide(!TOT_LVG_AREA!, !LND_SQFOOT!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 JH_RATIO = {
     "tables": [BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "JHRatio",
     "field_type": "FLOAT",
-    "expr": "!Total_Employment!/!NO_RES_UNTS!",
-    "code_block": ""
+    "expr": "divide(!Total_Employment!, !NO_RES_UNTS!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 GRID_DENS = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "GRID_DENS",
     "field_type": "FLOAT",
-    "expr": "!NBlocks!/(!LND_SQFOOT! / (43560.0 * 640.0))",  # Convert sq feet to sq miles via acres to sq miles
-    "code_block": ""
+    "expr": "density(!NBlocks!, !LND_SQFOOT!, (43560.0 * 640.0))",  # Convert sq feet to sq miles via acres to sq miles
+    "code_block": DENSITY_CODE_BLOCK
 }
+NA_MODE_SHARE_CODE_BLOCK = """
+def shr_na(transit, nonmotor, other, commutes):
+    if None in [transit, nonmotor, other, commutes]:
+        return 0
+    elif commutes == 0:
+        return 0
+    else:
+        return 100 * (transit + nonmotor + other) / commutes
+    """
 NA_MODE_SHARE = {
     "tables": [BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "SHR_NONAUTO",
     "field_type": "FLOAT",
-    "expr": "100 * (!Transit! + !NonMotor! + !AllOther!)/!Total_Commutes!",
-    "code_block": ""
+    "expr": "shr_na(!Transit!, !NonMotor!, !AllOther!, !Total_Commutes!)",
+    "code_block": NA_MODE_SHARE_CODE_BLOCK
 }
 ACCESS_IN30 = {
     "params": [ACTIVITIES, [M[0] for M in MODES]],
@@ -499,26 +499,28 @@ SHR_LVG_AREA = {
     "expr": "!TOT_LVG_AREA! / {0}",
     "code_block": ""
 }
+
+
 TV_SF = {
     "tables": [PAR_FC_SPECS],
     "new_field": "TV_SF",
     "field_type": "FLOAT",
-    "expr": "!TV_NSD! / !LND_SQFOOT!",
-    "code_block": ""
+    "expr": "divide(!TV_NSD!, !LND_SQFOOT!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 JV_SF = {
     "tables": [PAR_FC_SPECS],
     "new_field": "JV_SF",
     "field_type": "FLOAT",
-    "expr": "!JV! / !LND_SQFOOT!",
-    "code_block": ""
+    "expr": "divide(!JV!, !LND_SQFOOT!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 LV_SF = {
     "tables": [PAR_FC_SPECS],
     "new_field": "LV_SF",
     "field_type": "FLOAT",
-    "expr": "!LND_VAL! / !LND_SQFOOT!",
-    "code_block": ""
+    "expr": "divide(!LND_VAL!, !LND_SQFOOT!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 TV_IDX = {
     "tables": [SUM_AREA_FC_SPECS],
@@ -584,22 +586,22 @@ TV_SF_AGG = {
     "tables": [BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "TV_SF",
     "field_type": "FLOAT",
-    "expr": "!TV_NSD! / !LND_SQFOOT!",
-    "code_block": ""
+    "expr": "divide(!TV_NSD!, !LND_SQFOOT!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 JV_SF_AGG = {
     "tables": [BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "JV_SF",
     "field_type": "FLOAT",
-    "expr": "!JV! / !LND_SQFOOT!",
-    "code_block": ""
+    "expr": "divide(!JV!, !LND_SQFOOT!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 LV_SF_AGG = {
     "tables": [BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "LV_SF",
     "field_type": "FLOAT",
-    "expr": "!LND_VAL! / !LND_SQFOOT!",
-    "code_block": ""
+    "expr": "divide(!LND_VAL!, !LND_SQFOOT!)",
+    "code_block": DIVIDE_CODE_BLOCK
 }
 CENT_IDX = {
     "tables": [SUM_AREA_FC_SPECS],
@@ -675,8 +677,8 @@ WALK_STN_DIFF = {
     "index_cols": STD_IDX_COLS + ["GN_VA_LU", "bin_stn_walk", "LU_CAT_DOM", "WALK_DOM"]
 }
 DIFF_TABLES = [AUTO_ACC_DIFF, TRAN_ACC_DIFF, BIKE_ACC_DIFF, WALK_ACC_DIFF,
-                DEV_STATUS_DIFF, ATTR_LU_DIFF, COMMUTE_DIFF, JOBS_DIFF,
-                TRAN_DIFF, WALK_PARK_DIFF, WALK_STN_DIFF]
+               DEV_STATUS_DIFF, ATTR_LU_DIFF, COMMUTE_DIFF, JOBS_DIFF,
+               TRAN_DIFF, WALK_PARK_DIFF, WALK_STN_DIFF]
 
 # Feature diffs
 SUM_AREA_DIFF = {

@@ -4,6 +4,7 @@ from PMT_tools.PMT import (Comp, And, Column, AggColumn, Consolidation, NetLoade
 """ Basic features configuration """
 BASIC_STATIONS = "SMARTplanStations"
 STN_NAME_FIELD = "Name"
+STN_STATUS_FIELD = "Status"
 STN_BUFF_DIST = "2640 Feet"
 STN_BUFF_METERS = 804.672
 STN_DISS_FIELDS = ["Id", "Name", "Status"]
@@ -28,7 +29,9 @@ BASIC_CORRIDORS = "Corridors"
 BASIC_LONG_STN = "StationsLong"
 BASIC_SUM_AREAS = "SummaryAreas"
 STN_LONG_CORRIDOR = "Corridor"
-SUMMARY_AREAS_COMMON_KEY = "RowID"
+SUMMARY_AREAS_COMMON_KEY = "SummID"  # Changed from RowID as ROWID appears to be a reserved word in MSSQL and ORACLE
+
+SUMMARY_AREAS_BASIC_FIELDS = [SUMMARY_AREAS_COMMON_KEY, STN_NAME_FIELD, STN_STATUS_FIELD, CORRIDOR_NAME_FIELD]
 
 BASIC_RENAME_DICT = {
     "EastWest": "East-West",
@@ -412,13 +415,14 @@ PARCEL_COLS = {
 LAND_USE_COMMON_KEY = "DOR_UC"
 PARCEL_AREA_COL = "LND_SQFOOT"
 PARCEL_BLD_AREA_COL = "TOT_LVG_AREA"
-PARCEL_LU_AREAS = {  # COL_NAME: (which_field, criteria)
-    #"VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
-    #"RES_AREA": ["RES_NRES", "RES"],
-    #"NRES_AREA": ["RES_NRES", "NRES"]
-    "VAC_AREA": ["GN_VA_LU", Comp("==", "Vacant/Undeveloped")],
-    "RES_AREA": ["NO_RES_UNTS", Comp(">", 0)],
-    "NRES_AREA": ["Total_Employment", Comp(">", 0)]
+PARCEL_LU_AREAS = {
+    # COL_NAME: (which_field, criteria)
+    # "VAC_AREA": ["GN_VA_LU", "Vacant/Undeveloped"],
+    # "RES_AREA": ["RES_NRES", "RES"],
+    # "NRES_AREA": ["RES_NRES", "NRES"]
+    "VAC_AREA": ["GN_VA_LU", Comp(comp_method="==", v="Vacant/Undeveloped")],
+    "RES_AREA": ["NO_RES_UNTS", Comp(comp_method=">", v=0)],
+    "NRES_AREA": ["Total_Employment", Comp(comp_method=">", v=0)]
 }
 
 # Block groups config
@@ -549,7 +553,7 @@ NET_BY_YEAR = {
     2018: ["_q3_2020", MODEL_YEARS[0]],
     2019: ["_q3_2020", MODEL_YEARS[0]],
     "NearTerm": ["_q3_2020", MODEL_YEARS[0]],
-    "LongTerm": ["_q3_2020", MODEL_YEARS[1]]
+    # "LongTerm": ["_q3_2020", MODEL_YEARS[1]]
 }
 NETS_DIR = makePath(CLEANED, "osm_networks")
 SEARCH_CRITERIA = "edges SHAPE;osm_ND_Junctions NONE"
@@ -605,7 +609,8 @@ IDEAL_WALK_RADIUS = "7920 Feet"
 
 # accessibility scores
 ACCESS_MODES = ["Auto", "Transit", "Walk", "Bike"]
-MODE_SCALE_REF = {  # Mode: [source (cleaned folder), scale, id_field]
+MODE_SCALE_REF = {
+    # Mode: [source (cleaned folder), scale, id_field]
     "Auto": ["SERPM", "taz", TAZ_COMMON_KEY],
     "Transit": ["SERPM", "taz", TAZ_COMMON_KEY],
     "Walk": ["OSM_Networks", "maz", MAZ_COMMON_KEY],
@@ -671,7 +676,7 @@ PERMITS_LU_FIELD = "DOR_UC"
 # Use PERMITS_UNITS_FIELD for permits units field
 PERMITS_VALUES_FIELD = "UNITS_VAL"
 PERMITS_COST_FIELD = "COST"
-                                # permit unit: parcel_field
+# permit unit: parcel_field
 SHORT_TERM_PARCELS_UNITS_MATCH = {"bed": "NO_RES_UNTS",
                                   "room": "NO_RES_UNTS",
                                   "unit": "NO_RES_UNTS"}

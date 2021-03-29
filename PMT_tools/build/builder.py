@@ -37,10 +37,10 @@ import os, sys
 
 sys.path.insert(0, os.getcwd())
 from PMT_tools.build import build_helper as bh
-from PMT_tools.config import build_config as bconfig
+from PMT_tools.config import build_config as build_conf
+from PMT_tools.config import prepare_config as prep_conf
 import PMT_tools.PMT as PMT
 from PMT_tools.PMT import CLEANED, BUILD
-from PMT_tools.download import download_helper as dh
 from six import string_types
 from collections.abc import Iterable
 import itertools
@@ -53,7 +53,6 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    from PMT_tools.download.download_helper import validate_directory
 
     ROOT = r'K:\Projects\MiamiDade\PMT\Data'
     RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
@@ -66,28 +65,29 @@ if DEBUG:
     RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
     DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
     YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
+    YEARS = ["NearTerm"]
 
 
 # SNAPSHOT Functions
 def build_access_by_mode(sum_area_fc, modes, out_gdb):
-    id_fields = ["RowID", "Name", "Corridor", bconfig.YEAR_COL.name]
+    id_fields = [prep_conf.SUMMARY_AREAS_COMMON_KEY, prep_conf.STN_NAME_FIELD,
+                 prep_conf.CORRIDOR_NAME_FIELD, build_conf.YEAR_COL.name]
     for mode in modes:
         print(f"... ... {mode}")
         df = bh._createLongAccess(int_fc=sum_area_fc, id_field=id_fields,
-                                  activities=bconfig.ACTIVITIES, time_breaks=bconfig.TIME_BREAKS, mode=mode)
+                                  activities=build_conf.ACTIVITIES, time_breaks=build_conf.TIME_BREAKS, mode=mode)
         out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
         PMT.dfToTable(df, out_table)
 
 
 def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
-    """
-    Joins feature classes to associated tabular data from year set and appends to FC in output gdb
-    in_gdb: String; path to g
+    """Joins feature classes to associated tabular data from year set and appends to FC in output gdb
+        in_gdb: String; path to g
     Returns:
-    [String,...]; list of paths to joined feature classes ordered as
-        Blocks, Parcels, MAZ, TAZ, SummaryAreas, NetworkNodes
+        [String,...]; list of paths to joined feature classes ordered as
+            Blocks, Parcels, MAZ, TAZ, SummaryAreas, NetworkNodes
     """
-    
+
     #   tables need to be ordered the same as FCs
     _table_specs_ = []
     for fc in fc_specs:
@@ -105,7 +105,7 @@ def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
         for spec in table_spec:
             tbl_name, tbl_id, tbl_fields, tbl_renames = spec
             tbl = PMT.makePath(in_gdb, tbl_name)
-            print(f"Joining fields from {tbl_name} to {fc_name}")
+            print(f"--- Joining fields from {tbl_name} to {fc_name}")
             bh.joinAttributes(to_table=fc, to_id_field=fc_id,
                               from_table=tbl, from_id_field=tbl_id,
                               join_fields=tbl_fields, renames=tbl_renames,
@@ -133,7 +133,7 @@ def build_intersections(gdb, enrich_specs):
         disag_in = PMT.makePath(gdb, disag_fds, disag_name)
         full_geometries = intersect["disag_full_geometries"]
         # Run intersect
-        print(f"Intersecting {summ_name} with {disag_name}")
+        print(f"--- Intersecting {summ_name} with {disag_name}")
         int_fc = PMT.intersectFeatures(
             summary_fc=summ_in, disag_fc=disag_in, in_temp_dir=True, full_geometries=full_geometries)
         # Record with specs
@@ -156,8 +156,8 @@ def build_enriched_tables(gdb, fc_dict, specs):
         else:
             # Pivot from intersection
             fc = fc_dict[summ][disag]
-        
-        print(f"Summarizing data from {d_name} to {fc_name}")
+
+        print(f"--- Summarizing data from {d_name} to {fc_name}")
         # summary vars
         group = spec["grouping"]
         agg = spec["agg_cols"]
@@ -173,8 +173,17 @@ def build_enriched_tables(gdb, fc_dict, specs):
         except KeyError:
             # extend input table
             feature_class = PMT.makePath(gdb, fc_fds, fc_name)
+            # if being run again, delete any previous data as da.ExtendTable will fail if a field exists
+            summ_cols = [col for col in summary_df.columns.to_list()
+                         if col != fc_id]
+            drop_fields = [f.name for f in arcpy.ListFields(feature_class)
+                           if f.name in summ_cols]
+            if drop_fields:
+                print(f'--- --- deleting previously generated data and replacing with current summarizations')
+                arcpy.DeleteField_management(in_table=feature_class, drop_field=drop_fields)
             PMT.extendTableDf(in_table=feature_class, table_match_field=fc_id,
-                              df=summary_df, df_match_field=fc_id, append_only=False) #TODO: handle append/overwrite more explicitly
+                              df=summary_df, df_match_field=fc_id,
+                              append_only=False)  # TODO: handle append/overwrite more explicitly
 
 
 def apply_field_calcs(gdb, new_field_specs):
@@ -212,7 +221,7 @@ def apply_field_calcs(gdb, new_field_specs):
             # iterate over tables
             if isinstance(tables, string_types):
                 tables = [tables]
-            print(f"Adding field {new_field} to {len(tables)} tables")
+            print(f"--- Adding field {new_field} to {len(tables)} tables")
             for table in tables:
                 t_name, t_id, t_fds = table
                 in_table = PMT.makePath(gdb, t_fds, t_name)
@@ -244,63 +253,67 @@ def process_year_to_snapshot(year):
     Returns:
 
     """
-    bconfig.YEAR_COL.default = year
+    calc_year = year
+    if year == "NearTerm":
+        calc_year = 9998
+
+    build_conf.YEAR_COL.default = year
     # Make output gdb and copy features
-    out_path = dh.validate_directory(BUILD)
-    in_gdb = dh.validate_geodatabase(
-        PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False)
-    # bh.add_year_columns(in_gdb, year) ****************************************************************
+    print("Validating all data have a year attribute...")
+    out_path = PMT.validate_directory(BUILD)
+    in_gdb = PMT.validate_geodatabase(PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False)
+    bh.add_year_columns(in_gdb, calc_year)
+    print("Making Snapshot Template...")
     out_gdb = bh.make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
-    #out_gdb = PMT.makePath(BUILD, '_6365e38ef426450486bf7162e3204dd7.gdb')
+    # out_gdb = PMT.makePath(BUILD, '_569e0b79883445b0b03b196146228995.gdb')
 
     # Join tables to the features
-    joined_fcs = process_joins(
-       in_gdb=in_gdb, out_gdb=out_gdb, fc_specs=bconfig.FC_SPECS, table_specs=bconfig.TABLE_SPECS)
+    print("Joining tables to feature classes...")
+    process_joins(in_gdb=in_gdb, out_gdb=out_gdb, fc_specs=build_conf.FC_SPECS, table_specs=build_conf.TABLE_SPECS)
 
-    # TODO: build_enriched_tables for weighted-average fields:
-    #   e.g. - enrich blocks with average centrality
-    #        - calculate product of average centrality and TOT_LVG_AREA
-    #        - then blocks has a field that can be used when they are intersected with summary areas
-    #           to support a weighted-avereage centidx by floor area
-    
-    # Calculate values as need prior to intersections
-    apply_field_calcs(gdb=out_gdb, new_field_specs=bconfig.PRECALCS)
+    # Calculate values as need prior to intersections   # TODO: make this smarter, skip if already performed
+    print("Adding and calculating new fields for dashboards...")
+    apply_field_calcs(gdb=out_gdb, new_field_specs=build_conf.PRECALCS)
 
     # Summarize reference values
-    par_sums = sum_parcel_cols(out_gdb, bconfig.PAR_FC_SPECS, bconfig.PAR_SUM_FIELDS)
+    print("Calculating parcels sums to generate regional statistics...")
+    par_sums = sum_parcel_cols(out_gdb, build_conf.PAR_FC_SPECS, build_conf.PAR_SUM_FIELDS)
 
     # Intersect tables for enrichment
-    int_fcs = build_intersections(out_gdb, bconfig.ENRICH_INTS)
+    print("Intersecting feature classes to generate summaries...")
+    int_fcs = build_intersections(out_gdb, build_conf.ENRICH_INTS)
 
-    # Store / load intersection fcs (temp locations) in debugging mode
-    if DEBUG:
-        with open(PMT.makePath(ROOT, "PROCESSING_TEST", "int_fcs.pkl"), "wb") as __f__:
-            pickle.dump(int_fcs, __f__)
-        # with open(PMT.makePath(ROOT, "PROCESSING_TEST", "int_fcs.pkl"), "rb") as __f__:
-        #     int_fcs = pickle.load(__f__)
+    # # Store / load intersection fcs (temp locations) in debugging mode
+    # if DEBUG:
+    #     with open(PMT.makePath(ROOT, "int_fcs.pkl"), "wb") as __f__:
+    #         pickle.dump(int_fcs, __f__)
+    #     # with open(PMT.makePath(ROOT, "PROCESSING_TEST", "int_fcs.pkl"), "rb") as __f__:
+    #     #     int_fcs = pickle.load(__f__)
 
     # enrich tables
-    build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=bconfig.ENRICH_INTS)
+    print("Enriching feature classes with tabular data...")
+    build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=build_conf.ENRICH_INTS)
 
     # elongate tables
-    build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=bconfig.ELONGATE_SPECS)
+    print("Elongating tabular data...")
+    build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=build_conf.ELONGATE_SPECS)
 
     # build access by mode tables
-    print("... Access scores by activity and time bin")
-    sa_fc, sa_id, sa_fds = bconfig.SUM_AREA_FC_SPECS
+    print("Access scores by activity and time bin")
+    sa_fc, sa_id, sa_fds = build_conf.SUM_AREA_FC_SPECS
     sum_areas_fc = PMT.makePath(out_gdb, sa_fds, sa_fc)
-    id_fields = [sa_id, "Name", "Corridor"] #, bconfig.YEAR_COL.name]
+    id_fields = [sa_id, "Name", "Corridor"]  # , bconfig.YEAR_COL.name]
 
-    for mode in bconfig.MODES:
-        print(f"... ... {mode}")
+    for mode in build_conf.MODES:
+        print(f"--- --- {mode}")
         df = bh._createLongAccess(
-            sum_areas_fc, id_fields, bconfig.ACTIVITIES, bconfig.TIME_BREAKS, mode)
+            sum_areas_fc, id_fields, build_conf.ACTIVITIES, build_conf.TIME_BREAKS, mode)
         out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
         PMT.dfToTable(df, out_table, overwrite=True)
 
     # Prepare regional reference columns
     reg_ref_calcs = []
-    for new_field in bconfig.REG_REF_CALCS:
+    for new_field in build_conf.REG_REF_CALCS:
         nf_spec, ref_field = new_field
         if isinstance(ref_field, string_types):
             ref_val = [[par_sums[ref_field]]]
@@ -313,8 +326,9 @@ def process_year_to_snapshot(year):
         reg_ref_calcs.append(nf_spec)
 
     # Calculated values - simple
-    apply_field_calcs(out_gdb, bconfig.CALCS + reg_ref_calcs)
-    
+    print("Calculating remaining fields for dashboards...")
+    apply_field_calcs(out_gdb, build_conf.CALCS + reg_ref_calcs)
+
     # Delete tempfiles
     print("Removing temp files")
     for summ_key, summ_val in int_fcs.items():
@@ -323,8 +337,10 @@ def process_year_to_snapshot(year):
 
     # Rename this output
     print("Finalizing the snapshot")
-    #year_out_gdb = PMT.makePath(BUILD, f"Snapshot_{year}.gdb")
-    year_out_gdb = PMT.makePath(r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD", f"Snapshot_{year}.gdb") #*************
+    year_out_gdb = PMT.makePath(BUILD, f"Snapshot_{year}.gdb")
+    # year_out_gdb = PMT.makePath(r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD",
+    #                             f"Snapshot_{year}.gdb")  # *************
+    # TODO: rename most recent Snapshot to Snapshot_Current.gdb or something like this
     bh.finalize_output(out_gdb, year_out_gdb)
 
 
@@ -340,20 +356,20 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         snapshot_year = years[-1]
     if base_year not in years or snapshot_year not in years:
         raise ValueError("Base year and snapshot year must be in years list")
-    
+
     # Set criteria
     table_criteria = [spec["table"] for spec in tables]
     diff_criteria = [spec["table"][0] for spec in diff_features]
     long_criteria = [spec["table"][0] for spec in long_features]
 
     # make a blank geodatabase
-    out_path = dh.validate_directory(BUILD)
+    out_path = PMT.validate_directory(BUILD)
     out_gdb = bh.make_trend_template(out_path)
     # out_gdb = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD\_b778e67ba92e4497953587e6c94122f9.gdb"
 
     # Get snapshot data
     for yi, year in enumerate(years):
-        in_gdb = dh.validate_geodatabase(
+        in_gdb = PMT.validate_geodatabase(
             PMT.makePath(BUILD, f"Snapshot_{year}.gdb"), overwrite=False)
         # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
@@ -431,6 +447,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
     print("Finalizing the trend")
     final_gdb = PMT.makePath(BUILD, f"Trend.gdb")
     bh.finalize_output(out_gdb, final_gdb)
+
 
 def process_near_term():
     pass
