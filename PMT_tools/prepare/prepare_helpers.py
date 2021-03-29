@@ -29,7 +29,7 @@ from sklearn import linear_model
 import scipy
 from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import arcpy
-import dask.dataframe as dd
+# import dask.dataframe as dd
 from six import string_types
 
 from functools import reduce

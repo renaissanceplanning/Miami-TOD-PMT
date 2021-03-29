@@ -55,11 +55,11 @@ if DEBUG:
     '''
     from PMT_tools.download.download_helper import validate_directory
 
-    ROOT = r'D:\Users\AK7\Documents\PMT'
+    ROOT = r'K:\Projects\MiamiDade\PMT\Data'
     RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
-    # BUILD = validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
-    BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
+    BUILD = validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
+    #BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
     DATA = ROOT
     BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
     REF = PMT.makePath(ROOT, "Reference")
@@ -249,7 +249,7 @@ def process_year_to_snapshot(year):
     out_path = dh.validate_directory(BUILD)
     in_gdb = dh.validate_geodatabase(
         PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False)
-    bh.add_year_columns(in_gdb, year)
+    # bh.add_year_columns(in_gdb, year) ****************************************************************
     out_gdb = bh.make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
     #out_gdb = PMT.makePath(BUILD, '_6365e38ef426450486bf7162e3204dd7.gdb')
 
@@ -257,6 +257,12 @@ def process_year_to_snapshot(year):
     joined_fcs = process_joins(
        in_gdb=in_gdb, out_gdb=out_gdb, fc_specs=bconfig.FC_SPECS, table_specs=bconfig.TABLE_SPECS)
 
+    # TODO: build_enriched_tables for weighted-average fields:
+    #   e.g. - enrich blocks with average centrality
+    #        - calculate product of average centrality and TOT_LVG_AREA
+    #        - then blocks has a field that can be used when they are intersected with summary areas
+    #           to support a weighted-avereage centidx by floor area
+    
     # Calculate values as need prior to intersections
     apply_field_calcs(gdb=out_gdb, new_field_specs=bconfig.PRECALCS)
 
@@ -349,7 +355,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
     for yi, year in enumerate(years):
         in_gdb = dh.validate_geodatabase(
             PMT.makePath(BUILD, f"Snapshot_{year}.gdb"), overwrite=False)
-        # bh.add_year_columns(in_gdb, year) *******************************************************
+        # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
         year_tables = bh._list_table_paths(in_gdb, criteria=table_criteria)
         year_fcs = bh._list_fc_paths(
@@ -437,8 +443,11 @@ def process_long_term():
 # MAIN
 if __name__ == "__main__":
     # # Snapshot
-    # for year in PMT.YEARS:
-    #     print(year)
-    #     process_year_to_snapshot(year)
+    for year in PMT.YEARS:
+        print(year)
+        process_year_to_snapshot(year)
     process_years_to_trend(years=PMT.YEARS, tables=bconfig.DIFF_TABLES,
+        long_features=bconfig.LONG_FEATURES, diff_features=bconfig.DIFF_FEATURES)
+    # Process near tearm "trend"
+    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=bconfig.DIFF_TABLES,
         long_features=bconfig.LONG_FEATURES, diff_features=bconfig.DIFF_FEATURES)

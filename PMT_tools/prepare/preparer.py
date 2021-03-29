@@ -347,28 +347,16 @@ def process_parcel_land_use(overwrite=True):
         # Output
         out_table = makePath(year_gdb, "LandUseCodes_parcels")
 
-        # Create combo df
-        par_lu_field = "DOR_UC"
-        par_fields = [prep_conf.PARCEL_COMMON_KEY, "LND_SQFOOT"]
-        tbl_lu_field = "DOR_UC"
-        dtype = {"DOR_UC": int}
+
+        # Calculate area column
+        par_fields = [prep_conf.PARCEL_COMMON_KEY]
+        dtype = {prep_conf.PARCEL_LU_COL: int}
         default_vals = {prep_conf.PARCEL_COMMON_KEY: "-1",
-                        "LND_SQFOOT": 0,
                         par_lu_field: 999}
-        par_df = prep_parcel_land_use_tbl(parcels_fc=parcels_fc, parcel_lu_field=par_lu_field, parcel_fields=par_fields,
-                                          lu_tbl=lu_table, tbl_lu_field=tbl_lu_field,
+        par_df = prep_parcel_land_use_tbl(parcels_fc=parcels_fc, parcel_lu_field=prep_conf.PARCEL_LU_COL, parcel_fields=par_fields,
+                                          lu_tbl=lu_table, tbl_lu_field=prep_conf.PARCEL_LU_COL,
                                           dtype_map=dtype, null_value=default_vals)
-        # REMOVED to place area calcs in BUILDER scripts 03/15/21
-        # Calculate area columns
-        # for par_lu_col in prep_conf.PARCEL_LU_AREAS.keys():
-        #     # ref_col, crit = PARCEL_LU_AREAS[par_lu_col]
-        #     # par_df[par_lu_col] = np.select(
-        #     #     [par_df[ref_col] == crit], [par_df[PARCEL_AREA_COL]], 0.0
-        #     # )
-        #     ref_col, comp = prep_conf.PARCEL_LU_AREAS[par_lu_col]
-        #     par_df[par_lu_col] = np.select(
-        #         [comp.eval(par_df[ref_col])], [par_df[prep_conf.PARCEL_AREA_COL]], 0.0
-        #     )
+      
         # Export result
         checkOverwriteOutput(output=out_table, overwrite=overwrite)
         dfToTable(df=par_df, out_table=out_table)
@@ -400,6 +388,7 @@ def process_imperviousness(overwrite=True):
 
 
 def process_osm_networks():
+    # TODO: check if network dataset already exists
     """
     - copy bike edges and walk edges to osm version database (formatting if field mapping is passed)
     - Year over Year, copy the bike_edges to the Networks FDS
@@ -1019,9 +1008,6 @@ def process_lu_diversity():
 if __name__ == "__main__":
     # SETUP CLEAN DATA
     # -----------------------------------------------
-    # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
-    # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
-
     process_basic_features() # TESTED # TODO: include the status field to drive selector widget
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET

@@ -76,7 +76,7 @@ BLOCK_PAR_ENRICH = {
     "grouping": Column(BLOCK_FC_SPECS[1]),
     "agg_cols":
         [AggColumn("Total_Population"), AggColumn("NO_RES_UNTS"), AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
-         AggColumn("TV_NSD"), AggColumn("LND_SQFOOT"), AggColumn("Total_Commutes"),
+         AggColumn("TV_NSD"), AggColumn("LND_VAL"), AggColumn("LND_SQFOOT"), AggColumn("Total_Commutes"),
          AggColumn("Drove_PAR", rename="Drove"), AggColumn("Carpool_PAR", rename="Carpool"),
          AggColumn("Transit_PAR", rename="Transit"), AggColumn("NonMotor_PAR", rename="NonMotor"),
          AggColumn("Work_From_Home_PAR", rename="Work_From_Home"), AggColumn("AllOther_PAR", rename="AllOther"),
@@ -120,14 +120,15 @@ SA_PAR_ENRICH = {
          Consolidation("IndJobs", ["CNS05_PAR", "CNS06_PAR", "CNS08_PAR"]),
          Consolidation("ConsJobs", ["CNS07_PAR", "CNS17_PAR", "CNS18_PAR"]),
          Consolidation("OffJobs", ["CNS09_PAR", "CNS10_PAR", "CNS11_PAR", "CNS12_PAR", "CNS13_PAR", "CNS20_PAR"]),
-         Consolidation("OthJobs", ["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"])],
+         Consolidation("OthJobs", ["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"]),
+         Consolidation("CentIdxFA", ["TOT_LVG_AREA", "CentIdx_PAR"], cons_method=np.product)],
     "melt_cols": [],
     "disag_full_geometries": False
 }
 SA_BLOCK_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, BLOCK_FC_SPECS),
     "grouping": Column(SUM_AREA_FC_SPECS[1]),
-    "agg_cols": [AggColumn(BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks")],
+    "agg_cols": [AggColumn(BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks")], # Product column of floor area
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False
@@ -340,6 +341,54 @@ ELONGATE_SPECS = [SA_PARCELS_LU_LONG, SA_PARCELS_COMMUTE_LONG,
                   SA_BLOCK_DEV_STATUS_LONG, SA_TRANSIT_LONG, SA_BIKE_LONG]
 
 # CALC FIELD SPECS
+RES_AREA = {
+    "tables": [PAR_FC_SPECS],
+    "new_field": "RES_AREA",
+    "field_type": "FLOAT",
+    "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
+    "code_block":
+        """
+def calc_area(sq_ft, activity):
+    if activity is None:
+        return 0
+    elif activity <= 0:
+        return 0
+    else:
+        return sq_ft
+    """
+}
+NRES_AREA = {
+    "tables": [PAR_FC_SPECS],
+    "new_field": "NRES_AREA",
+    "field_type": "FLOAT",
+    "expr": "calc_area(!LND_SQFOOT!, !Total_Employment!)",
+    "code_block":
+        """
+def calc_area(sq_ft, activity):
+    if activity is None:
+        return 0
+    elif activity <= 0:
+        return 0
+    else:
+        return sq_ft
+    """
+}
+VAC_AREA = {
+    "tables": [PAR_FC_SPECS],
+    "new_field": "VAC_AREA",
+    "field_type": "FLOAT",
+    "expr": "calc_area(!LND_SQFOOT!, !GN_VA_LU!)", #Alternatively, define as all parcels with no building area?
+    "code_block":
+        """
+def calc_area(sq_ft, lu):
+    if lu is None:
+        return 0
+    elif lu == 'Vacant/Undeveloped':
+        return sq_ft
+    else:
+        return 0
+    """
+}
 RES_DENS = {
     "tables": [PAR_FC_SPECS, BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "RES_DENS",
@@ -358,7 +407,7 @@ FAR_DENS = {
     "tables": [PAR_FC_SPECS, BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "FAR",
     "field_type": "FLOAT",
-    "expr": "!TOT_LVG_AREA!/!LND_SQFOOT!",
+    "expr": "!TOT_LVG_AREA!/(!LND_SQFOOT! - !VAC_AREA!)",
     "code_block": ""
 }
 JH_RATIO = {
@@ -552,6 +601,13 @@ LV_SF_AGG = {
     "expr": "!LND_VAL! / !LND_SQFOOT!",
     "code_block": ""
 }
+CENT_IDX = {
+    "tables": [SUM_AREA_FC_SPECS],
+    "new_field": "CentIdx",
+    "field_type": "FLOAT",
+    "expr": "!CentIdx_FA! / !TOT_LVG_AREA!",
+    "code_block": ""
+}
 
 REG_REF_CALCS = [
     (SHR_RES_UNTS, "NO_RES_UNTS"),
@@ -562,8 +618,8 @@ REG_REF_CALCS = [
     (LV_IDX, ["LND_VAL", "LND_SQFOOT"])
 ]
 
-PRECALCS = [DIRECT_IDX, TV_SF, JV_SF, LV_SF, IS_IN_15, BIKE_FAC, BIKE_MILES]
-CALCS = [RES_DENS, NRES_DENS, FAR_DENS, JH_RATIO, GRID_DENS, NA_MODE_SHARE,
+PRECALCS = [VAC_AREA, RES_AREA, NRES_AREA, DIRECT_IDX, TV_SF, JV_SF, LV_SF, IS_IN_15, BIKE_FAC, BIKE_MILES]
+CALCS = [RES_DENS, NRES_DENS, FAR_DENS, JH_RATIO, CENT_IDX, GRID_DENS, NA_MODE_SHARE,
          ACCESS_IN30, ACCESS_IN30_MAZ, NM_JH_BAL, PROP_IN15, TV_SF_AGG, JV_SF_AGG, LV_SF_AGG
          ]
 
