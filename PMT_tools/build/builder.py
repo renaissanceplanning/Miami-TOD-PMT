@@ -54,10 +54,10 @@ if DEBUG:
     changes to the code you might need to handle without munging the existing data
     '''
 
-    ROOT = r'K:\Projects\MiamiDade\PMT\Data'
-    RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
-    BUILD = validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
+    ROOT = r'C:\\'
+    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
+    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
+    BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
     #BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
     DATA = ROOT
     BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
@@ -302,7 +302,7 @@ def process_year_to_snapshot(year):
     print("Access scores by activity and time bin")
     sa_fc, sa_id, sa_fds = build_conf.SUM_AREA_FC_SPECS
     sum_areas_fc = PMT.makePath(out_gdb, sa_fds, sa_fc)
-    id_fields = [sa_id, "Name", "Corridor"]  # , bconfig.YEAR_COL.name]
+    id_fields = [sa_id, "Name", "Corridor"]  # , build_conf.YEAR_COL.name]
 
     for mode in build_conf.MODES:
         print(f"--- --- {mode}")
@@ -463,8 +463,8 @@ if __name__ == "__main__":
     for year in PMT.YEARS:
         print(year)
         process_year_to_snapshot(year)
-    process_years_to_trend(years=PMT.YEARS, tables=bconfig.DIFF_TABLES,
-        long_features=bconfig.LONG_FEATURES, diff_features=bconfig.DIFF_FEATURES)
+    process_years_to_trend(years=PMT.YEARS, tables=build_conf.DIFF_TABLES,
+        long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)
     # Process near tearm "trend"
-    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=bconfig.DIFF_TABLES,
-        long_features=bconfig.LONG_FEATURES, diff_features=bconfig.DIFF_FEATURES)
+    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=build_conf.DIFF_TABLES,
+        long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)

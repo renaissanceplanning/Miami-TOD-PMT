@@ -380,6 +380,22 @@ def val_per_sqft_idx(value, land_sqft):
         return value / land_sqft
     """
 
+RES_AREA = {
+    "tables": [PAR_FC_SPECS],
+    "new_field": "RES_AREA",
+    "field_type": "FLOAT",
+    "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
+    "code_block":
+        """
+def calc_area(sq_ft, activity):
+    if activity is None:
+        return 0
+    elif activity <= 0:
+        return 0
+    else:
+        return sq_ft
+    """
+}
 NRES_AREA = {
     "tables": [PAR_FC_SPECS],
     "new_field": "NRES_AREA",
