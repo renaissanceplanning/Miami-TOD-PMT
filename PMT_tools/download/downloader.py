@@ -1,36 +1,27 @@
 """
 downloading raw data to set up raw data folder
 """
-# global values configured for downloading
-import PMT_tools.config.download_config as dl_conf
-# DEPRECATED from PMT_tools.config.download_config import (RESIDENTIAL_ENERGY_CONSUMPTION_URL,
-# COMMERCIAL_ENERGY_CONSUMPTION_URL)
-
-# helper functions from other modules
-from download_census_geo import get_one_geo_type
-from download_census_lodes import download_aggregate_lodes
-from download_osm import download_osm_networks, download_osm_buildings
-from download_helper import download_race_vars, download_commute_vars, download_file_from_url
-
 # standard modules
 import os
 from shutil import rmtree
 
+# global values configured for downloading
+import PMT_tools.config.download_config as dl_conf
+# PMT globals
+from PMT_tools.utils import (RAW, YEARS)
 # PMT Functions
 from PMT_tools.utils import validate_directory, makePath
-
-# PMT globals
-from PMT_tools.PMT import (RAW, YEARS)
-
-# specialized modules
-# from esridump.dumper import EsriDumper  # DEPRECATED usage given BikePed crash data unused
-
+# helper functions from other modules
+from download_census_geo import get_one_geo_type
+from download_census_lodes import download_aggregate_lodes
+from download_helper import download_race_vars, download_commute_vars, download_file_from_url
+from download_osm import download_osm_networks, download_osm_buildings
 
 DEBUG = True
 if DEBUG:
     ROOT = r'C:\PMT_TEST_FOLDER'
     RAW = validate_directory(makePath(ROOT, "RAW"))
-    YEARS = YEARS = [2014, 2015, 2016, 2017, 2018, 2019, "NearTerm"]
+    YEARS = YEARS + ["NearTerm"]
     SNAPSHOT_YEAR = 2019
 
 
@@ -40,7 +31,6 @@ def setup_download_folder(dl_folder):
         folder = makePath(download_folder, folder)
         if not os.path.exists(folder):
             os.mkdir(folder)
-
 
 
 # ALL RAW DATA that must be acquired as yearly chunks
@@ -110,6 +100,7 @@ def download_urls(overwrite=False):
         - current version downloads and converts to shapefile, this step will be skipped
             in next iteration of prep script
     """
+    # TODO: add error handling
     for file, url in dl_conf.DOWNLOAD_URL_DICT.items():
         _, ext = os.path.splitext(url)
         if ext == ".zip":
@@ -150,6 +141,11 @@ if __name__ == "__main__":
 # TODO:function should be converted to an executable and the underlying scripts reorganized once again.
 # TODO:     - download_parcels.py (pull parcel geometry by year and NAL data where available), currently parcel_ftp.py
 
+# DEPRECATED from PMT_tools.config.download_config import (RESIDENTIAL_ENERGY_CONSUMPTION_URL,
+# COMMERCIAL_ENERGY_CONSUMPTION_URL)
+# specialized modules
+# from esridump.dumper import EsriDumper  # DEPRECATED usage given BikePed crash data unused
+
 # def download_crashes(): # DEPRECATED
 #     """ download bike/ped crashes
 #         - downloads filtered copy of the FDOT crash data for MD county as geojson
@@ -160,6 +156,7 @@ if __name__ == "__main__":
 #     download_bike_ped_crashes(all_crashes_url=dl_conf.CRASHES_SERVICE, fields="ALL",
 #                               where_clause=dl_conf.PED_BIKE_QUERY, out_crs='4326',
 #                               out_dir=out_path, out_name=out_name)
+
 # def download_energy_consumption(): # DEPRECATED FROM PROJECTS
 #     """ download energy consumption tables from EIA
 #         - pulls the raw commercial and residential energy consumption data for the South

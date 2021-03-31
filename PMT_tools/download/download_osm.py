@@ -24,12 +24,12 @@
     networks in python. The networks are pickled as networkx graphs.
 """
 import os
-from six import string_types
-from datetime import datetime
 import pickle
+from datetime import datetime
 
 import geopandas as gpd
 import osmnx as ox
+from six import string_types
 
 
 def makePath(in_folder, *subnames):

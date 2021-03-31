@@ -1,19 +1,16 @@
-from PMT_tools.config.download_config import (LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES,
-                                              LODES_WORKFORCE_SEGMENTS, LODES_PART,
-                                              LODES_JOB_TYPES, LODES_AGG_GEOS)
-
-from download_helper import download_file_from_url
+import os
+import re
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-
-import re
-import os
-from datetime import datetime
-
 from six import string_types
 
-from PMT_tools.PMT import makePath, validate_directory
+from PMT_tools.config.download_config import (LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES,
+                                              LODES_WORKFORCE_SEGMENTS, LODES_PART,
+                                              LODES_JOB_TYPES, LODES_AGG_GEOS)
+from PMT_tools.utils import makePath, validate_directory
+from download_helper import download_file_from_url
 
 current_year = datetime.now().year
 
