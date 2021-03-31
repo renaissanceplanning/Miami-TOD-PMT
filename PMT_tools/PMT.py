@@ -6,24 +6,20 @@ A collection of helper functions used throughout the PMT data acquisition,
 cleaning, analysis, and summarization processes.
 """
 # %% imports
-import numpy as np
-import urllib3
 import uuid
-# import geopandas as gpd
 import pandas as pd
 import numpy as np
 import fnmatch
 
 from simpledbf import Dbf5
 
-import os
 import tempfile
 from pathlib import Path
 from six import string_types
 from collections.abc import Iterable
 
+from PMT_tools.utils import *
 import re
-import json
 
 # import arcpy last as arc messes with global states on import likely changing globals in a way that doesnt allow
 # other libraries to locate their expected resources
@@ -32,15 +28,18 @@ import arcpy
 # %% CONSTANTS - FOLDERS
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
 ROOT = Path(SCRIPTS).parents[0]
-DATA = os.path.join(ROOT, "Data")
-RAW = os.path.join(DATA, "Raw")
-CLEANED = os.path.join(DATA, "Cleaned")
-REF = os.path.join(DATA, "Reference")
-BUILD = os.path.join(DATA, "Build")
-BASIC_FEATURES = os.path.join(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
+DATA = makePath(ROOT, "Data")
+RAW = makePath(DATA, "Raw")
+CLEANED = makePath(DATA, "Cleaned")
+REF = makePath(DATA, "Reference")
+BUILD = makePath(DATA, "Build")
+BASIC_FEATURES = makePath(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
+YEAR_GDB_FORMAT = makePath(DATA, "IDEAL_PMT_{year}.gdb")
+RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
+DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
+
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
-YEAR_GDB_FORMAT = os.path.join(DATA, "IDEAL_PMT_{year}.gdb")
 
 EPSG_LL = 4326
 EPSG_FLSPF = 2881

@@ -3,7 +3,7 @@
 #                                              CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES)
 # from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STATUS_DICT, PERMITS_FIELDS_DICT,
 #                                              PERMITS_USE, PERMITS_DROPS, )
-from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
+# from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 
 # temporary
 import PMT_tools.build.build_helper as b_help
@@ -30,7 +30,7 @@ from sklearn import linear_model
 import scipy
 from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import arcpy
-# import dask.dataframe as dd
+import dask.dataframe as dd
 from six import string_types
 
 from functools import reduce
@@ -560,17 +560,17 @@ def update_crash_type(feature_class, data_fields, update_field):
         arcpy.DeleteField_management(in_table=feature_class, drop_field=field)
 
 
-def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
-    # dump subset to new FC
-    out_fc = PMT.makePath(out_path, out_name)
-    arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
-                                                out_name=out_name, where_clause=where_clause)
-    # update city code/injury severity/Harmful event to text value
-    update_field_values(in_fc=out_fc, fields=CRASH_CODE_TO_STRING,
-                        mappers=[CRASH_CITY_CODES, CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES])
-
-    # combine bike and ped type into single attribute and drop original
-    update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
+# def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
+#     # dump subset to new FC
+#     out_fc = PMT.makePath(out_path, out_name)
+#     arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
+#                                                 out_name=out_name, where_clause=where_clause)
+#     # update city code/injury severity/Harmful event to text value
+#     update_field_values(in_fc=out_fc, fields=CRASH_CODE_TO_STRING,
+#                         mappers=[CRASH_CITY_CODES, CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES])
+#
+#     # combine bike and ped type into single attribute and drop original
+#     update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
 
 
 # parks functions
@@ -610,7 +610,7 @@ def prep_feature_class(in_fc, geom, out_fc, use_cols=None, rename_dict=None, uni
 
 
 # permit functions
-def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out_crs):
+def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, dor_lu_tbl, out_file, out_crs):
     """reformats and cleans RER road impact permit data, specific to the PMT
     Args:
         permit_csv:
@@ -623,8 +623,8 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out
     """
     # TODO: add validation
     # read permit data to dataframe
-    permit_df = csv_to_df(csv_file=permit_csv, use_cols=PERMITS_USE,
-                          rename_dict=PERMITS_FIELDS_DICT)
+    permit_df = csv_to_df(csv_file=permit_csv, use_cols=prep_conf.PERMITS_USE,
+                          rename_dict=prep_conf.PERMITS_FIELDS_DICT)
 
     # clean up and concatenate data where appropriate
     #   fix parcelno to string of 13 len
@@ -632,7 +632,7 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out
     permit_df[poly_key] = permit_df[permit_key].apply(lambda x: x.zfill(13))
     permit_df['COST'] = permit_df['CONST_COST'] + permit_df['ADMIN_COST']
     #   id project as pedestrain oriented
-    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(PERMITS_CAT_CODE_PEDOR), 1, 0)
+    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR), 1, 0)
     # drop fake data - Keith Richardson of RER informed us that any PROC_NUM/ADDRESS that contains with 'SMPL' or
     #   'SAMPLE' should be ignored as as SAMPLE entry
     ignore_text = ['SMPL', "SAMPLE", ]
@@ -640,18 +640,18 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out
         for col in ['PROC_NUM', 'ADDRESS']:
             permit_df = permit_df[~permit_df[col].str.contains(ignore)]
     #   set landuse codes appropriately accounting for pedoriented dev
-    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(PERMITS_CAT_CODE_PEDOR),
+    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR),
                                      permit_df.CAT_CODE.str[:-2],
                                      permit_df.CAT_CODE)
     #   set project status
-    permit_df['STATUS'] = permit_df['STATUS'].map(PERMITS_STATUS_DICT, na_action='NONE')
+    permit_df['STATUS'] = permit_df['STATUS'].map(prep_conf.PERMITS_STATUS_DICT, na_action='NONE')
     #   add landuse codes
-    lu_df = pd.read_csv(RIF_CAT_CODE_TBL)
-    dor_df = pd.read_csv(DOR_LU_CODE_TBL)
+    lu_df = pd.read_csv(rif_lu_tbl)
+    dor_df = pd.read_csv(dor_lu_tbl)
     lu_df = lu_df.merge(right=dor_df, how="inner", on="DOR_UC")
     permit_df = permit_df.merge(right=lu_df, how="inner", on='CAT_CODE')
     #   drop unnecessary columns
-    permit_df.drop(columns=PERMITS_DROPS, inplace=True)
+    permit_df.drop(columns=prep_conf.PERMITS_DROPS, inplace=True)
 
     # convert to points
     sdf = add_xy_from_poly(poly_fc=parcel_fc, poly_key=poly_key, table_df=permit_df, table_key=permit_key)

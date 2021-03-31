@@ -13,14 +13,15 @@ sys.path.insert(0, os.getcwd())
 from PMT_tools.config import prepare_config as prep_conf
 
 # prep/clean helper functions
-from PMT_tools.prepare.prepare_helpers import *
-from PMT_tools.prepare.prepare_osm_networks import *
+import PMT_tools.prepare.prepare_helpers as P_HELP
+import PMT_tools.prepare.prepare_osm_networks as OSM_HELP
 # PMT functions
-from PMT_tools.PMT import makePath, SR_FL_SPF, EPSG_FLSPF, checkOverwriteOutput, dfToTable, polygonsToPoints
+from PMT_tools.PMT import makePath, make_inmem_path, checkOverwriteOutput, dfToTable, polygonsToPoints
+from PMT_tools.PMT import validate_directory, validate_geodatabase, validate_feature_dataset
 # PMT classes
 from PMT_tools.PMT import ServiceAreaAnalysis
 # PMT globals
-from PMT_tools.PMT import (RAW, CLEANED, BASIC_FEATURES, REF, YEARS, YEAR_GDB_FORMAT)
+from PMT_tools.PMT import (RAW, CLEANED, BASIC_FEATURES, REF, YEARS, YEAR_GDB_FORMAT, SR_FL_SPF, EPSG_FLSPF)
 from PMT_tools.PMT import arcpy
 
 import PMT_tools.logger as log
@@ -36,16 +37,16 @@ if DEBUG:
     changes to the code you might need to handle without munging the existing data
     '''
     ROOT = r"C:\\"
-    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
+    RAW = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "RAW"))
+    CLEANED = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     NETS_DIR = makePath(CLEANED, "osm_networks")
     DATA = ROOT
-    BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
-    YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
-    REF = PMT.makePath(ROOT, 'PROCESSING_TEST', "Reference")
-    RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
-    DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
-    YEARS = PMT.YEARS + ["NearTerm"]
+    BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb")
+    YEAR_GDB_FORMAT = makePath(CLEANED, "PMT_YEAR.gdb")
+    REF = makePath(ROOT, 'PROCESSING_TEST', "Reference")
+    RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
+    DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
+    YEARS = YEARS + ["NearTerm"]
 
 
 def process_normalized_geometries(overwrite=True):
@@ -78,10 +79,10 @@ def process_normalized_geometries(overwrite=True):
                                        prep_conf.TAZ_COMMON_KEY, [prep_conf.MAZ_COMMON_KEY, prep_conf.TAZ_COMMON_KEY],
                                        prep_conf.SUMMARY_AREAS_BASIC_FIELDS]):
             temp_file = make_inmem_path()
-            out_path = PMT.validate_feature_dataset(makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF)
+            out_path = validate_feature_dataset(makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF)
             logger.log_msg(f"- {cleaned} normalized here: {out_path}")
             out_data = makePath(out_path, cleaned)
-            prep_feature_class(in_fc=raw, geom="POLYGON", out_fc=temp_file, use_cols=cols, rename_dict=None)
+            P_HELP.prep_feature_class(in_fc=raw, geom="POLYGON", out_fc=temp_file, use_cols=cols, rename_dict=None)
             lyr = arcpy.MakeFeatureLayer_management(in_features=temp_file, out_layer="lyr")
             if raw in [raw_block, raw_block_groups]:
                 print(f"--- Sub-setting {raw} to project AOI")
@@ -108,7 +109,7 @@ def process_normalized_geometries(overwrite=True):
 def process_basic_features():
     # TODO: add check for existing basic features, and compare for changes
     print("Making basic features")
-    makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS,
+    P_HELP.makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS,
                       stn_diss_fields=prep_conf.STN_DISS_FIELDS, stn_corridor_fields=prep_conf.STN_CORRIDOR_FIELDS,
                       alignments_fc=prep_conf.BASIC_ALIGNMENTS, align_diss_fields=prep_conf.ALIGN_DISS_FIELDS,
                       stn_buff_dist=prep_conf.STN_BUFF_DIST, align_buff_dist=prep_conf.ALIGN_BUFF_DIST,
@@ -117,7 +118,7 @@ def process_basic_features():
                       rename_dict=prep_conf.BASIC_RENAME_DICT, overwrite=True)
 
     print("Making summarization features")
-    makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
+    P_HELP.makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
                         corridors_fc=prep_conf.BASIC_CORRIDORS,
                         cor_name_field=prep_conf.CORRIDOR_NAME_FIELD, out_fc=prep_conf.BASIC_SUM_AREAS,
                         stn_buffer_meters=prep_conf.STN_BUFF_METERS, stn_name_field=prep_conf.STN_NAME_FIELD,
@@ -141,13 +142,13 @@ def process_parks(overwrite=True):
         for output in [out_park_points, out_park_polys]:
             checkOverwriteOutput(output=output, overwrite=overwrite)
     print("--- cleaning park points and polys")
-    prep_park_polys(in_fcs=park_polys, geom="POLYGON", out_fc=out_park_polys,
+    P_HELP.prep_park_polys(in_fcs=park_polys, geom="POLYGON", out_fc=out_park_polys,
                     use_cols=poly_use_cols, rename_dicts=poly_rename_cols, unique_id=prep_conf.PARK_POLY_COMMON_KEY)
-    prep_feature_class(in_fc=park_points, geom="POINT", out_fc=out_park_points,
+    P_HELP.prep_feature_class(in_fc=park_points, geom="POINT", out_fc=out_park_points,
                        use_cols=prep_conf.PARK_POINT_COLS, unique_id=prep_conf.PARK_POINTS_COMMON_KEY)
     for year in YEARS:
         print(f"\t--- adding park points to {year} gdb")
-        out_path = PMT.validate_feature_dataset(
+        out_path = validate_feature_dataset(
             fds_path=makePath(CLEANED, YEAR_GDB_FORMAT.replace("YEAR", str(year)), "Points"),
             sr=SR_FL_SPF)
         arcpy.FeatureClassToFeatureClass_conversion(in_features=out_park_points,
@@ -160,8 +161,8 @@ def process_udb():
     county_fc = makePath(RAW, "CensusGeo", "Miami-Dade_Boundary.geojson")
     out_fc = makePath(CLEANED, "UrbanDevelopmentBoundary.shp")
 
-    temp_fc = geojson_to_feature_class_arc(geojson_path=udb_fc, geom_type="POLYLINE")
-    udbLineToPolygon(udb_fc=temp_fc, county_fc=county_fc, out_fc=out_fc)
+    temp_fc = P_HELP.geojson_to_feature_class_arc(geojson_path=udb_fc, geom_type="POLYLINE")
+    P_HELP.udbLineToPolygon(udb_fc=temp_fc, county_fc=county_fc, out_fc=out_fc)
 
 
 def process_transit(overwrite=True):
@@ -173,19 +174,19 @@ def process_transit(overwrite=True):
             -     most recent year is copied over
         - NOTE: transit folder reflects current location, needs update to reflect cleaner structure
     """
-    transit_folder = PMT.validate_directory(makePath(RAW, "TRANSIT", "TransitRidership_byStop"))
+    transit_folder = validate_directory(makePath(RAW, "TRANSIT", "TransitRidership_byStop"))
     transit_shape_fields = [prep_conf.TRANSIT_LONG, prep_conf.TRANSIT_LAT]
     print("PROCESSING TRANSIT RIDERSHIP... ")
     for year in YEARS:
         print(f"--- cleaning ridership for {year}")
-        out_gdb = PMT.validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
-        FDS = PMT.validate_feature_dataset(fds_path=makePath(out_gdb, "Points"), sr=SR_FL_SPF)
+        out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
+        FDS = validate_feature_dataset(fds_path=makePath(out_gdb, "Points"), sr=SR_FL_SPF)
         out_name = 'TransitRidership'
         transit_xls_file = makePath(transit_folder, prep_conf.TRANSIT_RIDERSHIP_TABLES[year])
         transit_out_path = makePath(FDS, out_name)
         if overwrite:
             checkOverwriteOutput(output=transit_out_path, overwrite=overwrite)
-        prep_transit_ridership(in_table=transit_xls_file, rename_dict=prep_conf.TRANSIT_FIELDS_DICT,
+        P_HELP.prep_transit_ridership(in_table=transit_xls_file, rename_dict=prep_conf.TRANSIT_FIELDS_DICT,
                                unique_id=prep_conf.TRANSIT_COMMON_KEY, shape_fields=transit_shape_fields,
                                from_sr=prep_conf.IN_CRS, to_sr=prep_conf.OUT_CRS, out_fc=transit_out_path)
         print(f"--- ridership cleaned for {year} and located in {transit_out_path}")
@@ -194,18 +195,18 @@ def process_transit(overwrite=True):
 def process_crashes():
     ''' crashes '''
     crash_json = makePath(RAW, "Safety_Security", "bike_ped.geojson")
-    all_features = geojson_to_feature_class_arc(geojson_path=crash_json, geom_type='POINT')
+    all_features = P_HELP.geojson_to_feature_class_arc(geojson_path=crash_json, geom_type='POINT')
     arcpy.FeatureClassToFeatureClass_conversion(all_features, RAW, "DELETE_crashes.shp")
     # reformat attributes and keep only useful
-    clean_and_drop(feature_class=all_features, use_cols=prep_conf.USE_CRASH, rename_dict=prep_conf.CRASH_FIELDS_DICT)
+    P_HELP.clean_and_drop(feature_class=all_features, use_cols=prep_conf.USE_CRASH, rename_dict=prep_conf.CRASH_FIELDS_DICT)
     for year in YEARS:
         # use year variable to setup outputs
-        out_gdb = PMT.validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
-        FDS = PMT.validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
+        out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
+        FDS = validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
         out_name = 'BikePedCrashes'
         year_wc = f'"YEAR" = {year}'
         # clean and format crash data
-        prep_bike_ped_crashes(in_fc=all_features, out_path=FDS, out_name=out_name,
+        P_HELP.prep_bike_ped_crashes(in_fc=all_features, out_path=FDS, out_name=out_name,
                               where_clause=year_wc)
     arcpy.Delete_management(in_data=all_features)
 
@@ -354,7 +355,7 @@ def process_parcel_land_use(overwrite=True):
         par_fields = [prep_conf.PARCEL_COMMON_KEY]
         dtype = {prep_conf.PARCEL_LU_COL: int}
         default_vals = {prep_conf.PARCEL_COMMON_KEY: "-1",
-                        par_lu_field: 999}
+                        prep_conf.PARCEL_LU_COL: 999}
         par_df = prep_parcel_land_use_tbl(parcels_fc=parcels_fc, parcel_lu_field=prep_conf.PARCEL_LU_COL, parcel_fields=par_fields,
                                           lu_tbl=lu_table, tbl_lu_field=prep_conf.PARCEL_LU_COL,
                                           dtype_map=dtype, null_value=default_vals)

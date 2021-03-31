@@ -17,7 +17,7 @@ import os
 from shutil import rmtree
 
 # PMT Functions
-import PMT_tools.PMT as PMT
+from PMT_tools.utils import validate_directory, makePath
 
 # PMT globals
 from PMT_tools.PMT import (RAW, YEARS)
@@ -29,15 +29,15 @@ from PMT_tools.PMT import (RAW, YEARS)
 DEBUG = True
 if DEBUG:
     ROOT = r'C:\PMT_TEST_FOLDER'
-    RAW = PMT.validate_directory(PMT.makePath(ROOT, "RAW"))
+    RAW = validate_directory(makePath(ROOT, "RAW"))
     YEARS = YEARS = [2014, 2015, 2016, 2017, 2018, 2019, "NearTerm"]
     SNAPSHOT_YEAR = 2019
 
 
 def setup_download_folder(dl_folder):
-    download_folder = PMT.validate_directory(dl_folder)
+    download_folder = validate_directory(dl_folder)
     for folder in dl_conf.RAW_FOLDERS:
-        folder = PMT.makePath(download_folder, folder)
+        folder = makePath(download_folder, folder)
         if not os.path.exists(folder):
             os.mkdir(folder)
 
@@ -53,10 +53,10 @@ def download_census():
     """
     # download and extract census geographies
     geo_types = ['tabblock', 'bg']
-    dl_dir = PMT.makePath(RAW, "temp_downloads")
-    ext_dir = PMT.makePath(RAW, "CENSUS")
+    dl_dir = makePath(RAW, "temp_downloads")
+    ext_dir = makePath(RAW, "CENSUS")
     for path in [dl_dir, ext_dir]:
-        PMT.validate_directory(path)
+        validate_directory(path)
     for geo_type in dl_conf.CENSUS_GEO_TYPES:
         get_one_geo_type(geo_type=geo_type,
                          download_dir=dl_dir,
@@ -64,11 +64,11 @@ def download_census():
                          state=dl_conf.CENSUS_STATE, year='2019')
     rmtree(dl_dir)
     # download census tabular data
-    bg_path = PMT.makePath(RAW, "CENSUS")
+    bg_path = makePath(RAW, "CENSUS")
     for year in YEARS:
         # setup folders
-        race_out = PMT.makePath(bg_path, f"ACS_{year}_race.csv")
-        commute_out = PMT.makePath(bg_path, f"ACS_{year}_commute.csv")
+        race_out = makePath(bg_path, f"ACS_{year}_race.csv")
+        commute_out = makePath(bg_path, f"ACS_{year}_commute.csv")
         print(f"...Fetching race data ({race_out})")
         try:
             race = download_race_vars(year, acs_dataset="acs5",
@@ -90,7 +90,7 @@ def download_LODES():
     """ download LODES data for job counts
         - downloads lodes files by year and optionally aggregates to a coarser geographic area
     """
-    lodes_path = PMT.makePath(RAW, "LODES")
+    lodes_path = makePath(RAW, "LODES")
     print("LODES:")
     for year in [2019]:
         download_aggregate_lodes(output_directory=lodes_path, file_type="wac",
@@ -113,9 +113,9 @@ def download_urls(overwrite=False):
     for file, url in dl_conf.DOWNLOAD_URL_DICT.items():
         _, ext = os.path.splitext(url)
         if ext == ".zip":
-            out_file = PMT.makePath(RAW, f"{file}.zip")
+            out_file = makePath(RAW, f"{file}.zip")
         elif ext == '.geojson':
-            out_file = PMT.makePath(RAW, f"{file}.geojson")
+            out_file = makePath(RAW, f"{file}.geojson")
         else:
             print('downloader doesnt handle that extension')
         print(f'Downloading {out_file}')
@@ -128,8 +128,8 @@ def download_osm_data():
         - downloads all buildings, subset to poly/multipoly features
         - both functions will create the output folder if not there
     """
-    out_county = PMT.makePath(RAW, "Miami-Dade_County_Boundary.geojson")
-    osm_data_dir = PMT.makePath(RAW, 'OPEN_STREET_MAP')
+    out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
+    osm_data_dir = makePath(RAW, 'OPEN_STREET_MAP')
     data_crs = 4326
     download_osm_networks(output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021")
     download_osm_buildings(output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021")
@@ -154,9 +154,9 @@ if __name__ == "__main__":
 #     """ download bike/ped crashes
 #         - downloads filtered copy of the FDOT crash data for MD county as geojson
 #     """
-#     out_path = PMT.makePath(RAW, "Safety_Security")
+#     out_path = makePath(RAW, "Safety_Security")
 #     out_name = "bike_ped.geojson"
-#     PMT.validate_directory(out_path)
+#     validate_directory(out_path)
 #     download_bike_ped_crashes(all_crashes_url=dl_conf.CRASHES_SERVICE, fields="ALL",
 #                               where_clause=dl_conf.PED_BIKE_QUERY, out_crs='4326',
 #                               out_dir=out_path, out_name=out_name)
@@ -165,9 +165,9 @@ if __name__ == "__main__":
 #         - pulls the raw commercial and residential energy consumption data for the South
 #         - TODO: update the URL configuration to contain each region for modularity later
 #     """
-#     energy_dir = PMT.validate_directory(PMT.makePath(RAW, "ENERGY_CONSUMPTION"))
-#     commercial_energy_tbl = PMT.makePath(energy_dir, "commercial_energy_consumption_EIA.xlsx")
-#     residential_energy_tbl = PMT.makePath(energy_dir, "residential_energy_consumption_EIA.xlsx")
+#     energy_dir = validate_directory(makePath(RAW, "ENERGY_CONSUMPTION"))
+#     commercial_energy_tbl = makePath(energy_dir, "commercial_energy_consumption_EIA.xlsx")
+#     residential_energy_tbl = makePath(energy_dir, "residential_energy_consumption_EIA.xlsx")
 #     print("ENERGY CONSUMPTION REFERENCE:")
 #     for dl_url, tbl in zip([COMMERCIAL_ENERGY_CONSUMPTION_URL, RESIDENTIAL_ENERGY_CONSUMPTION_URL],
 #                            [commercial_energy_tbl, residential_energy_tbl]):
