@@ -40,7 +40,7 @@ from PMT_tools.build import build_helper as bh
 from PMT_tools.config import build_config as build_conf
 from PMT_tools.config import prepare_config as prep_conf
 import PMT_tools.PMT as PMT
-from PMT_tools.PMT import CLEANED, BUILD
+from PMT_tools.PMT import CLEANED, BUILD, validate_directory
 from six import string_types
 from collections.abc import Iterable
 import itertools
@@ -55,9 +55,9 @@ if DEBUG:
     '''
 
     ROOT = r'K:\Projects\MiamiDade\PMT\Data'
-    RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
-    BUILD = validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
+    RAW = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
+    CLEANED = validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
+    BUILD = validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST_local", "BUILD"))
     #BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
     DATA = ROOT
     BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
@@ -302,7 +302,7 @@ def process_year_to_snapshot(year):
     print("Access scores by activity and time bin")
     sa_fc, sa_id, sa_fds = build_conf.SUM_AREA_FC_SPECS
     sum_areas_fc = PMT.makePath(out_gdb, sa_fds, sa_fc)
-    id_fields = [sa_id, "Name", "Corridor"]  # , bconfig.YEAR_COL.name]
+    id_fields = [sa_id, "Name", "Corridor"]  # , build_conf.YEAR_COL.name]
 
     for mode in build_conf.MODES:
         print(f"--- --- {mode}")
@@ -344,7 +344,7 @@ def process_year_to_snapshot(year):
     bh.finalize_output(out_gdb, year_out_gdb)
 
 
-def process_years_to_trend(years, tables, long_features, diff_features,
+def process_years_to_trend(years, tables, long_features, diff_features, out_name,
                            base_year=None, snapshot_year=None):
     """
 
@@ -445,12 +445,13 @@ def process_years_to_trend(years, tables, long_features, diff_features,
     # TODO: calculate percent change in value over base for summary areas
 
     print("Finalizing the trend")
-    final_gdb = PMT.makePath(BUILD, f"Trend.gdb")
+    final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
     bh.finalize_output(out_gdb, final_gdb)
 
 
 def process_near_term():
     pass
+    # Enrich permits
 
 
 def process_long_term():
@@ -460,11 +461,12 @@ def process_long_term():
 # MAIN
 if __name__ == "__main__":
     # # Snapshot
-    for year in PMT.YEARS:
-        print(year)
-        process_year_to_snapshot(year)
-    process_years_to_trend(years=PMT.YEARS, tables=bconfig.DIFF_TABLES,
-        long_features=bconfig.LONG_FEATURES, diff_features=bconfig.DIFF_FEATURES)
+    # for year in PMT.YEARS:
+    #     print(year)
+    #     process_year_to_snapshot(year)
+    # process_years_to_trend(years=PMT.YEARS, tables=build_conf.DIFF_TABLES, out_name="Trend"
+    #     long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)
     # Process near tearm "trend"
-    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=bconfig.DIFF_TABLES,
-        long_features=bconfig.LONG_FEATURES, diff_features=bconfig.DIFF_FEATURES)
+    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NearTerm"], tables=build_conf.DIFF_TABLES, outname="NearTerm"
+        long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)
+

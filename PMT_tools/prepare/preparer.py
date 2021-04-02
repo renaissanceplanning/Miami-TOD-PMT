@@ -25,7 +25,7 @@ from PMT_tools.PMT import arcpy
 
 import PMT_tools.logger as log
 
-logger = log.Logger(add_logs_to_arc_messages=True)
+logger = log.Logger(add_logs_to_arc_messages=True) # TODO: only initialize logger if running as main?
 
 arcpy.env.overwriteOutput = True
 
@@ -35,7 +35,7 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    ROOT = r"C:\\"
+    ROOT = r"K:\Projects\MiamiDade\PMT\Data"
     RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
     NETS_DIR = makePath(CLEANED, "osm_networks")
@@ -608,28 +608,57 @@ def process_model_se_data(overwrite=True):  # TODO: incorporate print statements
 
 def process_model_skims():
     """
-    Assumes transit and auto skims have same fields
+    Assumes transit and auto skims have same fields.
+
+    Combine transit skims for local and premium transit into one table.
+    Get best available transit time, eliminating false connections
     """
     # Get field definitions
-    o_field = [k for k in prep_conf.SKIM_RENAMES.keys() if prep_conf.SKIM_RENAMES[k] == "OName"][0]
-    d_field = [k for k in prep_conf.SKIM_RENAMES.keys() if prep_conf.SKIM_RENAMES[k] == "DName"][0]
+    # o_field = [k for k in prep_conf.SKIM_RENAMES.keys() if prep_conf.SKIM_RENAMES[k] == prep_conf.SKIM_O_FIELD][0]
+    # d_field = [k for k in prep_conf.SKIM_RENAMES.keys() if prep_conf.SKIM_RENAMES[k] == prep_conf.SKIM_D_FIELD][0]
+    o_field = prep_conf.SKIM_O_FIELD
+    d_field = prep_conf.SKIM_D_FIELD
 
     # Clean each input/output for each model year
     for year in prep_conf.MODEL_YEARS:
         print(year)
         # Setup input/output tables
-        # TODO: add trip tables()
-        auto_csv = PMT.makePath(RAW, "SERPM", f"GP_Skims_AM_{year}.csv")
-        auto_out = PMT.makePath(CLEANED, "SERPM", f"Auto_Skim_{year}.csv")
-        transit_csv = PMT.makePath(RAW, "SERPM", f"Tran_Skims_AM_{year}.csv")
-        transit_out = PMT.makePath(CLEANED, "SERPM", f"Transit_Skim_{year}.csv")
-        inputs = [auto_csv, transit_csv]
-        outputs = [auto_out, transit_out]
-        for i, o in zip(inputs, outputs):
-            print(f"--- cleaning skim {i}")
-            clean_skim(in_csv=i, o_field=o_field, d_field=d_field, imp_fields=prep_conf.SKIM_IMP_FIELD, out_csv=o,
-                       rename=prep_conf.SKIM_RENAMES, chunk_size=100000, thousands=",", dtype=prep_conf.SKIM_DTYPES)
-
+        auto_csv = PMT.makePath(RAW, "SERPM", f"AM_HWY_SKIMS_{year}.csv")
+        local_csv = PMT.makePath(RAW, "SERPM", f"AM_LOC_SKIMS_{year}.csv")
+        prem_csv = PMT.makePath(RAW, "SERPM", f"AM_PRM_SKIMS_{year}.csv")
+        trips_csv = PMT.makePath(RAW, "SERPM", f"AM_VEH_TRIPS_{year}.csv")
+        skim_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_SKIM_TEMP.csv")
+        temp_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_TEMP.csv")
+        serpm_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_{year}.csv")
+        # inputs = [auto_csv, transit_csv]
+        # outputs = [auto_out, transit_out]
+        # for i, o in zip(inputs, outputs):
+        #     print(f"--- cleaning skim {i}")
+        #     clean_skim(in_csv=i, o_field=o_field, d_field=d_field, imp_fields=prep_conf.SKIM_IMP_FIELD, out_csv=o,
+        #                rename=prep_conf.SKIM_RENAMES, chunk_size=100000, thousands=",", dtype=prep_conf.SKIM_DTYPES)
+        # Combine all skims tables
+        in_tables = [auto_csv, local_csv, prem_csv]
+        merge_fields = [o_field, d_field]
+        suffixes = ["_AU", "_LOC", "_PRM"]
+        dtypes = {o_field: int, d_field: int}
+        combine_csv_dask(merge_fields, skim_out, *in_tables, suffixes=suffixes, how="outer",
+                         col_renames=prep_conf.SKIM_RENAMES, dtype=prep_conf.SKIM_DTYPES,
+                         thousands=",")
+        # Combine trips into the skims separately (helps manage field name collisions
+        # that would be a bit troublesome if we combine everything at once)
+        in_tables = [skim_out, trips_csv]
+        combine_csv_dask(merge_fields, temp_out, *in_tables, how="outer",
+                         col_renames=prep_conf.SKIM_RENAMES, dtype=prep_conf.SKIM_DTYPES,
+                         thousands=",")
+        # Update transit timee esimates
+        competing_cols = ["TIME_LOC", "TIME_PRM"]
+        out_col = prep_conf.SKIM_IMP_FIELD + "_TR"
+        replace = {0: np.inf}
+        update_transit_times(temp_out, serpm_out, competing_cols=competing_cols, out_col=out_col,
+                             replace_vals=replace, chunksize=100000)
+        # Delete temporary tables
+        arcpy.Delete_management(skim_out)
+        arcpy.Delete_management(temp_out)
 
 def process_osm_service_areas():
     # Facilities
@@ -871,22 +900,26 @@ def process_access():
             osm_year, model_year = prep_conf.NET_BY_YEAR[year]
             if source == "OSM_Networks":
                 skim_year = osm_year
+                imped_field = "Minutes"
+                skim_data = makePath(CLEANED, source, f"{mode}_Skim{skim_year}.csv")
             else:
                 skim_year = model_year
+                imped_field = f"{prep_conf.SKIM_IMP_FIELD}_{mode[:2].upper()}"
+                skim_data = makePath(CLEANED, source, f"SERPM_OD_{skim_year}.csv")
             # Look up zone and skim data for each mode
             zone_data = makePath(gdb, f"EconDemog_{scale}")
-            skim_data = makePath(CLEANED, source, f"{mode}_Skim_{skim_year}.csv")
+            
             # Analyze access
             atd_df = summarizeAccess(skim_table=skim_data, o_field=prep_conf.SKIM_O_FIELD,
                                      d_field=prep_conf.SKIM_D_FIELD,
-                                     imped_field=prep_conf.SKIM_IMP_FIELD, se_data=zone_data, id_field=id_field,
+                                     imped_field=imped_field, se_data=zone_data, id_field=id_field,
                                      act_fields=prep_conf.D_ACT_FIELDS, imped_breaks=prep_conf.ACCESS_TIME_BREAKS,
                                      units=prep_conf.ACCESS_UNITS, join_by="D",
                                      dtype=prep_conf.SKIM_DTYPES, chunk_size=100000
                                      )
             afo_df = summarizeAccess(skim_table=skim_data, o_field=prep_conf.SKIM_O_FIELD,
                                      d_field=prep_conf.SKIM_D_FIELD,
-                                     imped_field=prep_conf.SKIM_IMP_FIELD, se_data=zone_data, id_field=id_field,
+                                     imped_field=imped_field, se_data=zone_data, id_field=id_field,
                                      act_fields=prep_conf.O_ACT_FIELDS, imped_breaks=prep_conf.ACCESS_TIME_BREAKS,
                                      units=prep_conf.ACCESS_UNITS, join_by="O",
                                      dtype=prep_conf.SKIM_DTYPES, chunk_size=100000
@@ -1005,6 +1038,47 @@ def process_lu_diversity():
         print(" - exporting results")
         dfToTable(div_df, out_fc, overwrite=True)
 
+def process_travel_stats():
+    rates = {}
+    hh_field = "HH"
+    jobs_field = "TotalJobs"
+
+    # Apply per cap/job rates to analysis years
+    for year in PMT.YEARS:
+        # Get SE DATA
+        year_gdb = makePath(CLEANED, f"PMT_{year}.gdb")
+        taz_table = makePath(year_gdb, "EconDemog_TAZ")
+        out_table = makePath(year_gdb, "TripStats_TAZ")
+        taz_df = PMT.table_to_df(taz_table, keep_fields="*")
+        
+        # Get OD reference
+        model_year = prep_conf.NET_BY_YEAR[year][1]
+        if model_year not in rates:
+            # Calculate per cap/per job vmt rates
+            skim_csv = makePath(CLEANED, "SERPM", f"SERPM_OD_{model_year}.csv")
+            taz_ref_csv = makePath(CLEANED, f"PMT_{model_year}.gdb", "EconDemog_TAZ")
+            taz_ref = PMT.table_to_df(taz_ref_csv, keep_fields="*")
+            trips_field = "TOTAL"
+            auto_time_field = prep_conf.SKIM_IMP_FIELD + "_AU"
+            tran_time_field = prep_conf.SKIM_IMP_FIELD + "_TR"
+            dist_field = "DIST"
+            rates_df = taz_travel_stats(skim_csv, o_field=prep_conf.SKIM_O_FIELD, d_field=prep_conf.SKIM_D_FIELD,
+                                        veh_trips_field=trips_field, auto_time_field=auto_time_field, dist_field=dist_field,
+                                        taz_df=taz_ref, taz_id_field=prep_conf.TAZ_COMMON_KEY, hh_field=hh_field,
+                                        jobs_field=jobs_field)
+            rates[model_year] = rates_df
+        
+        # Multiply rates by TAZ activity
+        rates_df = rates[model_year]
+        taz_fields = [prep_conf.TAZ_COMMON_KEY, hh_field, jobs_field]
+        loaded_df = rates_df.merge(taz_df[taz_fields], how="inner", on=prep_conf.TAZ_COMMON_KEY)
+        loaded_df["VMT_FROM"] = loaded_df["VMT_PER_HH"] * loaded_df[hh_field]
+        loaded_df["VMT_TO"] = loaded_df["VMT_PER_JOB"] * loaded_df[jobs_field]
+
+        # Export results
+        loaded_df = loaded_df.drop(columns=[hh_field, jobs_field])
+        dfToTable(df=loaded_df, out_table=out_table, overwrite=True)
+
 
 if __name__ == "__main__":
     # SETUP CLEAN DATA
@@ -1012,7 +1086,7 @@ if __name__ == "__main__":
     # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
     # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
 
-    process_basic_features() # TESTED # TODO: include the status field to drive selector widget
+    process_basic_features() # TESTED
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
     # process_parks()  # TESTED UPDATES 03/10/21 CR
@@ -1078,7 +1152,7 @@ if __name__ == "__main__":
     #   -   process as normal (modeled block group data will be generated from near_term parcels with permit updates)
 
     # ADDS LAND USE TABLE FOR PARCELS INCLUDING VACANT, RES AND NRES AREA
-    process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
+    # process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
     #   YEAR over YEARS
     #   - creates table of parcel records with land use and areas
 
@@ -1107,24 +1181,23 @@ if __name__ == "__main__":
     # process_ideal_walk_times()  # Tested by AB 3/2/21 NEAR TERM just use parcel geometry so
 
     # prepare serpm taz-level travel skims
-    # process_model_skims()  # TODO: AB to test
+    # process_model_skims()  # TESTED by AB 3/30/21 (transit skim pending)
 
     # -----------------DEPENDENT ANALYSIS------------------------------
     # ANALYZE ACCESS BY MAZ, TAZ
     # process_access()  # TODO: AB to test
 
     # PREPARE TAZ TRIP LENGTH AND VMT RATES
-    # process_travel_stats() # TODO: AB to write and test
-    # TODO: script to calculate rates so year-over-year diffs can be estimated
+    # process_travel_stats() #  Tested by AB 4/1/21
 
     # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
     # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
     # TODO: ISGM for year-over-year changes? (low priority)
 
-    process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
+    # process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years
-    process_contiguity()
+    # process_contiguity()
 
 # TODO: !!! incorporate a project setup script or at minimum a yearly build geodatabase function/logic !!!
 # TODO: add logging/print statements for procedure tracking (low priority)

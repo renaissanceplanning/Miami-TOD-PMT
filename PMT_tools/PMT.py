@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 import fnmatch
 
-from simpledbf import Dbf5
+#from simpledbf import Dbf5
 
 import os
 import tempfile
