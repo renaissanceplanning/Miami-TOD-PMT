@@ -484,7 +484,7 @@ LODES_CRITERIA = {
 
 # SERPM config
 #             base,  future
-MODEL_YEARS = [2015, 2045]
+MODEL_YEARS = [2015] #2045
 MAZ_COMMON_KEY = "MAZ"
 TAZ_COMMON_KEY = "TAZ"
 SERPM_RENAMES = {
@@ -498,13 +498,15 @@ SKIM_D_FIELD = "DName"
 SKIM_RENAMES = {
     "F_TAZ": SKIM_O_FIELD,
     "T_TAZ": SKIM_D_FIELD,
-    SKIM_IMP_FIELD: "Minutes"
+    "TOTTIME": SKIM_IMP_FIELD
 }
 SKIM_DTYPES = {
     "F_TAZ": int,
     "T_TAZ": int,
-    SKIM_IMP_FIELD: float
+    SKIM_IMP_FIELD: float,
+    "TOTTIME": float
 }
+
 # - MAZ aggregation specs
 MAZ_AGG_COLS = [
     AggColumn("NO_RES_UNTS", rename="HH"),

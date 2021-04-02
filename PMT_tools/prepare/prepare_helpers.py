@@ -280,19 +280,59 @@ def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
                                         new_field_alias=rename)
 
 
-def _merge_df_(x_specs, y_specs, on=None, left_on=None, right_on=None,
-               **kwargs):
+def _merge_df_(x_specs, y_specs, on=None, how="inner", **kwargs):
     df_x, suffix_x = x_specs
     df_y, suffix_y = y_specs
-    merge_df = df_x.merge(df_y, suffixes=(suffix_x, suffix_y), **kwargs)
+    merge_df = df_x.merge(df_y, on=on, how=how, suffixes=(suffix_x, suffix_y), **kwargs)
     # Must return a tuple to support reliably calling from `reduce`
     return (merge_df, suffix_y)
 
 
-def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
+def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, col_renames={}, how="inner",
+                     **kwargs):
+    """
+    Merges two or more csv tables into a single table based on key columns. All
+    other columns from the original tables are included in the output csv.
+
+    Parameters
+    -----------
+    merge_fields: [String, ...]
+        One or more columns common to all `tables` on which they will be merged
+    out_table: Path
+    tables: [Path, ...]
+        Paths to the tables to be combined.
+    suffixes: [String, ...], default=None
+        If any tables have common column names (other than `merge_fields`) that
+        would create naming collisions, the user can specify the suffixes to
+        apply to each input table. If None, name collisions may generate
+        unexpected colums in the output, so it is recommended to provide specific
+        suffixes, especially if collisions are expected. Length of the list must
+        match the number of `tables`.
+    col_renames: {String: String, ...}
+        A dictionary for renaming columns in any of the provided `tables`. Keys are
+        old column names, values are new column names.
+    how: "inner" or "outer", default="inner"
+        If "inner" combined csv tables will only include rows with common values
+        in `merge_fields` across all `tables`. If "outer", all rows are retained
+        with `nan` values for unmatched pairs in any table.
+    kwargs:
+        Any keyword arguments are passed to the `read_csv` method.
+    """
+    # Read csvs
     ddfs = [dd.read_csv(t, **kwargs) for t in tables]
+    # Rename
+    if col_renames:
+        ddfs = [ddf.rename(columns=col_renames) for ddf in ddfs]
+    # # Index on merge cols
+    # if isinstance(merge_fields, string_types) or not isinstance(merge_fields, Iterable):
+    #     ddfs = [ddf.set_index(merge_fields) for ddf in ddfs]
+    # else:
+    #     # make tuple column
+    #     for ddf in ddfs:
+    #         ddf["__index__"] = ddf[merge_fields].apply(tuple, axis=1)
+    #     ddfs = [ddf.set_index("__index__", drop=True) for ddf in ddfs]
     if suffixes is None:
-        df = reduce(lambda this, next: this.merge(next, on=merge_fields), ddfs)
+        df = reduce(lambda this, next: this.merge(next, on=merge_fields, how=how), ddfs)
     else:
         # for odd lengths, the last suffix will be lost because there will
         # be no collisions (applies to well-formed data only - inconsistent
@@ -301,19 +341,67 @@ def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, **kwargs):
         if len(ddfs) % 2 != 0:
             # Force rename suffix
             cols = [
-                (c, f"{c}_{suffixes[-1]}")
+                (c, f"{c}{suffixes[-1]}")
                 for c in ddfs[-1].columns
                 if c not in merge_fields
             ]
             renames = dict(cols)
             ddfs[-1] = ddfs[-1].rename(columns=renames)
+        
         # zip ddfs and suffixes
         specs = zip(ddfs, suffixes)
-        df = reduce(
-            lambda this, next: _merge_df_(this, next, on=merge_fields), specs
+        df, _ = reduce(
+            lambda this, next: _merge_df_(this, next, on=merge_fields, how=how), specs
         )
-    df.to_csv(out_table, single_file=True)
+    df.to_csv(out_table, single_file=True, index=False, header_first_partition_only=True)
 
+
+def update_transit_times(od_table, out_table, competing_cols=[], out_col=None, replace_vals={},
+                         chunksize=100000, **kwargs):
+    """
+    Opens and updates a csv table containing transit travel time estimates
+    between origin-destination pairs.
+
+    Parameters
+    -----------
+    od_table: Path
+        csv of OD data that includes transit travel time estimates
+    out_table: Path
+        The location of the new csv table containing updated values
+    competing_cols: [String, ...], default=[]
+        The minimum value among competing columns will be written to `out_col`
+    out_col: String, default=None
+        A new column to be populated with updated transit travel time
+        estimates based on `competing_cols` comparisons and value replacement
+        indicated by `replace_vals`
+    replace_vals: {from_val: to_val}, default=[]
+        A dict whose keys indicate old values (those to be replaced) and whose
+        values indicate new values.
+    chunksize: Int, default=100000
+    kwargs:
+        Keyword arguments to pass to the pandas read_csv method
+
+    Returns
+    --------
+    out_table: Path
+        A new csv table with updated transit times is stored at the path specified
+    """
+    # Validate
+    if not isinstance(replace_vals, dict):
+        raise TypeError(f"Expected dict for replace_vals, got {type(replace_vals)}")
+    if not isinstance(competing_cols, Iterable) or isinstance(competing_cols, string_types):
+        raise TypeError(f"Expected iterable of column names for competing_cols, got {type(competing_cols)}")
+    # Iterate over chunks
+    mode="w"
+    header=True
+    for chunk in pd.read_csv(od_table, chunksize=chunksize, **kwargs):
+        if replace_vals:
+            chunk = chunk.replace(replace_vals)
+        if competing_cols:
+            chunk[out_col] = chunk[competing_cols].min(axis=1)
+        chunk.to_csv(out_table, mode=mode, header=header)
+        mode="a"
+        header=False
 
 # basic features functions
 def _listifyInput(input):
@@ -422,6 +510,13 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
         _cor_cols_ = [rename_dict.get(c, c) for c in stn_corridor_fields]
     else:
         _cor_cols_ = stn_corridor_fields
+    
+    # Sum stn_df to eliminate redundant stations (get average shapexy and max corridor vals)
+    agg_dict = dict([(cc, np.max) for cc in _cor_cols_])
+    agg_dict["SHAPE@X"] = np.mean
+    agg_dict["SHAPE@Y"] = np.mean
+    stn_df = stn_df.groupby(stn_diss_fields).agg(agg_dict).reset_index()
+
     # Melt to gather cols
     id_vars = stn_diss_fields + ["SHAPE@X", "SHAPE@Y"]
     long_df = stn_df.melt(id_vars=id_vars, value_vars=_cor_cols_,
@@ -1993,36 +2088,36 @@ def patch_local_regional_maz(maz_par_df, maz_par_key, maz_df, maz_key):
     return pd.concat([all_par, maz_df[~patch_fltr]])
 
 
-def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
-               chunk_size=100000, rename={}, **kwargs):
-    """A simple function to read rows from a skim table (csv file), select
-        key columns, and save to an ouptut csv file. Keyword arguments can be
-        given to set column types, etc.
-    Args:
-        in_csv (str): Path to skim table csv
-        o_field (str): field containing origin ids
-        d_field (str): field containing destination ids
-        imp_fields (str, list): [String, ...]; impedance fields
-        out_csv (str): Path to processed table
-        chunk_size (int): Integer, default=1000000; number of rows to process as a subset
-        rename (dict): Dict, default={}; A dictionary to rename columns with keys reflecting 
-            existing column names and values new column names.
-        kwargs: Keyword arguments parsed by the pandas `read_csv` method.
-    """
-    # Manage vars
-    if isinstance(imp_fields, string_types):
-        imp_fields = [imp_fields]
-    # Read chunks
-    mode = "w"
-    header = True
-    usecols = [o_field, d_field] + imp_fields
-    for chunk in pd.read_csv(in_csv, usecols=usecols, chunksize=chunk_size, **kwargs):
-        if rename:
-            chunk.rename(columns=rename, inplace=True)
-        # write output
-        chunk.to_csv(out_csv, header=header, mode=mode, index=False)
-        header = False
-        mode = "a"
+# def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
+#                chunk_size=100000, rename={}, **kwargs):
+#     """A simple function to read rows from a skim table (csv file), select
+#         key columns, and save to an ouptut csv file. Keyword arguments can be
+#         given to set column types, etc.
+#     Args:
+#         in_csv (str): Path to skim table csv
+#         o_field (str): field containing origin ids
+#         d_field (str): field containing destination ids
+#         imp_fields (str, list): [String, ...]; impedance fields
+#         out_csv (str): Path to processed table
+#         chunk_size (int): Integer, default=1000000; number of rows to process as a subset
+#         rename (dict): Dict, default={}; A dictionary to rename columns with keys reflecting 
+#             existing column names and values new column names.
+#         kwargs: Keyword arguments parsed by the pandas `read_csv` method.
+#     """
+#     # Manage vars
+#     if isinstance(imp_fields, string_types):
+#         imp_fields = [imp_fields]
+#     # Read chunks
+#     mode = "w"
+#     header = True
+#     usecols = [o_field, d_field] + imp_fields
+#     for chunk in pd.read_csv(in_csv, usecols=usecols, chunksize=chunk_size, **kwargs):
+#         if rename:
+#             chunk.rename(columns=rename, inplace=True)
+#         # write output
+#         chunk.to_csv(out_csv, header=header, mode=mode, index=False)
+#         header = False
+#         mode = "a"
 
 
 def copy_net_result(source_fds, target_fds, fc_names):
@@ -2478,7 +2573,7 @@ def summarizeAccess(skim_table, o_field, d_field, imped_field,
     print("--- --- --- bin columns")
     pivot_fields = [gb_field, bin_field] + act_fields
     pivot = pd.pivot_table(
-        out_df[pivot_fields], index=gb_field, columns=bin_field)
+        out_df[pivot_fields], index=gb_field, columns=bin_field, aggfunc=np.sum)
     pivot.columns = PMT.colMultiIndexToNames(pivot.columns, separator="")
     # - Summarize
     print("--- --- --- average time by activitiy")
@@ -2499,7 +2594,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
                in_nd, imped_attr, cutoff, net_loader, out_table,
                restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
                o_location_fields=None, d_location_fields=None,
-               o_chunk_size=None):
+               o_chunk_size=None,):
     """Creates and solves an OD Matrix problem for a collection of origin and
         destination points using a specified network dataset. Results are
         exported as a csv file.
@@ -2588,25 +2683,81 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
         arcpy.Delete_management(net_layer)
 
 
-def taz_travel_stats(skim_table, trip_table, o_field, d_field, dist_field, ):
+def taz_travel_stats(od_table, o_field, d_field,
+                     veh_trips_field, auto_time_field, dist_field,
+                     taz_df, taz_id_field, hh_field, jobs_field,
+                     chunksize=100000, **kwargs):
     """
-
+    Calculate rates of vehicle trip generation, vehicle miles of travel, and
+    average trip length.
 
     Parameters
     -----------
+    od_table: Path
+        A csv table containing origin-destination information, including
+        number of vehicle trips, travel time by car, travel distance by car,
+        and travel time by transit
+    o_field: String
+    d_field: String
+    veh_trips_field: String
+    auto_time_field: String
+    dist_field: String
+    taz_df: DataFrame
+    taz_id_field: String
+    hh_field: String
+    jobs_field: String
+    chunksize: Int, default=100000
+        Number of OD rows to process at one time
+    kwargs:
+        Keyword arguments to pass to pandas.read_csv method when loading od data
 
     Returns
     --------
     taz_stats_df: DataFrame
     """
-
     # Read skims, trip tables
-    skims = pd.read_csv()
+    o_sums = []
+    d_sums = []
+    key_fields = [o_field, d_field]
+    sum_fields = [veh_trips_field, auto_time_field, dist_field, "VMT", "VHT"]
+    renames = {hh_field: "HH", jobs_field: "JOB"}
+    weight_fields = ["HH", "JOB"]
+    suffixes = ("_FROM", "_TO")
+    for chunk in pd.read_csv(od_table, chunksize=chunksize, **kwargs):
+        chunk["VMT"] = chunk[veh_trips_field] * chunk[dist_field]
+        chunk["VHT"] = chunk[veh_trips_field] * chunk[auto_time_field]
+        for df_list, key_field in zip([o_sums, d_sums], key_fields):
+            df_list.append(
+                chunk.groupby(key_field).sum()[sum_fields].reset_index()
+            )
+    # Assemble summaries and re-summarize
+    o_df = pd.concat(o_sums)
+    d_df = pd.concat(d_sums)
+    o_df = o_df.groupby(o_field).sum()
+    d_df = d_df.groupby(d_field).sum()
+    
+    # Calculate rates
+    dfs = [o_df, d_df]
+    for df, key_field, weight_field in zip(dfs, key_fields, weight_fields):
+        # Basic
+        df["AVG_DIST"] = df.VMT / df[veh_trips_field]
+        df["AVG_TIME"] = df.VHT / df[veh_trips_field]
+        # Join taz_data
+        ref_index = pd.Index(df.index)
+        taz_indexed = taz_df.rename(columns=renames).set_index(taz_id_field)
+        taz_indexed = taz_indexed.reindex(ref_index, fill_value=0)
+        df[weight_field] = taz_indexed[weight_field]
+        df[f"VMT_PER_{weight_field}"] = df.VMT / df[weight_field]
+        df[f"TRIPS_PER_{weight_field}"] = np.select(
+            [df[weight_field]==0], [-1], df[veh_trips_field] / df[weight_field])
 
-    # Summarize trips, total trip mileage by TAZ
-    #
-
-    return PMT.taz_stats_df
+    # Combine O and D frames
+    taz_stats_df = dfs[0].merge(
+        dfs[1], how="outer", left_index=True, right_index=True, suffixes=suffixes)
+    keep_fields = ["AVG_DIST_FROM", "AVG_TIME_FROM", "VMT_PER_HH", "TRIPS_PER_HH",
+                   "AVG_DIST_TO", "AVG_TIME_TO", "VMT_PER_JOB", "TRIPS_PER_JOB"]
+    taz_stats_df.index.name = taz_id_field
+    return taz_stats_df[keep_fields].reset_index()
 
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
