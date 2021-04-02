@@ -3,45 +3,32 @@
 #                                              CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES)
 # from PMT_tools.config.prepare_config import (PERMITS_CAT_CODE_PEDOR, PERMITS_STATUS_DICT, PERMITS_FIELDS_DICT,
 #                                              PERMITS_USE, PERMITS_DROPS, )
+# from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
 
-from PMT_tools.prepare.preparer import RIF_CAT_CODE_TBL, DOR_LU_CODE_TBL
+import fnmatch
+import json
+import re
+import tempfile
+import uuid
+import zipfile
+from datetime import time
+from functools import reduce
+from json.decoder import JSONDecodeError
+from pathlib import Path
 
+import dask.dataframe as dd
+import scipy
+import xlrd
+from six import string_types
+from sklearn import linear_model
+
+import PMT_tools.PMT as PMT
 # temporary
 import PMT_tools.build.build_helper as b_help
 import PMT_tools.config.prepare_config as prep_conf
-
-from datetime import time
-import numpy as np
-import pandas as pd
-
-# import geopandas as gpd #DLL goes missing if env is altered!
-
-import xlrd
-
-from pathlib import Path
-import tempfile as tempfile
-import zipfile
-import fnmatch
-import json
-from json.decoder import JSONDecodeError
-import os
-import uuid
-import re
-from sklearn import linear_model
-import scipy
-from arcgis.features import GeoAccessor, GeoSeriesAccessor
-import arcpy
-import dask.dataframe as dd
-from six import string_types
-from collections.abc import Iterable
-
-from functools import reduce
-
 import PMT_tools.logger as log
-
-import PMT_tools.PMT as PMT  # Think we need everything here
-from PMT_tools.PMT import (dfToPoints, extendTableDf, makePath, make_inmem_path, dfToTable, add_unique_id,
-                           intersectFeatures, featureclass_to_df, copyFeatures, dbf_to_df)
+from PMT_tools.PMT import arcpy, pd, np, os
+from PMT_tools.utils import *
 
 logger = log.Logger(add_logs_to_arc_messages=True)
 
@@ -133,7 +120,7 @@ def geojson_to_feature_class_arc(geojson_path, geom_type, encoding='utf8', uniqu
     if validate_json(json_file=geojson_path, encoding=encoding):
         try:
             # convert json to temp feature class
-            temp_feature = make_inmem_path()
+            temp_feature = PMT.make_inmem_path()
             arcpy.JSONToFeatures_conversion(in_json_file=geojson_path, out_features=temp_feature,
                                             geometry_type=geom_type)
             if unique_id:
@@ -168,17 +155,13 @@ def csv_to_df(csv_file, use_cols, rename_dict):
 
 
 def split_date(df, date_field, unix_time=False):
-    """
-    ingest date attribute and splits it out to DAY, MONTH, YEAR
-    Parameters
-    --- --- --- -
-    unix_time
-    df: DataFrame; DataFrame with a date field
-    date_field: column name
-
-    Returns
-    --- --- -
-        df: DataFrame reformatted to include split day, month and year
+    """ingest date attribute and splits it out to DAY, MONTH, YEAR
+    Args:
+        df: DataFrame; DataFrame with a date field
+        date_field: column name
+        unix_time (str): unix time stamp
+    Returns:
+        df (pd.DataFrame): DataFrame reformatted to include split day, month and year
     """
     # convert unix time to date
     if unix_time:
@@ -657,17 +640,17 @@ def update_crash_type(feature_class, data_fields, update_field):
         arcpy.DeleteField_management(in_table=feature_class, drop_field=field)
 
 
-def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
-    # dump subset to new FC
-    out_fc = PMT.makePath(out_path, out_name)
-    arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
-                                                out_name=out_name, where_clause=where_clause)
-    # update city code/injury severity/Harmful event to text value
-    update_field_values(in_fc=out_fc, fields=CRASH_CODE_TO_STRING,
-                        mappers=[CRASH_CITY_CODES, CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES])
-
-    # combine bike and ped type into single attribute and drop original
-    update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
+# def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
+#     # dump subset to new FC
+#     out_fc = PMT.makePath(out_path, out_name)
+#     arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
+#                                                 out_name=out_name, where_clause=where_clause)
+#     # update city code/injury severity/Harmful event to text value
+#     update_field_values(in_fc=out_fc, fields=CRASH_CODE_TO_STRING,
+#                         mappers=[CRASH_CITY_CODES, CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES])
+#
+#     # combine bike and ped type into single attribute and drop original
+#     update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
 
 
 # parks functions
@@ -707,7 +690,7 @@ def prep_feature_class(in_fc, geom, out_fc, use_cols=None, rename_dict=None, uni
 
 
 # permit functions
-def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out_crs):
+def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, dor_lu_tbl, out_file, out_crs):
     """reformats and cleans RER road impact permit data, specific to the PMT
     Args:
         permit_csv:
@@ -720,8 +703,8 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out
     """
     # TODO: add validation
     # read permit data to dataframe
-    permit_df = csv_to_df(csv_file=permit_csv, use_cols=PERMITS_USE,
-                          rename_dict=PERMITS_FIELDS_DICT)
+    permit_df = csv_to_df(csv_file=permit_csv, use_cols=prep_conf.PERMITS_USE,
+                          rename_dict=prep_conf.PERMITS_FIELDS_DICT)
 
     # clean up and concatenate data where appropriate
     #   fix parcelno to string of 13 len
@@ -729,7 +712,7 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out
     permit_df[poly_key] = permit_df[permit_key].apply(lambda x: x.zfill(13))
     permit_df['COST'] = permit_df['CONST_COST'] + permit_df['ADMIN_COST']
     #   id project as pedestrain oriented
-    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(PERMITS_CAT_CODE_PEDOR), 1, 0)
+    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR), 1, 0)
     # drop fake data - Keith Richardson of RER informed us that any PROC_NUM/ADDRESS that contains with 'SMPL' or
     #   'SAMPLE' should be ignored as as SAMPLE entry
     ignore_text = ['SMPL', "SAMPLE", ]
@@ -737,18 +720,18 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, out_file, out
         for col in ['PROC_NUM', 'ADDRESS']:
             permit_df = permit_df[~permit_df[col].str.contains(ignore)]
     #   set landuse codes appropriately accounting for pedoriented dev
-    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(PERMITS_CAT_CODE_PEDOR),
+    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR),
                                      permit_df.CAT_CODE.str[:-2],
                                      permit_df.CAT_CODE)
     #   set project status
-    permit_df['STATUS'] = permit_df['STATUS'].map(PERMITS_STATUS_DICT, na_action='NONE')
+    permit_df['STATUS'] = permit_df['STATUS'].map(prep_conf.PERMITS_STATUS_DICT, na_action='NONE')
     #   add landuse codes
-    lu_df = pd.read_csv(RIF_CAT_CODE_TBL)
-    dor_df = pd.read_csv(DOR_LU_CODE_TBL)
+    lu_df = pd.read_csv(rif_lu_tbl)
+    dor_df = pd.read_csv(dor_lu_tbl)
     lu_df = lu_df.merge(right=dor_df, how="inner", on="DOR_UC")
     permit_df = permit_df.merge(right=lu_df, how="inner", on='CAT_CODE')
     #   drop unnecessary columns
-    permit_df.drop(columns=PERMITS_DROPS, inplace=True)
+    permit_df.drop(columns=prep_conf.PERMITS_DROPS, inplace=True)
 
     # convert to points
     sdf = add_xy_from_poly(poly_fc=parcel_fc, poly_key=poly_key, table_df=permit_df, table_key=permit_key)
@@ -960,7 +943,7 @@ def clean_parcel_geometry(in_features, fc_key_field, new_fc_key, out_features=No
         if out_features is None:
             raise ValueError
         else:
-            temp_fc = make_inmem_path()
+            temp_fc = PMT.make_inmem_path()
             arcpy.CopyFeatures_management(in_features=in_features, out_feature_class=temp_fc)
             # Repair geom and remove null geoms
             logger.log_msg("--- repair geometry")
@@ -1175,7 +1158,7 @@ def prep_parcels(in_fc, in_tbl, out_fc, fc_key_field="PARCELNO", new_fc_key_fiel
         par_df = pd.read_csv(filepath_or_buffer=in_tbl, **kwargs)
     elif ext == ".dbf":
         logger.log_msg("--- read dbf tables")
-        par_df = dbf_to_df(dbf_file=in_tbl, upper=False)
+        par_df = PMT.dbf_to_df(dbf_file=in_tbl, upper=False)
     else:
         logger.log_msg("input parcel tabular data must be 'dbf' or 'csv'")
     # ensure key is 12 characters with leading 0's for join to geo data
@@ -1283,13 +1266,13 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
         df (pandas dataframe); table of impervious percent within the zone geometries
     """
     logger.log_msg("--- matching imperviousness to zone geometries")
-    intersect = make_inmem_path()
+    intersect = PMT.make_inmem_path()
     arcpy.Intersect_analysis(in_features=[raster_points, zone_fc], out_feature_class=intersect)
 
     # Load the intersection data
     logger.log_msg("--- loading raster/zone data and replacing null impervious values with 0")
     load_fields = [zone_id_field, "grid_code"]
-    df = featureclass_to_df(in_fc=intersect, keep_fields=load_fields, null_val=0)
+    df = PMT.featureclass_to_df(in_fc=intersect, keep_fields=load_fields, null_val=0)
     # Values with 127 are nulls -- replace with 0
     df["grid_code"] = df["grid_code"].replace(127, 0)
     arcpy.Delete_management(intersect)
@@ -1626,8 +1609,8 @@ def analyze_blockgroup_apply(year, bg_enrich_path, bg_geometry_path, bg_id_field
     logger.log_msg("--- writing outputs")
     # Here we write block group for allocation
     save_path = makePath(save_gdb_location, "Modeled_blockgroups")
-    dfToTable(df=alloc, out_table=save_path)
-
+    PMT.dfToTable(df=alloc, out_table=save_path)
+    # TODO: adjust function to return python object instead of path
     # Done
     # --- -
     return save_path
@@ -1674,14 +1657,14 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
 
     # Initialize spatial processing by intersecting
     print("--- intersecting blocks and parcels")
-    temp_spatial = make_inmem_path()
-    copyFeatures(in_fc=bg_geom, out_fc=temp_spatial)
+    temp_spatial = PMT.make_inmem_path()
+    PMT.copyFeatures(in_fc=bg_geom, out_fc=temp_spatial)
     arcpy.JoinField_management(in_data=temp_spatial, in_field=bg_id_field, join_table=bg_modeled,
                                join_field=bg_id_field)
     parcel_fields = [parcels_id, parcel_lu, parcel_liv_area, "Shape_Area"]
-    intersect_fc = intersectFeatures(summary_fc=temp_spatial, disag_fc=parcel_fc, disag_fields=parcel_fields)
+    intersect_fc = PMT.intersectFeatures(summary_fc=temp_spatial, disag_fc=parcel_fc, disag_fields=parcel_fields)
     intersect_fields = parcel_fields + block_group_attrs
-    intersect_df = featureclass_to_df(in_fc=intersect_fc, keep_fields=intersect_fields)
+    intersect_df = PMT.featureclass_to_df(in_fc=intersect_fc, keep_fields=intersect_fields)
 
     # Format data for allocation
     logger.log_msg("--- formatting block group for allocation data")
@@ -2001,7 +1984,8 @@ def analyze_blockgroup_allocate(out_gdb, bg_modeled, bg_geom, bg_id_field,
     # initialized during spatial processing
     logger.log_msg("--- writing table of allocation results")
     sed_path = makePath(out_gdb, "EconDemog_parcels")
-    dfToTable(intersect_df, sed_path)
+    PMT.dfToTable(intersect_df, sed_path)
+    # TODO: adjust function to return python object instead of path
     print("")
     return sed_path
 
@@ -2807,7 +2791,7 @@ def generate_chunking_fishnet(template_fc, out_fishnet_name, chunks=20):
     quadrat_origin = ' '.join([str(xmin), str(ymin)])
     quadrat_ycoord = ' '.join([str(xmin), str(ymin + 10)])
     quadrat_corner = ' '.join([str(xmax), str(ymax)])
-    quadrats_fc = make_inmem_path(file_name=out_fishnet_name)
+    quadrats_fc = PMT.make_inmem_path(file_name=out_fishnet_name)
     arcpy.CreateFishnet_management(out_feature_class=quadrats_fc, origin_coord=quadrat_origin,
                                    y_axis_coord=quadrat_ycoord, number_rows=quadrat_nrows, number_columns=quadrat_ncols,
                                    corner_coord=quadrat_corner, template=ext, geometry_type="POLYGON")
@@ -2827,7 +2811,7 @@ def symmetric_difference(in_fc, diff_fc, out_fc_name):
     """
     _, diff_name = os.path.split(os.path.splitext(diff_fc)[0])
     # union datasets
-    out_fc = make_inmem_path(file_name=out_fc_name)
+    out_fc = PMT.make_inmem_path(file_name=out_fc_name)
     arcpy.Union_analysis(in_features=[in_fc, diff_fc], out_feature_class=out_fc)
     # select features from the diff fc uisng the -1 FID code to ID
     where = arcpy.AddFieldDelimiters(diff_fc, f"FID_{diff_name}") + " <> -1"
@@ -2950,14 +2934,14 @@ def contiguity_index(quadrats_fc, parcels_fc, mask_fc, parcels_id_field,
     difference_fc = symmetric_difference(in_fc=parcels_copy, diff_fc=mask_fc, out_fc_name="difference")
 
     logger.log_msg("--- --- converting difference to singlepart polygons")
-    diff_fc = make_inmem_path(file_name="diff")
+    diff_fc = PMT.make_inmem_path(file_name="diff")
     arcpy.MultipartToSinglepart_management(in_features=difference_fc, out_feature_class=diff_fc)
 
     logger.log_msg("--- --- adding a unique ID field for individual polygons")
     PMT.add_unique_id(feature_class=diff_fc, new_id_field="PolyID")
 
     logger.log_msg("--- --- extracting a polygon-parcel ID reference table")
-    ref_df = featureclass_to_df(in_fc=diff_fc, keep_fields=[parcels_id_field, "PolyID"], null_val=-1.0)
+    ref_df = PMT.featureclass_to_df(in_fc=diff_fc, keep_fields=[parcels_id_field, "PolyID"], null_val=-1.0)
     arcpy.Delete_management(difference_fc)
 
     # loop through the chunks to calculate contiguity:
@@ -2974,7 +2958,7 @@ def contiguity_index(quadrats_fc, parcels_fc, mask_fc, parcels_id_field,
                                                                where_clause=selection)
 
         logger.log_msg("--- --- --- rasterizing chunk")
-        rp = make_inmem_path()
+        rp = PMT.make_inmem_path()
         arcpy.FeatureToRaster_conversion(in_features=parcel_chunk, field="PolyID",
                                          out_raster=rp, cell_size=cell_size)
 
@@ -3243,7 +3227,7 @@ def contiguity_index_dep(parcels_fc, buildings_fc, parcels_id_field,
     quadrat_origin = ' '.join([str(xmin), str(ymin)])
     quadrat_ycoord = ' '.join([str(xmin), str(ymin + 10)])
     quadrat_corner = ' '.join([str(xmax), str(ymax)])
-    quadrats_fc = make_inmem_path(file_name="quadrats")
+    quadrats_fc = PMT.make_inmem_path(file_name="quadrats")
     arcpy.CreateFishnet_management(out_feature_class=quadrats_fc, origin_coord=quadrat_origin,
                                    y_axis_coord=quadrat_ycoord, number_rows=quadrat_nrows, number_columns=quadrat_ncols,
                                    corner_coord=quadrat_corner, template=parcels_extent, geometry_type="POLYGON")
@@ -3269,7 +3253,7 @@ def contiguity_index_dep(parcels_fc, buildings_fc, parcels_id_field,
     # quadrat FIDs, which can be used for chunk identification. We're now
     # done with the quadrats and centroids, so we can delete them
     logger.log_msg("--- --- identifying parcel membership in quadrats")
-    intersect_fc = intersectFeatures(summary_fc=quadrats_fc, disag_fc=parcels_fc, disag_fields=parcels_id_field)
+    intersect_fc = PMT.intersectFeatures(summary_fc=quadrats_fc, disag_fc=parcels_fc, disag_fields=parcels_id_field)
     # arcpy.Intersect_analysis(in_features=[centroids_fc, quadrats_fc], out_feature_class=intersect_fc)
     # arcpy.Delete_management(quadrats_fc)
     # arcpy.Delete_management(centroids_fc)
@@ -3872,7 +3856,7 @@ def assign_features_to_agg_area(in_features, agg_features=None,
             raise RuntimeError("one of `agg_features` or `buffer` must be provided")
         # buffer technique
         # TODO: add flag to dump to centroids and buffer just the centroid features
-        agg_path = make_inmem_path()
+        agg_path = PMT.make_inmem_path()
         agg_features = arcpy.Buffer_analysis(
             in_features=in_features, out_features=agg_path,
             buffer_distance_or_field=buffer
@@ -4237,7 +4221,7 @@ def build_short_term_parcels_dep(parcels_path, permits_path, permits_ref_df,
     # Add a unique ID field to the parcels called "ProcessID"
     logger.log_msg("--- --- adding a unique ID field for individual parcels")
     # creating a temporary copy of parcels
-    temp_parcels = make_inmem_path()
+    temp_parcels = PMT.make_inmem_path()
     temp_dir, temp_name = os.path.split(temp_parcels)
     # temp_dir = tempfile.TemporaryDirectory()
     # temp_gdb = arcpy.CreateFileGDB_management(out_folder_path=temp_dir.name, out_name="temp_data.gdb")

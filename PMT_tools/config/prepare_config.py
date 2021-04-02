@@ -1,5 +1,6 @@
 from collections import OrderedDict
-from PMT_tools.PMT import (Comp, And, Column, AggColumn, Consolidation, NetLoader, makePath, RAW, CLEANED, REF)
+
+from PMT_tools.PMT import (Comp, And, Column, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
 
 """ Basic features configuration """
 BASIC_STATIONS = "SMARTplanStations"

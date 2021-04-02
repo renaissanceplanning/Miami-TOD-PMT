@@ -1,11 +1,14 @@
 import os
-from urllib import request
 import re
+from urllib import request
+
+import censusdata as census
+import networkx as nx
+import pandas as pd
 import requests
 from requests.exceptions import RequestException
-from PMT_tools.PMT import makePath, checkOverwriteOutput
-import pandas as pd
-import censusdata as census
+
+from PMT_tools.utils import makePath, check_overwrite_path
 
 
 def download_file_from_url(url, save_path, overwrite=False):
@@ -21,7 +24,7 @@ def download_file_from_url(url, save_path, overwrite=False):
         filename = get_filename_from_header(url)
         save_path = makePath(save_path, filename)
     if overwrite:
-        checkOverwriteOutput(output=save_path, overwrite=overwrite)
+        check_overwrite_path(output=save_path, overwrite=overwrite)
     print(f"...downloading {save_path} from {url}")
     try:
         request.urlretrieve(url, save_path)
@@ -173,38 +176,31 @@ def download_commute_vars(year, acs_dataset="acs5", state="fl", county="086", ta
 
     return mode_data.reset_index(drop=True)
 
-  
-def trim_components(G,
-                    min_edges = 2,
-                    message = True):
-    '''
-    remove connected components less than a certain size (in number of edges)
+
+def trim_components(graph, min_edges=2, message=True):
+    """remove connected components less than a certain size (in number of edges)
     from a graph
 
-    Parameters
-    ----------
-    G : networkx graph
-        the network from which to remove small components
-    min_edges : int, optional
-        the minimum number of edges required for a component to remain in the
-        network; any component with FEWER edges will be removed. The default 
-        is 2.
-    message : bool, optional
-        should a message indicating the number of components removed be
-        printed? The default is True.
+    Args:
+        graph : networkx graph
+            the network from which to remove small components
+        min_edges : int, optional
+            the minimum number of edges required for a component to remain in the
+            network; any component with FEWER edges will be removed. The default
+            is 2.
+        message : bool, optional
+            should a message indicating the number of components removed be
+            printed? The default is True.
+    Returns:
+        G : networkx graph
+            the original graph, with connected components smaller than `min_edges`
+            removed
+    """
 
-    Returns
-    -------
-    G : networkx graph
-        the original graph, with connected components smaller than `min_edges`
-        removed
-        
-    '''
-    
     # Build weakly connected components -- there must be a path from A to B,
     # but not necessarily from B to A (this accounts for directed graphs)
-    conn_comps = list(nx.weakly_connected_components(G))
-    
+    conn_comps = list(nx.weakly_connected_components(graph))
+
     # To have at least "x" edges, we need at least "x+1" nodes. So, we can
     # set a node count from the min edges
     min_nodes = min_edges + 1
@@ -215,26 +211,25 @@ def trim_components(G,
     # component (thus eliminating that component)
     for cc in conn_comps:
         if len(cc) < min_nodes:
-            G.remove_nodes_from(cc)
+            graph.remove_nodes_from(cc)
         else:
             pass
-    
+
     # If a printout of number of components removed is requested, count and
     # print here.
     if message == True:
         count_removed = sum([len(x) < min_nodes for x in conn_comps])
-        count_message = ' '.join([str(count_removed), 
-                                  "of", 
+        count_message = ' '.join([str(count_removed),
+                                  "of",
                                   str(len(conn_comps)),
                                   "were removed from the input graph"])
         print(count_message)
     else:
         pass
-        
+
     # The graph was updated in the loop, so we can just return here
-    return G
-  
-  
+    return graph
+
 # bike and pedestrian crashes #DEPRECATED
 # def download_bike_ped_crashes(
 #         all_crashes_url=None, fields='ALL', where_clause=None,
