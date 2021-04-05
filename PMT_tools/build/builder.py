@@ -326,7 +326,7 @@ def process_year_to_snapshot(year):
 
     # Calculated values - simple
     print("Calculating remaining fields for dashboards...")
-    apply_field_calcs(out_gdb, B_CONF.CALCS + reg_ref_calcs)
+    apply_field_calcs(gdb=out_gdb, new_field_specs=B_CONF.CALCS + reg_ref_calcs)
 
     # Delete tempfiles
     print("Removing temp files")
