@@ -57,6 +57,7 @@ TABLE_SPECS = [
     ("Access_maz_Bike", pconfig.MAZ_COMMON_KEY, MAZ_BIKE_FIELDS, MAZ_BIKE_RENAMES),
     ("Access_taz_Auto", pconfig.TAZ_COMMON_KEY, TAZ_AUTO_FIELDS, TAZ_AUTO_RENAMES),
     ("Access_taz_Transit", pconfig.TAZ_COMMON_KEY, TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES),
+    ("Centrality_parcels", pconfig.PARCEL_COMMON_KEY, "*", {"CentIdx": "CentIdx_PAR"}),
     ("Contiguity_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
@@ -117,8 +118,6 @@ SA_PAR_ENRICH = {
          AggColumn("AllOther_PAR", rename="AllOther"),
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
          AggColumn("Developable_Area"),
-         # TODO: add this back when its calculated properly
-         # AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
          AggColumn("Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
          AggColumn("Max_Scaled_Area", rename="Scaled_Area"),
          AggColumn("min_time_stn_walk", agg_method="mean"), AggColumn("min_time_park_walk", agg_method="mean"),
@@ -139,8 +138,19 @@ SA_PAR_ENRICH = {
 SA_BLOCK_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, BLOCK_FC_SPECS),
     "grouping": Column(SUM_AREA_FC_SPECS[1]),
-    "agg_cols": [AggColumn(BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks")], # Product column of floor area
-    "consolidate": [],
+    "agg_cols": 
+        [AggColumn(BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks"),
+         AggColumn("TotalArea", rename="BlockArea"),
+         AggColumn("NonDevArea"), AggColumn("DevOSArea"), AggColumn("DevLowArea"),
+         AggColumn("DevMedArea"), AggColumn("DevHighArea")],
+    "consolidate": 
+        [Consolidation("BlocKFlrAr", ["TotalArea", "TOT_LVG_AREA"], cons_method=np.product)
+         Consolidation("NonDevFlrAr", ["NonDevArea", "TOT_LVG_AREA"], cons_method=np.product),
+         Consolidation("DevOSFlrAr", ["DevOSArea", "TOT_LVG_AREA"], cons_method=np.product),
+         Consolidation("DevLowFlrAr", ["DevLowArea", "TOT_LVG_AREA"], cons_method=np.product),
+         Consolidation("DevMedFlrAr", ["DevMedArea", "TOT_LVG_AREA"], cons_method=np.product),
+         Consolidation("DevHiFlrAr", ["DevHighArea", "TOT_LVG_AREA"], cons_method=np.product),
+        ],
     "melt_cols": [],
     "disag_full_geometries": False
 }
@@ -170,7 +180,7 @@ SA_TAZ_ENRICH = {
 SA_NODES_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, NODES_FC_SPECS),
     "grouping": Column(SUM_AREA_FC_SPECS[1]),
-    "agg_cols": [AggColumn("CentIdx", agg_method="mean")],
+    "agg_cols": [AggColumn("CentIdx", agg_method="mean", rename="CentIdx_raw")],
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False
@@ -270,10 +280,11 @@ SA_PARCELS_LU_LONG = {
         SA_GROUP_COLS + [Column("GN_VA_LU", default="Unknown", domain=LU_CAT_DOM)],
     "agg_cols":
         [YEAR_COL,
-         AggColumn("NO_RES_UNTS"),  # TODO: add this back when
+         AggColumn("NO_RES_UNTS"),
          AggColumn("TOT_LVG_AREA"), AggColumn("JV"),
          AggColumn("TV_NSD"), AggColumn("LND_SQFOOT"), AggColumn("JV_SF", agg_method=np.nanmedian),
          AggColumn("TV_SF", agg_method=np.nanmedian), AggColumn("LV_SF", agg_method=np.nanmedian),
+         AggColumn("CentIdxFA", agg_method=np.nanmedian)
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU")
          ],
     "consolidate": [],
@@ -547,8 +558,6 @@ SHR_LVG_AREA = {
     "expr": "!TOT_LVG_AREA! / {0}",
     "code_block": ""
 }
-
-
 TV_SF = {
     "tables": [PAR_FC_SPECS],
     "new_field": "TV_SF",
@@ -613,7 +622,7 @@ PROP_IN15 = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "Prop_{0}15",
     "field_type": "FLOAT",
-    "expr": "!{0}_in_15! / !NParcels!",
+    "expr": "100 * (!{0}_in_15! / !NParcels!)",
     "code_block": ""
 }
 BIKE_FAC = {
@@ -652,11 +661,53 @@ LV_SF_AGG = {
     "code_block": DIVIDE_CODE_BLOCK
 }
 CENT_IDX = {
-    "tables": [SUM_AREA_FC_SPECS],
+    "tables": [SUM_AREA_FC_SPECS, (SA_PARCELS_LU_LONG["out_table"], "", "")],
     "new_field": "CentIdx",
     "field_type": "FLOAT",
-    "expr": "!CentIdx_FA! / !TOT_LVG_AREA!",
-    "code_block": ""
+    "expr": "divide(!CentIdxFA!, !TOT_LVG_AREA!)",
+    "code_block": DIVIDE_CODE_BLOCK
+}
+NONDEV_FA_SHR = {
+    "tables": [SUM_AREA_FC_SPECS],
+    "new_field": "NONDEV_FA_SHR",
+    "field_type": "FLOAT",
+    "expr": "divide(!NonDevFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_CODE_BLOCK
+}
+DEVOS_FA_SHR = {
+    "tables": [SUM_AREA_FC_SPECS],
+    "new_field": "DEVOS_FA_SHR",
+    "field_type": "FLOAT",
+    "expr": "divide(!DevOSFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_CODE_BLOCK
+}
+DEVLOW_FA_SHR = {
+    "tables": [SUM_AREA_FC_SPECS],
+    "new_field": "DEVLOW_FA_SHR",
+    "field_type": "FLOAT",
+    "expr": "divide(!DevLowFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_CODE_BLOCK
+}
+DEVMED_FA_SHR = {
+    "tables": [SUM_AREA_FC_SPECS],
+    "new_field": "DEVMED_FA_SHR",
+    "field_type": "FLOAT",
+    "expr": "divide(!DevMedFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_CODE_BLOCK
+}
+DEVHI_FA_SHR = {
+    "tables": [SUM_AREA_FC_SPECS],
+    "new_field": "DEVHI_FA_SHR",
+    "field_type": "FLOAT",
+    "expr": "divide(!DevHiFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_CODE_BLOCK
+}
+PARKS_PER_CAP = {
+    "tables": [SUM_AREA_FC_SPECS],
+    "new_field": "PARK_AC_PER1000"
+    "field_type": "FLOAT",
+    "expr": "density(!Park_Acres!, !Total_Population!, 1000)",
+    "code_block": DENSITY_CODE_BLOCK
 }
 
 REG_REF_CALCS = [
@@ -670,7 +721,8 @@ REG_REF_CALCS = [
 
 PRECALCS = [VAC_AREA, RES_AREA, NRES_AREA, DIRECT_IDX, TV_SF, JV_SF, LV_SF, IS_IN_15, BIKE_FAC, BIKE_MILES]
 CALCS = [RES_DENS, NRES_DENS, FAR_DENS, JH_RATIO, CENT_IDX, GRID_DENS, NA_MODE_SHARE,
-         ACCESS_IN30, ACCESS_IN30_MAZ, NM_JH_BAL, PROP_IN15, TV_SF_AGG, JV_SF_AGG, LV_SF_AGG
+         ACCESS_IN30, ACCESS_IN30_MAZ, NM_JH_BAL, PROP_IN15, TV_SF_AGG, JV_SF_AGG, LV_SF_AGG,
+         NONDEV_FA_SHR, DEVOS_FA_SHR, DEVLOW_FA_SHR, DEVMED_FA_SHR, DEVHI_FA_SHR, PARKS_PER_CAP
          ]
 
 ## TREND PARAMS

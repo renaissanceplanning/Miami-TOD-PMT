@@ -52,7 +52,6 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-
     ROOT = r'C:\\'
     RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
@@ -444,7 +443,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
     # TODO: calculate percent change in value over base for summary areas
 
     print("Finalizing the trend")
-    final_gdb = PMT.makePath(BUILD, f"Trend.gdb")
+    final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
     B_HELP.finalize_output(out_gdb, final_gdb)
 
 
@@ -467,3 +466,5 @@ if __name__ == "__main__":
     # Process near tearm "trend"
     process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=B_CONF.DIFF_TABLES,
                            long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
+    # TODO: For trend, patch in permits
+
