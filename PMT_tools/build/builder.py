@@ -41,7 +41,7 @@ from PMT_tools.build import build_helper as B_HELP
 from PMT_tools.config import build_config as B_CONF
 from PMT_tools.config import prepare_config as P_CONF
 import PMT_tools.PMT as PMT
-from PMT_tools.PMT import CLEANED, BUILD, validate_directory
+from PMT_tools.PMT import CLEANED, BUILD
 from six import string_types
 import itertools
 import arcpy
@@ -343,7 +343,7 @@ def process_year_to_snapshot(year):
     B_HELP.finalize_output(out_gdb, year_out_gdb)
 
 
-def process_years_to_trend(years, tables, long_features, diff_features, out_name,
+def process_years_to_trend(years, tables, long_features, diff_features,
                            base_year=None, snapshot_year=None):
     """
 
@@ -444,13 +444,12 @@ def process_years_to_trend(years, tables, long_features, diff_features, out_name
     # TODO: calculate percent change in value over base for summary areas
 
     print("Finalizing the trend")
-    final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
-    bh.finalize_output(out_gdb, final_gdb)
+    final_gdb = PMT.makePath(BUILD, f"Trend.gdb")
+    B_HELP.finalize_output(out_gdb, final_gdb)
 
 
 def process_near_term():
     pass
-    # Enrich permits
 
 
 def process_long_term():
@@ -460,12 +459,11 @@ def process_long_term():
 # MAIN
 if __name__ == "__main__":
     # # Snapshot
-    # for year in PMT.YEARS:
-    #     print(year)
-    #     process_year_to_snapshot(year)
-    # process_years_to_trend(years=PMT.YEARS, tables=build_conf.DIFF_TABLES, out_name="Trend"
-    #     long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)
+    for year in PMT.YEARS:
+        print(year)
+        process_year_to_snapshot(year)
+    process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
+                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
     # Process near tearm "trend"
-    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NearTerm"], tables=build_conf.DIFF_TABLES, outname="NearTerm"
-        long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)
-
+    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=B_CONF.DIFF_TABLES,
+                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
