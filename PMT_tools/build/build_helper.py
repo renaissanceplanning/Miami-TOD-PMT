@@ -1,12 +1,14 @@
-
+import os
 import uuid
+from collections.abc import Iterable
+
+import arcpy
 import numpy as np
 import pandas as pd
 from six import string_types
-from collections.abc import Iterable
+
 import PMT_tools.PMT as PMT
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
-import arcpy
 
 
 def _list_table_paths(gdb, criteria="*"):
@@ -43,7 +45,7 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     return paths
 
 
-def unique_values(table , field):
+def unique_values(table, field):
     with arcpy.da.SearchCursor(table, [field]) as cursor:
         return sorted({row[0] for row in cursor})
 
@@ -327,7 +329,7 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
 
 
 def finalize_output(temp_gdb, final_gdb):
-    final_rename = append_tag(final_gdb, 'temp')
+    final_rename = tag_filename(final_gdb, 'temp')
     try:
         if arcpy.Exists(final_gdb):
             arcpy.Rename_management(final_gdb, out_data=final_rename)
@@ -350,12 +352,19 @@ def post_process_databases(basic_features_gdb, build_dir):
     for gdb in arcpy.ListWorkspaces(workspace_type="FileGDB"):
         arcpy.env.workspace = gdb
         summ_areas = list(filter(lambda fc: "SummaryAreas" in fc, arcpy.ListFeatureClasses(feature_dataset="Polygon")))
+        print(f"--- --- SummID to RowID...")
         arcpy.AlterField_management(in_table=PMT.makePath(gdb, summ_areas), field="SummID",
                                     new_field_name="RowID", new_field_alias="RowID")
+        for tbl in arcpy.ListTables():
+            tbl = os.path.join(gdb, tbl)
+            for field in arcpy.ListFields(tbl):
+                if field.name == "SummID":
+                    print(f"--- --- SummID to RowID...")
+                    arcpy.AlterField_management(in_table=PMT.makePath(gdb, summ_areas), field="SummID",
+                                                new_field_name="RowID", new_field_alias="RowID")
     # TODO: incorporate a more broad AlterField protocol for Popup configuration
 
 
-import os
-def append_tag(filename, tag):
+def tag_filename(filename, tag):
     name, ext = os.path.splitext(filename)
     return "{name}_{tag}_{ext}".format(name=name, tag=tag, ext=ext)
