@@ -52,7 +52,6 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-
     ROOT = r'C:\\'
     RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
     CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
@@ -445,7 +444,7 @@ def process_years_to_trend(years, tables, long_features, diff_features, out_name
 
     print("Finalizing the trend")
     final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
-    bh.finalize_output(out_gdb, final_gdb)
+    B_HELP.finalize_output(out_gdb, final_gdb)
 
 
 def process_near_term():
@@ -460,12 +459,12 @@ def process_long_term():
 # MAIN
 if __name__ == "__main__":
     # # Snapshot
-    # for year in PMT.YEARS:
-    #     print(year)
-    #     process_year_to_snapshot(year)
-    # process_years_to_trend(years=PMT.YEARS, tables=build_conf.DIFF_TABLES, out_name="Trend"
-    #     long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)
+    for year in PMT.YEARS:
+        print(year)
+        process_year_to_snapshot(year)
+    process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
+                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
     # Process near tearm "trend"
-    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NearTerm"], tables=build_conf.DIFF_TABLES, outname="NearTerm"
-        long_features=build_conf.LONG_FEATURES, diff_features=build_conf.DIFF_FEATURES)
-
+    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=B_CONF.DIFF_TABLES,
+                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
+    # TODO: For trend, patch in permits
