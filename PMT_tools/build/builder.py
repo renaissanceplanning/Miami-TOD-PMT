@@ -41,7 +41,7 @@ from PMT_tools.build import build_helper as B_HELP
 from PMT_tools.config import build_config as B_CONF
 from PMT_tools.config import prepare_config as P_CONF
 import PMT_tools.PMT as PMT
-from PMT_tools.PMT import CLEANED, BUILD, validate_directory
+from PMT_tools.PMT import CLEANED, BUILD
 from six import string_types
 import itertools
 import arcpy
@@ -325,7 +325,7 @@ def process_year_to_snapshot(year):
 
     # Calculated values - simple
     print("Calculating remaining fields for dashboards...")
-    apply_field_calcs(out_gdb, B_CONF.CALCS + reg_ref_calcs)
+    apply_field_calcs(gdb=out_gdb, new_field_specs=B_CONF.CALCS + reg_ref_calcs)
 
     # Delete tempfiles
     print("Removing temp files")
@@ -342,7 +342,7 @@ def process_year_to_snapshot(year):
     B_HELP.finalize_output(out_gdb, year_out_gdb)
 
 
-def process_years_to_trend(years, tables, long_features, diff_features, out_name,
+def process_years_to_trend(years, tables, long_features, diff_features,
                            base_year=None, snapshot_year=None):
     """
 
@@ -449,7 +449,6 @@ def process_years_to_trend(years, tables, long_features, diff_features, out_name
 
 def process_near_term():
     pass
-    # Enrich permits
 
 
 def process_long_term():
@@ -468,3 +467,4 @@ if __name__ == "__main__":
     process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=B_CONF.DIFF_TABLES,
                            long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
     # TODO: For trend, patch in permits
+

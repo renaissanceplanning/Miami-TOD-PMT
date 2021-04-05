@@ -327,7 +327,35 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
 
 
 def finalize_output(temp_gdb, final_gdb):
-    if arcpy.Exists(final_gdb):
-        arcpy.Delete_management(final_gdb)
-    arcpy.Copy_management(in_data=temp_gdb, out_data=final_gdb)
-    arcpy.Delete_management(temp_gdb)
+    final_rename = append_tag(final_gdb, 'temp')
+    try:
+        if arcpy.Exists(final_gdb):
+            arcpy.Rename_management(final_gdb, out_data=final_rename)
+        arcpy.Copy_management(in_data=temp_gdb, out_data=final_gdb)
+    except:
+        print('An error occured, rolling back changes')
+        arcpy.Rename_management(in_data=final_rename, out_data=final_gdb)
+    finally:
+        arcpy.Delete_management(final_rename)
+        arcpy.Delete_management(temp_gdb)
+
+
+def post_process_databases(basic_features_gdb, build_dir):
+    # copy BasicFeatures into Build
+    path, basename = os.path.split(basic_features_gdb)
+    out_basic_features = PMT.makePath(build_dir, basename)
+    arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
+    # reset SummID to RowID
+    arcpy.env.workspace = build_dir
+    for gdb in arcpy.ListWorkspaces(workspace_type="FileGDB"):
+        arcpy.env.workspace = gdb
+        summ_areas = list(filter(lambda fc: "SummaryAreas" in fc, arcpy.ListFeatureClasses(feature_dataset="Polygon")))
+        arcpy.AlterField_management(in_table=PMT.makePath(gdb, summ_areas), field="SummID",
+                                    new_field_name="RowID", new_field_alias="RowID")
+    # TODO: incorporate a more broad AlterField protocol for Popup configuration
+
+
+import os
+def append_tag(filename, tag):
+    name, ext = os.path.splitext(filename)
+    return "{name}_{tag}_{ext}".format(name=name, tag=tag, ext=ext)
