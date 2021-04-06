@@ -1255,13 +1255,14 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
     return out_raster
 
 
-def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field):
+def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field, living_area_field):
     """Summarize percent impervious surface cover in each of a collection of zones
     Args:
         raster_points (str): Path; path to clipped/transformed imperviousness raster as points (see the
             `prep_imperviousness` function)
         zone_fc (str): Path; path to polygon geometries to which imperviousness will be summarized
         zone_id_field (str): id field in the zone geometries
+        living_area_field (str): field that identifies building square footage of parcels
     Returns:
         df (pandas dataframe); table of impervious percent within the zone geometries
     """
@@ -1271,7 +1272,7 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
 
     # Load the intersection data
     logger.log_msg("--- loading raster/zone data and replacing null impervious values with 0")
-    load_fields = [zone_id_field, "grid_code"]
+    load_fields = [zone_id_field, "grid_code", living_area_field]
     df = PMT.featureclass_to_df(in_fc=intersect, keep_fields=load_fields, null_val=0)
     # Values with 127 are nulls -- replace with 0
     df["grid_code"] = df["grid_code"].replace(127, 0)
@@ -1287,7 +1288,8 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
          ("DevOSArea", lambda x: x[x.between(1, 19)].count() * rast_cell_area),
          ("DevLowArea", lambda x: x[x.between(20, 49)].count() * rast_cell_area),
          ("DevMedArea", lambda x: x[x.between(50, 79)].count() * rast_cell_area),
-         ("DevHighArea", lambda x: x[x >= 80].count() * rast_cell_area)])
+         ("DevHighArea", lambda x: x[x >= 80].count() * rast_cell_area),
+         (living_area_field, np.sum)])
     return zonal.reset_index()
 
 
@@ -4139,7 +4141,7 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
             new_living_area.append(0)
 
     print("--- --- appending new living area values to permits_df data")
-    permits_df["UpdTLA"] = new_living_area
+    permits_df["UPDT_LVG_AREA"] = new_living_area
     permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
 
     # update the parcels with the info from the permits_df
@@ -4154,12 +4156,12 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
         if len(df.index) > 1:
             pid = pd.Series(i, index=[permits_id_field])
             # Living area by land use
-            total_living_area = df.groupby(permits_lu_field)["UpdTLA"].agg("sum").reset_index()
+            total_living_area = df.groupby(permits_lu_field)["UPDT_LVG_AREA"].agg("sum").reset_index()
             # Series for land use [with most living area]
             land_use = pd.Series(total_living_area[permits_lu_field][np.argmax(total_living_area["UpdTLA"])],
                                  index=[permits_lu_field])
             # Series for living area (total across all land uses)
-            ba = pd.Series(sum(total_living_area["UpdTLA"]), index=[parcels_living_area_field])
+            ba = pd.Series(sum(total_living_area["UPDT_LVG_AREA"]), index=[parcels_living_area_field])
             # Series for other fields (from units-field match)
             others = df.groupby("Parcel_Field")[permits_values_field].agg("sum")
             # Series for cost
@@ -4168,7 +4170,9 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
             df = pd.DataFrame(pd.concat([pid, land_use, ba, others, cost], axis=0)).T
         else:
             # Rename columns to match parcels
-            df.rename(columns={"UpdTLA": parcels_living_area_field,
+            # TODO: alter this workflow to keep both the original TOT_LVG_AREA and UpdTLA
+            #       TODO: split parcel update into two dfs, one gets df.update (existing field data) and one gets merged
+            df.rename(columns={"UPDT_LVG_AREA": parcels_living_area_field,
                                permits_values_field: df.Parcel_Field.values[0]},
                       inplace=True)
             # Drop unnecessary columns (including nulls from units-field match)
@@ -4193,18 +4197,18 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
     permit_update["NV"] = permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
     permit_update[parcels_total_value_field] = np.maximum(permit_update["NV"],
                                                           permit_update[parcels_total_value_field])
-    permit_update = permit_update.set_index("FOLIO")
+    permit_update = permit_update.set_index(prep_conf.PARCEL_COMMON_KEY)
 
     # make the replacements.
     print("--- --- replacing parcel data with updated information")
-    parcel_update = parcels_df.set_index("FOLIO")
+    parcel_update = parcels_df.set_index(prep_conf.PARCEL_COMMON_KEY)
     parcel_update.update(permit_update)
-    parcel_update.reset_index(inplace=True)
-    print("--- --- joining results to save feature class (be patient, this will take a while)")
-    PMT.extendTableDf(in_table=temp_parcels, table_match_field=process_id_field,
-                      df=parcel_update, df_match_field="ProcessID")
-    arcpy.DeleteField_management(in_table=temp_parcels, drop_field=process_id_field)
-    return temp_parcels
+    return parcel_update.reset_index(inplace=True)
+    # print("--- --- joining results to save feature class (be patient, this will take a while)")
+    # PMT.extendTableDf(in_table=temp_parcels, table_match_field=process_id_field,
+    #                   df=parcel_update, df_match_field="ProcessID")
+    # arcpy.DeleteField_management(in_table=temp_parcels, drop_field=process_id_field)
+    # return temp_parcels
 
 # DEPRECATED
 # def build_short_term_parcels_dep(parcels_path, permits_path, permits_ref_df,

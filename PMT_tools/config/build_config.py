@@ -138,19 +138,19 @@ SA_PAR_ENRICH = {
 SA_BLOCK_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, BLOCK_FC_SPECS),
     "grouping": Column(SUM_AREA_FC_SPECS[1]),
-    "agg_cols": 
+    "agg_cols":
         [AggColumn(BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks"),
          AggColumn("TotalArea", rename="BlockArea"),
          AggColumn("NonDevArea"), AggColumn("DevOSArea"), AggColumn("DevLowArea"),
          AggColumn("DevMedArea"), AggColumn("DevHighArea")],
-    "consolidate": 
+    "consolidate":
         [Consolidation("BlocKFlrAr", ["TotalArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("NonDevFlrAr", ["NonDevArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("DevOSFlrAr", ["DevOSArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("DevLowFlrAr", ["DevLowArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("DevMedFlrAr", ["DevMedArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("DevHiFlrAr", ["DevHighArea", "TOT_LVG_AREA"], cons_method=np.product),
-        ],
+         ],
     "melt_cols": [],
     "disag_full_geometries": False
 }
@@ -427,7 +427,7 @@ VAC_AREA = {
     "tables": [PAR_FC_SPECS],
     "new_field": "VAC_AREA",
     "field_type": "FLOAT",
-    "expr": "calc_area(!LND_SQFOOT!, !GN_VA_LU!)", #Alternatively, define as all parcels with no building area?
+    "expr": "calc_area(!LND_SQFOOT!, !GN_VA_LU!)",  # Alternatively, define as all parcels with no building area?
     "code_block":
         """
 def calc_area(sq_ft, lu):

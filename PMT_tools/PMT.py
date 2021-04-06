@@ -496,6 +496,7 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False,
         temp_dir = tempfile.mkdtemp()
         arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
         out_gdb = makePath(temp_dir, "Intermediates.gdb")
+
         # Convert disag features to centroids
         disag_full_path = arcpy.Describe(disag_fc).catalogPath
         disag_ws, disag_name = os.path.split(disag_full_path)

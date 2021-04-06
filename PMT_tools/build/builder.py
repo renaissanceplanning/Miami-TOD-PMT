@@ -463,7 +463,7 @@ if __name__ == "__main__":
         process_year_to_snapshot(year)
     process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
                            long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
-    # Process near tearm "trend"
+    # Process near term "trend"
     process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=B_CONF.DIFF_TABLES,
                            long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
     # TODO: For trend, patch in permits
