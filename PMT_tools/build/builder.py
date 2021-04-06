@@ -52,10 +52,10 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    ROOT = r'C:\\'
-    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
-    BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
+    ROOT = r'K:\Projects\MiamiDade\PMT\Data'
+    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
+    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
+    BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST_local", "BUILD"))
     #BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
     DATA = ROOT
     BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
@@ -132,8 +132,8 @@ def build_intersections(gdb, enrich_specs):
         full_geometries = intersect["disag_full_geometries"]
         # Run intersect
         print(f"--- Intersecting {summ_name} with {disag_name}")
-        int_fc = PMT.intersectFeatures(
-            summary_fc=summ_in, disag_fc=disag_in, in_temp_dir=True, full_geometries=full_geometries)
+        int_fc = PMT.intersectFeatures(summary_fc=summ_in, disag_fc=disag_in,
+                                       in_temp_dir=True, full_geometries=full_geometries)
         # Record with specs
         sum_dict = int_out.get(summ, {})
         sum_dict[disag] = int_fc
@@ -260,10 +260,10 @@ def process_year_to_snapshot(year):
     print("Validating all data have a year attribute...")
     out_path = PMT.validate_directory(BUILD)
     in_gdb = PMT.validate_geodatabase(PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False)
-    B_HELP.add_year_columns(in_gdb, calc_year)
+    # B_HELP.add_year_columns(in_gdb, calc_year)
     print("Making Snapshot Template...")
     out_gdb = B_HELP.make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
-    # out_gdb = PMT.makePath(BUILD, '_569e0b79883445b0b03b196146228995.gdb')
+    # out_gdb = PMT.makePath(BUILD, '_ca463d836d144ae4abb884109c2bd261.gdb')
 
     # Join tables to the features
     print("Joining tables to feature classes...")

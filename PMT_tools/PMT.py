@@ -5,25 +5,23 @@ Created: October 2020
 A collection of helper functions used throughout the PMT data acquisition,
 cleaning, analysis, and summarization processes.
 """
+import fnmatch
+import re
+import tempfile
 # %% imports
 import uuid
-import pandas as pd
-import numpy as np
-import fnmatch
-
-#from simpledbf import Dbf5
-
-import tempfile
-from pathlib import Path
-from six import string_types
 from collections.abc import Iterable
-
-from PMT_tools.utils import *
-import re
+from pathlib import Path
 
 # import arcpy last as arc messes with global states on import likely changing globals in a way that doesnt allow
 # other libraries to locate their expected resources
 import arcpy
+import numpy as np
+import pandas as pd
+from simpledbf import Dbf5
+from six import string_types
+
+from PMT_tools.utils import *
 
 # %% CONSTANTS - FOLDERS
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
@@ -832,8 +830,9 @@ def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
     )
 
 
-def is_multipart():
-    pass
+def which_missing(table, field_list):
+    f_names = [f.name for f in arcpy.ListFields(table)]
+    return [f for f in field_list if f not in f_names]
 
 
 def multipolygon_to_polygon_arc(file_path):

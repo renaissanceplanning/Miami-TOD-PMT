@@ -17,7 +17,8 @@ from PMT_tools.config import prepare_config as prep_conf
 import PMT_tools.prepare.prepare_helpers as P_HELP
 import PMT_tools.prepare.prepare_osm_networks as OSM_HELP
 # PMT functions
-from PMT_tools.PMT import makePath, make_inmem_path, checkOverwriteOutput, dfToTable, polygonsToPoints, extendTableDf
+from PMT_tools.PMT import (makePath, make_inmem_path, checkOverwriteOutput,
+                           dfToTable, polygonsToPoints, extendTableDf, table_to_df)
 from PMT_tools.PMT import validate_directory, validate_geodatabase, validate_feature_dataset
 # PMT classes
 from PMT_tools.PMT import ServiceAreaAnalysis
@@ -625,13 +626,13 @@ def process_model_skims():
     for year in prep_conf.MODEL_YEARS:
         print(year)
         # Setup input/output tables
-        auto_csv = PMT.makePath(RAW, "SERPM", f"AM_HWY_SKIMS_{year}.csv")
-        local_csv = PMT.makePath(RAW, "SERPM", f"AM_LOC_SKIMS_{year}.csv")
-        prem_csv = PMT.makePath(RAW, "SERPM", f"AM_PRM_SKIMS_{year}.csv")
-        trips_csv = PMT.makePath(RAW, "SERPM", f"AM_VEH_TRIPS_{year}.csv")
-        skim_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_SKIM_TEMP.csv")
-        temp_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_TEMP.csv")
-        serpm_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_{year}.csv")
+        auto_csv = makePath(RAW, "SERPM", f"AM_HWY_SKIMS_{year}.csv")
+        local_csv = makePath(RAW, "SERPM", f"AM_LOC_SKIMS_{year}.csv")
+        prem_csv = makePath(RAW, "SERPM", f"AM_PRM_SKIMS_{year}.csv")
+        trips_csv = makePath(RAW, "SERPM", f"AM_VEH_TRIPS_{year}.csv")
+        skim_out = makePath(CLEANED, "SERPM", f"SERPM_SKIM_TEMP.csv")
+        temp_out = makePath(CLEANED, "SERPM", f"SERPM_OD_TEMP.csv")
+        serpm_out = makePath(CLEANED, "SERPM", f"SERPM_OD_{year}.csv")
         # inputs = [auto_csv, transit_csv]
         # outputs = [auto_out, transit_out]
         # for i, o in zip(inputs, outputs):
@@ -643,24 +644,25 @@ def process_model_skims():
         merge_fields = [o_field, d_field]
         suffixes = ["_AU", "_LOC", "_PRM"]
         dtypes = {o_field: int, d_field: int}
-        combine_csv_dask(merge_fields, skim_out, *in_tables, suffixes=suffixes, how="outer",
+        P_HELP.combine_csv_dask(merge_fields, skim_out, *in_tables, suffixes=suffixes, how="outer",
                          col_renames=prep_conf.SKIM_RENAMES, dtype=prep_conf.SKIM_DTYPES,
                          thousands=",")
         # Combine trips into the skims separately (helps manage field name collisions
         # that would be a bit troublesome if we combine everything at once)
         in_tables = [skim_out, trips_csv]
-        combine_csv_dask(merge_fields, temp_out, *in_tables, how="outer",
+        P_HELP.combine_csv_dask(merge_fields, temp_out, *in_tables, how="outer",
                          col_renames=prep_conf.SKIM_RENAMES, dtype=prep_conf.SKIM_DTYPES,
                          thousands=",")
         # Update transit timee esimates
         competing_cols = ["TIME_LOC", "TIME_PRM"]
         out_col = prep_conf.SKIM_IMP_FIELD + "_TR"
         replace = {0: np.inf}
-        update_transit_times(temp_out, serpm_out, competing_cols=competing_cols, out_col=out_col,
+        P_HELP.update_transit_times(temp_out, serpm_out, competing_cols=competing_cols, out_col=out_col,
                              replace_vals=replace, chunksize=100000)
         # Delete temporary tables
         arcpy.Delete_management(skim_out)
         arcpy.Delete_management(temp_out)
+
 
 def process_osm_service_areas():
     # Facilities
@@ -1040,18 +1042,19 @@ def process_lu_diversity():
         print(" - exporting results")
         dfToTable(div_df, out_fc, overwrite=True)
 
+
 def process_travel_stats():
     rates = {}
     hh_field = "HH"
     jobs_field = "TotalJobs"
 
     # Apply per cap/job rates to analysis years
-    for year in PMT.YEARS:
+    for year in YEARS:
         # Get SE DATA
         year_gdb = makePath(CLEANED, f"PMT_{year}.gdb")
         taz_table = makePath(year_gdb, "EconDemog_TAZ")
         out_table = makePath(year_gdb, "TripStats_TAZ")
-        taz_df = PMT.table_to_df(taz_table, keep_fields="*")
+        taz_df = table_to_df(taz_table, keep_fields="*")
         
         # Get OD reference
         model_year = prep_conf.NET_BY_YEAR[year][1]
@@ -1059,12 +1062,12 @@ def process_travel_stats():
             # Calculate per cap/per job vmt rates
             skim_csv = makePath(CLEANED, "SERPM", f"SERPM_OD_{model_year}.csv")
             taz_ref_csv = makePath(CLEANED, f"PMT_{model_year}.gdb", "EconDemog_TAZ")
-            taz_ref = PMT.table_to_df(taz_ref_csv, keep_fields="*")
+            taz_ref = table_to_df(taz_ref_csv, keep_fields="*")
             trips_field = "TOTAL"
             auto_time_field = prep_conf.SKIM_IMP_FIELD + "_AU"
             tran_time_field = prep_conf.SKIM_IMP_FIELD + "_TR"
             dist_field = "DIST"
-            rates_df = taz_travel_stats(skim_csv, o_field=prep_conf.SKIM_O_FIELD, d_field=prep_conf.SKIM_D_FIELD,
+            rates_df = P_HELP.taz_travel_stats(skim_csv, o_field=prep_conf.SKIM_O_FIELD, d_field=prep_conf.SKIM_D_FIELD,
                                         veh_trips_field=trips_field, auto_time_field=auto_time_field, dist_field=dist_field,
                                         taz_df=taz_ref, taz_id_field=prep_conf.TAZ_COMMON_KEY, hh_field=hh_field,
                                         jobs_field=jobs_field)

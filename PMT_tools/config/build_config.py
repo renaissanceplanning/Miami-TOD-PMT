@@ -29,7 +29,7 @@ def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
 
 # TODO: check for misreferences to Blocks, or BlockGroups
 # fc_name, id, FDS data resides
-BLOCK_FC_SPECS = ("Census_Blocks", "GEOID10", "Polygons")  # TODO: define common key
+BLOCK_FC_SPECS = ("Census_Blocks", pconfig.BLOCK_COMMON_KEY, "Polygons")
 PAR_FC_SPECS = ("Parcels", pconfig.PARCEL_COMMON_KEY, "Polygons")
 MAZ_FC_SPECS = ("MAZ", pconfig.MAZ_COMMON_KEY, "Polygons")
 TAZ_FC_SPECS = ("TAZ", pconfig.TAZ_COMMON_KEY, "Polygons")
@@ -62,7 +62,7 @@ TABLE_SPECS = [
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     # ("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),
-    ("Imperviousness_census_blocks", "GEOID10", "*", {}),  # TODO: BLOCK COMMON KEY?
+    ("Imperviousness_census_blocks", pconfig.BLOCK_COMMON_KEY, "*", {}),
     ("LandUseCodes_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     ("TripStats_TAZ", pconfig.TAZ_COMMON_KEY, "*", {}),
     ("WalkTime_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
@@ -87,8 +87,7 @@ BLOCK_PAR_ENRICH = {
          AggColumn("AllOther_PAR", rename="AllOther"),
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
          AggColumn("Developable_Area"),
-        # TODO: add this back when its calculated properly
-         # AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
+         AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
          AggColumn("Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
          AggColumn("Max_Scaled_Area", rename="Scaled_Area"),
          AggColumn("Total_Employment"),
@@ -118,6 +117,7 @@ SA_PAR_ENRICH = {
          AggColumn("AllOther_PAR", rename="AllOther"),
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
          AggColumn("Developable_Area"),
+         AggColumn("VAC_AREA"), AggColumn("RES_AREA"), AggColumn("NRES_AREA"),
          AggColumn("Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
          AggColumn("Max_Scaled_Area", rename="Scaled_Area"),
          AggColumn("min_time_stn_walk", agg_method="mean"), AggColumn("min_time_park_walk", agg_method="mean"),
@@ -144,7 +144,7 @@ SA_BLOCK_ENRICH = {
          AggColumn("NonDevArea"), AggColumn("DevOSArea"), AggColumn("DevLowArea"),
          AggColumn("DevMedArea"), AggColumn("DevHighArea")],
     "consolidate": 
-        [Consolidation("BlocKFlrAr", ["TotalArea", "TOT_LVG_AREA"], cons_method=np.product)
+        [Consolidation("BlocKFlrAr", ["TotalArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("NonDevFlrAr", ["NonDevArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("DevOSFlrAr", ["DevOSArea", "TOT_LVG_AREA"], cons_method=np.product),
          Consolidation("DevLowFlrAr", ["DevLowArea", "TOT_LVG_AREA"], cons_method=np.product),
@@ -704,7 +704,7 @@ DEVHI_FA_SHR = {
 }
 PARKS_PER_CAP = {
     "tables": [SUM_AREA_FC_SPECS],
-    "new_field": "PARK_AC_PER1000"
+    "new_field": "PARK_AC_PER1000",
     "field_type": "FLOAT",
     "expr": "density(!Park_Acres!, !Total_Population!, 1000)",
     "code_block": DENSITY_CODE_BLOCK
