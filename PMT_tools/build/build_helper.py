@@ -218,12 +218,12 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         agg_methods[melt_col.val_col] = melt_col.agg_method
 
     # Dump the intersect table to df
+    dump_fields = list(set(dump_fields))  # remove duplicated fields used in multiple consolidations/melts
     missing = PMT.which_missing(table=in_fc, field_list=dump_fields)
-    dump_fields = list(set(dump_fields))    # remove duplicated fields used in multiple consolidations/melts
     if not missing:
         int_df = PMT.table_to_df(in_tbl=in_fc, keep_fields=dump_fields, null_val=null_dict)
     else:
-        print(f"these cols were missing from the intersected FC: {missing}")
+        raise Exception(f"\t\tthese cols were missing from the intersected FC: {missing}")
     # Consolidate columns
     for c in consolidations:
         if hasattr(c, "input_cols"):
