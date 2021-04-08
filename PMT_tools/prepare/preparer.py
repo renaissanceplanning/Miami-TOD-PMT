@@ -1135,7 +1135,7 @@ if __name__ == "__main__":
     #     -     most recent year is copied over
 
     # SETUP ANY BASIC NORMALIZED GEOMETRIES
-    # process_normalized_geometries()  # TESTED 03/11/21 updated names to standarization
+    process_normalized_geometries()  # TESTED 03/11/21 updated names to standarization
     #    YEAR BY YEAR
     #   - Sets up Year GDB, and Polygons FDS
     #   - Adds MAZ, TAZ, Census_Blocks, Census_BlockGroups, SummaryAreas
@@ -1151,7 +1151,7 @@ if __name__ == "__main__":
 
     # CLEANS AND GEOCODES PERMITS TO ASSOCIATED PARCELS AND
     #   GENERATES A NEAR TERM PARCELS LAYER WITH PERMIT INFO
-    process_permits()  # TESTED CR 03/01/21
+    # process_permits()  # TESTED CR 03/01/21
 
     # updates parcels based on permits for near term analysis
     # process_short_term_parcels()  # TESTED 3/1/21 #TODO: needs to be broken down into smaller functions

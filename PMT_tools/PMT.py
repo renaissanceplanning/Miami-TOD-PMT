@@ -390,8 +390,9 @@ def validate_directory(directory):
 
 def validate_geodatabase(gdb_path, overwrite=False):
     exists = False
+    desc_gdb = arcpy.Describe(gdb_path)
     if gdb_path.endswith(".gdb"):
-        if arcpy.Exists(gdb_path):  # TODO: should this be arcpy.Exists and arcpy.Describe.whatever indicates gdb?
+        if arcpy.Exists(gdb_path) and desc_gdb.dataType == "Workspace":
             exists = True
             if overwrite:
                 checkOverwriteOutput(gdb_path, overwrite=overwrite)
@@ -839,7 +840,7 @@ def which_missing(table, field_list):
 def multipolygon_to_polygon_arc(file_path):
     """
         convert multipolygon geometries in a single row into
-        multiple rows of simple polygon geometries
+        multiple rows of simple polygon geometries, returns original file if not multipart
     Args:
         file_path: String; path to input Poly/MultiPoly feature class
         temp: Boolean; if
@@ -847,10 +848,24 @@ def multipolygon_to_polygon_arc(file_path):
     Returns:
         String; path to in_memory Polygon feature class
     """
-    # TODO: add function is_multipart() to validate Polygon or MultiPolygon input
-    polygon_fcs = make_inmem_path()
-    arcpy.MultipartToSinglepart_management(in_features=file_path, out_feature_class=polygon_fcs)
+    polygon_fcs = file_path
+    if is_multipart(polygon_fc=file_path):
+        polygon_fcs = make_inmem_path()
+        arcpy.MultipartToSinglepart_management(in_features=file_path, out_feature_class=polygon_fcs)
     return polygon_fcs
+
+
+def is_multipart(polygon_fc):
+    multipart = []
+    with arcpy.da.SearchCursor(polygon_fc, ["OID@", "SHAPE@"]) as sc:
+        for row in sc:
+            id, geom = row
+            if geom.isMultipart:
+                multipart.append(id)
+    if multipart:
+        return True
+    else:
+        return False
 
 
 def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
@@ -876,202 +891,6 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
                                       shape_fields="SHAPE@XY", spatial_reference=sr)
     fields.remove("SHAPE@XY")
     return out_fc
-
-
-def sumToAggregateGeo(
-        disag_fc,
-        sum_fields,
-        groupby_fields,
-        agg_fc,
-        agg_id_field,
-        output_fc,
-        overlap_type="INTERSECT",
-        agg_funcs=np.sum,
-        disag_wc=None,
-        agg_wc=None,
-        flatten_disag_id=None,
-        *args,
-        **kwargs,
-):
-    """
-    DEPRECATED
-
-    Summarizes values for features in an input feature class based on their
-    relationship to larger geographic units. For example, summarize dwelling
-    units from parcels to station areas.
-
-    Summarizations are recorded for each aggregation feature. If any groupby
-    fields are provided or multiple agg funcs are provided, summary values are
-    reported in multiple columns corresponding to the groupby values or agg
-    function names. Note that special characters in observed values are
-    replaced with underscores. This may result in unexpected name collisions.
-
-    Parameters
-    -----------
-    disag_fc: String or feature layer
-        Path to a feature class or a feature layer object. The layer whose
-        features and values will be summarized.
-    sum_fields: String or [String,...]
-        One or more field names in `disag_fc` whose values will be summarized
-        within features in `agg_fc`.
-    groupby_fields: String or [String,...]
-        One or more field names in `disag_fc` to be used to group features
-        prior to aggregation. Unique combinaitons of `groupby_field` values
-        will appear in field names in `output_fc`.
-    agg_fc: String or feature layer
-        The features to which disag_fc will be aggregated and summarized.
-        These must be polygons.
-    agg_id_field: String
-        A field in `agg_fc` that uniquely identifies each aggregation feature.
-    output_fc: String
-        Path to a new feature class to be created by the function.
-    overlap_type: String, default="INTERSECT"
-        The spatial relationship by which to associate disag features with
-        aggregation features.
-    agg_funcs: callable, default=np.sum
-        Aggregation functions determine what summary statistics are reported
-        for each aggregation feature.
-    disag_wc: String, default=None
-        A where clause for selecting disag features to include in the
-        summarization process.
-    agg_wc: String, default=None
-        A where clause for selecting aggregation features to include in the
-        summarization process.
-    flatten_disag_id: String, default=None
-        If given, the disag features are assumed to contain redundant data,
-        such as multiple rows showing the same parcel. The mean value by
-        this field is used prior to summarization to aggregate features.
-    args:
-        Positional arguments to pass to `agg_funcs`
-    kwargs:
-        Keyword arguments to pass to `agg_funcs`
-
-    Returns
-    --------
-    None
-        `output_fc` is written to disk.
-    """
-    # Handle inputs
-    #  - Confirm agg features are polygons
-    desc = arcpy.Describe(agg_fc)
-    if desc.shapeType != "Polygon":
-        raise TypeError("Aggregation features must be polygons")
-    sr = desc.spatialReference
-
-    #  - If path to FC is given, make feature layer
-    #    Otherwise, let's assume these are already feature layers
-    if isinstance(disag_fc, string_types):
-        disag_fc = arcpy.MakeFeatureLayer_management(disag_fc, "__disag_fc__")
-
-    if isinstance(agg_fc, string_types):
-        agg_fc = arcpy.MakeFeatureLayer_management(agg_fc, "__agg_fc__")
-
-    #  - Apply where clauses to input layers
-    if disag_wc:
-        disag_fc = arcpy.MakeFeatureLayer_management(
-            in_features=disag_fc, out_layer="__disag_subset__", where_clause=disag_wc
-        )
-    if agg_wc:
-        arcpy.SelectLayerByAttribute_management(
-            in_layer_or_view=agg_fc,
-            selection_type="SUBSET_SELECTION",
-            where_clause=agg_wc,
-        )
-
-    #  - Disag field references
-    if isinstance(sum_fields, string_types):
-        sum_fields = [sum_fields]
-    if isinstance(groupby_fields, string_types):
-        groupby_fields = [groupby_fields]
-    disag_fields = sum_fields + groupby_fields
-    if flatten_disag_id is not None:
-        disag_fields.append(flatten_disag_id)
-
-    # Set up the output feature class (copy features from agg_fc)
-    out_ws, out_fc = os.path.split(output_fc)
-    # out_ws, out_fc = output_fc.rsplit(r"\", 1)
-    if arcpy.Exists(output_fc):
-        arcpy.Delete_management(output_fc)
-    arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
-    print(output_fc)
-    sr = arcpy.Describe(agg_fc).spatialReference.exportToString()
-
-    # Try, except to rollback
-    try:
-        sum_rows = []
-        # shapes = []
-        # Iterate over agg features
-        agg_fields = [agg_id_field, "SHAPE@"]
-        with arcpy.da.SearchCursor(output_fc, agg_fields) as agg_c:
-            # with arcpy.da.SearchCursor(agg_fc, agg_fields) as agg_c:
-            for agg_r in agg_c:
-                agg_id, agg_shape = agg_r
-                # shapes.append(
-                #     POLY(
-                #         [(pt.X, pt.Y) for pt in agg_shape.getPart()[0]]
-                #     )
-                # )
-                # Select disag features there
-                arcpy.SelectLayerByLocation_management(
-                    in_layer=disag_fc,
-                    overlap_type=overlap_type,
-                    select_features=agg_shape,
-                    selection_type="NEW_SELECTION",
-                )
-                # Dump to data frame
-                df = pd.DataFrame(
-                    arcpy.da.TableToNumPyArray(
-                        disag_fc, disag_fields, skip_nulls=False, null_value=0
-                    )
-                )
-                df.fillna(0, inplace=True)
-                # Flatten
-                if flatten_disag_id is not None:
-                    gfields = groupby_fields + [flatten_disag_id]
-                    df = df.groupby(gfields).mean().reset_index()
-                # Groupby and apply agg funcs
-                if groupby_fields:
-                    gb = df.groupby(groupby_fields)
-                    df_sum = gb.agg(agg_funcs, *args, **kwargs)
-                    if len(groupby_fields) > 1:
-                        df_unstack = df_sum.unstack(groupby_fields).fillna(0)
-                    else:
-                        df_unstack = df_sum.unstack().fillna(0)
-                else:
-                    df_sum = df
-                    df_unstack = df_sum.unstack().fillna(0)
-                df_unstack.index = colMultiIndexToNames(df_unstack.index)
-                sum_row = df_unstack.to_frame().T
-                # sum_row = df_sum.reset_index()
-
-                # Assign agg feature id
-                # TODO: confirm agg_id_field does not collide with sum_row cols
-                sum_row[agg_id_field] = agg_id
-
-                # Add row to collection
-                sum_rows.append(sum_row)
-        # Bind all summary rows
-        sum_data = pd.concat(sum_rows).fillna(0)
-        # sum_data["geometry"] = shapes
-        # Rename cols to eliminate special characters
-        cols = sum_data.columns.to_list()
-        sum_data.columns = [re.sub(r"[^A-Za-z0-9 ]+", "_", c) for c in cols]
-
-        # Join to output table
-        extendTableDf(output_fc, agg_id_field, sum_data, agg_id_field)
-        # gdf = gpd.GeoDataFrame(sum_data, geometry="geometry", crs=sr)
-        # gdfToFeatureClass(gdf, output_fc, sr=sr)
-
-    except:
-        raise
-
-    finally:
-        # delete all temp layers
-        arcpy.Delete_management("__disag_fc__")
-        arcpy.Delete_management("__agg_fc__")
-        arcpy.Delete_management("__disag_subset__")
-        # Delete output fc
-        arcpy.Delete_management(output_fc)
 
 
 def add_unique_id(feature_class, new_id_field=None):
@@ -1597,6 +1416,201 @@ def _sanitize_column_names(geo,
 if __name__ == "__main__":
     print("nothing set to run")
 
+# DEPRECATED functions
+# def sumToAggregateGeo(
+#         disag_fc,
+#         sum_fields,
+#         groupby_fields,
+#         agg_fc,
+#         agg_id_field,
+#         output_fc,
+#         overlap_type="INTERSECT",
+#         agg_funcs=np.sum,
+#         disag_wc=None,
+#         agg_wc=None,
+#         flatten_disag_id=None,
+#         *args,
+#         **kwargs,
+# ):
+#     """
+#     DEPRECATED
+#
+#     Summarizes values for features in an input feature class based on their
+#     relationship to larger geographic units. For example, summarize dwelling
+#     units from parcels to station areas.
+#
+#     Summarizations are recorded for each aggregation feature. If any groupby
+#     fields are provided or multiple agg funcs are provided, summary values are
+#     reported in multiple columns corresponding to the groupby values or agg
+#     function names. Note that special characters in observed values are
+#     replaced with underscores. This may result in unexpected name collisions.
+#
+#     Parameters
+#     -----------
+#     disag_fc: String or feature layer
+#         Path to a feature class or a feature layer object. The layer whose
+#         features and values will be summarized.
+#     sum_fields: String or [String,...]
+#         One or more field names in `disag_fc` whose values will be summarized
+#         within features in `agg_fc`.
+#     groupby_fields: String or [String,...]
+#         One or more field names in `disag_fc` to be used to group features
+#         prior to aggregation. Unique combinaitons of `groupby_field` values
+#         will appear in field names in `output_fc`.
+#     agg_fc: String or feature layer
+#         The features to which disag_fc will be aggregated and summarized.
+#         These must be polygons.
+#     agg_id_field: String
+#         A field in `agg_fc` that uniquely identifies each aggregation feature.
+#     output_fc: String
+#         Path to a new feature class to be created by the function.
+#     overlap_type: String, default="INTERSECT"
+#         The spatial relationship by which to associate disag features with
+#         aggregation features.
+#     agg_funcs: callable, default=np.sum
+#         Aggregation functions determine what summary statistics are reported
+#         for each aggregation feature.
+#     disag_wc: String, default=None
+#         A where clause for selecting disag features to include in the
+#         summarization process.
+#     agg_wc: String, default=None
+#         A where clause for selecting aggregation features to include in the
+#         summarization process.
+#     flatten_disag_id: String, default=None
+#         If given, the disag features are assumed to contain redundant data,
+#         such as multiple rows showing the same parcel. The mean value by
+#         this field is used prior to summarization to aggregate features.
+#     args:
+#         Positional arguments to pass to `agg_funcs`
+#     kwargs:
+#         Keyword arguments to pass to `agg_funcs`
+#
+#     Returns
+#     --------
+#     None
+#         `output_fc` is written to disk.
+#     """
+#     # Handle inputs
+#     #  - Confirm agg features are polygons
+#     desc = arcpy.Describe(agg_fc)
+#     if desc.shapeType != "Polygon":
+#         raise TypeError("Aggregation features must be polygons")
+#     sr = desc.spatialReference
+#
+#     #  - If path to FC is given, make feature layer
+#     #    Otherwise, let's assume these are already feature layers
+#     if isinstance(disag_fc, string_types):
+#         disag_fc = arcpy.MakeFeatureLayer_management(disag_fc, "__disag_fc__")
+#
+#     if isinstance(agg_fc, string_types):
+#         agg_fc = arcpy.MakeFeatureLayer_management(agg_fc, "__agg_fc__")
+#
+#     #  - Apply where clauses to input layers
+#     if disag_wc:
+#         disag_fc = arcpy.MakeFeatureLayer_management(
+#             in_features=disag_fc, out_layer="__disag_subset__", where_clause=disag_wc
+#         )
+#     if agg_wc:
+#         arcpy.SelectLayerByAttribute_management(
+#             in_layer_or_view=agg_fc,
+#             selection_type="SUBSET_SELECTION",
+#             where_clause=agg_wc,
+#         )
+#
+#     #  - Disag field references
+#     if isinstance(sum_fields, string_types):
+#         sum_fields = [sum_fields]
+#     if isinstance(groupby_fields, string_types):
+#         groupby_fields = [groupby_fields]
+#     disag_fields = sum_fields + groupby_fields
+#     if flatten_disag_id is not None:
+#         disag_fields.append(flatten_disag_id)
+#
+#     # Set up the output feature class (copy features from agg_fc)
+#     out_ws, out_fc = os.path.split(output_fc)
+#     # out_ws, out_fc = output_fc.rsplit(r"\", 1)
+#     if arcpy.Exists(output_fc):
+#         arcpy.Delete_management(output_fc)
+#     arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
+#     print(output_fc)
+#     sr = arcpy.Describe(agg_fc).spatialReference.exportToString()
+#
+#     # Try, except to rollback
+#     try:
+#         sum_rows = []
+#         # shapes = []
+#         # Iterate over agg features
+#         agg_fields = [agg_id_field, "SHAPE@"]
+#         with arcpy.da.SearchCursor(output_fc, agg_fields) as agg_c:
+#             # with arcpy.da.SearchCursor(agg_fc, agg_fields) as agg_c:
+#             for agg_r in agg_c:
+#                 agg_id, agg_shape = agg_r
+#                 # shapes.append(
+#                 #     POLY(
+#                 #         [(pt.X, pt.Y) for pt in agg_shape.getPart()[0]]
+#                 #     )
+#                 # )
+#                 # Select disag features there
+#                 arcpy.SelectLayerByLocation_management(
+#                     in_layer=disag_fc,
+#                     overlap_type=overlap_type,
+#                     select_features=agg_shape,
+#                     selection_type="NEW_SELECTION",
+#                 )
+#                 # Dump to data frame
+#                 df = pd.DataFrame(
+#                     arcpy.da.TableToNumPyArray(
+#                         disag_fc, disag_fields, skip_nulls=False, null_value=0
+#                     )
+#                 )
+#                 df.fillna(0, inplace=True)
+#                 # Flatten
+#                 if flatten_disag_id is not None:
+#                     gfields = groupby_fields + [flatten_disag_id]
+#                     df = df.groupby(gfields).mean().reset_index()
+#                 # Groupby and apply agg funcs
+#                 if groupby_fields:
+#                     gb = df.groupby(groupby_fields)
+#                     df_sum = gb.agg(agg_funcs, *args, **kwargs)
+#                     if len(groupby_fields) > 1:
+#                         df_unstack = df_sum.unstack(groupby_fields).fillna(0)
+#                     else:
+#                         df_unstack = df_sum.unstack().fillna(0)
+#                 else:
+#                     df_sum = df
+#                     df_unstack = df_sum.unstack().fillna(0)
+#                 df_unstack.index = colMultiIndexToNames(df_unstack.index)
+#                 sum_row = df_unstack.to_frame().T
+#                 # sum_row = df_sum.reset_index()
+#
+#                 # Assign agg feature id
+#                 # TODO: confirm agg_id_field does not collide with sum_row cols
+#                 sum_row[agg_id_field] = agg_id
+#
+#                 # Add row to collection
+#                 sum_rows.append(sum_row)
+#         # Bind all summary rows
+#         sum_data = pd.concat(sum_rows).fillna(0)
+#         # sum_data["geometry"] = shapes
+#         # Rename cols to eliminate special characters
+#         cols = sum_data.columns.to_list()
+#         sum_data.columns = [re.sub(r"[^A-Za-z0-9 ]+", "_", c) for c in cols]
+#
+#         # Join to output table
+#         extendTableDf(output_fc, agg_id_field, sum_data, agg_id_field)
+#         # gdf = gpd.GeoDataFrame(sum_data, geometry="geometry", crs=sr)
+#         # gdfToFeatureClass(gdf, output_fc, sr=sr)
+#
+#     except:
+#         raise
+#
+#     finally:
+#         # delete all temp layers
+#         arcpy.Delete_management("__disag_fc__")
+#         arcpy.Delete_management("__agg_fc__")
+#         arcpy.Delete_management("__disag_subset__")
+#         # Delete output fc
+#         arcpy.Delete_management(output_fc)
 # DEPRECATED GPD functions
 # def fetchJsonUrl(
 #         url, out_file, encoding="utf-8", is_spatial=False, crs=4326, overwrite=False

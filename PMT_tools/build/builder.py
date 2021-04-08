@@ -35,6 +35,7 @@ TODO: Review function list above and move to build helper where appropriate, pop
 """
 import os
 import sys
+from typing import Iterable
 
 sys.path.insert(0, os.getcwd())
 from PMT_tools.build import build_helper as B_HELP
@@ -63,7 +64,7 @@ if DEBUG:
     RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
     DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
     YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
-    YEARS = ["NearTerm"]
+    YEARS = PMT.YEARS[1:] + ["NearTerm"]
 
 
 # SNAPSHOT Functions
@@ -184,7 +185,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
                               append_only=False)  # TODO: handle append/overwrite more explicitly
 
 
-def apply_field_calcs(gdb, new_field_specs):
+def apply_field_calcs(gdb, new_field_specs, recalculate=False):
     # Iterate over new fields
     for nf_spec in new_field_specs:
         # Get params
@@ -195,16 +196,18 @@ def apply_field_calcs(gdb, new_field_specs):
         code_block = nf_spec["code_block"]
         try:
             # Get params
-            params = nf_spec["params"]
-            # TODO: validate? params must be iterables
-            all_combos = list(itertools.product(*params))
-            for combo in all_combos:
-                combo_spec = nf_spec.copy()
-                del combo_spec["params"]
-                combo_spec["new_field"] = combo_spec["new_field"].format(*combo)
-                combo_spec["expr"] = combo_spec["expr"].format(*combo)
-                combo_spec["code_block"] = combo_spec["code_block"].format(*combo)
-                apply_field_calcs(gdb, [combo_spec])
+            if isinstance(nf_spec["params"], Iterable):
+                params = nf_spec["params"]
+                all_combos = list(itertools.product(*params))
+                for combo in all_combos:
+                    combo_spec = nf_spec.copy()
+                    del combo_spec["params"]
+                    combo_spec["new_field"] = combo_spec["new_field"].format(*combo)
+                    combo_spec["expr"] = combo_spec["expr"].format(*combo)
+                    combo_spec["code_block"] = combo_spec["code_block"].format(*combo)
+                    apply_field_calcs(gdb, [combo_spec])
+            else:
+                raise Exception("Spec Params must be an iterable if provided")
         except KeyError:
             add_args = {
                 "field_name": new_field,
@@ -229,6 +232,15 @@ def apply_field_calcs(gdb, new_field_specs):
                 if field_type == "TEXT":
                     length = nf_spec["length"]
                     add_args["field_length"] = length
+
+                # # check if new field already in dataset, if recalc True delete and recalculate
+                # if PMT.which_missing(table=in_table, field_list=[new_field]):
+                #     if recalculate:
+                #         print(f"--- --- recalculating {new_field}")
+                #         arcpy.DeleteField_management(in_table=in_table, drop_field=new_field)
+                #     else:
+                #         print(f"--- --- {new_field} already exists, skipping...")
+                #         continue
                 # add and calc field
                 arcpy.AddField_management(**add_args)
                 arcpy.CalculateField_management(**calc_args)
@@ -242,10 +254,6 @@ def sum_parcel_cols(gdb, par_spec, columns):
     return df.sum()
 
 
-# TODO: complete process_year_to_snapshot
-# TODO: define process_years_to_trend
-# TODO: define process_near_term
-# TODO: define process_long_term
 def process_year_to_snapshot(year):
     """process cleaned yearly data to a Snapshot database
     Returns:
@@ -335,11 +343,10 @@ def process_year_to_snapshot(year):
 
     # Rename this output
     print("Finalizing the snapshot")
+    if year == PMT.SNAPSHOT_YEAR:
+        year = "Current"
     year_out_gdb = PMT.makePath(BUILD, f"Snapshot_{year}.gdb")
-    # year_out_gdb = PMT.makePath(r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD",
-    #                             f"Snapshot_{year}.gdb")  # *************
-    # TODO: rename most recent Snapshot to Snapshot_Current.gdb or something like this
-    B_HELP.finalize_output(out_gdb, year_out_gdb)
+    B_HELP.finalize_output(tem_gdb=out_gdb, final_gdb=year_out_gdb)
 
 
 def process_years_to_trend(years, tables, long_features, diff_features,
@@ -458,7 +465,7 @@ def process_long_term():
 # MAIN
 if __name__ == "__main__":
     # # Snapshot
-    for year in PMT.YEARS:
+    for year in YEARS:
         print(year)
         process_year_to_snapshot(year)
     process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
