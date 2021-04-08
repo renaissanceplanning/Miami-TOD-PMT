@@ -52,7 +52,7 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    ROOT = r'K:\Projects\MiamiDade\PMT\Data'
+    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data'
     RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
     CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
     BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST_local", "BUILD"))

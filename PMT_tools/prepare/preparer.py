@@ -39,14 +39,14 @@ if DEBUG:
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
     '''
-    ROOT = r"K:\Projects\MiamiDade\PMT\Data"
-    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
+    ROOT = r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data"
+    RAW = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
+    CLEANED = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
     NETS_DIR = makePath(CLEANED, "osm_networks")
     DATA = ROOT
     BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb")
     YEAR_GDB_FORMAT = makePath(CLEANED, "PMT_YEAR.gdb")
-    REF = makePath(ROOT, 'PROCESSING_TEST', "Reference")
+    REF = makePath(ROOT, "Reference")
     RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
     DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
     YEARS = YEARS + ["NearTerm"]
@@ -111,18 +111,18 @@ def process_normalized_geometries(overwrite=True):
 
 def process_basic_features():
     # TODO: add check for existing basic features, and compare for changes
-    print("Making basic features")
-    P_HELP.makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS,
-                             stn_diss_fields=prep_conf.STN_DISS_FIELDS,
-                             stn_corridor_fields=prep_conf.STN_CORRIDOR_FIELDS,
-                             alignments_fc=prep_conf.BASIC_ALIGNMENTS, align_diss_fields=prep_conf.ALIGN_DISS_FIELDS,
-                             stn_buff_dist=prep_conf.STN_BUFF_DIST, align_buff_dist=prep_conf.ALIGN_BUFF_DIST,
-                             stn_areas_fc=prep_conf.BASIC_STN_AREAS, corridors_fc=prep_conf.BASIC_CORRIDORS,
-                             long_stn_fc=prep_conf.BASIC_LONG_STN,
-                             rename_dict=prep_conf.BASIC_RENAME_DICT, overwrite=True)
+    # print("Making basic features")
+    # P_HELP.makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS,
+    #                          stn_diss_fields=prep_conf.STN_DISS_FIELDS,
+    #                          stn_corridor_fields=prep_conf.STN_CORRIDOR_FIELDS,
+    #                          alignments_fc=prep_conf.BASIC_ALIGNMENTS, align_diss_fields=prep_conf.ALIGN_DISS_FIELDS,
+    #                          stn_buff_dist=prep_conf.STN_BUFF_DIST, align_buff_dist=prep_conf.ALIGN_BUFF_DIST,
+    #                          stn_areas_fc=prep_conf.BASIC_STN_AREAS, corridors_fc=prep_conf.BASIC_CORRIDORS,
+    #                          long_stn_fc=prep_conf.BASIC_LONG_STN,
+    #                          rename_dict=prep_conf.BASIC_RENAME_DICT, overwrite=True)
 
     print("Making summarization features")
-    P_HELP.makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
+    P_HELP.makeSummaryFeatures(bf_gdb=BASIC_FEATURES, stn_areas=prep_conf.BASIC_STN_AREAS,
                                corridors_fc=prep_conf.BASIC_CORRIDORS,
                                cor_name_field=prep_conf.CORRIDOR_NAME_FIELD, out_fc=prep_conf.BASIC_SUM_AREAS,
                                stn_buffer_meters=prep_conf.STN_BUFF_METERS, stn_name_field=prep_conf.STN_NAME_FIELD,
@@ -218,17 +218,19 @@ def process_crashes():
 
 
 def process_permits(overwrite=True):
-    """ permits """
+    print("PROCESSING PERMIT DATA ... ")
     try:
         permit_csv = makePath(RAW, "BUILDING_PERMITS", "Road Impact Fee Collection Report -- 2019.csv")
         out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_NearTerm.gdb"))
         in_fds = validate_feature_dataset(fds_path=makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
-        parcels = makePath(in_fds, "Parcels")
+        parcels = makePath(in_fds, "Parcels_2")
         out_fds = validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
         permits_out = makePath(out_fds, "BuildingPermits")
         if overwrite:
             checkOverwriteOutput(output=permits_out, overwrite=overwrite)
-        P_HELP.clean_permit_data(permit_csv=permit_csv, parcel_fc=parcels, permit_key="FOLIO", poly_key="FOLIO",
+        P_HELP.clean_permit_data(permit_csv=permit_csv, parcel_fc=parcels, permit_key=prep_conf.PERMITS_COMMON_KEY,
+                                 poly_key=prep_conf.PARCEL_COMMON_KEY,
+                                 rif_lu_tbl=RIF_CAT_CODE_TBL, dor_lu_tbl=DOR_LU_CODE_TBL,
                                  out_file=permits_out, out_crs=EPSG_FLSPF)
         unit_ref_df = P_HELP.create_permits_units_reference(parcels=parcels, permits=permits_out,
                                                             lu_key=prep_conf.LAND_USE_COMMON_KEY,
@@ -253,7 +255,7 @@ def process_permits(overwrite=True):
                                                       units_field_match_dict=prep_conf.SHORT_TERM_PARCELS_UNITS_MATCH)
         if overwrite:
             checkOverwriteOutput(output=parcels, overwrite=overwrite)
-
+        print("--- --- writing out updated parcels with new permit data")
         arcpy.FeatureClassToFeatureClass_conversion(in_features=temp_update, out_path=in_fds, out_name="Parcels")
     except:
         raise
@@ -268,7 +270,7 @@ def process_parcels(overwrite=True):
         out_fds = validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
         out_fc = makePath(out_fds, "Parcels")
 
-        # source data TODO: add case for LONG TERM
+        # source data
         if year == "NearTerm":
             data_year = SNAPSHOT_YEAR
             calc_year = 9998
@@ -394,10 +396,14 @@ def process_imperviousness(overwrite=True):
         block_fc = makePath(year_gdb, 'Polygons', 'Census_Blocks')
         parcel_fc = makePath(year_gdb, "Polygons", "Parcels")
         # capture total living area from parcels for use in later consolidations
-        int_fc = intersectFeatures(summary_fc=block_fc, disag_fc=parcel_fc,
-                                   in_temp_dir=True, full_geometries=True)
+        parcel_pts = polygonsToPoints(in_fc=parcel_fc, out_fc=make_inmem_path(),
+                                      fields=[prep_conf.PARCEL_COMMON_KEY, prep_conf.PARCEL_BLD_AREA_COL],
+                                      null_value=0.0)
+        block_par = arcpy.SpatialJoin_analysis(target_features=block_fc, join_features=parcel_pts,
+                                               out_feature_class=make_inmem_path(), )
+
         impv_df = P_HELP.analyze_imperviousness(raster_points=points, rast_cell_area=cell_area,
-                                                zone_fc=int_fc, zone_id_field=prep_conf.BLOCK_COMMON_KEY,
+                                                zone_fc=block_par, zone_id_field=prep_conf.BLOCK_COMMON_KEY,
                                                 living_area_field=prep_conf.PARCEL_BLD_AREA_COL)
 
         zone_name = os.path.split(block_fc)[1].lower()
@@ -961,6 +967,7 @@ def get_filename(file_path):
     return basename
 
 
+# TODO: move this to prepare_helper.py
 def merge_and_subset(fcs, subset_fc):
     if isinstance(fcs, str):
         fcs = [fcs]
@@ -1111,7 +1118,7 @@ if __name__ == "__main__":
     # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
     # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
 
-    process_basic_features()  # TESTED
+    # process_basic_features()  # TESTED
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
     # process_parks()  # TESTED UPDATES 03/10/21 CR
@@ -1144,7 +1151,7 @@ if __name__ == "__main__":
 
     # CLEANS AND GEOCODES PERMITS TO ASSOCIATED PARCELS AND
     #   GENERATES A NEAR TERM PARCELS LAYER WITH PERMIT INFO
-    # process_permits()  # TESTED CR 03/01/21
+    process_permits()  # TESTED CR 03/01/21
 
     # updates parcels based on permits for near term analysis
     # process_short_term_parcels()  # TESTED 3/1/21 #TODO: needs to be broken down into smaller functions

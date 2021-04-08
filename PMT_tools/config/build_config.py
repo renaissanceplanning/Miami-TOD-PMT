@@ -37,7 +37,8 @@ SUM_AREA_FC_SPECS = ("SummaryAreas", pconfig.SUMMARY_AREAS_COMMON_KEY, "Polygons
 NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks")  # TODO: define common key
 TRANSIT_FC_SPECS = ("TransitRidership", pconfig.TRANSIT_COMMON_KEY, "Points")  # previously OBJECTID
 PARKS_FC_SPECS = ("Park_points", pconfig.PARK_POINTS_COMMON_KEY, "Points")  # previously OBJECTID_1
-EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks")  # TODO: define common key
+# EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks")  # removed to utilize MD bike facility data
+EDGES_FC_SPECS = ("bike_facilities", "OBJECTID", "Networks")  # TODO: define common key
 
 FC_SPECS = [
     BLOCK_FC_SPECS, PAR_FC_SPECS, MAZ_FC_SPECS,
@@ -625,20 +626,20 @@ PROP_IN15 = {
     "expr": "100 * (!{0}_in_15! / !NParcels!)",
     "code_block": ""
 }
-BIKE_FAC = {
-    "tables": [EDGES_FC_SPECS],
-    "new_field": "Bike_Fac",
-    "field_type": "LONG",
-    "expr": "!bikability! + !cycleway!",
-    "code_block": ""
-}
-BIKE_MILES = {
-    "tables": [EDGES_FC_SPECS],
-    "new_field": "Bike_Miles",
-    "field_type": "FLOAT",
-    "expr": "!Length!/1609.344",  # meters to miles conversion
-    "code_block": ""
-}
+# BIKE_FAC = {
+#     "tables": [EDGES_FC_SPECS],
+#     "new_field": "Bike_Fac",
+#     "field_type": "LONG",
+#     "expr": "!bikability! + !cycleway!",
+#     "code_block": ""
+# }
+# BIKE_MILES = {
+#     "tables": [EDGES_FC_SPECS],
+#     "new_field": "Bike_Miles",
+#     "field_type": "FLOAT",
+#     "expr": "!Length!/1609.344",  # meters to miles conversion
+#     "code_block": ""
+# }
 TV_SF_AGG = {
     "tables": [BLOCK_FC_SPECS, SUM_AREA_FC_SPECS],
     "new_field": "TV_SF",
@@ -719,7 +720,9 @@ REG_REF_CALCS = [
     (LV_IDX, ["LND_VAL", "LND_SQFOOT"])
 ]
 
-PRECALCS = [VAC_AREA, RES_AREA, NRES_AREA, DIRECT_IDX, TV_SF, JV_SF, LV_SF, IS_IN_15, BIKE_FAC, BIKE_MILES]
+PRECALCS = [VAC_AREA, RES_AREA, NRES_AREA, DIRECT_IDX, TV_SF, JV_SF, LV_SF, IS_IN_15,
+            # BIKE_FAC, BIKE_MILES
+            ]
 CALCS = [RES_DENS, NRES_DENS, FAR_DENS, JH_RATIO, CENT_IDX, GRID_DENS, NA_MODE_SHARE,
          ACCESS_IN30, ACCESS_IN30_MAZ, NM_JH_BAL, PROP_IN15, TV_SF_AGG, JV_SF_AGG, LV_SF_AGG,
          NONDEV_FA_SHR, DEVOS_FA_SHR, DEVLOW_FA_SHR, DEVMED_FA_SHR, DEVHI_FA_SHR, PARKS_PER_CAP

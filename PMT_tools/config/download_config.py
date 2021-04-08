@@ -55,7 +55,11 @@ DOWNLOAD_URL_DICT = {
     "Municipal_Parks": r"https://opendata.arcgis.com/datasets/16fe02a1defa45b28bf14a29fb5f0428_0.geojson",
     "County_Parks": r"https://opendata.arcgis.com/datasets/aca1e6ff0f634be282d50cc2d534a832_0.geojson",
     "Federal_State_Parks": r"https://opendata.arcgis.com/datasets/fa11a4c0a3554467b0fd5bc54edde4f9_0.geojson",
-    "Park_Facilities": r"https://opendata.arcgis.com/datasets/8c9528d3e1824db3b14ed53188a46291_0.geojson"
+    "Park_Facilities": r"https://opendata.arcgis.com/datasets/8c9528d3e1824db3b14ed53188a46291_0.geojson",
+    "Bike_Lanes": r"https://opendata.arcgis.com/datasets/b874dd0e2d0941a689c56f54ae72d67c_0.geojson",
+    "Paved_Path": r"https://opendata.arcgis.com/datasets/5ee76f3de89a4510871f7943ee20a80d_0.geojson",
+    "Paved_Shoulder": r"https://opendata.arcgis.com/datasets/76ac2f796a6341a6b5d45f66e42788d1_0.geojson",
+    "Wide_Curb_Lane": r"https://opendata.arcgis.com/datasets/b0b330209d244850ae5f89768edc3271_0.geojson"
 }
 
 ''' Energy Consumption Table Download '''

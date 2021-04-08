@@ -515,7 +515,7 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False,
 
     # return intersect
     if as_df:
-        return featureclass_to_df(out_fc, keep_fields="*")
+        return featureclass_to_df(out_fc, keep_fields="*", null_val=0.0)
     else:
         return out_fc
 
