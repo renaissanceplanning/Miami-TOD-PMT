@@ -5,6 +5,8 @@ import datetime
 import os
 import sys
 import warnings
+import csv
+import networkx as nx
 from functools import reduce
 
 warnings.filterwarnings("ignore")
@@ -32,6 +34,7 @@ logger = log.Logger(add_logs_to_arc_messages=True) # TODO: only initialize logge
 
 arcpy.env.overwriteOutput = True
 
+NETS_DIR = makePath(CLEANED, "osm_networks")
 DEBUG = True
 if DEBUG:
     '''
@@ -1082,6 +1085,77 @@ def process_travel_stats():
         dfToTable(df=loaded_df, out_table=out_table, overwrite=True)
 
 
+def process_walk_to_transit_skim():
+    # Create OD table of TAZ centroids to TAP nodes
+    serpm_dir = makePath(RAW, "SERPM")
+    taz_centroids = makePath(serpm_dir, "SERPM_TAZ_Centroids.shp")
+    tap_nodes = makePath(serpm_dir, "SERPM_TAP_Noids.shp")
+    tap_id = "TAP"
+    tap_cutoff = "30" #minutes
+    solved = {}
+    for year in PMT.years:
+        net_suffix, model_year = prep_conf.NET_BY_YEAR[year]
+        if model_year not in solved:
+            # Get TAZ to TAP OD table
+            # - Skim input
+            nd = makePath(NETS_DIR, f"Walk{net_suffix}.gdb", "osm", "osm_ND")
+            skim = makePath(serpm_dir, f"TAZ_to_TAP_{net_suffix}.csv")
+            restrictions = None
+            # - Create and load problem
+            P_HELP.genODTable(origin_pts=taz_centroids, origin_name_field=prep_conf.TAZ_COMMON_KEY,
+                        dest_pts=tap_nodes, dest_name_field=tap_id,
+                        in_nd=nd, imped_attr=prep_conf.OSM_IMPED, cutoff=tap_cutoff,
+                        net_loader=prep_conf.NET_LOADER,
+                        out_table=skim, restrictions=restrictions, use_hierarchy=False, uturns="ALLOW_UTURNS",
+                        o_location_fields=None, d_location_fields=None, o_chunk_size=1000)
+             # Mark as solved
+            solved.append(net_suffix)
+
+
+def process_serpm_transit():
+    # Make a graph from TAP to TAP skim
+    serpm_raw = makePath(RAW, "SERPM")
+    serpm_clean = makePath(CLEANED, "SERPM")
+    skim_versions = ["local", "prem"]
+    cutoff = 60 #TODO: move to prep_conf?
+    for year in PMT.years:
+        net_suffix, model_year = prep_conf.NET_BY_YEAR[year]
+        taz_to_tap = makePath(serpm_clean, f"TAZ_to_TAP_{net_suffix}.csv")
+        tazs = make_path(serpm_clean, "SERPM_TAZ_Centroids.shp")
+        # Get TAZ nodes
+        with arcpy.da.SearchCursor(tazs, prep_conf.TAZ_COMMON_KEY) as c:
+            taz_nodes = sorted({r[0] for r in c})
+        # Analyze zone to zone times
+        for skim_version in skim_versions:
+            tap_to_tap = makePath(serpm_raw, f"TAP_to_TAP_{skim_version}_{model_year}.csv")
+            # Clean the tap to tap skim
+            tap_to_tap_clean = makePath(serpm_clean, f"TAP_to_TAP_{skim_version}_{model_year}_clean.csv")
+            tap_renames = {"orig": "F_TAP", "dest": "T_TAP", "flow": "Minutes"} # TODO move to prep_conf?
+            P_HELP.clean_skim_csv(in_file=tap_to_tap, out_file=tap_to_tap_clean, imp_field="Minutes",
+                                  drop_val=0, renames=tap_renames)
+            # Make tap to tap network
+            G = P_HELP.skim_to_graph(tap_to_tap_clean, source="F_TAP", target="T_TAP", attrs="Minutes",
+                                     create_using=nx.DiGraph)
+            # Make tap to taz network (as base graph, converted to digraph)
+            H = P_HELP.skim_to_graph(taz_to_tap, source="TAZ", target="TAP", attrs="Minutes",
+                                     create_using=nx.Graph, renames={}).to_directed()
+            # Combine networks and solve taz to taz
+            FULL = nx.compose(G, H)
+            taz_to_taz = makePath(serpm_clean, "TAZ_to_TAZ_{skim_versin}_{model_year}.csv")
+            with open(taz_to_taz, "w") as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(["F_TAZ", "T_TAZ", "TIME"])
+                for i in taz_nodes:
+                    i_dict = nx.single_source_dijkstra_path_length(
+                        G=FULL, source=i, cutoff=cutoff, weight="Minutes")
+                    out_rows = []
+                    for j, time in i_dict.items():
+                        if j in taz_nodes:
+                            out_row = (i, j, time)
+                            out_rows.append(out_row)
+                    writer.writerows(out_rows)
+
+
 if __name__ == "__main__":
     # SETUP CLEAN DATA
     # -----------------------------------------------
@@ -1181,6 +1255,11 @@ if __name__ == "__main__":
 
     # RECORD PARCEL IDEAL WALK TIMES
     # process_ideal_walk_times()  # Tested by AB 3/2/21 NEAR TERM just use parcel geometry so
+
+    # PREPARE SERPM TRANSIT SKIMS
+    # - Walk access to transit
+    process_walk_to_transit_skim()
+    process_serpm_transit()
 
     # prepare serpm taz-level travel skims
     # process_model_skims()  # TESTED by AB 3/30/21 (transit skim pending)
