@@ -656,8 +656,19 @@ def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=
     makeSummaryFeatures
     """
     # Make data frames of all features needed for looking up values
-    # ...makePath()
-    # ...PMT.table_to_df()
+    stations_fc = makePath(basic_gdb, "BasicFeatures", "SMARTplanStations")
+    align_fc = makePath(basic_gdb, "BasicFeatures", "SMARTplanAlignments")
+    stations_long_fc = makePath(basic_gdb, "StationsLong")
+    station_areas_fc = makePath(basic_gdb, "StationAreas")
+    corridors_fc = makePath(basic_gdb, "Corridors")
+    summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
+    
+    stations_df = PMT.table_to_df(stations_fc)
+    align_df = PMT.table_to_df(align_fc)
+    stations_long_df = PMT.table_to_df(stations_long_fc)
+    station_areas_df = PMT.table_to_df(station_areas_fc)
+    corridors_df = PMT.table_to_df(corridors_fc)
+    summ_areas_df = PMT.table_to_df(summ_areas_df)
 
     # If preset_station_areas is not None:
     #   with arcpy.da.SearchCursor(preset_station_areas, ["@SHAPE@", station_id_field]) as c:
