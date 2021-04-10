@@ -655,7 +655,23 @@ def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=
     makeBasicFeatures
     makeSummaryFeatures
     """
+    # Make data frames of all features needed for looking up values
+    # ...makePath()
+    # ...PMT.table_to_df()
+
+    # If preset_station_areas is not None:
+    #   with arcpy.da.SearchCursor(preset_station_areas, ["@SHAPE@", station_id_field]) as c:
+    #       for r in c:
+    #           preset_shape, station_id = r
+    #           lookup which station -> which rowid in summary araes
+    #           where_clause = "..."
+    #           with arcpy.da.UpdateCursor(station_areas_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
+    #               for ur in uc:
+    #                   ur[0] = preset_shape
+    #                   uc.updateRow(ur)
     #
+    # If preset_corridors is not None:
+    #  same as above
 
 # crash functions
 def update_crash_type(feature_class, data_fields, update_field):
