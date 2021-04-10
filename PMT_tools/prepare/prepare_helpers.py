@@ -626,6 +626,37 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     arcpy.env.workspace = old_ws
 
 
+def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=None, 
+                         preset_corridors=None, corridor_name_field=None):
+    """
+    Modifies the basic features database to updata station area and/or corridor geometries
+    based on provided preset features
+
+    Parameters
+    ----------
+    basic_gdb: path
+        Path to the basic_feaures geodatabase. This data base is assumed to include the 
+        feature classes created/updated in `makeBasicFeatures` and `makeSummaryFeatures`
+    preset_station_areas: path or feature layer, default=None
+        If provided, these geometries will be used to update station area features
+        (`StationAreas` and `SummaryAreas`)
+    station_id_field: String, default=None
+        The field in `preset_station_areas` that corresponds to basic_features/SMARTplanStations.Id.
+        It is used to map new geometries into the `StationAreas` and `SummaryAreas` feature classes.
+    preset_corridors: path or feature_layer, default=None
+        If provided, these geometries will be used to update corridor features
+        (`Corridors` and `SummaryAreas`)
+    corridor_name_field: String, default=None
+        The field in `preset_corridors` that corresponds to basic_features/SMARTplanAlignments.Corridor.
+        It is used to map new geometries into the `Corridors` and `SummaryAreas` feature classes.
+
+    See Also
+    ---------
+    makeBasicFeatures
+    makeSummaryFeatures
+    """
+    #
+
 # crash functions
 def update_crash_type(feature_class, data_fields, update_field):
     arcpy.AddField_management(in_table=feature_class, field_name=update_field, field_type="TEXT")
@@ -2643,7 +2674,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
                            net_loader=net_loader, net_location_fields=d_location_fields)
         # Iterate solves as needed
         if o_chunk_size is None:
-            o_chunk_size = arcpy.GetCount_management(origin_pts)[0]
+            o_chunk_size = int(arcpy.GetCount_management(origin_pts)[0])
         write_mode = "w"
         header = True
         for o_pts in PMT.iterRowsAsChunks(origin_pts, chunksize=o_chunk_size):
