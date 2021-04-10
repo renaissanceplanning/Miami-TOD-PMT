@@ -47,25 +47,6 @@ from six import string_types
 import itertools
 import arcpy
 
-DEBUG = True
-if DEBUG:
-    '''
-    if DEBUG is True, you can change the path of the root directory and test any
-    changes to the code you might need to handle without munging the existing data
-    '''
-    ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data'
-    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
-    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
-    BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST_local", "BUILD"))
-    #BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
-    DATA = ROOT
-    BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
-    REF = PMT.makePath(ROOT, "Reference")
-    RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
-    DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
-    YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
-    YEARS = PMT.YEARS[1:] + ["NearTerm"]
-
 
 # SNAPSHOT Functions
 def build_access_by_mode(sum_area_fc, modes, out_gdb):
@@ -346,13 +327,13 @@ def process_year_to_snapshot(year):
     if year == PMT.SNAPSHOT_YEAR:
         year = "Current"
     year_out_gdb = PMT.makePath(BUILD, f"Snapshot_{year}.gdb")
-    B_HELP.finalize_output(tem_gdb=out_gdb, final_gdb=year_out_gdb)
+    B_HELP.finalize_output_new(intermediate_gdb=out_gdb, final_gdb=year_out_gdb)
 
 
 def process_years_to_trend(years, tables, long_features, diff_features,
                            base_year=None, snapshot_year=None):
     """
-
+    TODO: add a try/except to delete any intermediate data created
     """
     # Validation
     if base_year is None:
@@ -451,7 +432,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
 
     print("Finalizing the trend")
     final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
-    B_HELP.finalize_output(out_gdb, final_gdb)
+    B_HELP.finalize_output_new(intermediate_gdb=out_gdb, final_gdb=final_gdb)
 
 
 def process_near_term():
@@ -464,14 +445,34 @@ def process_long_term():
 
 # MAIN
 if __name__ == "__main__":
-    # # Snapshot
-    for year in YEARS:
-        print(year)
-        process_year_to_snapshot(year)
-    process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
-                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
-    # Process near term "trend"
-    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=B_CONF.DIFF_TABLES,
-                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
-    # TODO: For trend, patch in permits
+    DEBUG = True
+    if DEBUG:
+        '''
+        if DEBUG is True, you can change the path of the root directory and test any
+        changes to the code you might need to handle without munging the existing data
+        '''
+        ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data'
+        RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
+        CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
+        BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST_local", "BUILD"))
+        # BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
+        DATA = ROOT
+        BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
+        REF = PMT.makePath(ROOT, "Reference")
+        RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
+        DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
+        YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
+        YEARS = ["NearTerm"]
 
+    # # Snapshot data
+    # for year in YEARS:
+    #     print(year)
+    #     process_year_to_snapshot(year)
+    # process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
+    #                        long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
+    # Process near term "trend"
+    # process_years_to_trend(years=["Current", "NearTerm"], tables=B_CONF.DIFF_TABLES,
+    #                        long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES,
+    #                        base_year="Current", snapshot_year="NearTerm")
+    B_HELP.post_process_databases(basic_features_gdb=BASIC_FEATURES, build_dir=BUILD)
+    # # TODO: For trend, patch in permits

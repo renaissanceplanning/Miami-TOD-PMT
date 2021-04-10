@@ -11,6 +11,7 @@ import re
 import tempfile
 import uuid
 import zipfile
+from collections.abc import Iterable
 from datetime import time
 from functools import reduce
 from json.decoder import JSONDecodeError
@@ -24,12 +25,11 @@ from sklearn import linear_model
 
 import PMT_tools.PMT as PMT
 # temporary
-import PMT_tools.build.build_helper as b_help
-import PMT_tools.config.prepare_config as prep_conf
+import PMT_tools.build.build_helper as B_HELP
+import PMT_tools.config.prepare_config as P_CONF
 import PMT_tools.logger as log
-from PMT_tools.PMT import arcpy, pd, np, os
+from PMT_tools.PMT import arcpy, pd, np
 from PMT_tools.utils import *
-
 from arcgis.features import GeoAccessor, GeoSeriesAccessor
 
 logger = log.Logger(add_logs_to_arc_messages=True)
@@ -553,14 +553,14 @@ def makeSummaryFeatures(bf_gdb, stn_areas, corridors_fc, cor_name_field,
     out_path, out_name = os.path.split(out_fc)
     arcpy.CreateFeatureclass_management(out_path, out_name, "POLYGON", spatial_reference=sr)
     # - Add fields
-    arcpy.AddField_management(out_fc, prep_conf.STN_NAME_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(out_fc, prep_conf.STN_STATUS_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(out_fc, prep_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(out_fc, prep_conf.SUMMARY_AREAS_COMMON_KEY, "LONG")
+    arcpy.AddField_management(out_fc, P_CONF.STN_NAME_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, P_CONF.STN_STATUS_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, P_CONF.CORRIDOR_NAME_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, P_CONF.SUMMARY_AREAS_COMMON_KEY, "LONG")
 
     # Add all corridors with name="(Entire corridor)", corridor=cor_name_field
     print("--- adding corridor polygons")
-    out_fields = ["SHAPE@", stn_name_field, stn_status_field, stn_cor_field, prep_conf.SUMMARY_AREAS_COMMON_KEY]
+    out_fields = ["SHAPE@", stn_name_field, stn_status_field, stn_cor_field, P_CONF.SUMMARY_AREAS_COMMON_KEY]
     cor_fields = ["SHAPE@", cor_name_field]
     cor_polys = {}
     i = 0
@@ -706,8 +706,8 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, d
     """
     # TODO: add validation
     # read permit data to dataframe
-    permit_df = csv_to_df(csv_file=permit_csv, use_cols=prep_conf.PERMITS_USE,
-                          rename_dict=prep_conf.PERMITS_FIELDS_DICT)
+    permit_df = csv_to_df(csv_file=permit_csv, use_cols=P_CONF.PERMITS_USE,
+                          rename_dict=P_CONF.PERMITS_FIELDS_DICT)
 
     # clean up and concatenate data where appropriate
     #   fix parcelno to string of 13 len
@@ -715,7 +715,7 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, d
     permit_df[poly_key] = permit_df[permit_key].apply(lambda x: x.zfill(13))
     permit_df['COST'] = permit_df['CONST_COST'] + permit_df['ADMIN_COST']
     #   id project as pedestrain oriented
-    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR), 1, 0)
+    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(P_CONF.PERMITS_CAT_CODE_PEDOR), 1, 0)
     # drop fake data - Keith Richardson of RER informed us that any PROC_NUM/ADDRESS that contains with 'SMPL' or
     #   'SAMPLE' should be ignored as as SAMPLE entry
     ignore_text = ['SMPL', "SAMPLE", ]
@@ -723,18 +723,18 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, d
         for col in ['PROC_NUM', 'ADDRESS']:
             permit_df = permit_df[~permit_df[col].str.contains(ignore)]
     #   set landuse codes appropriately accounting for pedoriented dev
-    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR),
+    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(P_CONF.PERMITS_CAT_CODE_PEDOR),
                                      permit_df.CAT_CODE.str[:-2],
                                      permit_df.CAT_CODE)
     #   set project status
-    permit_df['STATUS'] = permit_df['STATUS'].map(prep_conf.PERMITS_STATUS_DICT, na_action='NONE')
+    permit_df['STATUS'] = permit_df['STATUS'].map(P_CONF.PERMITS_STATUS_DICT, na_action='NONE')
     #   add landuse codes
     lu_df = pd.read_csv(rif_lu_tbl)
     dor_df = pd.read_csv(dor_lu_tbl)
     lu_df = lu_df.merge(right=dor_df, how="inner", on="DOR_UC")
     permit_df = permit_df.merge(right=lu_df, how="inner", on='CAT_CODE')
     #   drop unnecessary columns
-    permit_df.drop(columns=prep_conf.PERMITS_DROPS, inplace=True)
+    permit_df.drop(columns=P_CONF.PERMITS_DROPS, inplace=True)
 
     # convert to points
     sdf = add_xy_from_poly(poly_fc=parcel_fc, poly_key=poly_key, table_df=permit_df, table_key=permit_key)
@@ -2021,13 +2021,13 @@ def estimate_maz_from_parcels(par_fc, par_id_field, maz_fc, maz_id_field, taz_id
     # intersect
     int_fc = PMT.intersectFeatures(summary_fc=maz_fc, disag_fc=par_fc)
     # Join
-    b_help.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
+    B_HELP.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
                           join_fields="*", drop_dup_cols=True)
     # PMT.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
     #                    join_fields="*")
     # Summarize
     gb_cols = [PMT.Column(maz_id_field), PMT.Column(taz_id_field)]
-    df = b_help.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols,
+    df = B_HELP.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols,
                                     consolidations=consolidations)
     # df = PMT.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols, consolidations=consolidations)
     return df
@@ -4200,13 +4200,13 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
     permit_update["NV"] = permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
     permit_update[parcels_total_value_field] = np.maximum(permit_update["NV"],
                                                           permit_update[parcels_total_value_field])
-    permit_update = permit_update.set_index(prep_conf.PARCEL_COMMON_KEY)
+    permit_update = permit_update.set_index(P_CONF.PARCEL_COMMON_KEY)
 
     # make the replacements.
     print("--- --- replacing parcel data with updated information")
-    parcel_update = parcels_df.set_index(prep_conf.PARCEL_COMMON_KEY)
-    # parcel_update.merge(right=permit_update, on=prep_conf.PARCEL_COMMON_KEY)
+    parcel_update = parcels_df.set_index(P_CONF.PARCEL_COMMON_KEY)
     parcel_update.update(permit_update)
+    parcel_update.reset_index(inplace=True)
     # return parcel_update.reset_index(inplace=True)
     print("--- --- joining results to save feature class (be patient, this will take a while)")
     PMT.extendTableDf(in_table=temp_parcels, table_match_field=process_id_field,
