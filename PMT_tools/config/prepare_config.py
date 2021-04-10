@@ -657,6 +657,7 @@ Configuration variables to be used in permits/short term parcels prep
 """
 # Use PARCEL_LU_COL for lu_match_field
 # Use PARCEL_BLD_AREA for parcels_living_area_field
+PERMITS_COMMON_KEY = "FOLIO"
 PERMITS_UNITS_FIELD = "UNITS"
 PERMITS_BLD_AREA_NAME = "sq. ft."
 # format -->
