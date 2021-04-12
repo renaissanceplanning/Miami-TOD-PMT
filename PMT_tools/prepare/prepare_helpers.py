@@ -11,6 +11,7 @@ import re
 import tempfile
 import uuid
 import zipfile
+from collections.abc import Iterable
 from datetime import time
 from functools import reduce
 from json.decoder import JSONDecodeError
@@ -26,11 +27,12 @@ from collections.abc import Iterable
 
 import PMT_tools.PMT as PMT
 # temporary
-import PMT_tools.build.build_helper as b_help
-import PMT_tools.config.prepare_config as prep_conf
+import PMT_tools.build.build_helper as B_HELP
+import PMT_tools.config.prepare_config as P_CONF
 import PMT_tools.logger as log
-from PMT_tools.PMT import arcpy, pd, np, os
+from PMT_tools.PMT import arcpy, pd, np
 from PMT_tools.utils import *
+from arcgis.features import GeoAccessor, GeoSeriesAccessor
 
 logger = log.Logger(add_logs_to_arc_messages=True)
 
@@ -237,9 +239,9 @@ def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
 #     pts_df['geometry'] = pts_df['geometry'].centroid
 #     return pts_df
 
-
+# TODO: move this to PMT
 def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
-    pts = polygon_to_points_arc(in_fc=poly_fc, id_field=poly_key)
+    pts = PMT.polygonsToPoints(in_fc=poly_fc, out_fc=PMT.make_inmem_path(), fields=poly_key, null_value=0.0)
     pts_sdf = pd.DataFrame.spatial.from_featureclass(pts)
 
     esri_ids = ["OBJECTID", "FID"]
@@ -247,21 +249,8 @@ def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
         pts_sdf.drop(labels=esri_ids, axis=1, inplace=True, errors='ignore')
     # join permits to parcel points MANY-TO-ONE
     print('--- merging geo data to tabular')
-    pts = table_df.merge(right=pts_sdf, how="inner", on=table_key)
-    return pts
-    # with tempfile.TemporaryDirectory() as temp_dir:
-    #     t_geoj = PMT.makePath(temp_dir, "temp.geojson")
-    #     arcpy.FeaturesToJSON_conversion(in_features=pts, out_json_file=t_geoj,
-    #                                     geoJSON="GEOJSON", outputToWGS84="WGS84")
-    #     with open(t_geoj, "r") as j_file:
-    #         pts_gdf = gpd.read_file(j_file)
-    # esri_ids = ["OBJECTID", "FID"]
-    # if esri_ids.issubset(pts_gdf.columns).any():
-    #     pts_gdf.drop(labels=esri_ids, axis=1, inplace=True, errors='ignore')
-    # # join permits to parcel points MANY-TO-ONE
-    # logger.log_msg('--- merging polygon data to tabular')
-    # pts = table_df.merge(right=pts_gdf, how="inner", on=table_key)
-    # return gpd.GeoDataFrame(pts, geometry="geometry")
+    # pts = table_df.merge(right=pts_sdf, how="inner", on=table_key)
+    return pd.merge(left=table_df, right=pts_sdf, how="inner", left_on=table_key, right_on=poly_key)
 
 
 def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
@@ -373,7 +362,7 @@ def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, col_rename
             ]
             renames = dict(cols)
             ddfs[-1] = ddfs[-1].rename(columns=renames)
-        
+
         # zip ddfs and suffixes
         specs = zip(ddfs, suffixes)
         df, _ = reduce(
@@ -418,16 +407,17 @@ def update_transit_times(od_table, out_table, competing_cols=[], out_col=None, r
     if not isinstance(competing_cols, Iterable) or isinstance(competing_cols, string_types):
         raise TypeError(f"Expected iterable of column names for competing_cols, got {type(competing_cols)}")
     # Iterate over chunks
-    mode="w"
-    header=True
+    mode = "w"
+    header = True
     for chunk in pd.read_csv(od_table, chunksize=chunksize, **kwargs):
         if replace_vals:
             chunk = chunk.replace(replace_vals)
         if competing_cols:
             chunk[out_col] = chunk[competing_cols].min(axis=1)
         chunk.to_csv(out_table, mode=mode, header=header)
-        mode="a"
-        header=False
+        mode = "a"
+        header = False
+
 
 # basic features functions
 def _listifyInput(input):
@@ -554,7 +544,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_id_field, stn_diss_fields, stn_co
         _cor_cols_ = [rename_dict.get(c, c) for c in stn_corridor_fields]
     else:
         _cor_cols_ = stn_corridor_fields
-    
+
     # Sum stn_df to eliminate redundant stations (get average shapexy and max corridor vals)
     agg_dict = dict([(cc, np.max) for cc in _cor_cols_])
     agg_dict["SHAPE@X"] = np.mean
@@ -585,7 +575,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corrido
         bf_gdb (str): Path to basic features gdb
         long_stn_fc (str): path to long station points feature class
         stn_areas_fc (str): path to station area polygons feature class
-        stn_id_fiedl (str): id field linking `stn_areas_fc` and `long_stn_fc`
+        stn_id_field (str): id field linking `stn_areas_fc` and `long_stn_fc`
         corridors_fc (str): path to corridors feature class
         cor_name_field (str): name field for corridor feature class
         out_fc (str): path to output feature class
@@ -599,7 +589,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corrido
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = bf_gdb
 
-    sr = arcpy.Describe(long_stn_fc).spatialReference
+    sr = arcpy.Describe(stn_areas).spatialReference
     mpu = float(sr.metersPerUnit)
     buff_dist = stn_buffer_meters / mpu
 
@@ -637,7 +627,21 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corrido
     stn_fields = ["SHAPE@", stn_id_field, stn_name_field, stn_status_field, stn_cor_field]
     cor_stn_polys = {}
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
-        with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
+        # with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
+        #     for sr in sc:
+        #         i += 1
+        #         # Add row for each station/corridor combo
+        #         point, stn_name, stn_status, corridor = sr
+        #         poly = point.buffer(buff_dist)
+        #         out_row = [poly, stn_name, stn_status, corridor, i]
+        #         ic.insertRow(out_row)
+        #         # Merge station polygons by corridor in a dict for later use
+        #         cor_poly = cor_stn_polys.get(corridor, None)
+        #         if cor_poly is None:
+        #             cor_stn_polys[corridor] = poly
+        #         else:
+        #             cor_stn_polys[corridor] = cor_poly.union(poly)
+        with arcpy.da.SearchCursor(stn_areas, stn_fields) as sc:
             for sr in sc:
                 i += 1
                 # Add row for each station/corridor combo
@@ -846,8 +850,8 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, d
     """
     # TODO: add validation
     # read permit data to dataframe
-    permit_df = csv_to_df(csv_file=permit_csv, use_cols=prep_conf.PERMITS_USE,
-                          rename_dict=prep_conf.PERMITS_FIELDS_DICT)
+    permit_df = csv_to_df(csv_file=permit_csv, use_cols=P_CONF.PERMITS_USE,
+                          rename_dict=P_CONF.PERMITS_FIELDS_DICT)
 
     # clean up and concatenate data where appropriate
     #   fix parcelno to string of 13 len
@@ -855,7 +859,7 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, d
     permit_df[poly_key] = permit_df[permit_key].apply(lambda x: x.zfill(13))
     permit_df['COST'] = permit_df['CONST_COST'] + permit_df['ADMIN_COST']
     #   id project as pedestrain oriented
-    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR), 1, 0)
+    permit_df["PED_ORIENTED"] = np.where(permit_df.CAT_CODE.str.contains(P_CONF.PERMITS_CAT_CODE_PEDOR), 1, 0)
     # drop fake data - Keith Richardson of RER informed us that any PROC_NUM/ADDRESS that contains with 'SMPL' or
     #   'SAMPLE' should be ignored as as SAMPLE entry
     ignore_text = ['SMPL', "SAMPLE", ]
@@ -863,18 +867,18 @@ def clean_permit_data(permit_csv, parcel_fc, permit_key, poly_key, rif_lu_tbl, d
         for col in ['PROC_NUM', 'ADDRESS']:
             permit_df = permit_df[~permit_df[col].str.contains(ignore)]
     #   set landuse codes appropriately accounting for pedoriented dev
-    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(prep_conf.PERMITS_CAT_CODE_PEDOR),
+    permit_df['CAT_CODE'] = np.where(permit_df.CAT_CODE.str.contains(P_CONF.PERMITS_CAT_CODE_PEDOR),
                                      permit_df.CAT_CODE.str[:-2],
                                      permit_df.CAT_CODE)
     #   set project status
-    permit_df['STATUS'] = permit_df['STATUS'].map(prep_conf.PERMITS_STATUS_DICT, na_action='NONE')
+    permit_df['STATUS'] = permit_df['STATUS'].map(P_CONF.PERMITS_STATUS_DICT, na_action='NONE')
     #   add landuse codes
     lu_df = pd.read_csv(rif_lu_tbl)
     dor_df = pd.read_csv(dor_lu_tbl)
     lu_df = lu_df.merge(right=dor_df, how="inner", on="DOR_UC")
     permit_df = permit_df.merge(right=lu_df, how="inner", on='CAT_CODE')
     #   drop unnecessary columns
-    permit_df.drop(columns=prep_conf.PERMITS_DROPS, inplace=True)
+    permit_df.drop(columns=P_CONF.PERMITS_DROPS, inplace=True)
 
     # convert to points
     sdf = add_xy_from_poly(poly_fc=parcel_fc, poly_key=poly_key, table_df=permit_df, table_key=permit_key)
@@ -1398,13 +1402,14 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
     return out_raster
 
 
-def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field):
+def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field, living_area_field):
     """Summarize percent impervious surface cover in each of a collection of zones
     Args:
         raster_points (str): Path; path to clipped/transformed imperviousness raster as points (see the
             `prep_imperviousness` function)
         zone_fc (str): Path; path to polygon geometries to which imperviousness will be summarized
         zone_id_field (str): id field in the zone geometries
+        living_area_field (str): field that identifies building square footage of parcels
     Returns:
         df (pandas dataframe); table of impervious percent within the zone geometries
     """
@@ -1414,7 +1419,7 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
 
     # Load the intersection data
     logger.log_msg("--- loading raster/zone data and replacing null impervious values with 0")
-    load_fields = [zone_id_field, "grid_code"]
+    load_fields = [zone_id_field, "grid_code", living_area_field]
     df = PMT.featureclass_to_df(in_fc=intersect, keep_fields=load_fields, null_val=0)
     # Values with 127 are nulls -- replace with 0
     df["grid_code"] = df["grid_code"].replace(127, 0)
@@ -1430,7 +1435,8 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
          ("DevOSArea", lambda x: x[x.between(1, 19)].count() * rast_cell_area),
          ("DevLowArea", lambda x: x[x.between(20, 49)].count() * rast_cell_area),
          ("DevMedArea", lambda x: x[x.between(50, 79)].count() * rast_cell_area),
-         ("DevHighArea", lambda x: x[x >= 80].count() * rast_cell_area)])
+         ("DevHighArea", lambda x: x[x >= 80].count() * rast_cell_area),
+         (living_area_field, np.sum)])
     return zonal.reset_index()
 
 
@@ -2159,13 +2165,13 @@ def estimate_maz_from_parcels(par_fc, par_id_field, maz_fc, maz_id_field, taz_id
     # intersect
     int_fc = PMT.intersectFeatures(summary_fc=maz_fc, disag_fc=par_fc)
     # Join
-    b_help.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
+    B_HELP.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
                           join_fields="*", drop_dup_cols=True)
     # PMT.joinAttributes(to_table=int_fc, to_id_field=par_id_field, from_table=se_data, from_id_field=se_id_field,
     #                    join_fields="*")
     # Summarize
     gb_cols = [PMT.Column(maz_id_field), PMT.Column(taz_id_field)]
-    df = b_help.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols,
+    df = B_HELP.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols,
                                     consolidations=consolidations)
     # df = PMT.summarizeAttributes(in_fc=int_fc, group_fields=gb_cols, agg_cols=agg_cols, consolidations=consolidations)
     return df
@@ -2737,7 +2743,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
                in_nd, imped_attr, cutoff, net_loader, out_table,
                restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
                o_location_fields=None, d_location_fields=None,
-               o_chunk_size=None,):
+               o_chunk_size=None, ):
     """Creates and solves an OD Matrix problem for a collection of origin and
         destination points using a specified network dataset. Results are
         exported as a csv file.
@@ -2879,7 +2885,7 @@ def taz_travel_stats(od_table, o_field, d_field,
     d_df = pd.concat(d_sums)
     o_df = o_df.groupby(o_field).sum()
     d_df = d_df.groupby(d_field).sum()
-    
+
     # Calculate rates
     dfs = [o_df, d_df]
     weight_field = "__activity__"
@@ -4288,7 +4294,7 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
             new_living_area.append(0)
 
     print("--- --- appending new living area values to permits_df data")
-    permits_df["UpdTLA"] = new_living_area
+    permits_df["UPDT_LVG_AREA"] = new_living_area
     permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
 
     # update the parcels with the info from the permits_df
@@ -4303,12 +4309,12 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
         if len(df.index) > 1:
             pid = pd.Series(i, index=[permits_id_field])
             # Living area by land use
-            total_living_area = df.groupby(permits_lu_field)["UpdTLA"].agg("sum").reset_index()
+            total_living_area = df.groupby(permits_lu_field)["UPDT_LVG_AREA"].agg("sum").reset_index()
             # Series for land use [with most living area]
-            land_use = pd.Series(total_living_area[permits_lu_field][np.argmax(total_living_area["UpdTLA"])],
+            land_use = pd.Series(total_living_area[permits_lu_field][np.argmax(total_living_area["UPDT_LVG_AREA"])],
                                  index=[permits_lu_field])
             # Series for living area (total across all land uses)
-            ba = pd.Series(sum(total_living_area["UpdTLA"]), index=[parcels_living_area_field])
+            ba = pd.Series(sum(total_living_area["UPDT_LVG_AREA"]), index=[parcels_living_area_field])
             # Series for other fields (from units-field match)
             others = df.groupby("Parcel_Field")[permits_values_field].agg("sum")
             # Series for cost
@@ -4317,11 +4323,11 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
             df = pd.DataFrame(pd.concat([pid, land_use, ba, others, cost], axis=0)).T
         else:
             # Rename columns to match parcels
-            df.rename(columns={"UpdTLA": parcels_living_area_field,
+            df.rename(columns={# "UPDT_LVG_AREA": parcels_living_area_field,
                                permits_values_field: df.Parcel_Field.values[0]},
                       inplace=True)
             # Drop unnecessary columns (including nulls from units-field match)
-            df.drop(columns=[permits_units_field, "Parcel_Field"], inplace=True)
+            df.drop(columns=[permits_units_field, "Parcel_Field",], inplace=True)
             df = df.loc[:, df.columns.notnull()]
         # Append the results to our storage list
         permit_update.append(df)
@@ -4331,6 +4337,8 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
     permit_update[parcels_buildings_field] = 1
     permit_update.loc[permit_update[parcels_living_area_field] == 0, parcels_buildings_field] = 0
     permit_update["PERMIT"] = 1
+    # combine the net living area from permits with current living area
+    permit_update[parcels_living_area_field] += permit_update['UPDT_LVG_AREA']
     permit_update.rename(columns={permits_id_field: parcels_id_field,
                                   permits_lu_field: parcels_lu_field},
                          inplace=True)
@@ -4342,13 +4350,14 @@ def build_short_term_parcels(parcel_fc, parcels_id_field, parcels_lu_field,
     permit_update["NV"] = permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
     permit_update[parcels_total_value_field] = np.maximum(permit_update["NV"],
                                                           permit_update[parcels_total_value_field])
-    permit_update = permit_update.set_index("FOLIO")
+    permit_update = permit_update.set_index(P_CONF.PARCEL_COMMON_KEY)
 
     # make the replacements.
     print("--- --- replacing parcel data with updated information")
-    parcel_update = parcels_df.set_index("FOLIO")
+    parcel_update = parcels_df.set_index(P_CONF.PARCEL_COMMON_KEY)
     parcel_update.update(permit_update)
     parcel_update.reset_index(inplace=True)
+    # return parcel_update.reset_index(inplace=True)
     print("--- --- joining results to save feature class (be patient, this will take a while)")
     PMT.extendTableDf(in_table=temp_parcels, table_match_field=process_id_field,
                       df=parcel_update, df_match_field="ProcessID")

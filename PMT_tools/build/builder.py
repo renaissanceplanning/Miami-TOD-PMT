@@ -35,6 +35,7 @@ TODO: Review function list above and move to build helper where appropriate, pop
 """
 import os
 import sys
+from typing import Iterable
 
 sys.path.insert(0, os.getcwd())
 from PMT_tools.build import build_helper as B_HELP
@@ -45,25 +46,6 @@ from PMT_tools.PMT import CLEANED, BUILD
 from six import string_types
 import itertools
 import arcpy
-
-DEBUG = True
-if DEBUG:
-    '''
-    if DEBUG is True, you can change the path of the root directory and test any
-    changes to the code you might need to handle without munging the existing data
-    '''
-    ROOT = r'C:\\'
-    RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "RAW"))
-    CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST', "CLEANED"))
-    BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST", "BUILD"))
-    #BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
-    DATA = ROOT
-    BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
-    REF = PMT.makePath(ROOT, "Reference")
-    RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
-    DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
-    YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
-    YEARS = ["NearTerm"]
 
 
 # SNAPSHOT Functions
@@ -132,8 +114,8 @@ def build_intersections(gdb, enrich_specs):
         full_geometries = intersect["disag_full_geometries"]
         # Run intersect
         print(f"--- Intersecting {summ_name} with {disag_name}")
-        int_fc = PMT.intersectFeatures(
-            summary_fc=summ_in, disag_fc=disag_in, in_temp_dir=True, full_geometries=full_geometries)
+        int_fc = PMT.intersectFeatures(summary_fc=summ_in, disag_fc=disag_in,
+                                       in_temp_dir=True, full_geometries=full_geometries)
         # Record with specs
         sum_dict = int_out.get(summ, {})
         sum_dict[disag] = int_fc
@@ -184,7 +166,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
                               append_only=False)  # TODO: handle append/overwrite more explicitly
 
 
-def apply_field_calcs(gdb, new_field_specs):
+def apply_field_calcs(gdb, new_field_specs, recalculate=False):
     # Iterate over new fields
     for nf_spec in new_field_specs:
         # Get params
@@ -195,16 +177,18 @@ def apply_field_calcs(gdb, new_field_specs):
         code_block = nf_spec["code_block"]
         try:
             # Get params
-            params = nf_spec["params"]
-            # TODO: validate? params must be iterables
-            all_combos = list(itertools.product(*params))
-            for combo in all_combos:
-                combo_spec = nf_spec.copy()
-                del combo_spec["params"]
-                combo_spec["new_field"] = combo_spec["new_field"].format(*combo)
-                combo_spec["expr"] = combo_spec["expr"].format(*combo)
-                combo_spec["code_block"] = combo_spec["code_block"].format(*combo)
-                apply_field_calcs(gdb, [combo_spec])
+            if isinstance(nf_spec["params"], Iterable):
+                params = nf_spec["params"]
+                all_combos = list(itertools.product(*params))
+                for combo in all_combos:
+                    combo_spec = nf_spec.copy()
+                    del combo_spec["params"]
+                    combo_spec["new_field"] = combo_spec["new_field"].format(*combo)
+                    combo_spec["expr"] = combo_spec["expr"].format(*combo)
+                    combo_spec["code_block"] = combo_spec["code_block"].format(*combo)
+                    apply_field_calcs(gdb, [combo_spec])
+            else:
+                raise Exception("Spec Params must be an iterable if provided")
         except KeyError:
             add_args = {
                 "field_name": new_field,
@@ -229,6 +213,15 @@ def apply_field_calcs(gdb, new_field_specs):
                 if field_type == "TEXT":
                     length = nf_spec["length"]
                     add_args["field_length"] = length
+
+                # # check if new field already in dataset, if recalc True delete and recalculate
+                # if PMT.which_missing(table=in_table, field_list=[new_field]):
+                #     if recalculate:
+                #         print(f"--- --- recalculating {new_field}")
+                #         arcpy.DeleteField_management(in_table=in_table, drop_field=new_field)
+                #     else:
+                #         print(f"--- --- {new_field} already exists, skipping...")
+                #         continue
                 # add and calc field
                 arcpy.AddField_management(**add_args)
                 arcpy.CalculateField_management(**calc_args)
@@ -242,10 +235,6 @@ def sum_parcel_cols(gdb, par_spec, columns):
     return df.sum()
 
 
-# TODO: complete process_year_to_snapshot
-# TODO: define process_years_to_trend
-# TODO: define process_near_term
-# TODO: define process_long_term
 def process_year_to_snapshot(year):
     """process cleaned yearly data to a Snapshot database
     Returns:
@@ -263,7 +252,7 @@ def process_year_to_snapshot(year):
     B_HELP.add_year_columns(in_gdb, calc_year)
     print("Making Snapshot Template...")
     out_gdb = B_HELP.make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
-    # out_gdb = PMT.makePath(BUILD, '_569e0b79883445b0b03b196146228995.gdb')
+    # out_gdb = PMT.makePath(BUILD, '_ca463d836d144ae4abb884109c2bd261.gdb')
 
     # Join tables to the features
     print("Joining tables to feature classes...")
@@ -336,17 +325,16 @@ def process_year_to_snapshot(year):
 
     # Rename this output
     print("Finalizing the snapshot")
+    if year == PMT.SNAPSHOT_YEAR:
+        year = "Current"
     year_out_gdb = PMT.makePath(BUILD, f"Snapshot_{year}.gdb")
-    # year_out_gdb = PMT.makePath(r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD",
-    #                             f"Snapshot_{year}.gdb")  # *************
-    # TODO: rename most recent Snapshot to Snapshot_Current.gdb or something like this
-    B_HELP.finalize_output(out_gdb, year_out_gdb)
+    B_HELP.finalize_output_new(intermediate_gdb=out_gdb, final_gdb=year_out_gdb)
 
 
 def process_years_to_trend(years, tables, long_features, diff_features,
                            base_year=None, snapshot_year=None):
     """
-
+    TODO: add a try/except to delete any intermediate data created
     """
     # Validation
     if base_year is None:
@@ -368,45 +356,54 @@ def process_years_to_trend(years, tables, long_features, diff_features,
 
     # Get snapshot data
     for yi, year in enumerate(years):
-        in_gdb = PMT.validate_geodatabase(
-            PMT.makePath(BUILD, f"Snapshot_{year}.gdb"), overwrite=False)
+        in_gdb = PMT.validate_geodatabase(gdb_path=PMT.makePath(BUILD, f"Snapshot_{year}.gdb"),
+                                          overwrite=False)
         # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
-        year_tables = B_HELP._list_table_paths(in_gdb, criteria=table_criteria)
-        year_fcs = B_HELP._list_fc_paths(
-            in_gdb, fds_criteria="*", fc_criteria=long_criteria)
+        year_tables = B_HELP._list_table_paths(gdb=in_gdb,
+                                               criteria=table_criteria)
+        year_fcs = B_HELP._list_fc_paths(gdb=in_gdb,
+                                         fds_criteria="*",
+                                         fc_criteria=long_criteria)
         elongate = year_tables + year_fcs
         for elong_table in elongate:
             elong_out_name = os.path.split(elong_table)[1] + "_byYear"
             if yi == 0:
                 # Initialize the output table
                 print(f"Creating long table {elong_out_name}")
-                arcpy.TableToTable_conversion(
-                    in_rows=elong_table, out_path=out_gdb, out_name=elong_out_name)
+                arcpy.TableToTable_conversion(in_rows=elong_table,
+                                              out_path=out_gdb,
+                                              out_name=elong_out_name)
             else:
                 # Append to the output table
                 print(f"Appending to long table {elong_out_name} ({year})")
                 out_table = PMT.makePath(out_gdb, elong_out_name)
-                arcpy.Append_management(
-                    inputs=elong_table, target=out_table, schema_type="NO_TEST")
+                arcpy.Append_management(inputs=elong_table,
+                                        target=out_table,
+                                        schema_type="NO_TEST")
         # Get snapshot and base year params
         if year == base_year:
             base_tables = year_tables[:]
-            base_fcs = B_HELP._list_fc_paths(
-                in_gdb, fds_criteria="*", fc_criteria=diff_criteria)
+            base_fcs = B_HELP._list_fc_paths(gdb=in_gdb,
+                                             fds_criteria="*",
+                                             fc_criteria=diff_criteria)
         elif year == snapshot_year:
             snap_tables = year_tables[:]
-            snap_fcs = B_HELP._list_fc_paths(
-                in_gdb, fds_criteria="*", fc_criteria=diff_criteria)
+            snap_fcs = B_HELP._list_fc_paths(gdb=in_gdb,
+                                             fds_criteria="*",
+                                             fc_criteria=diff_criteria)
     # Make difference tables (snapshot - base)
     for base_table, snap_table, specs in zip(base_tables, snap_tables, tables):
         out_name = os.path.split(base_table)[1] + "_diff"
         out_table = PMT.makePath(out_gdb, out_name)
         idx_cols = specs["index_cols"]
-        diff_df = B_HELP.table_difference(
-            this_table=snap_table, base_table=base_table, idx_cols=idx_cols)
+        diff_df = B_HELP.table_difference(this_table=snap_table,
+                                          base_table=base_table,
+                                          idx_cols=idx_cols)
         print(f"Creating table {out_name}")
-        PMT.dfToTable(df=diff_df, out_table=out_table, overwrite=True)
+        PMT.dfToTable(df=diff_df,
+                      out_table=out_table,
+                      overwrite=True)
 
     # Make difference fcs (snapshot - base)
     for base_fc, snap_fc, spec in zip(base_fcs, snap_fcs, diff_features):
@@ -429,23 +426,29 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             field_mappings.addFieldMap(fm)
         # Copy geoms
         print(f"Creating feature class {out_name}")
-        arcpy.FeatureClassToFeatureClass_conversion(
-            in_features=base_fc, out_path=out_fds, out_name=out_name, field_mapping=field_mappings)
+        arcpy.FeatureClassToFeatureClass_conversion(in_features=base_fc,
+                                                    out_path=out_fds,
+                                                    out_name=out_name,
+                                                    field_mapping=field_mappings)
         # Get table difference
-        diff_df = B_HELP.table_difference(
-            this_table=snap_fc, base_table=base_fc, idx_cols=idx_cols)
+        diff_df = B_HELP.table_difference(this_table=snap_fc,
+                                          base_table=base_fc,
+                                          idx_cols=idx_cols)
         # Extend attribute table
         drop_cols = [c for c in diff_df.columns if c in idx_cols and c != fc_id]
         diff_df.drop(columns=drop_cols, inplace=True)
         print("... adding difference columns")
-        PMT.extendTableDf(
-            in_table=out_table, table_match_field=fc_id, df=diff_df, df_match_field=fc_id)
+        PMT.extendTableDf(in_table=out_table,
+                          table_match_field=fc_id,
+                          df=diff_df,
+                          df_match_field=fc_id)
 
     # TODO: calculate percent change in value over base for summary areas
 
     print("Finalizing the trend")
     final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
-    B_HELP.finalize_output(out_gdb, final_gdb)
+    B_HELP.finalize_output_new(intermediate_gdb=out_gdb,
+                               final_gdb=final_gdb)
 
 
 def process_near_term():
@@ -458,13 +461,35 @@ def process_long_term():
 
 # MAIN
 if __name__ == "__main__":
-    # # Snapshot
-    for year in PMT.YEARS:
-        print(year)
-        process_year_to_snapshot(year)
-    process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
-                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
-    # Process near tearm "trend"
-    process_years_to_trend(years=[PMT.SNAPSHOT_YEAR, "NEAR_TERM"], tables=B_CONF.DIFF_TABLES,
-                           long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
-    # TODO: For trend, patch in permits
+    DEBUG = True
+    if DEBUG:
+        '''
+        if DEBUG is True, you can change the path of the root directory and test any
+        changes to the code you might need to handle without munging the existing data
+        '''
+        ROOT = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data'
+        RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
+        CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
+        BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "PROCESSING_TEST_local", "BUILD"))
+        # BUILD = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD"
+        DATA = ROOT
+        BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
+        REF = PMT.makePath(ROOT, "Reference")
+        RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
+        DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
+        YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
+        YEARS = ["NearTerm"]
+
+    # # Snapshot data
+    # for year in YEARS:
+    #     print(year)
+    #     process_year_to_snapshot(year)
+    # process_years_to_trend(years=PMT.YEARS, tables=B_CONF.DIFF_TABLES,
+    #                        long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES)
+    # Process near term "trend"
+    # process_years_to_trend(years=["Current", "NearTerm"], tables=B_CONF.DIFF_TABLES,
+    #                        long_features=B_CONF.LONG_FEATURES, diff_features=B_CONF.DIFF_FEATURES,
+    #                        base_year="Current", snapshot_year="NearTerm")
+    B_HELP.post_process_databases(basic_features_gdb=BASIC_FEATURES, build_dir=BUILD)
+    # # TODO: For trend, patch in permits
+# TODO: ActivityByTime_{Mode}_byYear tables are missing year....determine why....all other byYear tables have year

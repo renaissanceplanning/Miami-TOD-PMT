@@ -8,7 +8,7 @@ Created: October 2020
 
 # %% IMPORTS
 import arcpy
-import PMT
+from PMT_tools.PMT import *
 
 
 # %% GLOBALS

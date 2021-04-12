@@ -1,12 +1,14 @@
-
+import os
 import uuid
+from collections.abc import Iterable
+
+import arcpy
 import numpy as np
 import pandas as pd
 from six import string_types
-from collections.abc import Iterable
+
 import PMT_tools.PMT as PMT
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
-import arcpy
 
 
 def _list_table_paths(gdb, criteria="*"):
@@ -43,7 +45,7 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     return paths
 
 
-def unique_values(table , field):
+def unique_values(table, field):
     with arcpy.da.SearchCursor(table, [field]) as cursor:
         return sorted({row[0] for row in cursor})
 
@@ -216,8 +218,12 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         agg_methods[melt_col.val_col] = melt_col.agg_method
 
     # Dump the intersect table to df
-    int_df = PMT.table_to_df(in_tbl=in_fc, keep_fields=dump_fields, null_val=null_dict)
-
+    dump_fields = list(set(dump_fields))  # remove duplicated fields used in multiple consolidations/melts
+    missing = PMT.which_missing(table=in_fc, field_list=dump_fields)
+    if not missing:
+        int_df = PMT.table_to_df(in_tbl=in_fc, keep_fields=dump_fields, null_val=null_dict)
+    else:
+        raise Exception(f"\t\tthese cols were missing from the intersected FC: {missing}")
     # Consolidate columns
     for c in consolidations:
         if hasattr(c, "input_cols"):
@@ -337,7 +343,7 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
 
 
 def finalize_output(temp_gdb, final_gdb):
-    final_rename = append_tag(final_gdb, 'temp')
+    final_rename = tag_filename(final_gdb, 'temp')
     try:
         if arcpy.Exists(final_gdb):
             arcpy.Rename_management(final_gdb, out_data=final_rename)
@@ -350,22 +356,73 @@ def finalize_output(temp_gdb, final_gdb):
         arcpy.Delete_management(temp_gdb)
 
 
+def finalize_output_new(intermediate_gdb, final_gdb):
+    """Takes an intermediate GDB path and the final GDB path for that data and
+        replaces the existing GDB if it exists, otherwise it makes a copy
+        of the intermediate GDB and deletes the original
+    Args:
+        intermediate_gdb (str): path to file geodatabase
+        final_gdb (str): poth to file geodatabase, cannot be the same as intermediate
+    Returns:
+        None
+    """
+    output_folder, _ = os.path.split(intermediate_gdb)
+    temp_folder = PMT.validate_directory(PMT.makePath(output_folder, "TEMP"))
+    _, copy_old_gdb = os.path.split(final_gdb)
+    temp_gdb = PMT.makePath(temp_folder, copy_old_gdb)
+    try:
+        # make copy of existing data if it exists
+        if arcpy.Exists(final_gdb):
+            arcpy.Copy_management(in_data=final_gdb, out_data=temp_gdb)
+            arcpy.Delete_management(in_data=final_gdb)
+        arcpy.Copy_management(in_data=intermediate_gdb, out_data=final_gdb)
+    except:
+        # replace old data with copy made in previous step
+        print('An error occured, rolling back changes')
+        arcpy.Copy_management(in_data=temp_gdb, out_data=final_gdb)
+    finally:
+        arcpy.Delete_management(intermediate_gdb)
+
+
+def list_fcs_in_gdb():
+    ''' set your arcpy.env.workspace to a gdb before calling '''
+    for fds in arcpy.ListDatasets('', 'feature') + ['']:
+        for fc in arcpy.ListFeatureClasses('', '', fds):
+            yield os.path.join(arcpy.env.workspace, fds, fc)
+
+
 def post_process_databases(basic_features_gdb, build_dir):
+    print("Postprocessing build directory...")
     # copy BasicFeatures into Build
     path, basename = os.path.split(basic_features_gdb)
     out_basic_features = PMT.makePath(build_dir, basename)
-    arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
+    if not arcpy.Exists(out_basic_features):
+        arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
     # reset SummID to RowID
     arcpy.env.workspace = build_dir
+    # delete TEMP folcer
+    temp = PMT.makePath(build_dir, "TEMP")
+    if arcpy.Exists(temp):
+        print("--- deleting TEMP folder from previous build steps")
+        arcpy.Delete_management(temp)
     for gdb in arcpy.ListWorkspaces(workspace_type="FileGDB"):
+        print(f"Cleaning up {gdb}")
         arcpy.env.workspace = gdb
-        summ_areas = list(filter(lambda fc: "SummaryAreas" in fc, arcpy.ListFeatureClasses(feature_dataset="Polygon")))
-        arcpy.AlterField_management(in_table=PMT.makePath(gdb, summ_areas), field="SummID",
-                                    new_field_name="RowID", new_field_alias="RowID")
+        summ_areas = [fc for fc in list_fcs_in_gdb() if "SummaryAreas" in fc]
+        for sa_path in summ_areas:
+            if "SummID" in [f.name for f in arcpy.ListFields(sa_path)]:
+                print(f"--- Converting SummID to RowID for {sa_path}")
+                arcpy.AlterField_management(in_table=sa_path, field="SummID",
+                                            new_field_name="RowID", new_field_alias="RowID")
+        for tbl in arcpy.ListTables():
+            tbl = os.path.join(gdb, tbl)
+            if "SummID" in [f.name for f in arcpy.ListFields(tbl)]:
+                print(f"--- Converting SummID to RowID for {tbl}")
+                arcpy.AlterField_management(in_table=tbl, field="SummID",
+                                            new_field_name="RowID", new_field_alias="RowID")
     # TODO: incorporate a more broad AlterField protocol for Popup configuration
 
 
-import os
-def append_tag(filename, tag):
+def tag_filename(filename, tag):
     name, ext = os.path.splitext(filename)
     return "{name}_{tag}_{ext}".format(name=name, tag=tag, ext=ext)
