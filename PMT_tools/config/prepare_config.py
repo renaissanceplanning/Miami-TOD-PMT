@@ -558,7 +558,7 @@ NET_BY_YEAR = {
     "NearTerm": ["_q3_2020", MODEL_YEARS[0]],
     # "LongTerm": ["_q3_2020", MODEL_YEARS[1]]
 }
-NETS_DIR = makePath(CLEANED, "osm_networks")
+#NETS_DIR = makePath(CLEANED, "osm_networks")
 SEARCH_CRITERIA = "edges SHAPE;osm_ND_Junctions NONE"
 SEARCH_QUERY = "edges #;osm_ND_Junctions #"
 NET_LOADER = NetLoader("1500 meters",

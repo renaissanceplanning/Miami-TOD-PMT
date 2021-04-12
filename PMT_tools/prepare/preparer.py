@@ -1159,7 +1159,6 @@ def process_walk_to_transit_skim():
             solved.append(model_year)
 
 def process_serpm_transit():
-    # TODO: FILTER ORIGINS TO THOSE WITH IN_MDC = 1
     # Make a graph from TAP to TAP skim
     serpm_raw = makePath(RAW, "SERPM")
     serpm_clean = makePath(CLEANED, "SERPM")
@@ -1171,8 +1170,11 @@ def process_serpm_transit():
         taz_to_tap = makePath(serpm_clean, f"TAZ_to_TAP{net_suffix}.csv")
         tazs = makePath(serpm_raw, "SERPM_TAZ_Centroids.shp")
         # Get TAZ nodes
-        with arcpy.da.SearchCursor(tazs, prep_conf.TAZ_COMMON_KEY) as c:
+        mdc_wc = arcpy.AddFieldDelimiters(tazs, "IN_MDC") + "=1"
+        with arcpy.da.SearchCursor(tazs, prep_conf.TAZ_COMMON_KEY, where_clause=mdc_wc) as c:
             taz_nodes = sorted({r[0] for r in c})
+        with arcpy.da.SearchCursor(tazs, prep_conf.TAZ_COMMON_KEY) as c:
+            all_tazs = sorted({r[0] for r in c})
         # Analyze zone to zone times
         if model_year not in solved:
             print(f"Estimating TAZ to TAZ times for model year {model_year}")
@@ -1184,34 +1186,52 @@ def process_serpm_transit():
                 tap_to_tap_clean = makePath(serpm_clean, f"TAP_to_TAP_{skim_version}_{model_year}_clean.csv")
                 tap_renames = {"orig": "OName", "dest": "DName", "flow": "Minutes"} # TODO move to prep_conf?
                 P_HELP.clean_skim_csv(in_file=tap_to_tap, out_file=tap_to_tap_clean, imp_field="Minutes",
-                                    drop_val=0, node_fields=["OName", "DName"], renames=tap_renames)
+                                    drop_val=0, node_fields=["OName", "DName"], node_offset=5000, renames=tap_renames)
+                # TODO: tack taz_to_tap onto the end of tap_to_tap to eliminate the need to run Compose?
+                # # Combine skims to build zone-to-zone times
+                # taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
+                # P_HELP.transit_skim_joins(taz_to_tap, tap_to_tap_clean, out_skim=taz_to_taz,
+                #                           o_col="OName", d_col="DName", imp_col="Minutes",
+                #                           origin_zones=taz_nodes, total_cutoff=cutoff)
                 # Make tap to tap network
                 print(" - - building TAP to TAP graph")
-                G = P_HELP.skim_to_graph(tap_to_tap_clean, source="OName", target="DName", attrs="Minutes",
-                                        create_using=nx.DiGraph)
-                # Make tap to taz network (as base graph, converted to digraph)
-                print(" - - building TAZ to TAP graph")
-                H = P_HELP.skim_to_graph(taz_to_tap, source="OName", target="DName", attrs="Minutes",
-                                        create_using=nx.Graph, renames={}).to_directed()
-                # Combine networks and solve taz to taz
-                print(" - - combining graphs")
-                FULL = nx.compose(G, H)
-                print(" - - solving TAZ to TAZ")
-                taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
-                with open(taz_to_taz, "w") as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerow([prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD])
-                    for i in taz_nodes:
-                        if G.has_node(i):
-                            i_dict = nx.single_source_dijkstra_path_length(
-                                G=FULL, source=i, cutoff=cutoff, weight="Minutes")
-                            out_rows = []
-                            for j, time in i_dict.items():
-                                if j in taz_nodes:
-                                    out_row = (i, j, time)
-                                    out_rows.append(out_row)
-                            writer.writerows(out_rows)
-            solved.append(model_year)
+                full_skim(tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs)
+                solved.append(model_year)
+
+def full_skim(tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs):
+    serpm_clean = makePath(CLEANED, "SERPM")
+    G = P_HELP.skim_to_graph(tap_to_tap_clean, source="OName", target="DName", attrs="Minutes",
+                            create_using=nx.DiGraph)
+    # Make tap to taz network (as base graph, converted to digraph)
+    print(" - - building TAZ to TAP graph")
+    H = P_HELP.skim_to_graph(taz_to_tap, source="OName", target="DName", attrs="Minutes",
+                            create_using=nx.Graph, renames={}).to_directed()
+    # Combine networks and solve taz to taz
+    print(" - - combining graphs")
+    FULL = nx.compose(G, H)
+    print(f" - - solving TAZ to TAZ for {len(taz_nodes)} origins (of {len(all_tazs)} taz's)")
+    taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
+    
+    with open(taz_to_taz, "w") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD])
+        for i in taz_nodes:
+            if taz_nodes.index(i)/len(taz_nodes) > 0.25:
+                print " - - - 25 percent"
+            elif taz_nodes.index(i)/len(taz_nodes) > 0.5:
+                print " - - - 50 percent"
+            elif taz_nodes.index(i)/len(taz_nodes) > 0.75:
+                print " - - - 75 percent"
+            if FULL.has_node(i):
+                i_dict = nx.single_source_dijkstra_path_length(
+                    G=FULL, source=i, cutoff=cutoff, weight="Minutes")
+                out_rows = []
+                for j, time in i_dict.items():
+                    if j in all_tazs:
+                        out_row = (i, j, time)
+                        out_rows.append(out_row)
+                writer.writerows(out_rows)
+
 
 if __name__ == "__main__":
     # SETUP CLEAN DATA
@@ -1316,7 +1336,7 @@ if __name__ == "__main__":
     # PREPARE SERPM TRANSIT SKIMS
     # - Walk access to transit
     # process_walk_to_transit_skim() # TESTED by AB 4/10/21
-    process_serpm_transit() # AB to test
+    # process_serpm_transit() # TESTED by AB 4/11/21
 
     # prepare serpm taz-level travel skims
     process_model_skims()  # TESTED by AB 3/30/21 (transit skim pending)
