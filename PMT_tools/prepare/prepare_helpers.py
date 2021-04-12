@@ -290,6 +290,30 @@ def _merge_df_(x_specs, y_specs, on=None, how="inner", **kwargs):
     return (merge_df, suffix_y)
 
 
+# ### TRIP TABLE COMPLETION
+# am = r"K:\Projects\MiamiDade\PMT\Data\RAW\SERPM\AM_VEH_TRIPS_2015.csv"
+# dly = r"K:\Projects\MiamiDade\PMT\Data\RAW\SERPM\DLY_VEH_TRIPS_2015_NO_AM.csv"
+# out_table = r"K:\Projects\MiamiDade\PMT\Data\RAW\SERPM\DLY_TRIPS_WITH_AM_combo.csv"
+# out_table2 = r"K:\Projects\MiamiDade\PMT\Data\RAW\SERPM\DLY_VEH_TRIPS_2015.csv"
+# col_renames = {'origin': 'F_TAZ', 'destination': 'T_TAZ', 'flow': 'DLY_TRIPS'}
+# dtypes = {"F_TAZ": np.int64, "T_TAZ": np.int64}
+# merge_fields = ["F_TAZ", "T_TAZ"]
+# suffixes = ["_am", "_dly"]
+# # Combine trip tables
+# combine_csv_dask(merge_fields, out_table, dly, am, how="outer", suffixes=suffixes, col_renames=col_renames, dtype=dtypes, thousands=",")
+# am_tot = 0;dly_tot = 0;tot_tot = 0;header = True;mode = "w"
+# # Sum AM and daily totals
+# for chunk in pd.read_csv(out_table, chunksize=500000):
+#     chunk.fillna(0, inplace=True)
+#     chunk["TOT_TRIPS"] = chunk["TOTAL"] + chunk["DLY_TRIPS"]
+#     chunk[["F_TAZ", "T_TAZ", "TOT_TRIPS"]].to_csv(out_table2, mode=mode, header=header)
+#     header=False
+#     mode="a"
+#     am_tot += chunk.TOTAL.sum()
+#     dly_tot += chunk.DLY_TRIPS.sum()
+#     tot_tot += chunk.TOT_TRIPS.sum()
+
+
 def combine_csv_dask(merge_fields, out_table, *tables, suffixes=None, col_renames={}, how="inner",
                      **kwargs):
     """
@@ -2843,6 +2867,7 @@ def taz_travel_stats(od_table, o_field, d_field,
     weight_fields = ["HH", "JOB"]
     suffixes = ("_FROM", "_TO")
     for chunk in pd.read_csv(od_table, chunksize=chunksize, **kwargs):
+        chunk.replace(np.inf, 0, inplace=True)
         chunk["VMT"] = chunk[veh_trips_field] * chunk[dist_field]
         chunk["VHT"] = chunk[veh_trips_field] * chunk[auto_time_field]
         for df_list, key_field in zip([o_sums, d_sums], key_fields):
@@ -2857,7 +2882,10 @@ def taz_travel_stats(od_table, o_field, d_field,
     
     # Calculate rates
     dfs = [o_df, d_df]
-    for df, key_field, weight_field in zip(dfs, key_fields, weight_fields):
+    weight_field = "__activity__"
+    taz_df[weight_field] = taz_df[hh_field] + taz_df[jobs_field]
+    #for df, key_field, weight_field in zip(dfs, key_fields, weight_fields):
+    for df, key_field in zip(dfs, key_fields):
         # Basic
         df["AVG_DIST"] = df.VMT / df[veh_trips_field]
         df["AVG_TIME"] = df.VHT / df[veh_trips_field]
@@ -2866,15 +2894,17 @@ def taz_travel_stats(od_table, o_field, d_field,
         taz_indexed = taz_df.rename(columns=renames).set_index(taz_id_field)
         taz_indexed = taz_indexed.reindex(ref_index, fill_value=0)
         df[weight_field] = taz_indexed[weight_field]
-        df[f"VMT_PER_{weight_field}"] = df.VMT / df[weight_field]
-        df[f"TRIPS_PER_{weight_field}"] = np.select(
-            [df[weight_field]==0], [-1], df[veh_trips_field] / df[weight_field])
+        fltr = df[weight_field]==0
+        df[f"VMT_PER_ACT"] = np.select(
+            [fltr], [0], df.VMT / df[weight_field])
+        df[f"TRIPS_PER_ACT"] = np.select(
+            [fltr], [0], df[veh_trips_field] / df[weight_field])
 
     # Combine O and D frames
     taz_stats_df = dfs[0].merge(
         dfs[1], how="outer", left_index=True, right_index=True, suffixes=suffixes)
-    keep_fields = ["AVG_DIST_FROM", "AVG_TIME_FROM", "VMT_PER_HH", "TRIPS_PER_HH",
-                   "AVG_DIST_TO", "AVG_TIME_TO", "VMT_PER_JOB", "TRIPS_PER_JOB"]
+    keep_fields = ["AVG_DIST_FROM", "AVG_TIME_FROM", "VMT_PER_ACT_FROM", "TRIPS_PER_ACT_FROM",
+                   "AVG_DIST_TO", "AVG_TIME_TO", "VMT_PER_ACT_TO", "TRIPS_PER_ACT_TO"]
     taz_stats_df.index.name = taz_id_field
     return taz_stats_df[keep_fields].reset_index()
 

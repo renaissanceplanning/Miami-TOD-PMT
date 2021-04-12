@@ -635,7 +635,7 @@ def process_model_skims():
     # Get field definitions
     o_field = prep_conf.SKIM_O_FIELD
     d_field = prep_conf.SKIM_D_FIELD
-    renames = {"origin": o_field, "destination": d_field, "flow": "TRIPS"}
+    renames = {"F_TAZ": o_field, "T_TAZ": d_field, "TOT_TRIPS": "TRIPS"}
     renames.update(prep_conf.SKIM_RENAMES)
 
     # Clean each input/output for each model year
@@ -1056,6 +1056,7 @@ def process_lu_diversity():
         print(" - exporting results")
         dfToTable(div_df, out_fc, overwrite=True)
 
+
 def process_travel_stats():
     rates = {}
     hh_field = "HH"
@@ -1090,11 +1091,13 @@ def process_travel_stats():
         rates_df = rates[model_year]
         taz_fields = [prep_conf.TAZ_COMMON_KEY, hh_field, jobs_field]
         loaded_df = rates_df.merge(taz_df[taz_fields], how="inner", on=prep_conf.TAZ_COMMON_KEY)
-        loaded_df["VMT_FROM"] = loaded_df["VMT_PER_HH"] * loaded_df[hh_field]
-        loaded_df["VMT_TO"] = loaded_df["VMT_PER_JOB"] * loaded_df[jobs_field]
+        loaded_df["__activity__"] = loaded_df[[hh_field, jobs_field]].sum(axis=1)
+        loaded_df["VMT_FROM"] = loaded_df.VMT_PER_ACT_FROM * loaded_df.__activity__
+        loaded_df["VMT_TO"] = loaded_df.VMT_PER_ACT_TO * loaded_df.__activity__
+        loaded_df["VMT_ALL"] = loaded_df[["VMT_FROM", "VMT_TO"]].mean(axis=1)
 
         # Export results
-        loaded_df = loaded_df.drop(columns=[hh_field, jobs_field])
+        loaded_df = loaded_df.drop(columns=[hh_field, jobs_field, "__activity__"])
         dfToTable(df=loaded_df, out_table=out_table, overwrite=True)
 
 
@@ -1251,7 +1254,7 @@ if __name__ == "__main__":
     # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
     # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
 
-    process_basic_features() # TESTED
+    # process_basic_features() # TESTED
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
     # process_parks()  # TESTED UPDATES 03/10/21 CR
