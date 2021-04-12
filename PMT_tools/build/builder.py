@@ -295,6 +295,7 @@ def process_year_to_snapshot(year):
         print(f"--- --- {mode}")
         df = B_HELP._createLongAccess(
             sum_areas_fc, id_fields, B_CONF.ACTIVITIES, B_CONF.TIME_BREAKS, mode)
+        df["Year"] = calc_year
         out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
         PMT.dfToTable(df, out_table, overwrite=True)
 

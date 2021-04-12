@@ -76,16 +76,15 @@ BLOCK_PAR_ENRICH = {
     "sources": (BLOCK_FC_SPECS, PAR_FC_SPECS),
     "grouping": Column(name=BLOCK_FC_SPECS[1]),
     "agg_cols":
-        [AggColumn(name="Total_Population"), AggColumn(name="NO_RES_UNTS"),
-         AggColumn(name="TOT_LVG_AREA"), AggColumn(name="JV"),
-         AggColumn(name="TV_NSD"), AggColumn(name="LND_VAL"), AggColumn(name="LND_SQFOOT"),
-         AggColumn(name="Total_Commutes"),
-         AggColumn(name="Drove_PAR", rename="Drove"),
-         AggColumn(name="Carpool_PAR", rename="Carpool"),
-         AggColumn(name="Transit_PAR", rename="Transit"),
-         AggColumn(name="NonMotor_PAR", rename="NonMotor"),
-         AggColumn(name="Work_From_Home_PAR", rename="Work_From_Home"),
-         AggColumn(name="AllOther_PAR", rename="AllOther"),
+        [AggColumn("Total_Population"), AggColumn("NO_RES_UNTS"), AggColumn("JV"), # AggColumn("TOT_LVG_AREA")
+         AggColumn("TV_NSD"), AggColumn("LND_VAL"), AggColumn("LND_SQFOOT"),
+         AggColumn("Total_Commutes"),
+         AggColumn("Drove_PAR", rename="Drove"),
+         AggColumn("Carpool_PAR", rename="Carpool"),
+         AggColumn("Transit_PAR", rename="Transit"),
+         AggColumn("NonMotor_PAR", rename="NonMotor"),
+         AggColumn("Work_From_Home_PAR", rename="Work_From_Home"),
+         AggColumn("AllOther_PAR", rename="AllOther"),
          # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
          AggColumn(name="Developable_Area"),
          AggColumn(name="VAC_AREA"), AggColumn(name="RES_AREA"), AggColumn(name="NRES_AREA"),
@@ -171,14 +170,19 @@ SA_MAZ_ENRICH = {
 }
 SA_TAZ_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, TAZ_FC_SPECS),
-    "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
-    "agg_cols": [AggColumn(name=taz_col, agg_method="mean") for taz_col in TAZ_AUTO_RENAMES.values()] +
-                [AggColumn(name=taz_col, agg_method="mean") for taz_col in TAZ_TRANSIT_RENAMES.values()] +
-                [AggColumn(name="VMT"), AggColumn(name="TRAN_PMT"),
-                 AggColumn(name="AVG_TIME_AU", agg_method="mean"),
-                 AggColumn(name="AVG_DIST_AU", agg_method="mean"),
-                 AggColumn(name="AVG_TIME_TR", agg_method="mean"),
-                 AggColumn(name="AVG_DIST_TR", agg_method="mean")],
+    "grouping": Column(SUM_AREA_FC_SPECS[1]),
+    "agg_cols": [AggColumn(taz_col, agg_method="mean") for taz_col in TAZ_AUTO_RENAMES.values()] +
+                [AggColumn(taz_col, agg_method="mean") for taz_col in TAZ_TRANSIT_RENAMES.values()] +
+                [AggColumn("VMT_ALL"),
+                 AggColumn("AVG_TIME_FROM", agg_method="mean"),
+                 AggColumn("AVG_DIST_FROM", agg_method="mean"),
+                 AggColumn("TRIPS_PER_ACT_FROM", agg_method="mean"),
+                 AggColumn("VMT_PER_ACT_FROM", agg_method="mean")
+                 AggColumn("AVG_TIME_TO", agg_method="mean"),
+                 AggColumn("AVG_DIST_TO", agg_method="mean"),
+                 AggColumn("TRIPS_PER_ACT_TO", agg_method="mean"),
+                 AggColumn("VMT_PER_ACT_TO", agg_method="mean")
+                 ],
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False
@@ -396,6 +400,7 @@ def val_per_sqft_idx(value, land_sqft):
     else:
         return value / land_sqft
     """
+
 NA_MODE_SHARE_CODE_BLOCK = """
 def shr_na(transit, nonmotor, other, commutes):
     if None in [transit, nonmotor, other, commutes]:
@@ -688,35 +693,35 @@ NONDEV_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "NONDEV_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!NonDevFlrAr!, !BlockFlrAr!)",
+    "expr": "divide(!NonDevFlrAr!, !BlockFlrAr!) * 100",
     "code_block": DIVIDE_CODE_BLOCK
 }
 DEVOS_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "DEVOS_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevOSFlrAr!, !BlockFlrAr!)",
+    "expr": "divide(!DevOSFlrAr!, !BlockFlrAr!) * 100",
     "code_block": DIVIDE_CODE_BLOCK
 }
 DEVLOW_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "DEVLOW_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevLowFlrAr!, !BlockFlrAr!)",
+    "expr": "divide(!DevLowFlrAr!, !BlockFlrAr!)* 100",
     "code_block": DIVIDE_CODE_BLOCK
 }
 DEVMED_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "DEVMED_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevMedFlrAr!, !BlockFlrAr!)",
+    "expr": "divide(!DevMedFlrAr!, !BlockFlrAr!) * 100",
     "code_block": DIVIDE_CODE_BLOCK
 }
 DEVHI_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS],
     "new_field": "DEVHI_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevHiFlrAr!, !BlockFlrAr!)",
+    "expr": "divide(!DevHiFlrAr!, !BlockFlrAr!) * 100",
     "code_block": DIVIDE_CODE_BLOCK
 }
 PARKS_PER_CAP = {
@@ -797,7 +802,7 @@ WALK_STN_DIFF = {
 }
 DIFF_TABLES = [AUTO_ACC_DIFF, TRAN_ACC_DIFF, BIKE_ACC_DIFF, WALK_ACC_DIFF,
                DEV_STATUS_DIFF, ATTR_LU_DIFF, COMMUTE_DIFF, JOBS_DIFF,
-               TRAN_DIFF, WALK_PARK_DIFF, WALK_STN_DIFF]
+               TRAN_DIFF, WALK_PARK_DIFF, WALK_STN_DIFF, BIKE_FAC_DIFF]
 
 # Feature diffs
 SUM_AREA_DIFF = {
