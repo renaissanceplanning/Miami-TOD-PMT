@@ -641,13 +641,13 @@ def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=
         If provided, these geometries will be used to update station area features
         (`StationAreas` and `SummaryAreas`)
     station_id_field: String, default=None
-        The field in `preset_station_areas` that corresponds to basic_features/SMARTplanStations.Id.
+        The field in `preset_station_areas` that corresponds to basic_features/StationAreas.Id.
         It is used to map new geometries into the `StationAreas` and `SummaryAreas` feature classes.
     preset_corridors: path or feature_layer, default=None
         If provided, these geometries will be used to update corridor features
         (`Corridors` and `SummaryAreas`)
     corridor_name_field: String, default=None
-        The field in `preset_corridors` that corresponds to basic_features/SMARTplanAlignments.Corridor.
+        The field in `preset_corridors` that corresponds to basic_features/Corridors.Corridor.
         It is used to map new geometries into the `Corridors` and `SummaryAreas` feature classes.
 
     See Also
@@ -655,34 +655,58 @@ def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=
     makeBasicFeatures
     makeSummaryFeatures
     """
-    # Make data frames of all features needed for looking up values
-    stations_fc = makePath(basic_gdb, "BasicFeatures", "SMARTplanStations")
-    align_fc = makePath(basic_gdb, "BasicFeatures", "SMARTplanAlignments")
-    stations_long_fc = makePath(basic_gdb, "StationsLong")
+    
+    # stations_long_fc = makePath(basic_gdb, "StationsLong")
     station_areas_fc = makePath(basic_gdb, "StationAreas")
     corridors_fc = makePath(basic_gdb, "Corridors")
     summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
     
-    stations_df = PMT.table_to_df(stations_fc)
-    align_df = PMT.table_to_df(align_fc)
-    stations_long_df = PMT.table_to_df(stations_long_fc)
-    station_areas_df = PMT.table_to_df(station_areas_fc)
-    corridors_df = PMT.table_to_df(corridors_fc)
-    summ_areas_df = PMT.table_to_df(summ_areas_df)
+    # stations_df = PMT.table_to_df(stations_fc)
+    # align_df = PMT.table_to_df(align_fc)
+    # stations_long_df = PMT.table_to_df(stations_long_fc)
+    # station_areas_df = PMT.table_to_df(station_areas_fc)
+    # corridors_df = PMT.table_to_df(corridors_fc)
+    # summ_areas_df = PMT.table_to_df(summ_areas_df)
 
-    # If preset_station_areas is not None:
-    #   with arcpy.da.SearchCursor(preset_station_areas, ["@SHAPE@", station_id_field]) as c:
-    #       for r in c:
-    #           preset_shape, station_id = r
-    #           lookup which station -> which rowid in summary araes
-    #           where_clause = "..."
-    #           with arcpy.da.UpdateCursor(station_areas_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
-    #               for ur in uc:
-    #                   ur[0] = preset_shape
-    #                   uc.updateRow(ur)
-    #
-    # If preset_corridors is not None:
-    #  same as above
+    summ_area_updates = []
+    if preset_station_areas is not None:
+        # TODO: functionalize this
+        with arcpy.da.SearchCursor(preset_station_areas, ["@SHAPE@", station_id_field]) as c:
+            for r in c:
+                preset_shape, station_id = r
+                # lookup which station -> which station_area
+                where_clause = arcpy.AddFieldDelimiters(station_areas_fc, "Id") + f"= {station_id}"
+                with arcpy.da.UpdateCursor(station_areas_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
+                    for ur in uc:
+                        old_shape = ur[0]
+                        summ_area_udpates.append((old_shape, preset_shape))
+                        ur[0] = preset_shape
+                        uc.updateRow(ur)
+
+    # this repeats the same process - functionalize
+    If preset_corridors is not None:
+        with arcpy.da.SearchCursor(preset_corridors, ["@SHAPE@", corridor_field]) as c:
+            for r in c:
+                preset_shape, corridor = r
+                # lookup which station -> which station_area
+                where_clause = arcpy.AddFieldDelimiters(corridors_fc, "Corridor") + f"= {corridor}"
+                with arcpy.da.UpdateCursor(corridors_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
+                    for ur in uc:
+                        old_shape = ur[0]
+                        summ_area_udpates.append((old_shape, preset_shape))
+                        ur[0] = preset_shape
+                        uc.updateRow(ur)
+
+    # Update summ areas
+    summ_layer = arcpy.MakeFeature_layer(summ_areas_fc, "__summ_areas__")
+    try:
+        pass
+    except:
+        raise
+    finally:
+        arcpy.Delete_management(summ_layer)
+
+    
 
 # crash functions
 def update_crash_type(feature_class, data_fields, update_field):
@@ -4611,6 +4635,53 @@ def skim_to_graph(in_csv, source, target, attrs, create_using=nx.DiGraph,
         df = pd.read_csv(in_csv, **kwargs)
         return _df_to_graph_(df, source, target, attrs, create_using, renames)
     
+
+def transit_skim_joins(taz_to_tap, tap_to_tap, out_skim, o_col="OName", d_col="DName", imp_col="Minutes",
+                       origin_zones=None, destination_zones=None, total_cutoff=np.inf, *kwargs):
+    """
+
+    ... assumes taz_to_tap and tap_to_tap have identical column headings for key fields
+    """
+    #TODO: enrich to set limits on access time, egress time, IVT
+    #TODO: handle column output names
+    # Read tables
+    z2p_dd = dd.read_csv(taz_to_tap)
+    p2p_dd = dd.read_csv(tap_to_tap)
+    
+    # Prep tables to handle column collisions
+    z2p_dd = z2p_dd.rename(
+        columns={o_col: "OName", d_col: "Boarding_stop", imp_col: "access_time"}
+        )
+    p2p_dd = p2p_dd.rename(
+        columns ={o_col: "Boarding_stop", d_col: "Alighting_stop", imp_col: "IVT"},
+        )
+    
+    # Merge to get alighting stops reachable from origin TAZ via boarding stop
+    o_merge = z2p_dd.merge(p2p_dd, how="inner", on="Boarding_stop")
+    
+    # Rename access skim columns to reflect egress times
+    z2p_dd = z2p_dd.rename(
+        columns={"Boarding_stop": "Alighting_stop", "OName": "DName", "access_time": "egress_time"},
+        )
+
+    # Merge to get destination zones reachable via alighting stop
+    d_merge = o_merge.merge(z2p_dd, how="inner", on="Alighting_stop")
+
+    # Calculate total time
+    d_merge["Minutes"] = d_merge[["access_time", "IVT", "egress_time"]].sum(axis=1)
+
+    # Filter
+    result = d_merge[d_merge["Minutes"] <= total_cutoff]
+    if origin_zones:
+        result = result[result["OName"].isin(origin_zones)]
+    if destination_zones:
+        result = result[result["DName"].isin(destinatin_zones)]
+
+    # Export result
+    out_cols = ["OName", "DName", "Minutes"]
+    result = result[out_cols].groupby(out_cols[:2]).min()
+    result.to_csv(out_skim, single_file=True, index=True, header_first_partition_only=True, chunksize=100000)
+
 
 
 
