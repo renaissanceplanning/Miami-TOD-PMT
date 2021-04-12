@@ -249,7 +249,7 @@ def process_year_to_snapshot(year):
     print("Validating all data have a year attribute...")
     out_path = PMT.validate_directory(BUILD)
     in_gdb = PMT.validate_geodatabase(PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False)
-    # B_HELP.add_year_columns(in_gdb, calc_year)
+    B_HELP.add_year_columns(in_gdb, calc_year)
     print("Making Snapshot Template...")
     out_gdb = B_HELP.make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
     # out_gdb = PMT.makePath(BUILD, '_ca463d836d144ae4abb884109c2bd261.gdb')
@@ -355,45 +355,54 @@ def process_years_to_trend(years, tables, long_features, diff_features,
 
     # Get snapshot data
     for yi, year in enumerate(years):
-        in_gdb = PMT.validate_geodatabase(
-            PMT.makePath(BUILD, f"Snapshot_{year}.gdb"), overwrite=False)
+        in_gdb = PMT.validate_geodatabase(gdb_path=PMT.makePath(BUILD, f"Snapshot_{year}.gdb"),
+                                          overwrite=False)
         # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
-        year_tables = B_HELP._list_table_paths(in_gdb, criteria=table_criteria)
-        year_fcs = B_HELP._list_fc_paths(
-            in_gdb, fds_criteria="*", fc_criteria=long_criteria)
+        year_tables = B_HELP._list_table_paths(gdb=in_gdb,
+                                               criteria=table_criteria)
+        year_fcs = B_HELP._list_fc_paths(gdb=in_gdb,
+                                         fds_criteria="*",
+                                         fc_criteria=long_criteria)
         elongate = year_tables + year_fcs
         for elong_table in elongate:
             elong_out_name = os.path.split(elong_table)[1] + "_byYear"
             if yi == 0:
                 # Initialize the output table
                 print(f"Creating long table {elong_out_name}")
-                arcpy.TableToTable_conversion(
-                    in_rows=elong_table, out_path=out_gdb, out_name=elong_out_name)
+                arcpy.TableToTable_conversion(in_rows=elong_table,
+                                              out_path=out_gdb,
+                                              out_name=elong_out_name)
             else:
                 # Append to the output table
                 print(f"Appending to long table {elong_out_name} ({year})")
                 out_table = PMT.makePath(out_gdb, elong_out_name)
-                arcpy.Append_management(
-                    inputs=elong_table, target=out_table, schema_type="NO_TEST")
+                arcpy.Append_management(inputs=elong_table,
+                                        target=out_table,
+                                        schema_type="NO_TEST")
         # Get snapshot and base year params
         if year == base_year:
             base_tables = year_tables[:]
-            base_fcs = B_HELP._list_fc_paths(
-                in_gdb, fds_criteria="*", fc_criteria=diff_criteria)
+            base_fcs = B_HELP._list_fc_paths(gdb=in_gdb,
+                                             fds_criteria="*",
+                                             fc_criteria=diff_criteria)
         elif year == snapshot_year:
             snap_tables = year_tables[:]
-            snap_fcs = B_HELP._list_fc_paths(
-                in_gdb, fds_criteria="*", fc_criteria=diff_criteria)
+            snap_fcs = B_HELP._list_fc_paths(gdb=in_gdb,
+                                             fds_criteria="*",
+                                             fc_criteria=diff_criteria)
     # Make difference tables (snapshot - base)
     for base_table, snap_table, specs in zip(base_tables, snap_tables, tables):
         out_name = os.path.split(base_table)[1] + "_diff"
         out_table = PMT.makePath(out_gdb, out_name)
         idx_cols = specs["index_cols"]
-        diff_df = B_HELP.table_difference(
-            this_table=snap_table, base_table=base_table, idx_cols=idx_cols)
+        diff_df = B_HELP.table_difference(this_table=snap_table,
+                                          base_table=base_table,
+                                          idx_cols=idx_cols)
         print(f"Creating table {out_name}")
-        PMT.dfToTable(df=diff_df, out_table=out_table, overwrite=True)
+        PMT.dfToTable(df=diff_df,
+                      out_table=out_table,
+                      overwrite=True)
 
     # Make difference fcs (snapshot - base)
     for base_fc, snap_fc, spec in zip(base_fcs, snap_fcs, diff_features):
@@ -416,23 +425,29 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             field_mappings.addFieldMap(fm)
         # Copy geoms
         print(f"Creating feature class {out_name}")
-        arcpy.FeatureClassToFeatureClass_conversion(
-            in_features=base_fc, out_path=out_fds, out_name=out_name, field_mapping=field_mappings)
+        arcpy.FeatureClassToFeatureClass_conversion(in_features=base_fc,
+                                                    out_path=out_fds,
+                                                    out_name=out_name,
+                                                    field_mapping=field_mappings)
         # Get table difference
-        diff_df = B_HELP.table_difference(
-            this_table=snap_fc, base_table=base_fc, idx_cols=idx_cols)
+        diff_df = B_HELP.table_difference(this_table=snap_fc,
+                                          base_table=base_fc,
+                                          idx_cols=idx_cols)
         # Extend attribute table
         drop_cols = [c for c in diff_df.columns if c in idx_cols and c != fc_id]
         diff_df.drop(columns=drop_cols, inplace=True)
         print("... adding difference columns")
-        PMT.extendTableDf(
-            in_table=out_table, table_match_field=fc_id, df=diff_df, df_match_field=fc_id)
+        PMT.extendTableDf(in_table=out_table,
+                          table_match_field=fc_id,
+                          df=diff_df,
+                          df_match_field=fc_id)
 
     # TODO: calculate percent change in value over base for summary areas
 
     print("Finalizing the trend")
     final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
-    B_HELP.finalize_output_new(intermediate_gdb=out_gdb, final_gdb=final_gdb)
+    B_HELP.finalize_output_new(intermediate_gdb=out_gdb,
+                               final_gdb=final_gdb)
 
 
 def process_near_term():
@@ -476,3 +491,4 @@ if __name__ == "__main__":
     #                        base_year="Current", snapshot_year="NearTerm")
     B_HELP.post_process_databases(basic_features_gdb=BASIC_FEATURES, build_dir=BUILD)
     # # TODO: For trend, patch in permits
+# TODO: ActivityByTime_{Mode}_byYear tables are missing year....determine why....all other byYear tables have year
