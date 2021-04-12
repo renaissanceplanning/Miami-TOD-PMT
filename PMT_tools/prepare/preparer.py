@@ -137,6 +137,7 @@ def process_basic_features():
 
     print("Making summarization features")
     P_HELP.makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
+                        stn_areas_fc=prep_conf.BASIC_STN_AREAS, stn_id_field="Id", # TODO: global
                         corridors_fc=prep_conf.BASIC_CORRIDORS,
                         cor_name_field=prep_conf.CORRIDOR_NAME_FIELD, out_fc=prep_conf.BASIC_SUM_AREAS,
                         stn_buffer_meters=prep_conf.STN_BUFF_METERS, stn_name_field=prep_conf.STN_NAME_FIELD,

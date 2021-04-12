@@ -22,6 +22,7 @@ import xlrd
 from six import string_types
 from sklearn import linear_model
 import networkx as nx
+from collections.abc import Iterable
 
 import PMT_tools.PMT as PMT
 # temporary
@@ -416,10 +417,12 @@ def _stringifyList(input):
     return ";".join(input)
 
 
-def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
-                      alignments_fc, align_diss_fields, stn_buff_dist="2640 Feet",
+def makeBasicFeatures(bf_gdb, stations_fc, stn_id_field, stn_diss_fields, stn_corridor_fields,
+                      alignments_fc, align_diss_fields, align_corridor_name, stn_buff_dist="2640 Feet",
                       align_buff_dist="2640 Feet", stn_areas_fc="Station_Areas",
                       corridors_fc="Corridors", long_stn_fc="Stations_Long",
+                      preset_station_areas=None, preset_station_id=None,
+                      preset_corridors=None, preset_corridor_name=None,
                       rename_dict={}, overwrite=False):
     """In a geodatabase with basic features (station points and corridor alignments),
         create polygon feature classes used for standard mapping and summarization.
@@ -435,6 +438,8 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
         stations_fc (str): A point feature class in`bf_gdb` with station locations and columns
             indicating belonging in individual corridors (i.e., the column names reflect corridor
             names and flag whether the station is served by that corridor).
+        stn_id_field (str): A field in `stations_fc` that identifies stations (common to a single
+            station area)
         stn_diss_fields (list): [String,...] Field(s) on which to dissolve stations when buffering
             station areas. Stations that reflect the same location by different facilities may
             be dissolved by name or ID, e.g. This may occur at intermodal locations.
@@ -443,6 +448,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
         stn_corridor_fields (list): [String,...] The columns in `stations_fc` that flag each
             stations belonging in various corridors.
         alignments_fc (str): Path to a line feature class in `bf_gdb` reflecting corridor alignments
+        align_corridor_name (str): A field in `alignments_fc` that identifies the corridor it belongs to.
         align_diss_fields (list): [String,...] Field(s) on which to dissolve alignments when buffering
             corridor areas.
         stn_buff_dist (str): Linear Unit, [default="2640 Feet"] A linear unit by which to buffer
@@ -454,6 +460,14 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
         corridors_fc (str): [default="Corridors"], The name of the output feature class to hold corridor polygons
         long_stn_fc (str): [default="Stations_Long"], The name of the output feature class to hold station features,
             elongated based on corridor belonging (to support dashboard menus)
+        preset_station_areas (path or feature layer): [default=None], Features that pre-define station areas will
+            supplant simple station buffers where `preset_station_id` matches `stn_id_field`
+        preset_station_id (str): [default=None], Key field for `preset_station_areas` to lookup and replace geometries
+            in the `stn_areas_fc` output
+        preset_corridors (path or feature layer): [default=None], Features that pre-define corridor areas will
+            supplant simple alignment buffers where `preset_corridor_name` matches `stn_id_field`
+        preset_corridor_name: (str) [default=None], Key field for `preset_corridors` to lookup and replace geometries
+            in the `corridors_fc` output
         rename_dict (dict): [default={}], If given, `stn_corridor_fields` can be relabeled before pivoting
             to create `long_stn_fc`, so that the values reported in the output "Corridor" column are not
             the column names, but values mapped on to the column names
@@ -480,6 +494,11 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     _diss_flds_ = _stringifyList(align_diss_fields)
     arcpy.Buffer_analysis(alignments_fc, corridors_fc, align_buff_dist,
                           dissolve_option="LIST", dissolve_field=_diss_flds_)
+
+    # Patch buffers and 
+    print("--- patching preset features")
+    patch_basic_features(bf_gdb, stn_areas_fc, corridors_fc, preset_station_areas=preset_station_areas, station_id_field=preset_station_id,
+                            preset_corridors=preset_corridors, corridor_name_field=preset_corridor_name)
 
     # Add (All corridors) to `corridors_fc`
     # - Setup field outputs
@@ -531,7 +550,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     arcpy.env.workspace = old_ws
 
 
-def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
+def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corridors_fc, cor_name_field,
                         out_fc, stn_buffer_meters=804.672,
                         stn_name_field="Name", stn_status_field="Status", stn_cor_field="Corridor",
                         overwrite=False):
@@ -541,6 +560,8 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     Args:
         bf_gdb (str): Path to basic features gdb
         long_stn_fc (str): path to long station points feature class
+        stn_areas_fc (str): path to station area polygons feature class
+        stn_id_fiedl (str): id field linking `stn_areas_fc` and `long_stn_fc`
         corridors_fc (str): path to corridors feature class
         cor_name_field (str): name field for corridor feature class
         out_fc (str): path to output feature class
@@ -564,6 +585,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
     out_path, out_name = os.path.split(out_fc)
     arcpy.CreateFeatureclass_management(out_path, out_name, "POLYGON", spatial_reference=sr)
     # - Add fields
+    arcpy.AddField_management(out_fc, "STN_ID", "LONG")
     arcpy.AddField_management(out_fc, prep_conf.STN_NAME_FIELD, "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, prep_conf.STN_STATUS_FIELD, "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, prep_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80)
@@ -571,7 +593,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
 
     # Add all corridors with name="(Entire corridor)", corridor=cor_name_field
     print("--- adding corridor polygons")
-    out_fields = ["SHAPE@", stn_name_field, stn_status_field, stn_cor_field, prep_conf.SUMMARY_AREAS_COMMON_KEY]
+    out_fields = ["SHAPE@", "STN_ID", stn_name_field, stn_status_field, stn_cor_field, prep_conf.SUMMARY_AREAS_COMMON_KEY]
     cor_fields = ["SHAPE@", cor_name_field]
     cor_polys = {}
     i = 0
@@ -581,23 +603,29 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
                 i += 1
                 # Add row for the whole corridor
                 poly, corridor = sr
-                out_row = [poly, "(Entire corridor)", "NA", corridor, i]
+                out_row = [poly, -1, "(Entire corridor)", "NA", corridor, i]
                 ic.insertRow(out_row)
                 # Keep the polygons in a dictionary for use later
                 cor_polys[corridor] = poly
 
     # Add all station areas with name= stn_name_field, corridor=stn_cor_field
     print("--- adding station polygons by corridor")
-    stn_fields = ["SHAPE@", stn_name_field, stn_status_field, stn_cor_field,]
+    stn_fields = ["SHAPE@", stn_id_field, stn_name_field, stn_status_field, stn_cor_field]
     cor_stn_polys = {}
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
         with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
             for sr in sc:
                 i += 1
                 # Add row for each station/corridor combo
-                point, stn_name, stn_status, corridor = sr
-                poly = point.buffer(buff_dist)
-                out_row = [poly, stn_name, stn_status, corridor, i]
+                point, stn_id, stn_name, stn_status, corridor = sr
+
+                ### Get poly from stn_areas_fc
+                where_clause = arcpy.AddFieldDelimiters(stn_areas_fc, stn_id_field) + f"={stn_id}"
+                with arcpy.da.SearchCursor(stn_areas_fc, "SHAPE@", where_clause=where_clause) as ref_c:
+                    poly = reduce(lambda x, y: x.union(y), [ref_r[0] for ref_r in ref_c])
+                ###
+                #poly = point.buffer(buff_dist)
+                out_row = [poly, stn_id, stn_name, stn_status, corridor, i]
                 ic.insertRow(out_row)
                 # Merge station polygons by corridor in a dict for later use
                 cor_poly = cor_stn_polys.get(corridor, None)
@@ -614,19 +642,19 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
             # Combined station areas
             i += 1
             all_stn_poly = cor_stn_polys[corridor]
-            out_row = [all_stn_poly, "(All stations)", "NA", corridor, i]
+            out_row = [all_stn_poly, -2, "(All stations)", "NA", corridor, i]
             ic.insertRow(out_row)
             # Non-station areas
             i += 1
             cor_poly = cor_polys[corridor]
             non_stn_poly = cor_poly.difference(all_stn_poly)
-            out_row = [non_stn_poly, "(Outside station areas)", "NA", corridor, i]
+            out_row = [non_stn_poly, -3, "(Outside station areas)", "NA", corridor, i]
             ic.insertRow(out_row)
 
     arcpy.env.workspace = old_ws
 
 
-def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=None, 
+def patch_basic_features(basic_gdb, station_areas_fc, corridors_fc, preset_station_areas=None, station_id_field=None, 
                          preset_corridors=None, corridor_name_field=None):
     """
     Modifies the basic features database to updata station area and/or corridor geometries
@@ -657,9 +685,9 @@ def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=
     """
     
     # stations_long_fc = makePath(basic_gdb, "StationsLong")
-    station_areas_fc = makePath(basic_gdb, "StationAreas")
-    corridors_fc = makePath(basic_gdb, "Corridors")
-    summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
+    #station_areas_fc = makePath(basic_gdb, "StationAreas")
+    #corridors_fc = makePath(basic_gdb, "Corridors")
+    #summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
     
     # stations_df = PMT.table_to_df(stations_fc)
     # align_df = PMT.table_to_df(align_fc)
@@ -668,10 +696,10 @@ def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=
     # corridors_df = PMT.table_to_df(corridors_fc)
     # summ_areas_df = PMT.table_to_df(summ_areas_df)
 
-    summ_area_updates = []
+    # summ_area_updates = []
     if preset_station_areas is not None:
         # TODO: functionalize this
-        with arcpy.da.SearchCursor(preset_station_areas, ["@SHAPE@", station_id_field]) as c:
+        with arcpy.da.SearchCursor(preset_station_areas, ["SHAPE@", station_id_field]) as c:
             for r in c:
                 preset_shape, station_id = r
                 # lookup which station -> which station_area
@@ -679,32 +707,40 @@ def patch_basic_features(basic_gdb, preset_station_areas=None, station_id_field=
                 with arcpy.da.UpdateCursor(station_areas_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
                     for ur in uc:
                         old_shape = ur[0]
-                        summ_area_udpates.append((old_shape, preset_shape))
+                        #summ_area_updates.append((old_shape, preset_shape))
                         ur[0] = preset_shape
                         uc.updateRow(ur)
 
     # this repeats the same process - functionalize
-    If preset_corridors is not None:
-        with arcpy.da.SearchCursor(preset_corridors, ["@SHAPE@", corridor_field]) as c:
+    if preset_corridors is not None:
+        with arcpy.da.SearchCursor(preset_corridors, ["SHAPE@", corridor_name_field]) as c:
             for r in c:
                 preset_shape, corridor = r
                 # lookup which station -> which station_area
-                where_clause = arcpy.AddFieldDelimiters(corridors_fc, "Corridor") + f"= {corridor}"
+                where_clause = arcpy.AddFieldDelimiters(corridors_fc, "Corridor") + f"= '{corridor}'"
                 with arcpy.da.UpdateCursor(corridors_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
                     for ur in uc:
                         old_shape = ur[0]
-                        summ_area_udpates.append((old_shape, preset_shape))
+                        #summ_area_updates.append((old_shape, preset_shape))
                         ur[0] = preset_shape
                         uc.updateRow(ur)
 
-    # Update summ areas
-    summ_layer = arcpy.MakeFeature_layer(summ_areas_fc, "__summ_areas__")
-    try:
-        pass
-    except:
-        raise
-    finally:
-        arcpy.Delete_management(summ_layer)
+    # # Update summ areas
+    # summ_layer = arcpy.MakeFeatureLayer_management(summ_areas_fc, "__summ_areas__")
+    # try:
+    #     for old_shape, preset_shape in summ_area_updates:
+    #         # Select summ_layer by location
+    #         arcpy.SelectLayerByLocation_management(
+    #             in_layer=summ_layer, overlap_type="ARE_IDENTICAL_TO", select_features=old_shape, selection_type="NEW_SELECTION")
+    #         # Repalce
+    #         with arcpy.da.UpdateCursor(summ_layer, ["SHAPE@"]) as uc:
+    #             for ur in uc:
+    #                 ur[0] = preset_shape
+    #                 uc.updateRow(ur)
+    # except:
+    #     raise
+    # finally:
+    #     arcpy.Delete_management(summ_layer)
 
     
 
