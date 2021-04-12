@@ -115,13 +115,25 @@ def process_normalized_geometries(overwrite=True):
 def process_basic_features():
     # TODO: add check for existing basic features, and compare for changes
     print("Making basic features")
-    P_HELP.makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS,
+    station_presets = makePath(BASIC_FEATURES, "StationArea_presets")
+    corridor_presets = makePath(BASIC_FEATURES, "Corridor_presets")
+    P_HELP.makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS, stn_id_field="Id", # TODO global
                       stn_diss_fields=prep_conf.STN_DISS_FIELDS, stn_corridor_fields=prep_conf.STN_CORRIDOR_FIELDS,
                       alignments_fc=prep_conf.BASIC_ALIGNMENTS, align_diss_fields=prep_conf.ALIGN_DISS_FIELDS,
+                      align_corridor_name="Corridor", # TODO: global
                       stn_buff_dist=prep_conf.STN_BUFF_DIST, align_buff_dist=prep_conf.ALIGN_BUFF_DIST,
                       stn_areas_fc=prep_conf.BASIC_STN_AREAS, corridors_fc=prep_conf.BASIC_CORRIDORS,
                       long_stn_fc=prep_conf.BASIC_LONG_STN,
+                      preset_station_areas=station_presets, preset_station_id="Id", 
+                      preset_corridors=corridor_presets, preset_corridor_name="Corridor",
                       rename_dict=prep_conf.BASIC_RENAME_DICT, overwrite=True)
+
+    # print("Patching preset station areas and corridors")
+    # basic_gdb, basic_fds = os.path.split(BASIC_FEATURES)
+    # station_presets = makePath(BASIC_FEATURES, "StationArea_presets")
+    # corridor_presets = makePath(BASIC_FEATURES, "Corridor_presets")
+    # P_HELP.patch_basic_features(basic_gdb=BASIC_FEATURES, preset_station_areas=station_presets, station_id_field="Id",
+    #                             preset_corridors=corridor_presets, corridor_name_field="Corridor")
 
     print("Making summarization features")
     P_HELP.makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
@@ -622,38 +634,43 @@ def process_model_skims():
     # Get field definitions
     o_field = prep_conf.SKIM_O_FIELD
     d_field = prep_conf.SKIM_D_FIELD
+    renames = {"origin": o_field, "destination": d_field, "flow": "TRIPS"}
+    renames.update(prep_conf.SKIM_RENAMES)
 
     # Clean each input/output for each model year
     for year in prep_conf.MODEL_YEARS:
         print(year)
         # Setup input/output tables
         auto_csv = PMT.makePath(RAW, "SERPM", f"AM_HWY_SKIMS_{year}.csv")
-        local_csv = PMT.makePath(RAW, "SERPM", f"TAZ_to_TAZ_local_{year}.csv")
-        prem_csv = PMT.makePath(RAW, "SERPM", f"TAZ_to_TAZ_prem_{year}.csv")
+        local_csv = PMT.makePath(CLEANED, "SERPM", f"TAZ_to_TAZ_local_{year}.csv")
+        prem_csv = PMT.makePath(CLEANED, "SERPM", f"TAZ_to_TAZ_prem_{year}.csv")
         trips_csv = PMT.makePath(RAW, "SERPM", f"DLY_VEH_TRIPS_{year}.csv")
         skim_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_SKIM_TEMP.csv")
         temp_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_TEMP.csv")
         serpm_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_{year}.csv")
         
         # Combine all skims tables
+        print(" - Combining all skims")
         in_tables = [auto_csv, local_csv, prem_csv]
         merge_fields = [o_field, d_field]
         suffixes = ["_AU", "_LOC", "_PRM"]
         dtypes = {o_field: int, d_field: int}
-        combine_csv_dask(merge_fields, skim_out, *in_tables, suffixes=suffixes, how="outer",
-                         col_renames=prep_conf.SKIM_RENAMES, dtype=prep_conf.SKIM_DTYPES,
+        P_HELP.combine_csv_dask(merge_fields, skim_out, *in_tables, suffixes=suffixes, how="outer",
+                         col_renames=renames, dtype=prep_conf.SKIM_DTYPES,
                          thousands=",")
         # Combine trips into the skims separately (helps manage field name collisions
         # that would be a bit troublesome if we combine everything at once)
+        print(" - Combining trip tables")
         in_tables = [skim_out, trips_csv]
-        combine_csv_dask(merge_fields, temp_out, *in_tables, how="outer",
-                         col_renames=prep_conf.SKIM_RENAMES, dtype=prep_conf.SKIM_DTYPES,
+        P_HELP.combine_csv_dask(merge_fields, temp_out, *in_tables, how="outer",
+                         col_renames=renames, dtype=prep_conf.SKIM_DTYPES,
                          thousands=",")
         # Update transit timee esimates
+        print(" - Getting best transit time")
         competing_cols = ["TIME_LOC", "TIME_PRM"]
         out_col = prep_conf.SKIM_IMP_FIELD + "_TR"
         replace = {0: np.inf}
-        update_transit_times(temp_out, serpm_out, competing_cols=competing_cols, out_col=out_col,
+        P_HELP.update_transit_times(temp_out, serpm_out, competing_cols=competing_cols, out_col=out_col,
                              replace_vals=replace, chunksize=100000)
         # Delete temporary tables
         arcpy.Delete_management(skim_out)
@@ -1058,11 +1075,11 @@ def process_travel_stats():
             skim_csv = makePath(CLEANED, "SERPM", f"SERPM_OD_{model_year}.csv")
             taz_ref_csv = makePath(CLEANED, f"PMT_{model_year}.gdb", "EconDemog_TAZ")
             taz_ref = PMT.table_to_df(taz_ref_csv, keep_fields="*")
-            trips_field = "TOTAL"
+            trips_field = "TRIPS"
             auto_time_field = prep_conf.SKIM_IMP_FIELD + "_AU"
             tran_time_field = prep_conf.SKIM_IMP_FIELD + "_TR"
             dist_field = "DIST"
-            rates_df = taz_travel_stats(skim_csv, o_field=prep_conf.SKIM_O_FIELD, d_field=prep_conf.SKIM_D_FIELD,
+            rates_df = P_HELP.taz_travel_stats(skim_csv, o_field=prep_conf.SKIM_O_FIELD, d_field=prep_conf.SKIM_D_FIELD,
                                         veh_trips_field=trips_field, auto_time_field=auto_time_field, dist_field=dist_field,
                                         taz_df=taz_ref, taz_id_field=prep_conf.TAZ_COMMON_KEY, hh_field=hh_field,
                                         jobs_field=jobs_field)
@@ -1216,12 +1233,6 @@ def full_skim(tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, ta
         writer = csv.writer(csvfile)
         writer.writerow([prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD])
         for i in taz_nodes:
-            if taz_nodes.index(i)/len(taz_nodes) > 0.25:
-                print " - - - 25 percent"
-            elif taz_nodes.index(i)/len(taz_nodes) > 0.5:
-                print " - - - 50 percent"
-            elif taz_nodes.index(i)/len(taz_nodes) > 0.75:
-                print " - - - 75 percent"
             if FULL.has_node(i):
                 i_dict = nx.single_source_dijkstra_path_length(
                     G=FULL, source=i, cutoff=cutoff, weight="Minutes")
@@ -1239,7 +1250,7 @@ if __name__ == "__main__":
     # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
     # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
 
-    # process_basic_features() # TESTED
+    process_basic_features() # TESTED
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
     # process_parks()  # TESTED UPDATES 03/10/21 CR
@@ -1339,11 +1350,11 @@ if __name__ == "__main__":
     # process_serpm_transit() # TESTED by AB 4/11/21
 
     # prepare serpm taz-level travel skims
-    process_model_skims()  # TESTED by AB 3/30/21 (transit skim pending)
+    # process_model_skims()  # TESTED by AB 4/11/21 with transit skim
 
     # -----------------DEPENDENT ANALYSIS------------------------------
     # ANALYZE ACCESS BY MAZ, TAZ
-    process_access()  # TODO: AB to test
+    # process_access()  # TESTED by AB 4/11/21 with transkt skim
 
     # PREPARE TAZ TRIP LENGTH AND VMT RATES
     process_travel_stats() #  Tested by AB 4/1/21
