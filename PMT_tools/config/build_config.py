@@ -168,11 +168,16 @@ SA_TAZ_ENRICH = {
     "grouping": Column(SUM_AREA_FC_SPECS[1]),
     "agg_cols": [AggColumn(taz_col, agg_method="mean") for taz_col in TAZ_AUTO_RENAMES.values()] +
                 [AggColumn(taz_col, agg_method="mean") for taz_col in TAZ_TRANSIT_RENAMES.values()] +
-                [AggColumn("VMT"), AggColumn("TRAN_PMT"),
-                 AggColumn("AVG_TIME_AU", agg_method="mean"),
-                 AggColumn("AVG_DIST_AU", agg_method="mean"),
-                 AggColumn("AVG_TIME_TR", agg_method="mean"),
-                 AggColumn("AVG_DIST_TR", agg_method="mean")],
+                [AggColumn("VMT_ALL"),
+                 AggColumn("AVG_TIME_FROM", agg_method="mean"),
+                 AggColumn("AVG_DIST_FROM", agg_method="mean"),
+                 AggColumn("TRIPS_PER_ACT_FROM", agg_method="mean"),
+                 AggColumn("VMT_PER_ACT_FROM", agg_method="mean")
+                 AggColumn("AVG_TIME_TO", agg_method="mean"),
+                 AggColumn("AVG_DIST_TO", agg_method="mean"),
+                 AggColumn("TRIPS_PER_ACT_TO", agg_method="mean"),
+                 AggColumn("VMT_PER_ACT_TO", agg_method="mean")
+                 ],
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False
