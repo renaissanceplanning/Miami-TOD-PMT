@@ -21,9 +21,22 @@ import PMT_tools.prepare.prepare_osm_networks as OSM_HELP
 
 # PMT functions
 from PMT_tools import PMT
-from PMT_tools.PMT import (makePath, make_inmem_path, checkOverwriteOutput,
-                           dfToTable, polygonsToPoints, extendTableDf, table_to_df, intersectFeatures)
-from PMT_tools.PMT import validate_directory, validate_geodatabase, validate_feature_dataset
+from PMT_tools.PMT import (
+    makePath,
+    make_inmem_path,
+    checkOverwriteOutput,
+    dfToTable,
+    polygonsToPoints,
+    extendTableDf,
+    table_to_df,
+    intersectFeatures,
+)
+from PMT_tools.PMT import (
+    validate_directory,
+    validate_geodatabase,
+    validate_feature_dataset,
+)
+
 # PMT classes
 from PMT_tools.PMT import ServiceAreaAnalysis
 
@@ -52,13 +65,15 @@ arcpy.env.overwriteOutput = True
 NETS_DIR = makePath(CLEANED, "osm_networks")
 DEBUG = True
 if DEBUG:
-    '''
+    """
     if DEBUG is True, you can change the path of the root directory and test any
     changes to the code you might need to handle without munging the existing data
-    '''
+    """
     ROOT = r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data"
-    RAW = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST_local', "RAW"))
-    CLEANED = validate_directory(directory=makePath(ROOT, 'PROCESSING_TEST_local', "CLEANED"))
+    RAW = validate_directory(directory=makePath(ROOT, "PROCESSING_TEST_local", "RAW"))
+    CLEANED = validate_directory(
+        directory=makePath(ROOT, "PROCESSING_TEST_local", "CLEANED")
+    )
     NETS_DIR = makePath(CLEANED, "osm_networks")
     DATA = ROOT
     BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb")
@@ -96,15 +111,15 @@ def process_normalized_geometries(overwrite=True):
     for year in YEARS:
         print(f"{year}")
         for raw, cleaned, cols in zip(
-                [raw_block, raw_block_groups, raw_TAZ, raw_MAZ, raw_sum_areas],
-                [blocks, block_groups, TAZ, MAZ, sum_areas],
-                [
-                    prep_conf.BLOCK_COMMON_KEY,
-                    prep_conf.BG_COMMON_KEY,
-                    prep_conf.TAZ_COMMON_KEY,
-                    [prep_conf.MAZ_COMMON_KEY, prep_conf.TAZ_COMMON_KEY],
-                    prep_conf.SUMMARY_AREAS_BASIC_FIELDS,
-                ],
+            [raw_block, raw_block_groups, raw_TAZ, raw_MAZ, raw_sum_areas],
+            [blocks, block_groups, TAZ, MAZ, sum_areas],
+            [
+                prep_conf.BLOCK_COMMON_KEY,
+                prep_conf.BG_COMMON_KEY,
+                prep_conf.TAZ_COMMON_KEY,
+                [prep_conf.MAZ_COMMON_KEY, prep_conf.TAZ_COMMON_KEY],
+                prep_conf.SUMMARY_AREAS_BASIC_FIELDS,
+            ],
         ):
             temp_file = make_inmem_path()
             out_path = validate_feature_dataset(
@@ -157,24 +172,41 @@ def process_basic_features():
     print("Making basic features")
     station_presets = makePath(BASIC_FEATURES, "StationArea_presets")
     corridor_presets = makePath(BASIC_FEATURES, "Corridor_presets")
-    P_HELP.makeBasicFeatures(bf_gdb=BASIC_FEATURES, stations_fc=prep_conf.BASIC_STATIONS, stn_id_field="Id", # TODO global
-                      stn_diss_fields=prep_conf.STN_DISS_FIELDS, stn_corridor_fields=prep_conf.STN_CORRIDOR_FIELDS,
-                      alignments_fc=prep_conf.BASIC_ALIGNMENTS, align_diss_fields=prep_conf.ALIGN_DISS_FIELDS,
-                      align_corridor_name="Corridor", # TODO: global
-                      stn_buff_dist=prep_conf.STN_BUFF_DIST, align_buff_dist=prep_conf.ALIGN_BUFF_DIST,
-                      stn_areas_fc=prep_conf.BASIC_STN_AREAS, corridors_fc=prep_conf.BASIC_CORRIDORS,
-                      long_stn_fc=prep_conf.BASIC_LONG_STN,
-                      preset_station_areas=station_presets, preset_station_id="Id", 
-                      preset_corridors=corridor_presets, preset_corridor_name="Corridor",
-                      rename_dict=prep_conf.BASIC_RENAME_DICT, overwrite=True)
+    P_HELP.makeBasicFeatures(
+        bf_gdb=BASIC_FEATURES,
+        stations_fc=prep_conf.BASIC_STATIONS,
+        stn_id_field="Id",  # TODO global
+        stn_diss_fields=prep_conf.STN_DISS_FIELDS,
+        stn_corridor_fields=prep_conf.STN_CORRIDOR_FIELDS,
+        alignments_fc=prep_conf.BASIC_ALIGNMENTS,
+        align_diss_fields=prep_conf.ALIGN_DISS_FIELDS,
+        align_corridor_name="Corridor",  # TODO: global
+        stn_buff_dist=prep_conf.STN_BUFF_DIST,
+        align_buff_dist=prep_conf.ALIGN_BUFF_DIST,
+        stn_areas_fc=prep_conf.BASIC_STN_AREAS,
+        corridors_fc=prep_conf.BASIC_CORRIDORS,
+        long_stn_fc=prep_conf.BASIC_LONG_STN,
+        preset_station_areas=station_presets,
+        preset_station_id="Id",
+        preset_corridors=corridor_presets,
+        preset_corridor_name="Corridor",
+        rename_dict=prep_conf.BASIC_RENAME_DICT,
+        overwrite=True,
+    )
     print("Making summarization features")
-    P_HELP.makeSummaryFeatures(bf_gdb=BASIC_FEATURES, long_stn_fc=prep_conf.BASIC_LONG_STN,
-                        stn_areas_fc=prep_conf.BASIC_STN_AREAS, stn_id_field="Id", # TODO: global
-                        corridors_fc=prep_conf.BASIC_CORRIDORS,
-                        cor_name_field=prep_conf.CORRIDOR_NAME_FIELD, out_fc=prep_conf.BASIC_SUM_AREAS,
-                        stn_buffer_meters=prep_conf.STN_BUFF_METERS, stn_name_field=prep_conf.STN_NAME_FIELD,
-                        stn_cor_field=prep_conf.STN_LONG_CORRIDOR, overwrite=True)
-
+    P_HELP.makeSummaryFeatures(
+        bf_gdb=BASIC_FEATURES,
+        long_stn_fc=prep_conf.BASIC_LONG_STN,
+        stn_areas_fc=prep_conf.BASIC_STN_AREAS,
+        stn_id_field="Id",  # TODO: global
+        corridors_fc=prep_conf.BASIC_CORRIDORS,
+        cor_name_field=prep_conf.CORRIDOR_NAME_FIELD,
+        out_fc=prep_conf.BASIC_SUM_AREAS,
+        stn_buffer_meters=prep_conf.STN_BUFF_METERS,
+        stn_name_field=prep_conf.STN_NAME_FIELD,
+        stn_cor_field=prep_conf.STN_LONG_CORRIDOR,
+        overwrite=True,
+    )
 
 
 def process_parks(overwrite=True):
@@ -829,7 +861,7 @@ def process_osm_skims():
 
 
 def process_model_se_data(
-        overwrite=True,
+    overwrite=True,
 ):  # TODO: incorporate print statements for logging later
     # Summarize parcel data to MAZ
     for year in YEARS:
@@ -917,32 +949,51 @@ def process_model_skims():
         skim_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_SKIM_TEMP.csv")
         temp_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_TEMP.csv")
         serpm_out = PMT.makePath(CLEANED, "SERPM", f"SERPM_OD_{year}.csv")
-        
+
         # Combine all skims tables
         print(" - Combining all skims")
         in_tables = [auto_csv, local_csv, prem_csv]
         merge_fields = [o_field, d_field]
         suffixes = ["_AU", "_LOC", "_PRM"]
         dtypes = {o_field: int, d_field: int}
-        P_HELP.combine_csv_dask(merge_fields, skim_out, *in_tables, suffixes=suffixes, how="outer",
-                                col_renames=renames, dtype=prep_conf.SKIM_DTYPES,
-                                thousands=",")
+        P_HELP.combine_csv_dask(
+            merge_fields,
+            skim_out,
+            *in_tables,
+            suffixes=suffixes,
+            how="outer",
+            col_renames=renames,
+            dtype=prep_conf.SKIM_DTYPES,
+            thousands=",",
+        )
 
         # Combine trips into the skims separately (helps manage field name collisions
         # that would be a bit troublesome if we combine everything at once)
         print(" - Combining trip tables")
         in_tables = [skim_out, trips_csv]
-        P_HELP.combine_csv_dask(merge_fields, temp_out, *in_tables, how="outer",
-                                col_renames=renames, dtype=prep_conf.SKIM_DTYPES,
-                                thousands=",")
+        P_HELP.combine_csv_dask(
+            merge_fields,
+            temp_out,
+            *in_tables,
+            how="outer",
+            col_renames=renames,
+            dtype=prep_conf.SKIM_DTYPES,
+            thousands=",",
+        )
 
         # Update transit timee esimates
         print(" - Getting best transit time")
         competing_cols = ["TIME_LOC", "TIME_PRM"]
         out_col = prep_conf.SKIM_IMP_FIELD + "_TR"
         replace = {0: np.inf}
-        P_HELP.update_transit_times(temp_out, serpm_out, competing_cols=competing_cols, out_col=out_col,
-                                    replace_vals=replace, chunksize=100000)
+        P_HELP.update_transit_times(
+            temp_out,
+            serpm_out,
+            competing_cols=competing_cols,
+            out_col=out_col,
+            replace_vals=replace,
+            chunksize=100000,
+        )
 
         # Delete temporary tables
         arcpy.Delete_management(skim_out)
@@ -1496,16 +1547,26 @@ def process_travel_stats():
             auto_time_field = prep_conf.SKIM_IMP_FIELD + "_AU"
             tran_time_field = prep_conf.SKIM_IMP_FIELD + "_TR"
             dist_field = "DIST"
-            rates_df = P_HELP.taz_travel_stats(skim_csv, o_field=prep_conf.SKIM_O_FIELD, d_field=prep_conf.SKIM_D_FIELD,
-                                        veh_trips_field=trips_field, auto_time_field=auto_time_field, dist_field=dist_field,
-                                        taz_df=taz_ref, taz_id_field=prep_conf.TAZ_COMMON_KEY, hh_field=hh_field,
-                                        jobs_field=jobs_field)
+            rates_df = P_HELP.taz_travel_stats(
+                skim_csv,
+                o_field=prep_conf.SKIM_O_FIELD,
+                d_field=prep_conf.SKIM_D_FIELD,
+                veh_trips_field=trips_field,
+                auto_time_field=auto_time_field,
+                dist_field=dist_field,
+                taz_df=taz_ref,
+                taz_id_field=prep_conf.TAZ_COMMON_KEY,
+                hh_field=hh_field,
+                jobs_field=jobs_field,
+            )
             rates[model_year] = rates_df
 
         # Multiply rates by TAZ activity
         rates_df = rates[model_year]
         taz_fields = [prep_conf.TAZ_COMMON_KEY, hh_field, jobs_field]
-        loaded_df = rates_df.merge(taz_df[taz_fields], how="inner", on=prep_conf.TAZ_COMMON_KEY)
+        loaded_df = rates_df.merge(
+            taz_df[taz_fields], how="inner", on=prep_conf.TAZ_COMMON_KEY
+        )
         loaded_df["__activity__"] = loaded_df[[hh_field, jobs_field]].sum(axis=1)
         loaded_df["VMT_FROM"] = loaded_df.VMT_PER_ACT_FROM * loaded_df.__activity__
         loaded_df["VMT_TO"] = loaded_df.VMT_PER_ACT_TO * loaded_df.__activity__
@@ -1523,7 +1584,7 @@ def process_walk_to_transit_skim():
     taz_centroids = makePath(serpm_raw, "SERPM_TAZ_Centroids.shp")
     tap_nodes = makePath(serpm_raw, "SERPM_TAP_Nodes.shp")
     tap_id = "TAP"
-    tap_cutoff = "15" #minutes
+    tap_cutoff = "15"  # minutes
     solved = []
     for year in YEARS:
         net_suffix, model_year = prep_conf.NET_BY_YEAR[year]
@@ -1536,13 +1597,24 @@ def process_walk_to_transit_skim():
             restrictions = None
             # - Create and load problem
             print(" - Network-based")
-            P_HELP.genODTable(origin_pts=taz_centroids, origin_name_field=prep_conf.TAZ_COMMON_KEY,
-                        dest_pts=tap_nodes, dest_name_field=tap_id,
-                        in_nd=nd, imped_attr=prep_conf.OSM_IMPED, cutoff=tap_cutoff,
-                        net_loader=prep_conf.NET_LOADER,
-                        out_table=skim, restrictions=restrictions, use_hierarchy=False, uturns="ALLOW_UTURNS",
-                        o_location_fields=None, d_location_fields=None, o_chunk_size=None)
-    
+            P_HELP.genODTable(
+                origin_pts=taz_centroids,
+                origin_name_field=prep_conf.TAZ_COMMON_KEY,
+                dest_pts=tap_nodes,
+                dest_name_field=tap_id,
+                in_nd=nd,
+                imped_attr=prep_conf.OSM_IMPED,
+                cutoff=tap_cutoff,
+                net_loader=prep_conf.NET_LOADER,
+                out_table=skim,
+                restrictions=restrictions,
+                use_hierarchy=False,
+                uturns="ALLOW_UTURNS",
+                o_location_fields=None,
+                d_location_fields=None,
+                o_chunk_size=None,
+            )
+
             # Estimate simple spatial distance TAZ to TAP for TAZs outside extends of osm network
             print(" - Spatial-based")
             taz_layer = arcpy.MakeFeatureLayer_management(taz_centroids, "TAZ")
@@ -1557,32 +1629,59 @@ def process_walk_to_transit_skim():
             try:
                 # Select TAZ's that wouldn't load on network
                 arcpy.SelectLayerByLocation_management(
-                    in_layer=taz_layer, overlap_type="INTERSECT", select_features=edges,
-                    search_distance=prep_conf.NET_LOADER.search_tolerance, selection_type="NEW_SELECTION",
-                    invert_spatial_relationship=True)
+                    in_layer=taz_layer,
+                    overlap_type="INTERSECT",
+                    select_features=edges,
+                    search_distance=prep_conf.NET_LOADER.search_tolerance,
+                    selection_type="NEW_SELECTION",
+                    invert_spatial_relationship=True,
+                )
                 # Iterate over TAZs
                 with arcpy.da.SearchCursor(
-                    taz_layer, ["SHAPE@", prep_conf.TAZ_COMMON_KEY], spatial_reference=sr) as taz_c:
+                    taz_layer,
+                    ["SHAPE@", prep_conf.TAZ_COMMON_KEY],
+                    spatial_reference=sr,
+                ) as taz_c:
                     for taz_r in taz_c:
                         taz_point, taz_id = taz_r
                         # Select TAP's that are within potential walking distance of selected TAZ's
                         arcpy.SelectLayerByLocation_management(
-                            in_layer=tap_layer, overlap_type="INTERSECT", select_features=taz_point,
-                            search_distance=prep_conf.IDEAL_WALK_RADIUS, selection_type="NEW_SELECTION",
-                            invert_spatial_relationship=False)
+                            in_layer=tap_layer,
+                            overlap_type="INTERSECT",
+                            select_features=taz_point,
+                            search_distance=prep_conf.IDEAL_WALK_RADIUS,
+                            selection_type="NEW_SELECTION",
+                            invert_spatial_relationship=False,
+                        )
                         # Iterate over taps and estimate walk time
                         with arcpy.da.SearchCursor(
-                            tap_layer, ["SHAPE@", tap_id], spatial_reference=sr) as tap_c:
+                            tap_layer, ["SHAPE@", tap_id], spatial_reference=sr
+                        ) as tap_c:
                             for tap_r in tap_c:
                                 tap_point, tap_n = tap_r
-                                grid_dist = abs(tap_point.centroid.X - taz_point.centroid.X)
-                                grid_dist += abs(tap_point.centroid.Y - taz_point.centroid.Y)
+                                grid_dist = abs(
+                                    tap_point.centroid.X - taz_point.centroid.X
+                                )
+                                grid_dist += abs(
+                                    tap_point.centroid.Y - taz_point.centroid.Y
+                                )
                                 grid_meters = grid_dist * mpu
-                                grid_minutes = (grid_meters * 60) / (prep_conf.IDEAL_WALK_MPH * 1609.344)
+                                grid_minutes = (grid_meters * 60) / (
+                                    prep_conf.IDEAL_WALK_MPH * 1609.344
+                                )
                                 if grid_minutes <= float(tap_cutoff):
-                                    out_rows.append([f"{taz_id} - {tap_n}", grid_minutes, taz_id, tap_n])
+                                    out_rows.append(
+                                        [
+                                            f"{taz_id} - {tap_n}",
+                                            grid_minutes,
+                                            taz_id,
+                                            tap_n,
+                                        ]
+                                    )
                 # Update output csv
-                out_df = pd.DataFrame(out_rows, columns=["Name", prep_conf.OSM_IMPED, "OName", "DName"])
+                out_df = pd.DataFrame(
+                    out_rows, columns=["Name", prep_conf.OSM_IMPED, "OName", "DName"]
+                )
                 out_df.to_csv(skim, mode="a", header=False, index=False)
             except:
                 raise
@@ -1594,12 +1693,13 @@ def process_walk_to_transit_skim():
             # Mark as solved
             solved.append(model_year)
 
+
 def process_serpm_transit():
     # Make a graph from TAP to TAP skim
     serpm_raw = makePath(RAW, "SERPM")
     serpm_clean = makePath(CLEANED, "SERPM")
     skim_versions = ["local", "prem"]
-    cutoff = 60 #TODO: move to prep_conf?
+    cutoff = 60  # TODO: move to prep_conf?
     solved = []
     for year in YEARS:
         net_suffix, model_year = prep_conf.NET_BY_YEAR[year]
@@ -1607,7 +1707,9 @@ def process_serpm_transit():
         tazs = makePath(serpm_raw, "SERPM_TAZ_Centroids.shp")
         # Get TAZ nodes
         mdc_wc = arcpy.AddFieldDelimiters(tazs, "IN_MDC") + "=1"
-        with arcpy.da.SearchCursor(tazs, prep_conf.TAZ_COMMON_KEY, where_clause=mdc_wc) as c:
+        with arcpy.da.SearchCursor(
+            tazs, prep_conf.TAZ_COMMON_KEY, where_clause=mdc_wc
+        ) as c:
             taz_nodes = sorted({r[0] for r in c})
         with arcpy.da.SearchCursor(tazs, prep_conf.TAZ_COMMON_KEY) as c:
             all_tazs = sorted({r[0] for r in c})
@@ -1616,13 +1718,28 @@ def process_serpm_transit():
             print(f"Estimating TAZ to TAZ times for model year {model_year}")
             for skim_version in skim_versions:
                 print(f"- transit submode: {skim_version}")
-                tap_to_tap = makePath(serpm_raw, f"TAP_to_TAP_{skim_version}_{model_year}.csv")
+                tap_to_tap = makePath(
+                    serpm_raw, f"TAP_to_TAP_{skim_version}_{model_year}.csv"
+                )
                 # Clean the tap to tap skim
                 print(f" - - cleaning TAP to TAP skim")
-                tap_to_tap_clean = makePath(serpm_clean, f"TAP_to_TAP_{skim_version}_{model_year}_clean.csv")
-                tap_renames = {"orig": "OName", "dest": "DName", "flow": "Minutes"} # TODO move to prep_conf?
-                P_HELP.clean_skim_csv(in_file=tap_to_tap, out_file=tap_to_tap_clean, imp_field="Minutes",
-                                    drop_val=0, node_fields=["OName", "DName"], node_offset=5000, renames=tap_renames)
+                tap_to_tap_clean = makePath(
+                    serpm_clean, f"TAP_to_TAP_{skim_version}_{model_year}_clean.csv"
+                )
+                tap_renames = {
+                    "orig": "OName",
+                    "dest": "DName",
+                    "flow": "Minutes",
+                }  # TODO move to prep_conf?
+                P_HELP.clean_skim_csv(
+                    in_file=tap_to_tap,
+                    out_file=tap_to_tap_clean,
+                    imp_field="Minutes",
+                    drop_val=0,
+                    node_fields=["OName", "DName"],
+                    node_offset=5000,
+                    renames=tap_renames,
+                )
                 # TODO: tack taz_to_tap onto the end of tap_to_tap to eliminate the need to run Compose?
                 # # Combine skims to build zone-to-zone times
                 # taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
@@ -1631,30 +1748,57 @@ def process_serpm_transit():
                 #                           origin_zones=taz_nodes, total_cutoff=cutoff)
                 # Make tap to tap network
                 print(" - - building TAP to TAP graph")
-                full_skim(tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs)
+                full_skim(
+                    tap_to_tap_clean,
+                    taz_to_tap,
+                    cutoff,
+                    model_year,
+                    skim_version,
+                    taz_nodes,
+                    all_tazs,
+                )
                 solved.append(model_year)
 
-def full_skim(tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs):
+
+def full_skim(
+    tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs
+):
     serpm_clean = makePath(CLEANED, "SERPM")
-    G = P_HELP.skim_to_graph(tap_to_tap_clean, source="OName", target="DName", attrs="Minutes",
-                            create_using=nx.DiGraph)
+    G = P_HELP.skim_to_graph(
+        tap_to_tap_clean,
+        source="OName",
+        target="DName",
+        attrs="Minutes",
+        create_using=nx.DiGraph,
+    )
     # Make tap to taz network (as base graph, converted to digraph)
     print(" - - building TAZ to TAP graph")
-    H = P_HELP.skim_to_graph(taz_to_tap, source="OName", target="DName", attrs="Minutes",
-                            create_using=nx.Graph, renames={}).to_directed()
+    H = P_HELP.skim_to_graph(
+        taz_to_tap,
+        source="OName",
+        target="DName",
+        attrs="Minutes",
+        create_using=nx.Graph,
+        renames={},
+    ).to_directed()
     # Combine networks and solve taz to taz
     print(" - - combining graphs")
     FULL = nx.compose(G, H)
-    print(f" - - solving TAZ to TAZ for {len(taz_nodes)} origins (of {len(all_tazs)} taz's)")
+    print(
+        f" - - solving TAZ to TAZ for {len(taz_nodes)} origins (of {len(all_tazs)} taz's)"
+    )
     taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
-    
+
     with open(taz_to_taz, "w") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD])
+        writer.writerow(
+            [prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD]
+        )
         for i in taz_nodes:
             if FULL.has_node(i):
                 i_dict = nx.single_source_dijkstra_path_length(
-                    G=FULL, source=i, cutoff=cutoff, weight="Minutes")
+                    G=FULL, source=i, cutoff=cutoff, weight="Minutes"
+                )
                 out_rows = []
                 for j, time in i_dict.items():
                     if j in all_tazs:
@@ -1690,7 +1834,6 @@ if __name__ == "__main__":
     # process_udb() # TODO: udbToPolygon failing to create a feature class to store the output (likley an arcpy overrun)
 
     # process_basic_features() # TESTED
-
 
     # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
     # process_parks()  # TESTED UPDATES 03/10/21 CR
@@ -1797,7 +1940,7 @@ if __name__ == "__main__":
     # process_access()  # TESTED by AB 4/11/21 with transkt skim
 
     # PREPARE TAZ TRIP LENGTH AND VMT RATES
-    process_travel_stats() #  Tested by AB 4/1/21
+    process_travel_stats()  #  Tested by AB 4/1/21
 
     # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
     # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm

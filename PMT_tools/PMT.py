@@ -725,9 +725,7 @@ def colMultiIndexToNames(columns, separator="_"):
     return columns
 
 
-def extendTableDf(
-    in_table, table_match_field, df, df_match_field, **kwargs
-):
+def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
     """Use a pandas data frame to extend (add columns to) an existing table based
         through a join on key columns. Key values in the existing table must be
         unique.

@@ -396,8 +396,10 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=No
     melt_df = df.melt(id_vars=id_field)
     # TODO: add lower time bin value so ranges can be reported in dashboard lists
     melt_df["from_time"] = melt_df["TimeBin"].apply(
-        lambda tb: _get_time_previous_time_break_(time_breaks, tb), axis=1)
+        lambda tb: _get_time_previous_time_break_(time_breaks, tb), axis=1
+    )
     return melt_df
+
 
 def _get_time_previous_time_break_(time_breaks, tb):
     idx = time_breaks.index(tb)
@@ -405,6 +407,7 @@ def _get_time_previous_time_break_(time_breaks, tb):
         return 0
     else:
         return time_breaks[idx - 1]
+
 
 def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     """

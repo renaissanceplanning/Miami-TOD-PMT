@@ -446,13 +446,27 @@ def _stringifyList(input):
     return ";".join(input)
 
 
-def makeBasicFeatures(bf_gdb, stations_fc, stn_id_field, stn_diss_fields, stn_corridor_fields,
-                      alignments_fc, align_diss_fields, align_corridor_name, stn_buff_dist="2640 Feet",
-                      align_buff_dist="2640 Feet", stn_areas_fc="Station_Areas",
-                      corridors_fc="Corridors", long_stn_fc="Stations_Long",
-                      preset_station_areas=None, preset_station_id=None,
-                      preset_corridors=None, preset_corridor_name=None,
-                      rename_dict={}, overwrite=False):
+def makeBasicFeatures(
+    bf_gdb,
+    stations_fc,
+    stn_id_field,
+    stn_diss_fields,
+    stn_corridor_fields,
+    alignments_fc,
+    align_diss_fields,
+    align_corridor_name,
+    stn_buff_dist="2640 Feet",
+    align_buff_dist="2640 Feet",
+    stn_areas_fc="Station_Areas",
+    corridors_fc="Corridors",
+    long_stn_fc="Stations_Long",
+    preset_station_areas=None,
+    preset_station_id=None,
+    preset_corridors=None,
+    preset_corridor_name=None,
+    rename_dict={},
+    overwrite=False,
+):
     """In a geodatabase with basic features (station points and corridor alignments),
         create polygon feature classes used for standard mapping and summarization.
         The output feature classes include:
@@ -534,10 +548,17 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_id_field, stn_diss_fields, stn_co
         dissolve_field=_diss_flds_,
     )
 
-    # Patch buffers and 
+    # Patch buffers and
     print("--- patching preset features")
-    patch_basic_features(bf_gdb, stn_areas_fc, corridors_fc, preset_station_areas=preset_station_areas, station_id_field=preset_station_id,
-                            preset_corridors=preset_corridors, corridor_name_field=preset_corridor_name)
+    patch_basic_features(
+        bf_gdb,
+        stn_areas_fc,
+        corridors_fc,
+        preset_station_areas=preset_station_areas,
+        station_id_field=preset_station_id,
+        preset_corridors=preset_corridors,
+        corridor_name_field=preset_corridor_name,
+    )
 
     # Add (All corridors) to `corridors_fc`
     # - Setup field outputs
@@ -596,10 +617,20 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_id_field, stn_diss_fields, stn_co
     arcpy.env.workspace = old_ws
 
 
-def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corridors_fc, cor_name_field,
-                        out_fc, stn_buffer_meters=804.672,
-                        stn_name_field="Name", stn_status_field="Status", stn_cor_field="Corridor",
-                        overwrite=False):
+def makeSummaryFeatures(
+    bf_gdb,
+    long_stn_fc,
+    stn_areas_fc,
+    stn_id_field,
+    corridors_fc,
+    cor_name_field,
+    out_fc,
+    stn_buffer_meters=804.672,
+    stn_name_field="Name",
+    stn_status_field="Status",
+    stn_cor_field="Corridor",
+    overwrite=False,
+):
     """Creates a single feature class for data summarization based on station area and corridor geographies.
         The output feature class includes each station area, all combined station areas, the entire corridor area,
         and the portion of the corridor that is outside station areas.
@@ -635,13 +666,24 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corrido
     # - Add fields
     arcpy.AddField_management(out_fc, "STN_ID", "LONG")
     arcpy.AddField_management(out_fc, prep_conf.STN_NAME_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(out_fc, prep_conf.STN_STATUS_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(out_fc, prep_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(
+        out_fc, prep_conf.STN_STATUS_FIELD, "TEXT", field_length=80
+    )
+    arcpy.AddField_management(
+        out_fc, prep_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80
+    )
     arcpy.AddField_management(out_fc, prep_conf.SUMMARY_AREAS_COMMON_KEY, "LONG")
 
     # Add all corridors with name="(Entire corridor)", corridor=cor_name_field
     print("--- adding corridor polygons")
-    out_fields = ["SHAPE@", "STN_ID", stn_name_field, stn_status_field, stn_cor_field, prep_conf.SUMMARY_AREAS_COMMON_KEY]
+    out_fields = [
+        "SHAPE@",
+        "STN_ID",
+        stn_name_field,
+        stn_status_field,
+        stn_cor_field,
+        prep_conf.SUMMARY_AREAS_COMMON_KEY,
+    ]
     cor_fields = ["SHAPE@", cor_name_field]
     cor_polys = {}
     i = 0
@@ -658,7 +700,13 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corrido
 
     # Add all station areas with name= stn_name_field, corridor=stn_cor_field
     print("--- adding station polygons by corridor")
-    stn_fields = ["SHAPE@", stn_id_field, stn_name_field, stn_status_field, stn_cor_field]
+    stn_fields = [
+        "SHAPE@",
+        stn_id_field,
+        stn_name_field,
+        stn_status_field,
+        stn_cor_field,
+    ]
     cor_stn_polys = {}
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
         # with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
@@ -682,11 +730,17 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corrido
                 point, stn_id, stn_name, stn_status, corridor = sr
 
                 ### Get poly from stn_areas_fc
-                where_clause = arcpy.AddFieldDelimiters(stn_areas_fc, stn_id_field) + f"={stn_id}"
-                with arcpy.da.SearchCursor(stn_areas_fc, "SHAPE@", where_clause=where_clause) as ref_c:
-                    poly = reduce(lambda x, y: x.union(y), [ref_r[0] for ref_r in ref_c])
+                where_clause = (
+                    arcpy.AddFieldDelimiters(stn_areas_fc, stn_id_field) + f"={stn_id}"
+                )
+                with arcpy.da.SearchCursor(
+                    stn_areas_fc, "SHAPE@", where_clause=where_clause
+                ) as ref_c:
+                    poly = reduce(
+                        lambda x, y: x.union(y), [ref_r[0] for ref_r in ref_c]
+                    )
                 ###
-                #poly = point.buffer(buff_dist)
+                # poly = point.buffer(buff_dist)
                 out_row = [poly, stn_id, stn_name, stn_status, corridor, i]
                 ic.insertRow(out_row)
                 # Merge station polygons by corridor in a dict for later use
@@ -716,8 +770,15 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corrido
     arcpy.env.workspace = old_ws
 
 
-def patch_basic_features(basic_gdb, station_areas_fc, corridors_fc, preset_station_areas=None, station_id_field=None, 
-                         preset_corridors=None, corridor_name_field=None):
+def patch_basic_features(
+    basic_gdb,
+    station_areas_fc,
+    corridors_fc,
+    preset_station_areas=None,
+    station_id_field=None,
+    preset_corridors=None,
+    corridor_name_field=None,
+):
     """
     Modifies the basic features database to updata station area and/or corridor geometries
     based on provided preset features
@@ -745,12 +806,12 @@ def patch_basic_features(basic_gdb, station_areas_fc, corridors_fc, preset_stati
     makeBasicFeatures
     makeSummaryFeatures
     """
-    
+
     # stations_long_fc = makePath(basic_gdb, "StationsLong")
-    #station_areas_fc = makePath(basic_gdb, "StationAreas")
-    #corridors_fc = makePath(basic_gdb, "Corridors")
-    #summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
-    
+    # station_areas_fc = makePath(basic_gdb, "StationAreas")
+    # corridors_fc = makePath(basic_gdb, "Corridors")
+    # summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
+
     # stations_df = PMT.table_to_df(stations_fc)
     # align_df = PMT.table_to_df(align_fc)
     # stations_long_df = PMT.table_to_df(stations_long_fc)
@@ -761,29 +822,42 @@ def patch_basic_features(basic_gdb, station_areas_fc, corridors_fc, preset_stati
     # summ_area_updates = []
     if preset_station_areas is not None:
         # TODO: functionalize this
-        with arcpy.da.SearchCursor(preset_station_areas, ["SHAPE@", station_id_field]) as c:
+        with arcpy.da.SearchCursor(
+            preset_station_areas, ["SHAPE@", station_id_field]
+        ) as c:
             for r in c:
                 preset_shape, station_id = r
                 # lookup which station -> which station_area
-                where_clause = arcpy.AddFieldDelimiters(station_areas_fc, "Id") + f"= {station_id}"
-                with arcpy.da.UpdateCursor(station_areas_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
+                where_clause = (
+                    arcpy.AddFieldDelimiters(station_areas_fc, "Id") + f"= {station_id}"
+                )
+                with arcpy.da.UpdateCursor(
+                    station_areas_fc, ["SHAPE@"], where_clause=where_clause
+                ) as uc:
                     for ur in uc:
                         old_shape = ur[0]
-                        #summ_area_updates.append((old_shape, preset_shape))
+                        # summ_area_updates.append((old_shape, preset_shape))
                         ur[0] = preset_shape
                         uc.updateRow(ur)
 
     # this repeats the same process - functionalize
     if preset_corridors is not None:
-        with arcpy.da.SearchCursor(preset_corridors, ["SHAPE@", corridor_name_field]) as c:
+        with arcpy.da.SearchCursor(
+            preset_corridors, ["SHAPE@", corridor_name_field]
+        ) as c:
             for r in c:
                 preset_shape, corridor = r
                 # lookup which station -> which station_area
-                where_clause = arcpy.AddFieldDelimiters(corridors_fc, "Corridor") + f"= '{corridor}'"
-                with arcpy.da.UpdateCursor(corridors_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
+                where_clause = (
+                    arcpy.AddFieldDelimiters(corridors_fc, "Corridor")
+                    + f"= '{corridor}'"
+                )
+                with arcpy.da.UpdateCursor(
+                    corridors_fc, ["SHAPE@"], where_clause=where_clause
+                ) as uc:
                     for ur in uc:
                         old_shape = ur[0]
-                        #summ_area_updates.append((old_shape, preset_shape))
+                        # summ_area_updates.append((old_shape, preset_shape))
                         ur[0] = preset_shape
                         uc.updateRow(ur)
 
@@ -804,7 +878,6 @@ def patch_basic_features(basic_gdb, station_areas_fc, corridors_fc, preset_stati
     # finally:
     #     arcpy.Delete_management(summ_layer)
 
-    
 
 # crash functions
 def update_crash_type(feature_class, data_fields, update_field):
@@ -3557,7 +3630,7 @@ def taz_travel_stats(
     dfs = [o_df, d_df]
     weight_field = "__activity__"
     taz_df[weight_field] = taz_df[hh_field] + taz_df[jobs_field]
-    #for df, key_field, weight_field in zip(dfs, key_fields, weight_fields):
+    # for df, key_field, weight_field in zip(dfs, key_fields, weight_fields):
     for df, key_field in zip(dfs, key_fields):
         # Basic
         df["AVG_DIST"] = df.VMT / df[veh_trips_field]
@@ -3567,17 +3640,26 @@ def taz_travel_stats(
         taz_indexed = taz_df.rename(columns=renames).set_index(taz_id_field)
         taz_indexed = taz_indexed.reindex(ref_index, fill_value=0)
         df[weight_field] = taz_indexed[weight_field]
-        fltr = df[weight_field]==0
-        df[f"VMT_PER_ACT"] = np.select(
-            [fltr], [0], df.VMT / df[weight_field])
+        fltr = df[weight_field] == 0
+        df[f"VMT_PER_ACT"] = np.select([fltr], [0], df.VMT / df[weight_field])
         df[f"TRIPS_PER_ACT"] = np.select(
-            [fltr], [0], df[veh_trips_field] / df[weight_field])
+            [fltr], [0], df[veh_trips_field] / df[weight_field]
+        )
 
     # Combine O and D frames
     taz_stats_df = dfs[0].merge(
-        dfs[1], how="outer", left_index=True, right_index=True, suffixes=suffixes)
-    keep_fields = ["AVG_DIST_FROM", "AVG_TIME_FROM", "VMT_PER_ACT_FROM", "TRIPS_PER_ACT_FROM",
-                   "AVG_DIST_TO", "AVG_TIME_TO", "VMT_PER_ACT_TO", "TRIPS_PER_ACT_TO"]
+        dfs[1], how="outer", left_index=True, right_index=True, suffixes=suffixes
+    )
+    keep_fields = [
+        "AVG_DIST_FROM",
+        "AVG_TIME_FROM",
+        "VMT_PER_ACT_FROM",
+        "TRIPS_PER_ACT_FROM",
+        "AVG_DIST_TO",
+        "AVG_TIME_TO",
+        "VMT_PER_ACT_TO",
+        "TRIPS_PER_ACT_TO",
+    ]
     taz_stats_df.index.name = taz_id_field
     return taz_stats_df[keep_fields].reset_index()
 
@@ -5947,8 +6029,17 @@ def build_short_term_parcels(
 #     return out_table
 
 
-def clean_skim_csv(in_file, out_file, imp_field, drop_val=0, renames={},
-                   node_offset=0, node_fields=["F_TAP", "T_TAP"], chunksize=100000, **kwargs):
+def clean_skim_csv(
+    in_file,
+    out_file,
+    imp_field,
+    drop_val=0,
+    renames={},
+    node_offset=0,
+    node_fields=["F_TAP", "T_TAP"],
+    chunksize=100000,
+    **kwargs,
+):
     """
     Reads an OD table and drops rows where `imp_field` = `drop_val` is true. Optionallly renumbers nodes
     by applying (adding) an offset to the original values. Saves a new csv containing key columns 
@@ -6003,12 +6094,14 @@ def clean_skim_csv(in_file, out_file, imp_field, drop_val=0, renames={},
 def _df_to_graph_(df, source, target, attrs, create_using, renames, where=None):
     if renames:
         df.rename(columns=renames, inplace=True)
-    return nx.from_pandas_edgelist(df, source=source, target=target,
-                                   edge_attr=attrs, create_using=create_using)
+    return nx.from_pandas_edgelist(
+        df, source=source, target=target, edge_attr=attrs, create_using=create_using
+    )
 
 
-def skim_to_graph(in_csv, source, target, attrs, create_using=nx.DiGraph,
-                  renames={}, **kwargs):
+def skim_to_graph(
+    in_csv, source, target, attrs, create_using=nx.DiGraph, renames={}, **kwargs
+):
     """
     Converts a long OD table from a csv into a networkx graph, such that each
     OD row becomes an edge in the graph, with its origin and destination added as nodes.
@@ -6034,43 +6127,55 @@ def skim_to_graph(in_csv, source, target, attrs, create_using=nx.DiGraph,
         graph_list = []
         for chunk in pd.read_csv(in_csv, **kwargs):
             graph_list.append(
-                _df_to_graph_(
-                    chunk, source, target, attrs, create_using, renames
-                    )
-                )
+                _df_to_graph_(chunk, source, target, attrs, create_using, renames)
+            )
         return reduce(nx.compose, graph_list)
     else:
         df = pd.read_csv(in_csv, **kwargs)
         return _df_to_graph_(df, source, target, attrs, create_using, renames)
-    
 
-def transit_skim_joins(taz_to_tap, tap_to_tap, out_skim, o_col="OName", d_col="DName", imp_col="Minutes",
-                       origin_zones=None, destination_zones=None, total_cutoff=np.inf, *kwargs):
+
+def transit_skim_joins(
+    taz_to_tap,
+    tap_to_tap,
+    out_skim,
+    o_col="OName",
+    d_col="DName",
+    imp_col="Minutes",
+    origin_zones=None,
+    destination_zones=None,
+    total_cutoff=np.inf,
+    *kwargs,
+):
     """
 
     ... assumes taz_to_tap and tap_to_tap have identical column headings for key fields
     """
-    #TODO: enrich to set limits on access time, egress time, IVT
-    #TODO: handle column output names
+    # TODO: enrich to set limits on access time, egress time, IVT
+    # TODO: handle column output names
     # Read tables
     z2p_dd = dd.read_csv(taz_to_tap)
     p2p_dd = dd.read_csv(tap_to_tap)
-    
+
     # Prep tables to handle column collisions
     z2p_dd = z2p_dd.rename(
         columns={o_col: "OName", d_col: "Boarding_stop", imp_col: "access_time"}
-        )
+    )
     p2p_dd = p2p_dd.rename(
-        columns ={o_col: "Boarding_stop", d_col: "Alighting_stop", imp_col: "IVT"},
-        )
-    
+        columns={o_col: "Boarding_stop", d_col: "Alighting_stop", imp_col: "IVT"},
+    )
+
     # Merge to get alighting stops reachable from origin TAZ via boarding stop
     o_merge = z2p_dd.merge(p2p_dd, how="inner", on="Boarding_stop")
-    
+
     # Rename access skim columns to reflect egress times
     z2p_dd = z2p_dd.rename(
-        columns={"Boarding_stop": "Alighting_stop", "OName": "DName", "access_time": "egress_time"},
-        )
+        columns={
+            "Boarding_stop": "Alighting_stop",
+            "OName": "DName",
+            "access_time": "egress_time",
+        },
+    )
 
     # Merge to get destination zones reachable via alighting stop
     d_merge = o_merge.merge(z2p_dd, how="inner", on="Alighting_stop")
@@ -6088,10 +6193,10 @@ def transit_skim_joins(taz_to_tap, tap_to_tap, out_skim, o_col="OName", d_col="D
     # Export result
     out_cols = ["OName", "DName", "Minutes"]
     result = result[out_cols].groupby(out_cols[:2]).min()
-    result.to_csv(out_skim, single_file=True, index=True, header_first_partition_only=True, chunksize=100000)
-
-
-
-
-
-
+    result.to_csv(
+        out_skim,
+        single_file=True,
+        index=True,
+        header_first_partition_only=True,
+        chunksize=100000,
+    )
