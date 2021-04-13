@@ -8,6 +8,7 @@ cleaning, analysis, and summarization processes.
 import fnmatch
 import re
 import tempfile
+
 # %% imports
 import uuid
 from collections.abc import Iterable
@@ -60,8 +61,7 @@ class Column:
     def __setattr__(self, name, value):
         if name == "domain":
             if value is not None and not isinstance(value, DomainColumn):
-                raise TypeError(
-                    f"`domain` must be DomainColumn, got {type(value)}")
+                raise TypeError(f"`domain` must be DomainColumn, got {type(value)}")
         super().__setattr__(name, value)
 
     def applyDomain(self, df, col=None):
@@ -74,9 +74,7 @@ class Column:
                 criteria.append(df[col] == ref_val)
                 results.append(dom_val)
                 df[self.domain.name] = np.select(
-                    condlist=criteria,
-                    choicelist=results,
-                    default=self.domain.default
+                    condlist=criteria, choicelist=results, default=self.domain.default
                 )
 
 
@@ -114,21 +112,17 @@ class CollCollection(AggColumn):
             if valid:
                 super().__setattr__(name, value)
             else:
-                raise ValueError(
-                    f"Expected iterable of column names for `input_cols`")
+                raise ValueError(f"Expected iterable of column names for `input_cols`")
         else:
             super().__setattr__(name, value)
 
     def defaultsDict(self):
-        if isinstance(self.default, Iterable) and \
-                not isinstance(self.default, string_types):
+        if isinstance(self.default, Iterable) and not isinstance(
+            self.default, string_types
+        ):
             return dict(zip(self.input_cols, self.default))
         else:
-            return dict(
-                zip(self.input_cols,
-                    [self.default for ic in self.input_cols]
-                    )
-            )
+            return dict(zip(self.input_cols, [self.default for ic in self.input_cols]))
 
 
 class Consolidation(CollCollection):
@@ -138,7 +132,9 @@ class Consolidation(CollCollection):
 
 
 class MeltColumn(CollCollection):
-    def __init__(self, label_col, val_col, input_cols, agg_method=sum, default=0.0, domain=None):
+    def __init__(
+        self, label_col, val_col, input_cols, agg_method=sum, default=0.0, domain=None
+    ):
         CollCollection.__init__(self, val_col, input_cols, agg_method, default)
         self.label_col = label_col
         self.val_col = val_col
@@ -153,7 +149,7 @@ class Join(CollCollection):
         CollCollection.__init__(self, None, input_cols, agg_method, default)
         self.on_col = on_col
 
-    ''' comparison classes '''
+    """ comparison classes """
 
 
 class Comp:
@@ -174,7 +170,7 @@ class Comp:
             "<": "__lt__",
             "<=": "__le__",
             ">": "__gt__",
-            ">=": "__ge__"
+            ">=": "__ge__",
         }
         self.comp_method = _comp_methods[comp_method]
         self.v = v
@@ -232,24 +228,27 @@ class Or:
             self.criteria = [criteria]
 
     def eval(self):
-        return (
-            np.logical_or.reduce(
-                [c.eval(self.vector) for c in self.criteria]
-            )
-        )
+        return np.logical_or.reduce([c.eval(self.vector) for c in self.criteria])
 
 
-class NetLoader():
+class NetLoader:
     """
     A naive class for specifying network location loading preferences.
     Simplifies network functions by passing loading specifications as
     a single argument. This class does no validation of assigned preferences.
     """
 
-    def __init__(self, search_tolerance, search_criteria,
-                 match_type="MATCH_TO_CLOSEST", append="APPEND",
-                 snap="NO_SNAP", offset="5 Meters",
-                 exclude_restricted="EXCLUDE", search_query=None):
+    def __init__(
+        self,
+        search_tolerance,
+        search_criteria,
+        match_type="MATCH_TO_CLOSEST",
+        append="APPEND",
+        snap="NO_SNAP",
+        offset="5 Meters",
+        exclude_restricted="EXCLUDE",
+        search_query=None,
+    ):
         self.search_tolerance = search_tolerance
         self.search_criteria = search_criteria
         self.match_type = match_type
@@ -260,7 +259,7 @@ class NetLoader():
         self.search_query = search_query
 
 
-class ServiceAreaAnalysis():
+class ServiceAreaAnalysis:
     """Specifies elements of a Network Analyst Service Area Problem and
         provides a method for solving and exporting service arae lines
         and polygons.
@@ -282,8 +281,15 @@ class ServiceAreaAnalysis():
         self.overlaps = ["OVERLAP", "NON_OVERLAP"]
         self.merges = ["NO_MERGE", "MERGE"]
 
-    def solve(self, imped_attr, cutoff, out_ws, restrictions="",
-              use_hierarchy=False, net_location_fields=""):
+    def solve(
+        self,
+        imped_attr,
+        cutoff,
+        out_ws,
+        restrictions="",
+        use_hierarchy=False,
+        net_location_fields="",
+    ):
         """Create service area lines and polygons for this object's `facilities`.
 
         Args:
@@ -319,7 +325,7 @@ class ServiceAreaAnalysis():
                 restrictions=restrictions,
                 use_hierarchy=use_hierarchy,
                 uturns="ALLOW_UTURNS",
-                net_location_fields=net_location_fields
+                net_location_fields=net_location_fields,
             )
             # Polygons
             polys = makePath(out_ws, f"{self.name}_{merge}")
@@ -337,7 +343,7 @@ class ServiceAreaAnalysis():
                 restrictions=restrictions,
                 use_hierarchy=use_hierarchy,
                 uturns="ALLOW_UTURNS",
-                net_location_fields=net_location_fields
+                net_location_fields=net_location_fields,
             )
 
 
@@ -374,7 +380,7 @@ def make_inmem_path(file_name=None):
         else:
             return in_mem_path
     except ValueError:
-        print('The file_name supplied already exists in the in_memory space')
+        print("The file_name supplied already exists in the in_memory space")
 
 
 def validate_directory(directory):
@@ -426,7 +432,10 @@ def validate_feature_dataset(fds_path, sr, overwrite=False):
     try:
         # verify the path is through a geodatabase
         if fnmatch.fnmatch(name=fds_path, pat="*.gdb*"):
-            if arcpy.Exists(fds_path) and arcpy.Describe(fds_path).spatialReference == sr:
+            if (
+                arcpy.Exists(fds_path)
+                and arcpy.Describe(fds_path).spatialReference == sr
+            ):
                 if overwrite:
                     checkOverwriteOutput(fds_path, overwrite=overwrite)
                 else:
@@ -434,7 +443,9 @@ def validate_feature_dataset(fds_path, sr, overwrite=False):
             # Snippet below only runs if not exists/overwrite and can be created.
             out_gdb, name = os.path.split(fds_path)
             out_gdb = validate_geodatabase(gdb_path=out_gdb)
-            arcpy.CreateFeatureDataset_management(out_dataset_path=out_gdb, out_name=name, spatial_reference=sr)
+            arcpy.CreateFeatureDataset_management(
+                out_dataset_path=out_gdb, out_name=name, spatial_reference=sr
+            )
             return fds_path
         else:
             raise ValueError
@@ -475,8 +486,14 @@ def dbf_to_df(dbf_file):
     return db.to_dataframe()
 
 
-def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False,
-                      in_temp_dir=False, full_geometries=False):
+def intersectFeatures(
+    summary_fc,
+    disag_fc,
+    disag_fields="*",
+    as_df=False,
+    in_temp_dir=False,
+    full_geometries=False,
+):
     """
         creates a temporary intersected feature class for disaggregation of data
     Args:
@@ -495,7 +512,9 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False,
     if in_temp_dir:
         # Create a temporary gdb for storing the intersection result
         temp_dir = tempfile.mkdtemp()
-        arcpy.CreateFileGDB_management(out_folder_path=temp_dir, out_name="Intermediates.gdb")
+        arcpy.CreateFileGDB_management(
+            out_folder_path=temp_dir, out_name="Intermediates.gdb"
+        )
         out_gdb = makePath(temp_dir, "Intermediates.gdb")
 
         # Convert disag features to centroids
@@ -509,10 +528,17 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False,
 
     if not full_geometries:
         # dump to centroids
-        disag_fc = polygonsToPoints(in_fc=disag_fc, out_fc=points_fc,
-                                    fields=disag_fields, skip_nulls=False, null_value=0)
+        disag_fc = polygonsToPoints(
+            in_fc=disag_fc,
+            out_fc=points_fc,
+            fields=disag_fields,
+            skip_nulls=False,
+            null_value=0,
+        )
     # Run intersection
-    arcpy.Intersect_analysis(in_features=[summary_fc, disag_fc], out_feature_class=out_fc)
+    arcpy.Intersect_analysis(
+        in_features=[summary_fc, disag_fc], out_feature_class=out_fc
+    )
 
     # return intersect
     if as_df:
@@ -521,8 +547,9 @@ def intersectFeatures(summary_fc, disag_fc, disag_fields="*", as_df=False,
         return out_fc
 
 
-def jsonToFeatureClass(json_obj, out_file, new_id_field='ROW_ID',
-                       exclude=None, sr=4326, overwrite=False):
+def jsonToFeatureClass(
+    json_obj, out_file, new_id_field="ROW_ID", exclude=None, sr=4326, overwrite=False
+):
     """Creates a feature class or shape file from a json object.
     Args:
         json_obj (dict)
@@ -557,8 +584,12 @@ def jsonToFeatureClass(json_obj, out_file, new_id_field='ROW_ID',
     if overwrite:
         checkOverwriteOutput(output=out_file, overwrite=overwrite)
     out_path, out_name = os.path.split(out_file)
-    arcpy.CreateFeatureclass_management(out_path=out_path, out_name=out_name,
-                                        geometry_type=geom_type, spatial_reference=sr)
+    arcpy.CreateFeatureclass_management(
+        out_path=out_path,
+        out_name=out_name,
+        geometry_type=geom_type,
+        spatial_reference=sr,
+    )
     arcpy.AddField_management(out_file, new_id_field, "LONG")
 
     # Add geometries
@@ -578,8 +609,12 @@ def jsonToFeatureClass(json_obj, out_file, new_id_field='ROW_ID',
     # Extend table
     print([f.name for f in arcpy.ListFields(out_file)])
     print(prop_df.columns)
-    return extendTableDf(in_table=out_file, table_match_field=new_id_field,
-                         df=prop_df, df_match_field=new_id_field)
+    return extendTableDf(
+        in_table=out_file,
+        table_match_field=new_id_field,
+        df=prop_df,
+        df_match_field=new_id_field,
+    )
 
 
 def jsonToTable(json_obj, out_file):
@@ -627,8 +662,9 @@ def iterRowsAsChunks(in_table, chunksize=1000):
     for i in range(0, n, chunksize):
         expr_ref = arcpy.AddFieldDelimiters(in_table, oid_field)
         expr = f"{expr_ref} > {i} AND {expr_ref} <= {i + chunksize}"
-        arcpy.SelectLayerByAttribute_management(in_layer_or_view=in_table, selection_type="NEW_SELECTION",
-                                                where_clause=expr)
+        arcpy.SelectLayerByAttribute_management(
+            in_layer_or_view=in_table, selection_type="NEW_SELECTION", where_clause=expr
+        )
         yield in_table
 
 
@@ -685,13 +721,13 @@ def colMultiIndexToNames(columns, separator="_"):
         flat_columns: pd.Index
     """
     if isinstance(columns, pd.MultiIndex):
-        columns = columns.to_series().apply(
-            lambda col: separator.join(col)
-        )
+        columns = columns.to_series().apply(lambda col: separator.join(col))
     return columns
 
 
-def extendTableDf(in_table, table_match_field, df, df_match_field, drop_dup_cols=False, **kwargs):
+def extendTableDf(
+    in_table, table_match_field, df, df_match_field, **kwargs
+):
     """Use a pandas data frame to extend (add columns to) an existing table based
         through a join on key columns. Key values in the existing table must be
         unique.
@@ -711,8 +747,13 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, drop_dup_cols
         None; `in_table` is modified in place
     """
     in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
-    arcpy.da.ExtendTable(in_table=in_table, table_match_field=table_match_field,
-                         in_array=in_array, array_match_field=df_match_field, **kwargs)
+    arcpy.da.ExtendTable(
+        in_table=in_table,
+        table_match_field=table_match_field,
+        in_array=in_array,
+        array_match_field=df_match_field,
+        **kwargs,
+    )
 
 
 def dfToTable(df, out_table, overwrite=False):
@@ -766,22 +807,26 @@ def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
         to_sr = arcpy.SpatialReference(to_sr)
 
     # build array from dataframe
-    in_array = np.array(
-        np.rec.fromrecords(
-            df.values, names=df.dtypes.index.tolist()
-        )
-    )
+    in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
     # write to temp feature class
-    arcpy.da.NumPyArrayToFeatureClass(in_array=in_array, out_table=temp_fc,
-                                      shape_fields=shape_fields, spatial_reference=from_sr, )
+    arcpy.da.NumPyArrayToFeatureClass(
+        in_array=in_array,
+        out_table=temp_fc,
+        shape_fields=shape_fields,
+        spatial_reference=from_sr,
+    )
     # reproject if needed, otherwise dump to output location
     if from_sr != to_sr:
-        arcpy.Project_management(in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=to_sr)
+        arcpy.Project_management(
+            in_dataset=temp_fc, out_dataset=out_fc, out_coor_system=to_sr
+        )
     else:
         out_path, out_fc = os.path.split(out_fc)
         if overwrite:
             checkOverwriteOutput(output=out_fc, overwrite=overwrite)
-        arcpy.FeatureClassToFeatureClass_conversion(in_features=temp_fc, out_path=out_path, out_name=out_fc)
+        arcpy.FeatureClassToFeatureClass_conversion(
+            in_features=temp_fc, out_path=out_path, out_name=out_fc
+        )
     # clean up temp_fc
     arcpy.Delete_management(in_data=temp_fc)
     return out_fc
@@ -801,8 +846,14 @@ def table_to_df(in_tbl, keep_fields="*", skip_nulls=False, null_val=0):
         keep_fields = [f.name for f in arcpy.ListFields(in_tbl) if not f.required]
     elif isinstance(keep_fields, string_types):
         keep_fields = [keep_fields]
-    return pd.DataFrame(arcpy.da.TableToNumPyArray(in_table=in_tbl, field_names=keep_fields,
-                                                   skip_nulls=skip_nulls, null_value=null_val))
+    return pd.DataFrame(
+        arcpy.da.TableToNumPyArray(
+            in_table=in_tbl,
+            field_names=keep_fields,
+            skip_nulls=skip_nulls,
+            null_value=null_val,
+        )
+    )
 
 
 def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
@@ -827,8 +878,11 @@ def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
 
     return pd.DataFrame(
         arcpy.da.FeatureClassToNumPyArray(
-            in_table=in_fc, field_names=keep_fields,
-            skip_nulls=skip_nulls, null_value=null_val)
+            in_table=in_fc,
+            field_names=keep_fields,
+            skip_nulls=skip_nulls,
+            null_value=null_val,
+        )
     )
 
 
@@ -851,7 +905,9 @@ def multipolygon_to_polygon_arc(file_path):
     polygon_fcs = file_path
     if is_multipart(polygon_fc=file_path):
         polygon_fcs = make_inmem_path()
-        arcpy.MultipartToSinglepart_management(in_features=file_path, out_feature_class=polygon_fcs)
+        arcpy.MultipartToSinglepart_management(
+            in_features=file_path, out_feature_class=polygon_fcs
+        )
     return polygon_fcs
 
 
@@ -885,10 +941,12 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
     elif isinstance(fields, string_types):
         fields = [fields]
     fields.append("SHAPE@XY")
-    a = arcpy.da.FeatureClassToNumPyArray(in_table=in_fc, field_names=fields,
-                                          skip_nulls=skip_nulls, null_value=null_value)
-    arcpy.da.NumPyArrayToFeatureClass(in_array=a, out_table=out_fc,
-                                      shape_fields="SHAPE@XY", spatial_reference=sr)
+    a = arcpy.da.FeatureClassToNumPyArray(
+        in_table=in_fc, field_names=fields, skip_nulls=skip_nulls, null_value=null_value
+    )
+    arcpy.da.NumPyArrayToFeatureClass(
+        in_array=a, out_table=out_fc, shape_fields="SHAPE@XY", spatial_reference=sr
+    )
     fields.remove("SHAPE@XY")
     return out_fc
 
@@ -903,7 +961,9 @@ def add_unique_id(feature_class, new_id_field=None):
     """
     if new_id_field is None:
         new_id_field = "ProcessID"
-    arcpy.AddField_management(in_table=feature_class, field_name=new_id_field, field_type="LONG")
+    arcpy.AddField_management(
+        in_table=feature_class, field_name=new_id_field, field_type="LONG"
+    )
     with arcpy.da.UpdateCursor(feature_class, new_id_field) as ucur:
         for i, row in enumerate(ucur):
             row[0] = i
@@ -912,8 +972,14 @@ def add_unique_id(feature_class, new_id_field=None):
     return new_id_field
 
 
-def count_rows(in_table, groupby_field=None, out_field=None, skip_nulls=False,
-               null_value=None, inplace=True):
+def count_rows(
+    in_table,
+    groupby_field=None,
+    out_field=None,
+    skip_nulls=False,
+    null_value=None,
+    inplace=True,
+):
     """
     Counts rows in a table.
 
@@ -956,7 +1022,8 @@ def count_rows(in_table, groupby_field=None, out_field=None, skip_nulls=False,
             if out_field is not None:
                 result.name = out_field
                 merge = in_table.merge(
-                    result, how="left", left_on=groupby_field, right_index=True)
+                    result, how="left", left_on=groupby_field, right_index=True
+                )
                 if inplace:
                     result[out_field] = merge[out_field]
                     return
@@ -975,12 +1042,17 @@ def count_rows(in_table, groupby_field=None, out_field=None, skip_nulls=False,
             else:
                 fields += groupby_field
         df = featureclass_to_df(
-            in_table, fields, skip_nulls=skip_nulls, null_val=null_value)
+            in_table, fields, skip_nulls=skip_nulls, null_val=null_value
+        )
         df.rename(columns={"OID@": oid_field}, inplace=True)
         # Run this method on the data frame and handle output
         result = count_rows(
-            df, groupby_field, out_field=out_field, inplace=True,
-            skip_nulls=skip_nulls, null_value=null_value
+            df,
+            groupby_field,
+            out_field=out_field,
+            inplace=True,
+            skip_nulls=skip_nulls,
+            null_value=null_value,
         )
         if out_field is None:
             return result
@@ -1002,14 +1074,22 @@ def _listAccumulationAttributes(network, impedance_attribute):
     return accumulation
 
 
-def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
-                            net_loader, net_location_fields):
+def _loadFacilitiesAndSolve(
+    net_layer, facilities, name_field, net_loader, net_location_fields
+):
     # Field mappings
     fmap_fields = ["Name"]
     fmap_vals = [name_field]
     if net_location_fields is not None and net_location_fields != "":
-        fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
-                        "SnapX", "SnapY", "Distance"]
+        fmap_fields += [
+            "SourceOID",
+            "SourceID",
+            "PosAlong",
+            "SideOfEdge",
+            "SnapX",
+            "SnapY",
+            "Distance",
+        ]
         fmap_vals += net_location_fields
     fmap = ";".join([f"{ff} {fv} #" for ff, fv in zip(fmap_fields, fmap_vals)])
     # Load facilities
@@ -1027,16 +1107,17 @@ def _loadFacilitiesAndSolve(net_layer, facilities, name_field,
         snap_to_position_along_network=net_loader.snap,
         snap_offset=net_loader.offset,
         exclude_restricted_elements=net_loader.exclude_restricted,
-        search_query=net_loader.search_query
+        search_query=net_loader.search_query,
     )
     # TODO: list which locations are invalid
 
     # Solve
     print("... ...generating service areas")
-    arcpy.na.Solve(in_network_analysis_layer=net_layer,
-                   ignore_invalids="SKIP",
-                   terminate_on_solve_error="CONTINUE"
-                   )
+    arcpy.na.Solve(
+        in_network_analysis_layer=net_layer,
+        ignore_invalids="SKIP",
+        terminate_on_solve_error="CONTINUE",
+    )
 
 
 def _exportSublayer(net_layer, sublayer, out_fc):
@@ -1047,14 +1128,12 @@ def _exportSublayer(net_layer, sublayer, out_fc):
     try:
         result_sublayer = net_layer.listLayers(result_lyr_name)[0]
     except:
-        result_sublayer = arcpy.mapping.ListLayers(
-            net_layer, result_lyr_name)[0]
+        result_sublayer = arcpy.mapping.ListLayers(net_layer, result_lyr_name)[0]
 
     if arcpy.Exists(out_fc):
         arcpy.Delete_management(out_fc)
     out_ws, out_name = os.path.split(out_fc)
-    arcpy.FeatureClassToFeatureClass_conversion(
-        result_sublayer, out_ws, out_name)
+    arcpy.FeatureClassToFeatureClass_conversion(result_sublayer, out_ws, out_name)
 
 
 def _extendFromSublayer(out_fc, key_field, net_layer, sublayer, fields):
@@ -1064,22 +1143,29 @@ def _extendFromSublayer(out_fc, key_field, net_layer, sublayer, fields):
     try:
         extend_sublayer = net_layer.listLayers(extend_lyr_name)[0]
     except:
-        extend_sublayer = arcpy.mapping.ListLayers(
-            net_layer, extend_lyr_name)[0]
+        extend_sublayer = arcpy.mapping.ListLayers(net_layer, extend_lyr_name)[0]
     # Dump to array and extend
     extend_fields = ["OID@"] + fields
     extend_array = arcpy.da.TableToNumPyArray(extend_sublayer, extend_fields)
     arcpy.da.ExtendTable(out_fc, key_field, extend_array, "OID@")
 
 
-def _loadLocations(net_layer, sublayer, points, name_field,
-                   net_loader, net_location_fields):
+def _loadLocations(
+    net_layer, sublayer, points, name_field, net_loader, net_location_fields
+):
     # Field mappings
     fmap_fields = ["Name"]
     fmap_vals = [name_field]
     if net_location_fields is not None:
-        fmap_fields += ["SourceOID", "SourceID", "PosAlong", "SideOfEdge",
-                        "SnapX", "SnapY", "Distance"]
+        fmap_fields += [
+            "SourceOID",
+            "SourceID",
+            "PosAlong",
+            "SideOfEdge",
+            "SnapX",
+            "SnapY",
+            "Distance",
+        ]
         fmap_vals += net_location_fields
     fmap = ";".join([f"{ff} {fv} #" for ff, fv in zip(fmap_fields, fmap_vals)])
     # Load facilities
@@ -1097,7 +1183,7 @@ def _loadLocations(net_layer, sublayer, points, name_field,
         snap_to_position_along_network=net_loader.snap,
         snap_offset=net_loader.offset,
         exclude_restricted_elements=net_loader.exclude_restricted,
-        search_query=net_loader.search_query
+        search_query=net_loader.search_query,
     )
     # TODO: list which locations are invalid
 
@@ -1105,10 +1191,11 @@ def _loadLocations(net_layer, sublayer, points, name_field,
 def _solve(net_layer):
     # Solve
     print("... ...od matrix")
-    s = arcpy.na.Solve(in_network_analysis_layer=net_layer,
-                       ignore_invalids="SKIP",
-                       terminate_on_solve_error="CONTINUE"
-                       )
+    s = arcpy.na.Solve(
+        in_network_analysis_layer=net_layer,
+        ignore_invalids="SKIP",
+        terminate_on_solve_error="CONTINUE",
+    )
     return s
 
 
@@ -1132,10 +1219,21 @@ def _rowsToCsv(in_table, fields, out_table, chunksize):
 
 
 # Network location functions
-def genSALines(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
-               out_fc, from_to="TRAVEL_FROM", overlap="OVERLAP",
-               restrictions="", use_hierarchy=False, uturns="ALLOW_UTURNS",
-               net_location_fields=None):
+def genSALines(
+    facilities,
+    name_field,
+    in_nd,
+    imped_attr,
+    cutoff,
+    net_loader,
+    out_fc,
+    from_to="TRAVEL_FROM",
+    overlap="OVERLAP",
+    restrictions="",
+    use_hierarchy=False,
+    uturns="ALLOW_UTURNS",
+    net_location_fields=None,
+):
     """
 
     Parameters
@@ -1220,12 +1318,13 @@ def genSALines(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         UTurn_policy=uturns,
         restriction_attribute_name=restrictions,
         hierarchy=hierarchy,
-        time_of_day=""
+        time_of_day="",
     )
     net_layer_ = net_layer.getOutput(0)
     try:
-        _loadFacilitiesAndSolve("__svc_lines__", facilities, name_field,
-                                net_loader, net_location_fields)
+        _loadFacilitiesAndSolve(
+            "__svc_lines__", facilities, name_field, net_loader, net_location_fields
+        )
         _exportSublayer(net_layer_, "SALines", out_fc)
         # Extend output with facility names
         _extendFromSublayer(out_fc, "FacilityID", net_layer_, "Facilities", ["Name"])
@@ -1236,10 +1335,22 @@ def genSALines(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         arcpy.Delete_management(net_layer)
 
 
-def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
-               out_fc, from_to="TRAVEL_FROM", merge="NO_MERGE", nesting="RINGS",
-               restrictions=None, use_hierarchy=False, uturns="ALLOW_UTURNS",
-               net_location_fields=None):
+def genSAPolys(
+    facilities,
+    name_field,
+    in_nd,
+    imped_attr,
+    cutoff,
+    net_loader,
+    out_fc,
+    from_to="TRAVEL_FROM",
+    merge="NO_MERGE",
+    nesting="RINGS",
+    restrictions=None,
+    use_hierarchy=False,
+    uturns="ALLOW_UTURNS",
+    net_location_fields=None,
+):
     """
 
 
@@ -1325,12 +1436,13 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         UTurn_policy=uturns,
         restriction_attribute_name=restrictions,
         hierarchy=hierarchy,
-        time_of_day=None
+        time_of_day=None,
     )
     net_layer_ = net_layer.getOutput(0)
     try:
-        _loadFacilitiesAndSolve("__svc_areas__", facilities, name_field,
-                                net_loader, net_location_fields)
+        _loadFacilitiesAndSolve(
+            "__svc_areas__", facilities, name_field, net_loader, net_location_fields
+        )
         _exportSublayer(net_layer_, "SAPolygons", out_fc)
     except:
         raise
@@ -1339,11 +1451,13 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
         arcpy.Delete_management(net_layer)
 
 
-def _sanitize_column_names(geo,
-                           remove_special_char=True,
-                           rename_duplicates=True,
-                           inplace=False,
-                           use_snake_case=True):
+def _sanitize_column_names(
+    geo,
+    remove_special_char=True,
+    rename_duplicates=True,
+    inplace=False,
+    use_snake_case=True,
+):
     """
     Implementation for pd.DataFrame.spatial.sanitize_column_names()
     """
@@ -1355,19 +1469,20 @@ def _sanitize_column_names(geo,
     # use snake case
     if use_snake_case:
         import re
+
         for ind, val in enumerate(new_col_names):
             # skip reserved cols
             if val == geo.name:
                 continue
             # replace Pascal and camel case using RE
-            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', val)
-            name = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+            s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", val)
+            name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
             # remove leading spaces
             name = name.lstrip(" ")
             # replace spaces with _
             name = name.replace(" ", "_")
             # clean up too many _
-            name = re.sub('_+', '_', name)
+            name = re.sub("_+", "_", name)
             new_col_names[ind] = name
 
     # remove special characters
@@ -1399,7 +1514,9 @@ def _sanitize_column_names(geo,
                 new_name = val + str(counter)  # adds a integer suffix to column name
                 while new_col_names.count(new_name) > 0:
                     counter += 1
-                    new_name = val + str(counter)  # if a column with the suffix exists, increment suffix
+                    new_name = val + str(
+                        counter
+                    )  # if a column with the suffix exists, increment suffix
                 new_col_names[ind] = new_name
 
     # if inplace

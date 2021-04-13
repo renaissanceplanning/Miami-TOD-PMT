@@ -30,7 +30,7 @@ def download_file_from_url(url, save_path, overwrite=False):
         request.urlretrieve(url, save_path)
     except:
         with request.urlopen(url) as download:
-            with open(save_path, 'wb') as out_file:
+            with open(save_path, "wb") as out_file:
                 out_file.write(download.read())
 
 
@@ -87,8 +87,7 @@ def _fetch_acs(year, acs_dataset, state, county, table, columns, census_scale):
     values = [columns[c.split("_")[1]] for c in variables]
     rename = dict(zip(variables, values))
     # Set the geography object
-    geo = census.censusgeo(
-        [('state', state), ('county', county), (census_scale, '*')])
+    geo = census.censusgeo([("state", state), ("county", county), (census_scale, "*")])
     # Fetch data
     data = census.download(src=acs_dataset, year=year, geo=geo, var=variables)
     # Rename columns
@@ -96,8 +95,9 @@ def _fetch_acs(year, acs_dataset, state, county, table, columns, census_scale):
     return data
 
 
-def download_race_vars(year, acs_dataset="acs5", state="fl", county="086",
-                       table=None, columns=None):
+def download_race_vars(
+    year, acs_dataset="acs5", state="fl", county="086", table=None, columns=None
+):
     """Downloads population race and ethnicity variables from available ACS data
         in table B03002.
     Args:
@@ -117,25 +117,42 @@ def download_race_vars(year, acs_dataset="acs5", state="fl", county="086",
     """
     # Set table and columns to fetch (with renaming specs for legibility)
     _fetch_acs(year, acs_dataset, state, county, table, columns)
-    race_data = _fetch_acs(year=year, acs_dataset=acs_dataset,
-                           state=state, county=county,
-                           table=table, columns=columns)
+    race_data = _fetch_acs(
+        year=year,
+        acs_dataset=acs_dataset,
+        state=state,
+        county=county,
+        table=table,
+        columns=columns,
+    )
     race_variables = [f"{table}_{c}" for c in list(columns.keys())]
     # Calculate "other" race totals (those not in the specified categories)
-    race_data["Other_Non_Hisp"] = (race_data.Total_Non_Hisp - race_data.White_Non_Hisp -
-                                   race_data.Black_Non_Hisp - race_data.Asian_Non_Hisp -
-                                   race_data.Multi_Non_Hisp)
-    race_data["Other_Hispanic"] = (race_data.Total_Hispanic - race_data.White_Hispanic -
-                                   race_data.Black_Hispanic - race_data.Asian_Hispanic -
-                                   race_data.Multi_Hispanic)
+    race_data["Other_Non_Hisp"] = (
+        race_data.Total_Non_Hisp
+        - race_data.White_Non_Hisp
+        - race_data.Black_Non_Hisp
+        - race_data.Asian_Non_Hisp
+        - race_data.Multi_Non_Hisp
+    )
+    race_data["Other_Hispanic"] = (
+        race_data.Total_Hispanic
+        - race_data.White_Hispanic
+        - race_data.Black_Hispanic
+        - race_data.Asian_Hispanic
+        - race_data.Multi_Hispanic
+    )
     # Use the census geo index to make geo tag cols
-    geo_cols = census_geoindex_to_columns(race_data.index, gen_geoid=True, geoid="GEOID10")
+    geo_cols = census_geoindex_to_columns(
+        race_data.index, gen_geoid=True, geoid="GEOID10"
+    )
     race_data = pd.concat([geo_cols, race_data], axis=1)
 
     return race_data.reset_index(drop=True)
 
 
-def download_commute_vars(year, acs_dataset="acs5", state="fl", county="086", table=None, columns=None):
+def download_commute_vars(
+    year, acs_dataset="acs5", state="fl", county="086", table=None, columns=None
+):
     """Downloads commute (journey to work) data from available ACS data
         in table B08301.
     Args:
@@ -171,7 +188,9 @@ def download_commute_vars(year, acs_dataset="acs5", state="fl", county="086", ta
     mode_data["WFH_Share"] = mode_data.Work_From_Home / mode_data.Total_Commutes
 
     # Use the census geo index to make geo tag cols
-    geo_cols = census_geoindex_to_columns(mode_data.index, gen_geoid=True, geoid="GEOID10")
+    geo_cols = census_geoindex_to_columns(
+        mode_data.index, gen_geoid=True, geoid="GEOID10"
+    )
     mode_data = pd.concat([geo_cols, mode_data], axis=1)
 
     return mode_data.reset_index(drop=True)
@@ -205,9 +224,9 @@ def trim_components(graph, min_edges=2, message=True):
     # set a node count from the min edges
     min_nodes = min_edges + 1
 
-    # Loop through the connected components (represented as node sets) to 
+    # Loop through the connected components (represented as node sets) to
     # count edges -- if we have less than the required number of nodes for
-    # the required number of edges, remove the nodes that create that 
+    # the required number of edges, remove the nodes that create that
     # component (thus eliminating that component)
     for cc in conn_comps:
         if len(cc) < min_nodes:
@@ -219,16 +238,21 @@ def trim_components(graph, min_edges=2, message=True):
     # print here.
     if message == True:
         count_removed = sum([len(x) < min_nodes for x in conn_comps])
-        count_message = ' '.join([str(count_removed),
-                                  "of",
-                                  str(len(conn_comps)),
-                                  "were removed from the input graph"])
+        count_message = " ".join(
+            [
+                str(count_removed),
+                "of",
+                str(len(conn_comps)),
+                "were removed from the input graph",
+            ]
+        )
         print(count_message)
     else:
         pass
 
     # The graph was updated in the loop, so we can just return here
     return graph
+
 
 # bike and pedestrian crashes #DEPRECATED
 # def download_bike_ped_crashes(

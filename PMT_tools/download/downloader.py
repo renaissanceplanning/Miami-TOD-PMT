@@ -7,19 +7,26 @@ from shutil import rmtree
 
 # global values configured for downloading
 import PMT_tools.config.download_config as dl_conf
+
 # PMT globals
-from PMT_tools.utils import (RAW, YEARS)
+from PMT_tools.utils import RAW, YEARS
+
 # PMT Functions
 from PMT_tools.utils import validate_directory, makePath
+
 # helper functions from other modules
 from download_census_geo import get_one_geo_type
 from download_census_lodes import download_aggregate_lodes
-from download_helper import download_race_vars, download_commute_vars, download_file_from_url
+from download_helper import (
+    download_race_vars,
+    download_commute_vars,
+    download_file_from_url,
+)
 from download_osm import download_osm_networks, download_osm_buildings
 
 DEBUG = True
 if DEBUG:
-    ROOT = r'C:\PMT_TEST_FOLDER'
+    ROOT = r"C:\PMT_TEST_FOLDER"
     RAW = validate_directory(makePath(ROOT, "RAW"))
     YEARS = YEARS + ["NearTerm"]
     SNAPSHOT_YEAR = 2019
@@ -42,16 +49,19 @@ def download_census():
         - downloads LODES data to table
     """
     # download and extract census geographies
-    geo_types = ['tabblock', 'bg']
+    geo_types = ["tabblock", "bg"]
     dl_dir = makePath(RAW, "temp_downloads")
     ext_dir = makePath(RAW, "CENSUS")
     for path in [dl_dir, ext_dir]:
         validate_directory(path)
     for geo_type in dl_conf.CENSUS_GEO_TYPES:
-        get_one_geo_type(geo_type=geo_type,
-                         download_dir=dl_dir,
-                         extract_dir=ext_dir,
-                         state=dl_conf.CENSUS_STATE, year='2019')
+        get_one_geo_type(
+            geo_type=geo_type,
+            download_dir=dl_dir,
+            extract_dir=ext_dir,
+            state=dl_conf.CENSUS_STATE,
+            year="2019",
+        )
     rmtree(dl_dir)
     # download census tabular data
     bg_path = makePath(RAW, "CENSUS")
@@ -61,16 +71,23 @@ def download_census():
         commute_out = makePath(bg_path, f"ACS_{year}_commute.csv")
         print(f"...Fetching race data ({race_out})")
         try:
-            race = download_race_vars(year, acs_dataset="acs5",
-                                      state="12", county="086",
-                                      table=dl_conf.ACS_RACE_TABLE, columns=dl_conf.ACS_RACE_COLUMNS)
+            race = download_race_vars(
+                year,
+                acs_dataset="acs5",
+                state="12",
+                county="086",
+                table=dl_conf.ACS_RACE_TABLE,
+                columns=dl_conf.ACS_RACE_COLUMNS,
+            )
             race.to_csv(race_out, index=False)
         except:
             print(f"..ERROR DOWNLOADING RACE DATA ({year})")
 
         print(f"...Fetching commute data ({commute_out})")
         try:
-            commute = download_commute_vars(year, acs_dataset="acs5", state="12", county="086")
+            commute = download_commute_vars(
+                year, acs_dataset="acs5", state="12", county="086"
+            )
             commute.to_csv(commute_out, index=False)
         except:
             print(f"..ERROR DOWNLOADING COMMUTE DATA ({year})")
@@ -83,9 +100,16 @@ def download_LODES():
     lodes_path = makePath(RAW, "LODES")
     print("LODES:")
     for year in [2019]:
-        download_aggregate_lodes(output_directory=lodes_path, file_type="wac",
-                                 state="fl", segment="S000", part="", job_type="JT00",
-                                 year=year, agg_geog=["bgrp"])
+        download_aggregate_lodes(
+            output_directory=lodes_path,
+            file_type="wac",
+            state="fl",
+            segment="S000",
+            part="",
+            job_type="JT00",
+            year=year,
+            agg_geog=["bgrp"],
+        )
 
 
 def download_urls(overwrite=False):
@@ -105,11 +129,11 @@ def download_urls(overwrite=False):
         _, ext = os.path.splitext(url)
         if ext == ".zip":
             out_file = makePath(RAW, f"{file}.zip")
-        elif ext == '.geojson':
+        elif ext == ".geojson":
             out_file = makePath(RAW, f"{file}.geojson")
         else:
-            print('downloader doesnt handle that extension')
-        print(f'Downloading {out_file}')
+            print("downloader doesnt handle that extension")
+        print(f"Downloading {out_file}")
         download_file_from_url(url=url, save_path=out_file, overwrite=overwrite)
 
 
@@ -120,10 +144,14 @@ def download_osm_data():
         - both functions will create the output folder if not there
     """
     out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
-    osm_data_dir = makePath(RAW, 'OPEN_STREET_MAP')
+    osm_data_dir = makePath(RAW, "OPEN_STREET_MAP")
     data_crs = 4326
-    download_osm_networks(output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021")
-    download_osm_buildings(output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021")
+    download_osm_networks(
+        output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021"
+    )
+    download_osm_buildings(
+        output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021"
+    )
 
 
 if __name__ == "__main__":

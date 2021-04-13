@@ -6,9 +6,16 @@ import numpy as np
 import pandas as pd
 from six import string_types
 
-from PMT_tools.config.download_config import (LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES,
-                                              LODES_WORKFORCE_SEGMENTS, LODES_PART,
-                                              LODES_JOB_TYPES, LODES_AGG_GEOS)
+from PMT_tools.config.download_config import (
+    LODES_URL,
+    LODES_YEARS,
+    LODES_FILE_TYPES,
+    LODES_STATES,
+    LODES_WORKFORCE_SEGMENTS,
+    LODES_PART,
+    LODES_JOB_TYPES,
+    LODES_AGG_GEOS,
+)
 from PMT_tools.utils import makePath, validate_directory
 from download_helper import download_file_from_url
 
@@ -63,15 +70,20 @@ def validate_year_input(year, state):
     try:
         if validate_year(year):
             if any(
-                    [(year in np.arange(2002, 2017) and state == "ak"),
-                     (year in np.arange(2004, 2019) and state == "az"),
-                     (year in np.arange(2003, 2019) and state == "ar"),
-                     (year in np.arange(2010, 2019) and state == "dc"),
-                     (year in np.arange(2011, 2019) and state == "ma"),
-                     (year in np.arange(2004, 2019) and state == "ms"),
-                     (year in np.arange(2003, 2019) and state == "nh"),
-                     (year in np.arange(2002, 2019) and state not in
-                      ["ak", "az", "ar", "dc", "ma", "ms", "nh"])]):
+                [
+                    (year in np.arange(2002, 2017) and state == "ak"),
+                    (year in np.arange(2004, 2019) and state == "az"),
+                    (year in np.arange(2003, 2019) and state == "ar"),
+                    (year in np.arange(2010, 2019) and state == "dc"),
+                    (year in np.arange(2011, 2019) and state == "ma"),
+                    (year in np.arange(2004, 2019) and state == "ms"),
+                    (year in np.arange(2003, 2019) and state == "nh"),
+                    (
+                        year in np.arange(2002, 2019)
+                        and state not in ["ak", "az", "ar", "dc", "ma", "ms", "nh"]
+                    ),
+                ]
+            ):
                 return True
             else:
                 raise ValueError
@@ -87,8 +99,13 @@ def validate_lodes_download(file_type, state, segment, part, job_type, year, agg
     (`file_type`, `state`, `segment`, `part`, `job_type`, and `year`)
     """
     string_list = [file_type, state, segment, part, job_type]
-    valids_list = [LODES_FILE_TYPES, LODES_STATES, LODES_WORKFORCE_SEGMENTS,
-                   LODES_PART, LODES_JOB_TYPES]
+    valids_list = [
+        LODES_FILE_TYPES,
+        LODES_STATES,
+        LODES_WORKFORCE_SEGMENTS,
+        LODES_PART,
+        LODES_JOB_TYPES,
+    ]
     st = state.lower()
     try:
         # validate year
@@ -101,7 +118,9 @@ def validate_lodes_download(file_type, state, segment, part, job_type, year, agg
                     raise ValueError
             return True
     except ValueError:
-        print(f"one of the inputs was not the correct datatype or part of the valid set")
+        print(
+            f"one of the inputs was not the correct datatype or part of the valid set"
+        )
         return False
 
 
@@ -122,12 +141,23 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
     """
     # TODO: add additional function to handle OD joins, this only works for WAC, RAC
     # so there's no message for mixed dtypes
-    xwalk_dtype_dict = {"tabblk2010": "str", "st": "str", "cty": "str",
-                        "trct": "str", "bgrp": "str", "cbsa": "str", "zcta": "str"}
+    xwalk_dtype_dict = {
+        "tabblk2010": "str",
+        "st": "str",
+        "cty": "str",
+        "trct": "str",
+        "bgrp": "str",
+        "cbsa": "str",
+        "zcta": "str",
+    }
     save_path = lodes_path.replace("_blk.csv.gz", f"_{agg_geo}.csv.gz")
     try:
-        crosswalk = pd.read_csv(geo_crosswalk_path, compression="gzip",
-                                dtype=xwalk_dtype_dict, low_memory=False)
+        crosswalk = pd.read_csv(
+            geo_crosswalk_path,
+            compression="gzip",
+            dtype=xwalk_dtype_dict,
+            low_memory=False,
+        )
 
         if file_type == "od":
             raise LodesFileTypeError
@@ -136,19 +166,26 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
             dtype_change = {"h_geocode": "str"}
         else:
             dtype_change = {"w_geocode": str}
-        lodes = pd.read_csv(lodes_path, compression="gzip",
-                            dtype=dtype_change, low_memory=False)  # so there's no
+        lodes = pd.read_csv(
+            lodes_path, compression="gzip", dtype=dtype_change, low_memory=False
+        )  # so there's no
 
         # isolote aggregate col and isolate join cols
         lodes_cols = lodes.columns.tolist()
         agg_cols = [col for col in lodes_cols if bool(re.search("[0-9]", col)) is True]
         agg_dict = {col: "sum" for col in agg_cols}
-        lodes_join = [col for col in lodes_cols if bool(re.search("geocode", col)) is True]
+        lodes_join = [
+            col for col in lodes_cols if bool(re.search("geocode", col)) is True
+        ]
 
         # join lodes to crosswalk
         crosswalk_cols = crosswalk.columns.tolist()
-        crosswalk_join = [c for c in crosswalk_cols if bool(re.search("tabblk2010", c)) is True]
-        merge_df = pd.merge(lodes, crosswalk, left_on=lodes_join, right_on=crosswalk_join, how="left")
+        crosswalk_join = [
+            c for c in crosswalk_cols if bool(re.search("tabblk2010", c)) is True
+        ]
+        merge_df = pd.merge(
+            lodes, crosswalk, left_on=lodes_join, right_on=crosswalk_join, how="left"
+        )
 
         # aggregate job
         keep_cols = [agg_geo] + agg_cols
@@ -159,8 +196,9 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
         print("This function doesnt currently handle 'od' data")
 
 
-def download_aggregate_lodes(output_directory, file_type, state,
-                             segment, part, job_type, year, agg_geog=None):
+def download_aggregate_lodes(
+    output_directory, file_type, state, segment, part, job_type, year, agg_geog=None
+):
     """
     - validate directory
     - if validate LODES request:
@@ -176,12 +214,16 @@ def download_aggregate_lodes(output_directory, file_type, state,
     st = state.lower()
     try:
         out_dir = validate_directory(directory=output_directory)
-        if validate_lodes_download(file_type, state, segment, part, job_type, year, agg_geog):
+        if validate_lodes_download(
+            file_type, state, segment, part, job_type, year, agg_geog
+        ):
             if file_type == "od":
                 # kept for now as it will still download but not aggregate OD
                 lodes_fname = f"{st}_{file_type}_{part}_{job_type}_{str(year)}.csv.gz"
             else:
-                lodes_fname = f"{st}_{file_type}_{segment}_{job_type}_{str(year)}.csv.gz"
+                lodes_fname = (
+                    f"{st}_{file_type}_{segment}_{job_type}_{str(year)}.csv.gz"
+                )
             lodes_download_url = f"{LODES_URL}/{st}/{file_type}/{lodes_fname}"
             lodes_out_path = makePath(out_dir, lodes_fname)
             lodes_out_path = lodes_out_path.replace(".csv.gz", "_blk.csv.gz")
@@ -200,12 +242,16 @@ def download_aggregate_lodes(output_directory, file_type, state,
                     crosswalk_url = f"{LODES_URL}/{state}/{state}_xwalk.csv.gz"
                     if not os.path.exists(cross_out_path):
                         print(f"...downloading {cross_fname} to {cross_out_path}")
-                        download_file_from_url(url=crosswalk_url, save_path=cross_out_path)
+                        download_file_from_url(
+                            url=crosswalk_url, save_path=cross_out_path
+                        )
                     print(f"...aggregating block group level data to {geog}")
-                    aggregate_lodes_data(geo_crosswalk_path=cross_out_path,
-                                         lodes_path=lodes_out_path,
-                                         file_type=file_type,
-                                         agg_geo=geog)
+                    aggregate_lodes_data(
+                        geo_crosswalk_path=cross_out_path,
+                        lodes_path=lodes_out_path,
+                        file_type=file_type,
+                        agg_geo=geog,
+                    )
         else:
             print("No aggregation requested or there is no LODES data for this request")
     except:
@@ -220,12 +266,21 @@ if __name__ == "__main__":
     segment = "S000"
     job_type = "JT00"
     year = 2017
-    save_directory = "C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\Temp\LODES"
+    save_directory = (
+        "C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\Temp\LODES"
+    )
     aggregate_geo = "zcta"
 
-    download_aggregate_lodes(output_directory=save_directory, file_type=file_type,
-         state=state, segment=segment, part=part, job_type=job_type,
-         year=year, agg_geog=aggregate_geo)
+    download_aggregate_lodes(
+        output_directory=save_directory,
+        file_type=file_type,
+        state=state,
+        segment=segment,
+        part=part,
+        job_type=job_type,
+        year=year,
+        agg_geog=aggregate_geo,
+    )
 
 # hold over code for OD data
 # # Next, join the xwalk to the lodes data. If it's OD, we have two join

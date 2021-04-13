@@ -55,6 +55,7 @@ def validate_directory(directory):
         except:
             raise
 
+
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
 EPSG_LL = 4326
@@ -104,17 +105,17 @@ def validate_bbox(bbox):
 
 def calc_bbox(gdf):
     bounds = gdf.total_bounds
-    return {'north': bounds[3],
-            'south': bounds[1],
-            'east': bounds[2],
-            'west': bounds[0]}
+    return {
+        "north": bounds[3],
+        "south": bounds[1],
+        "east": bounds[2],
+        "west": bounds[0],
+    }
 
 
 def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
     if not any([study_area_poly, bbox]):
-        raise ValueError(
-            "You must provide a polygon or bbox for osmnx download"
-        )
+        raise ValueError("You must provide a polygon or bbox for osmnx download")
     if study_area_poly is not None:
         print("...Reading and formatting provided polygons for OSMnx extraction")
         sa_gdf = gpd.read_file(study_area_poly)
@@ -124,8 +125,7 @@ def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
         sa_buff = sa_proj.buffer(distance=1609.34).to_crs(epsg=EPSG_LL)
         return calc_bbox(gdf=sa_buff)
     elif bbox is None:
-        raise ValueError(
-            "One of `study_area_polygons_path` or `bbox` must be provided")
+        raise ValueError("One of `study_area_polygons_path` or `bbox` must be provided")
     else:
         validate_bbox(bbox)
         return bbox
@@ -141,8 +141,15 @@ def validate_network_types(network_types):
         return [nt.lower() for nt in network_types]
 
 
-def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
-                          net_types=['drive', 'walk', 'bike'], pickle_save=False, suffix=""):
+def download_osm_networks(
+    output_dir,
+    polygon=None,
+    bbox=None,
+    data_crs=None,
+    net_types=["drive", "walk", "bike"],
+    pickle_save=False,
+    suffix="",
+):
     """Download an OpenStreetMap network within the area defined by a polygon
         feature class of a bounding box.
     Args:
@@ -170,7 +177,9 @@ def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
     """
     # Validation of inputs
     # TODO: separate polygon and bbox validation
-    bounding_box = validate_inputs(study_area_poly=polygon, bbox=bbox, data_crs=data_crs)
+    bounding_box = validate_inputs(
+        study_area_poly=polygon, bbox=bbox, data_crs=data_crs
+    )
 
     # - ensure Network types are valid and formatted correctly
     net_types = validate_network_types(network_types=net_types)
@@ -184,16 +193,21 @@ def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
         net_folder = f"{net_type}_{suffix}"
         print(f"OSMnx {net_type} network extraction")
         print("-- extracting a composed network by bounding box...")
-        g = ox.graph_from_bbox(north=bounding_box["north"], south=bounding_box["south"],
-                               east=bounding_box["east"], west=bounding_box["west"],
-                               network_type=net_type, retain_all=True)
+        g = ox.graph_from_bbox(
+            north=bounding_box["north"],
+            south=bounding_box["south"],
+            east=bounding_box["east"],
+            west=bounding_box["west"],
+            network_type=net_type,
+            retain_all=True,
+        )
         # TODO: if walk/bike create subgraphs of nodes and drop vesitgal elements
 
         # Pickle if requested
         if pickle_save:
             print("-- saving the composed network as pickle")
             out_f = os.path.join(output_dir, net_folder, "osmnx_composed_net.p")
-            with open(out_f, 'wb') as pickle_file:
+            with open(out_f, "wb") as pickle_file:
                 pickle.dump(g, pickle_file)
             print("---- saved to: {}".format(out_f))
 
@@ -209,8 +223,14 @@ def download_osm_networks(output_dir, polygon=None, bbox=None, data_crs=None,
     return mode_nets
 
 
-def download_osm_buildings(output_dir, polygon=None, bbox=None, data_crs=None,
-                           fields=['osmid', 'building', 'name', 'geometry'], suffix=""):
+def download_osm_buildings(
+    output_dir,
+    polygon=None,
+    bbox=None,
+    data_crs=None,
+    fields=["osmid", "building", "name", "geometry"],
+    suffix="",
+):
     """
     Uses an Overpass query to fetch the OSM building polygons within a
     specified bounding box or the bounding box of a provided shapefile.
@@ -244,21 +264,27 @@ def download_osm_buildings(output_dir, polygon=None, bbox=None, data_crs=None,
 
     # Validation of inputs
     # TODO: separate polygon and bbox validation
-    bounding_box = validate_inputs(study_area_poly=polygon, bbox=bbox, data_crs=data_crs)
+    bounding_box = validate_inputs(
+        study_area_poly=polygon, bbox=bbox, data_crs=data_crs
+    )
 
     # - Output location
     output_dir = validate_directory(makePath(output_dir, f"buildings_{suffix}"))
 
     # Data read in and setup -------------------------------------------------
     print("...Pulling building data from Overpass API...")
-    buildings_gdf = ox.geometries_from_bbox(north=bounding_box["north"],
-                                            south=bounding_box["south"],
-                                            east=bounding_box["east"],
-                                            west=bounding_box["west"],
-                                            tags={"building": True})
+    buildings_gdf = ox.geometries_from_bbox(
+        north=bounding_box["north"],
+        south=bounding_box["south"],
+        east=bounding_box["east"],
+        west=bounding_box["west"],
+        tags={"building": True},
+    )
     # drop non-polygon features and subset fields
     print("...Dropping non-polygon features and unneeded fields")
-    buildings_gdf = buildings_gdf[buildings_gdf.geom_type.isin(['MultiPolygon', 'Polygon'])]
+    buildings_gdf = buildings_gdf[
+        buildings_gdf.geom_type.isin(["MultiPolygon", "Polygon"])
+    ]
     drop_cols = [col for col in buildings_gdf.columns if col not in fields]
     buildings_gdf.drop(labels=drop_cols, axis=1, inplace=True)
     buildings_gdf.reset_index()

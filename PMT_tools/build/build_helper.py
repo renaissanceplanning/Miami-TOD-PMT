@@ -1,6 +1,7 @@
 import os
 import uuid
 from collections.abc import Iterable
+import itertools
 
 import arcpy
 import numpy as np
@@ -103,8 +104,8 @@ def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
     out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
     for fds in ["Networks", "Points", "Polygons"]:
         arcpy.CreateFeatureDataset_management(
-            out_dataset_path=out_gdb, out_name=fds,
-            spatial_reference=PMT.SR_FL_SPF)
+            out_dataset_path=out_gdb, out_name=fds, spatial_reference=PMT.SR_FL_SPF
+        )
     return out_gdb
 
 
@@ -118,62 +119,82 @@ def _validateAggSpecs(var, expected_type):
     # - If not iterable, it's the wrong type, so raise error
     elif not isinstance(var, Iterable):
         bad_type = type(var)
-        raise ValueError(
-            f"Expected one or more {e_type} objects, got {bad_type}")
+        raise ValueError(f"Expected one or more {e_type} objects, got {bad_type}")
     # - If iterable, confirm items are the correct type
     else:
         for v in var:
             if not isinstance(v, expected_type):
                 bad_type = type(v)
                 raise ValueError(
-                    f"Expected one or more {e_type} objects, got {bad_type}")
+                    f"Expected one or more {e_type} objects, got {bad_type}"
+                )
     # If no errors, return var (in original form or as list)
     return var
 
 
-def joinAttributes(to_table, to_id_field, from_table, from_id_field,
-                   join_fields, null_value=0.0, renames=None, drop_dup_cols=False):
+def joinAttributes(
+    to_table,
+    to_id_field,
+    from_table,
+    from_id_field,
+    join_fields,
+    null_value=0.0,
+    renames=None,
+    drop_dup_cols=False,
+):
     """
     """
     # If all columns, get their names
     if renames is None:
         renames = {}
     if join_fields == "*":
-        join_fields = [f.name for f in arcpy.ListFields(from_table)
-                       if not f.required and f.name != from_id_field]
+        join_fields = [
+            f.name
+            for f in arcpy.ListFields(from_table)
+            if not f.required and f.name != from_id_field
+        ]
     # List expected columns based on renames dict
     expected_fields = [renames.get(jf, jf) for jf in join_fields]
     # Check if expected outcomes will collide with fields in the table
     if drop_dup_cols:
         # All relevant fields in table (excluding the field to join by)
-        tbl_fields = [f.name for f in arcpy.ListFields(to_table)
-                      if f.name != to_id_field]
+        tbl_fields = [
+            f.name for f in arcpy.ListFields(to_table) if f.name != to_id_field
+        ]
         # List of which fields to drop
-        drop_fields = [d for d in expected_fields  # join_fields
-                       if d in tbl_fields]
+        drop_fields = [d for d in expected_fields if d in tbl_fields]  # join_fields
         # If all the fields to join will be dropped, exit
         if len(join_fields) == len(drop_fields):
-            print('--- --- no new fields')
+            print("--- --- no new fields")
             return  # TODO: what if we want to update these fields?
-        # else:
-        #     join_fields = [jf for jf in join_fields if jf not in drop_fields]
     else:
         drop_fields = []
+
     # Dump from_table to df
     dump_fields = [from_id_field] + join_fields
-    df = PMT.table_to_df(in_tbl=from_table, keep_fields=dump_fields, null_val=null_value)
+    df = PMT.table_to_df(
+        in_tbl=from_table, keep_fields=dump_fields, null_val=null_value
+    )
+
     # Rename columns and drop columns as needed
     if renames:
         df.rename(columns=renames, inplace=True)
     if drop_fields:
         df.drop(columns=drop_fields, inplace=True)
+
     # Join cols from df to to_table
     print(f"--- --- {list(df.columns)} to {to_table}")
-    PMT.extendTableDf(to_table, to_id_field, df, from_id_field, drop_dup_cols=True)
+    PMT.extendTableDf(
+        in_table=to_table,
+        table_match_field=to_id_field,
+        df=df,
+        df_match_field=from_id_field,
+    )
 
 
-def summarizeAttributes(in_fc, group_fields, agg_cols,
-                        consolidations=None, melt_col=None):
+def summarizeAttributes(
+    in_fc, group_fields, agg_cols, consolidations=None, melt_col=None
+):
     """
     """
     # Validation (listify inputs, validate values)
@@ -218,12 +239,18 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         agg_methods[melt_col.val_col] = melt_col.agg_method
 
     # Dump the intersect table to df
-    dump_fields = list(set(dump_fields))  # remove duplicated fields used in multiple consolidations/melts
+    dump_fields = list(
+        set(dump_fields)
+    )  # remove duplicated fields used in multiple consolidations/melts
     missing = PMT.which_missing(table=in_fc, field_list=dump_fields)
     if not missing:
-        int_df = PMT.table_to_df(in_tbl=in_fc, keep_fields=dump_fields, null_val=null_dict)
+        int_df = PMT.table_to_df(
+            in_tbl=in_fc, keep_fields=dump_fields, null_val=null_dict
+        )
     else:
-        raise Exception(f"\t\tthese cols were missing from the intersected FC: {missing}")
+        raise Exception(
+            f"\t\tthese cols were missing from the intersected FC: {missing}"
+        )
     # Consolidate columns
     for c in consolidations:
         if hasattr(c, "input_cols"):
@@ -237,7 +264,7 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
             id_vars=id_fields,
             value_vars=melt_col.input_cols,
             var_name=melt_col.label_col,
-            value_name=melt_col.val_col
+            value_name=melt_col.val_col,
         ).reset_index()
     # Domains
     for group_field in group_fields:
@@ -258,6 +285,64 @@ def summarizeAttributes(in_fc, group_fields, agg_cols,
         sum_df.rename(columns=dict(renames), inplace=True)
 
     return sum_df
+
+
+def apply_field_calcs(gdb, new_field_specs, recalculate=False):
+    # Iterate over new fields
+    for nf_spec in new_field_specs:
+        # Get params
+        tables = nf_spec["tables"]
+        new_field = nf_spec["new_field"]
+        field_type = nf_spec["field_type"]
+        expr = nf_spec["expr"]
+        code_block = nf_spec["code_block"]
+        try:
+            # Get params
+            if isinstance(nf_spec["params"], Iterable):
+                params = nf_spec["params"]
+                all_combos = list(itertools.product(*params))
+                for combo in all_combos:
+                    combo_spec = nf_spec.copy()
+                    del combo_spec["params"]
+                    combo_spec["new_field"] = combo_spec["new_field"].format(*combo)
+                    combo_spec["expr"] = combo_spec["expr"].format(*combo)
+                    combo_spec["code_block"] = combo_spec["code_block"].format(*combo)
+                    apply_field_calcs(gdb, [combo_spec])
+            else:
+                raise Exception("Spec Params must be an iterable if provided")
+        except KeyError:
+            add_args = {"field_name": new_field, "field_type": field_type}
+            calc_args = {
+                "field": new_field,
+                "expression": expr,
+                "expression_type": "PYTHON3",
+                "code_block": code_block,
+            }
+            # iterate over tables
+            if isinstance(tables, string_types):
+                tables = [tables]
+            print(f"--- Adding field {new_field} to {len(tables)} tables")
+            for table in tables:
+                t_name, t_id, t_fds = table
+                in_table = PMT.makePath(gdb, t_fds, t_name)
+                # update params
+                add_args["in_table"] = in_table
+                calc_args["in_table"] = in_table
+                if field_type == "TEXT":
+                    length = nf_spec["length"]
+                    add_args["field_length"] = length
+
+                # # check if new field already in dataset, if recalc True delete and recalculate
+                # if PMT.which_missing(table=in_table, field_list=[new_field]):
+                #     if recalculate:
+                #         print(f"--- --- recalculating {new_field}")
+                #         arcpy.DeleteField_management(in_table=in_table, drop_field=new_field)
+                #     else:
+                #         print(f"--- --- {new_field} already exists, skipping...")
+                #         continue
+                # add and calc field
+                arcpy.AddField_management(**add_args)
+                arcpy.CalculateField_management(**calc_args)
 
 
 def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
@@ -281,7 +366,9 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=No
     # TODO: update to use Column objects? (null handling, e.g.)
     # --------------
     # Dump int fc to data frame
-    acc_fields, renames = _makeAccessColSpecs(activities, time_breaks, mode, include_average=False)
+    acc_fields, renames = _makeAccessColSpecs(
+        activities, time_breaks, mode, include_average=False
+    )
     if isinstance(id_field, string_types):
         id_field = [id_field]  # elif isinstance(Column)?
 
@@ -299,8 +386,9 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=No
             idx = df.columns.tolist().index(col)
             levels.append((a, tb))
             order.append(idx)
-    header = pd.DataFrame(np.array(levels)[np.argsort(order)],
-                          columns=["Activity", "TimeBin"])
+    header = pd.DataFrame(
+        np.array(levels)[np.argsort(order)], columns=["Activity", "TimeBin"]
+    )
     mi = pd.MultiIndex.from_frame(header)
     df.columns = mi
     df.reset_index(inplace=True)
@@ -332,21 +420,7 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     return diff_df
 
 
-def finalize_output(temp_gdb, final_gdb):
-    final_rename = tag_filename(final_gdb, 'temp')
-    try:
-        if arcpy.Exists(final_gdb):
-            arcpy.Rename_management(final_gdb, out_data=final_rename)
-        arcpy.Copy_management(in_data=temp_gdb, out_data=final_gdb)
-    except:
-        print('An error occured, rolling back changes')
-        arcpy.Rename_management(in_data=final_rename, out_data=final_gdb)
-    finally:
-        arcpy.Delete_management(final_rename)
-        arcpy.Delete_management(temp_gdb)
-
-
-def finalize_output_new(intermediate_gdb, final_gdb):
+def finalize_output(intermediate_gdb, final_gdb):
     """Takes an intermediate GDB path and the final GDB path for that data and
         replaces the existing GDB if it exists, otherwise it makes a copy
         of the intermediate GDB and deletes the original
@@ -368,16 +442,16 @@ def finalize_output_new(intermediate_gdb, final_gdb):
         arcpy.Copy_management(in_data=intermediate_gdb, out_data=final_gdb)
     except:
         # replace old data with copy made in previous step
-        print('An error occured, rolling back changes')
+        print("An error occured, rolling back changes")
         arcpy.Copy_management(in_data=temp_gdb, out_data=final_gdb)
     finally:
         arcpy.Delete_management(intermediate_gdb)
 
 
 def list_fcs_in_gdb():
-    ''' set your arcpy.env.workspace to a gdb before calling '''
-    for fds in arcpy.ListDatasets('', 'feature') + ['']:
-        for fc in arcpy.ListFeatureClasses('', '', fds):
+    """ set your arcpy.env.workspace to a gdb before calling """
+    for fds in arcpy.ListDatasets("", "feature") + [""]:
+        for fc in arcpy.ListFeatureClasses("", "", fds):
             yield os.path.join(arcpy.env.workspace, fds, fc)
 
 
@@ -402,14 +476,22 @@ def post_process_databases(basic_features_gdb, build_dir):
         for sa_path in summ_areas:
             if "SummID" in [f.name for f in arcpy.ListFields(sa_path)]:
                 print(f"--- Converting SummID to RowID for {sa_path}")
-                arcpy.AlterField_management(in_table=sa_path, field="SummID",
-                                            new_field_name="RowID", new_field_alias="RowID")
+                arcpy.AlterField_management(
+                    in_table=sa_path,
+                    field="SummID",
+                    new_field_name="RowID",
+                    new_field_alias="RowID",
+                )
         for tbl in arcpy.ListTables():
             tbl = os.path.join(gdb, tbl)
             if "SummID" in [f.name for f in arcpy.ListFields(tbl)]:
                 print(f"--- Converting SummID to RowID for {tbl}")
-                arcpy.AlterField_management(in_table=tbl, field="SummID",
-                                            new_field_name="RowID", new_field_alias="RowID")
+                arcpy.AlterField_management(
+                    in_table=tbl,
+                    field="SummID",
+                    new_field_name="RowID",
+                    new_field_alias="RowID",
+                )
     # TODO: incorporate a more broad AlterField protocol for Popup configuration
 
 

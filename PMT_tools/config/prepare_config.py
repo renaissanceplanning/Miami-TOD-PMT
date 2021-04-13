@@ -1,6 +1,19 @@
 from collections import OrderedDict
 
-from PMT_tools.PMT import (Comp, And, Column, AggColumn, Consolidation, NetLoader, makePath, CLEANED)
+from PMT_tools.PMT import (
+    Comp,
+    And,
+    Column,
+    AggColumn,
+    Consolidation,
+    NetLoader,
+    makePath,
+    CLEANED,
+)
+
+# CRS
+IN_CRS = 4326  # WGS84 latitude/longitude
+OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 
 """ Basic features configuration """
 BASIC_STATIONS = "SMARTplanStations"
@@ -9,16 +22,18 @@ STN_STATUS_FIELD = "Status"
 STN_BUFF_DIST = "2640 Feet"
 STN_BUFF_METERS = 804.672
 STN_DISS_FIELDS = ["Id", "Name", "Status"]
-STN_CORRIDOR_FIELDS = ["Beach",
-                       "EastWest",
-                       "Green",
-                       "Kendall",
-                       "Metromover",
-                       "North",
-                       "Northeast",
-                       "Orange",
-                       "South",
-                       "AllCorridors"]
+STN_CORRIDOR_FIELDS = [
+    "Beach",
+    "EastWest",
+    "Green",
+    "Kendall",
+    "Metromover",
+    "North",
+    "Northeast",
+    "Orange",
+    "South",
+    "AllCorridors",
+]
 
 BASIC_ALIGNMENTS = "SMARTplanAlignments"
 ALIGN_DISS_FIELDS = "Corridor"
@@ -32,12 +47,14 @@ BASIC_SUM_AREAS = "SummaryAreas"
 STN_LONG_CORRIDOR = "Corridor"
 SUMMARY_AREAS_COMMON_KEY = "SummID"  # Changed from RowID as ROWID appears to be a reserved word in MSSQL and ORACLE
 
-SUMMARY_AREAS_BASIC_FIELDS = [SUMMARY_AREAS_COMMON_KEY, STN_NAME_FIELD, STN_STATUS_FIELD, CORRIDOR_NAME_FIELD]
+SUMMARY_AREAS_BASIC_FIELDS = [
+    SUMMARY_AREAS_COMMON_KEY,
+    STN_NAME_FIELD,
+    STN_STATUS_FIELD,
+    CORRIDOR_NAME_FIELD,
+]
 
-BASIC_RENAME_DICT = {
-    "EastWest": "East-West",
-    "AllCorridors": "(All corridors)"
-}
+BASIC_RENAME_DICT = {"EastWest": "East-West", "AllCorridors": "(All corridors)"}
 
 """ Bike Ped Crash Configs """
 # cleaning configuration
@@ -59,11 +76,12 @@ CRASH_FIELDS_DICT = dict(
 )
 
 USE_CRASH = list(CRASH_FIELDS_DICT.keys())
-DROP_CRASH = ["DATE", "BIKE_TYPE", "PED_TYPE", ]
+DROP_CRASH = [
+    "DATE",
+    "BIKE_TYPE",
+    "PED_TYPE",
+]
 
-# CRS
-IN_CRS = 4326  # WGS84 latitude/longitude
-OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 # Data subset
 COUNTY = "MIAMI-DADE"
 
@@ -212,10 +230,31 @@ CRASH_CITY_CODES = OrderedDict(
 """
 Park Configurations
 """
-PARK_POINT_COLS = ['FOLIO', 'ID', 'NAME', 'ADDRESS', 'CITY', 'ZIPCODE', 'PHONE', 'CONTACT',
-                   'TOTACRE', 'LAT', 'LON', 'POINT_X', 'POINT_Y', 'CLASS', 'TYPE', 'MNGTAGCY']
+PARK_POINT_COLS = [
+    "FOLIO",
+    "ID",
+    "NAME",
+    "ADDRESS",
+    "CITY",
+    "ZIPCODE",
+    "PHONE",
+    "CONTACT",
+    "TOTACRE",
+    "LAT",
+    "LON",
+    "POINT_X",
+    "POINT_Y",
+    "CLASS",
+    "TYPE",
+    "MNGTAGCY",
+]
 PARK_POINTS_COMMON_KEY = "PARK_PT_ID"
 PARK_POLY_COMMON_KEY = "PARK_PY_ID"
+
+"""
+bike facilities configuration
+"""
+BIKE_FAC_COMMON_KEY = "FacID"
 
 """
 Configuration variables to be used with building permit data
@@ -228,10 +267,9 @@ PERMITS_STATUS_DICT = dict(
         ("C", "Collected"),
         ("A", "Assessed"),
         ("L", "Letter of Credit submitted"),
-        ("B", "Bond submitted")
+        ("B", "Bond submitted"),
     ]
 )
-
 PERMITS_FIELDS_DICT = dict(
     [
         ("PROC_NUM", "PROC_NUM"),
@@ -245,13 +283,8 @@ PERMITS_FIELDS_DICT = dict(
         ("ASSD_BASIS_QTY", "UNITS_VAL"),
     ]
 )
-
 PERMITS_USE = PERMITS_FIELDS_DICT.keys()
-PERMITS_DROPS = ['CONST_COST', "ADMIN_COST", "CAT_CODE"]
-
-# CRS
-IN_CRS = 4326  # WGS84 latitude/longitude
-OUT_CRS = 6437  # NAD83(2011) / Florida East meters
+PERMITS_DROPS = ["CONST_COST", "ADMIN_COST", "CAT_CODE"]
 
 # Transit Ridership Tables
 TRANSIT_COMMON_KEY = "TRANSIT_ID"
@@ -276,7 +309,7 @@ TRANSIT_RIDERSHIP_TABLES = {
     2017: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1803_2018_APR_standard_format.XLS",
     2018: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1811_2019_APR_standard_format.XLS",
     2019: "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS",
-    "NearTerm": "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS"
+    "NearTerm": "AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_2003_2020_APR_standard_format.XLS",
 }
 TRANSIT_LAT = "LAT"
 TRANSIT_LONG = "LONG"
@@ -287,130 +320,146 @@ PARCEL_NAL_KEY = "PARCEL_ID"
 PARCEL_COMMON_KEY = "FOLIO"
 PARCEL_USE_COLS = {
     2019: [
-        "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
-        "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AR", "NO_BULDNG",
+        "CO_NO",
+        "PARCEL_ID",
+        "DOR_UC",
+        "JV",
+        "TV_NSD",
+        "LND_VAL",
+        "NCONST_VAL",
+        "LND_SQFOOT",
+        "TOT_LVG_AR",
+        "NO_BULDNG",
         "NO_RES_UNT",  # "ACT_YR_BLT"
     ],
     "DEFAULT": [
-        "CO_NO", "PARCEL_ID", "DOR_UC", "JV", "TV_NSD", "LND_VAL",
-        "NCONST_VAL", "LND_SQFOOT", "TOT_LVG_AREA", "NO_BULDNG",
+        "CO_NO",
+        "PARCEL_ID",
+        "DOR_UC",
+        "JV",
+        "TV_NSD",
+        "LND_VAL",
+        "NCONST_VAL",
+        "LND_SQFOOT",
+        "TOT_LVG_AREA",
+        "NO_BULDNG",
         "NO_RES_UNTS",  # "ACT_YR_BLT"
-    ]
+    ],
 }
 PARCEL_COLS = {
     2019: {
-        'CO_NO': 'CO_NO',
-        'PARCEL_ID': 'PARCEL_ID',
-        'FILE_T': 'FILE_T',
-        'ASMNT_YR': 'ASMNT_YR',
-        'BAS_STRT': 'BAS_STRT',
-        'ATV_STRT': 'ATV_STRT',
-        'GRP_NO': 'GRP_NO',
-        'DOR_UC': 'DOR_UC',
-        'PA_UC': 'PA_UC',
-        'SPASS_CD': 'SPASS_CD',
-        'JV': 'JV',
-        'JV_CHNG': 'JV_CHNG',
-        'JV_CHNG_CD': 'JV_CHNG_CD',
-        'AV_SD': 'AV_SD',
-        'AV_NSD': 'AV_NSD',
-        'TV_SD': 'TV_SD',
-        'TV_NSD': 'TV_NSD',
-        'JV_HMSTD': 'JV_HMSTD',
-        'AV_HMSTD': 'AV_HMSTD',
-        'JV_NON_HMS': 'JV_NON_HMSTD_RESD',
-        'AV_NON_HMS': 'AV_NON_HMSTD_RESD',
-        'JV_RESD_NO': 'JV_RESD_NON_RESD',
-        'AV_RESD_NO': 'AV_RESD_NON_RESD',
-        'JV_CLASS_U': 'JV_CLASS_USE',
-        'AV_CLASS_U': 'AV_CLASS_USE',
-        'JV_H2O_REC': 'JV_H2O_RECHRGE',
-        'AV_H2O_REC': 'AV_H2O_RECHRGE',
-        'JV_CONSRV_': 'JV_CONSRV_LND',
-        'AV_CONSRV_': 'AV_CONSRV_LND',
-        'JV_HIST_CO': 'JV_HIST_COM_PROP',
-        'AV_HIST_CO': 'AV_HIST_COM_PROP',
-        'JV_HIST_SI': 'JV_HIST_SIGNF',
-        'AV_HIST_SI': 'AV_HIST_SIGNF',
-        'JV_WRKNG_W': 'JV_WRKNG_WTRFNT',
-        'AV_WRKNG_W': 'AV_WRKNG_WTRFNT',
-        'NCONST_VAL': 'NCONST_VAL',
-        'DEL_VAL': 'DEL_VAL',
-        'PAR_SPLT': 'PAR_SPLT',
-        'DISTR_CD': 'DISTR_CD',
-        'DISTR_YR': 'DISTR_YR',
-        'LND_VAL': 'LND_VAL',
-        'LND_UNTS_C': 'LND_UNTS_CD',
-        'NO_LND_UNT': 'NO_LND_UNTS',
-        'LND_SQFOOT': 'LND_SQFOOT',
-        'DT_LAST_IN': 'DT_LAST_INSPT',
-        'IMP_QUAL': 'IMP_QUAL',
-        'CONST_CLAS': 'CONST_CLASS',
-        'EFF_YR_BLT': 'EFF_YR_BLT',
-        'ACT_YR_BLT': 'ACT_YR_BLT',
-        'TOT_LVG_AR': 'TOT_LVG_AREA',
-        'NO_BULDNG': 'NO_BULDNG',
-        'NO_RES_UNT': 'NO_RES_UNTS',
-        'SPEC_FEAT_': 'SPEC_FEAT_VAL',
-        'M_PAR_SAL1': 'MULTI_PAR_SAL1',
-        'QUAL_CD1': 'QUAL_CD1',
-        'VI_CD1': 'VI_CD1',
-        'SALE_PRC1': 'SALE_PRC1',
-        'SALE_YR1': 'SALE_YR1',
-        'SALE_MO1': 'SALE_MO1',
-        'OR_BOOK1': 'OR_BOOK1',
-        'OR_PAGE1': 'OR_PAGE1',
-        'CLERK_NO1': 'CLERK_NO1',
-        'S_CHNG_CD1': 'SAL_CHNG_CD1',
-        'M_PAR_SAL2': 'MULTI_PAR_SAL2',
-        'QUAL_CD2': 'QUAL_CD2',
-        'VI_CD2': 'VI_CD2',
-        'SALE_PRC2': 'SALE_PRC2',
-        'SALE_YR2': 'SALE_YR2',
-        'SALE_MO2': 'SALE_MO2',
-        'OR_BOOK2': 'OR_BOOK2',
-        'OR_PAGE2': 'OR_PAGE2',
-        'CLERK_NO2': 'CLERK_NO2',
-        'S_CHNG_CD2': 'SAL_CHNG_CD2',
-        'OWN_NAME': 'OWN_NAME',
-        'OWN_ADDR1': 'OWN_ADDR1',
-        'OWN_ADDR2': 'OWN_ADDR2',
-        'OWN_CITY': 'OWN_CITY',
-        'OWN_STATE': 'OWN_STATE',
-        'OWN_ZIPCD': 'OWN_ZIPCD',
-        'OWN_STATE_': 'OWN_STATE_DOM',
-        'FIDU_NAME': 'FIDU_NAME',
-        'FIDU_ADDR1': 'FIDU_ADDR1',
-        'FIDU_ADDR2': 'FIDU_ADDR2',
-        'FIDU_CITY': 'FIDU_CITY',
-        'FIDU_STATE': 'FIDU_STATE',
-        'FIDU_ZIPCD': 'FIDU_ZIPPCD',
-        'FIDU_CD': 'FIDU_CD',
-        'S_LEGAL': 'S_LEGAL',
-        'APP_STAT': 'APP_STAT',
-        'CO_APP_STA': 'CO_APP_STAT',
-        'MKT_AR': 'MKT_AR',
-        'NBRHD_CD': 'NBRHD_CD',
-        'PUBLIC_LND': 'PUBLIC_LND',
-        'TAX_AUTH_C': 'TAX_AUTH_CD',
-        'TWN': 'TWN',
-        'RNG': 'RNG',
-        'SEC': 'SEC',
-        'CENSUS_BK': 'CENSUS_BK',
-        'PHY_ADDR1': 'PHY_ADDR1',
-        'PHY_ADDR2': 'PHY_ADDR2',
-        'PHY_CITY': 'PHY_CITY',
-        'PHY_ZIPCD': 'PHY_ZIPCD',
-        'ASS_TRNSFR': 'ASS_TRNSFR_FG',
-        'PREV_HMSTD': 'PREV_HMSTD_OWN',
-        'ASS_DIF_TR': 'ASS_DIF_TRNS',
-        'CONO_PRV_H': 'CONO_PRV_HM',
-        'PARCEL_ID_': 'PARCEL_ID_PRV_HMSTD',
-        'YR_VAL_TRN': 'YR_VAL_TRNSF',
-        'SEQ_NO': 'SEQ_NO',
-        'RS_ID': 'RS_ID',
-        'MP_ID': 'MP_ID',
-        'STATE_PAR_': 'STATE_PARCEL_ID'
+        "CO_NO": "CO_NO",
+        "PARCEL_ID": "PARCEL_ID",
+        "FILE_T": "FILE_T",
+        "ASMNT_YR": "ASMNT_YR",
+        "BAS_STRT": "BAS_STRT",
+        "ATV_STRT": "ATV_STRT",
+        "GRP_NO": "GRP_NO",
+        "DOR_UC": "DOR_UC",
+        "PA_UC": "PA_UC",
+        "SPASS_CD": "SPASS_CD",
+        "JV": "JV",
+        "JV_CHNG": "JV_CHNG",
+        "JV_CHNG_CD": "JV_CHNG_CD",
+        "AV_SD": "AV_SD",
+        "AV_NSD": "AV_NSD",
+        "TV_SD": "TV_SD",
+        "TV_NSD": "TV_NSD",
+        "JV_HMSTD": "JV_HMSTD",
+        "AV_HMSTD": "AV_HMSTD",
+        "JV_NON_HMS": "JV_NON_HMSTD_RESD",
+        "AV_NON_HMS": "AV_NON_HMSTD_RESD",
+        "JV_RESD_NO": "JV_RESD_NON_RESD",
+        "AV_RESD_NO": "AV_RESD_NON_RESD",
+        "JV_CLASS_U": "JV_CLASS_USE",
+        "AV_CLASS_U": "AV_CLASS_USE",
+        "JV_H2O_REC": "JV_H2O_RECHRGE",
+        "AV_H2O_REC": "AV_H2O_RECHRGE",
+        "JV_CONSRV_": "JV_CONSRV_LND",
+        "AV_CONSRV_": "AV_CONSRV_LND",
+        "JV_HIST_CO": "JV_HIST_COM_PROP",
+        "AV_HIST_CO": "AV_HIST_COM_PROP",
+        "JV_HIST_SI": "JV_HIST_SIGNF",
+        "AV_HIST_SI": "AV_HIST_SIGNF",
+        "JV_WRKNG_W": "JV_WRKNG_WTRFNT",
+        "AV_WRKNG_W": "AV_WRKNG_WTRFNT",
+        "NCONST_VAL": "NCONST_VAL",
+        "DEL_VAL": "DEL_VAL",
+        "PAR_SPLT": "PAR_SPLT",
+        "DISTR_CD": "DISTR_CD",
+        "DISTR_YR": "DISTR_YR",
+        "LND_VAL": "LND_VAL",
+        "LND_UNTS_C": "LND_UNTS_CD",
+        "NO_LND_UNT": "NO_LND_UNTS",
+        "LND_SQFOOT": "LND_SQFOOT",
+        "DT_LAST_IN": "DT_LAST_INSPT",
+        "IMP_QUAL": "IMP_QUAL",
+        "CONST_CLAS": "CONST_CLASS",
+        "EFF_YR_BLT": "EFF_YR_BLT",
+        "ACT_YR_BLT": "ACT_YR_BLT",
+        "TOT_LVG_AR": "TOT_LVG_AREA",
+        "NO_BULDNG": "NO_BULDNG",
+        "NO_RES_UNT": "NO_RES_UNTS",
+        "SPEC_FEAT_": "SPEC_FEAT_VAL",
+        "M_PAR_SAL1": "MULTI_PAR_SAL1",
+        "QUAL_CD1": "QUAL_CD1",
+        "VI_CD1": "VI_CD1",
+        "SALE_PRC1": "SALE_PRC1",
+        "SALE_YR1": "SALE_YR1",
+        "SALE_MO1": "SALE_MO1",
+        "OR_BOOK1": "OR_BOOK1",
+        "OR_PAGE1": "OR_PAGE1",
+        "CLERK_NO1": "CLERK_NO1",
+        "S_CHNG_CD1": "SAL_CHNG_CD1",
+        "M_PAR_SAL2": "MULTI_PAR_SAL2",
+        "QUAL_CD2": "QUAL_CD2",
+        "VI_CD2": "VI_CD2",
+        "SALE_PRC2": "SALE_PRC2",
+        "SALE_YR2": "SALE_YR2",
+        "SALE_MO2": "SALE_MO2",
+        "OR_BOOK2": "OR_BOOK2",
+        "OR_PAGE2": "OR_PAGE2",
+        "CLERK_NO2": "CLERK_NO2",
+        "S_CHNG_CD2": "SAL_CHNG_CD2",
+        "OWN_NAME": "OWN_NAME",
+        "OWN_ADDR1": "OWN_ADDR1",
+        "OWN_ADDR2": "OWN_ADDR2",
+        "OWN_CITY": "OWN_CITY",
+        "OWN_STATE": "OWN_STATE",
+        "OWN_ZIPCD": "OWN_ZIPCD",
+        "OWN_STATE_": "OWN_STATE_DOM",
+        "FIDU_NAME": "FIDU_NAME",
+        "FIDU_ADDR1": "FIDU_ADDR1",
+        "FIDU_ADDR2": "FIDU_ADDR2",
+        "FIDU_CITY": "FIDU_CITY",
+        "FIDU_STATE": "FIDU_STATE",
+        "FIDU_ZIPCD": "FIDU_ZIPPCD",
+        "FIDU_CD": "FIDU_CD",
+        "S_LEGAL": "S_LEGAL",
+        "APP_STAT": "APP_STAT",
+        "CO_APP_STA": "CO_APP_STAT",
+        "MKT_AR": "MKT_AR",
+        "NBRHD_CD": "NBRHD_CD",
+        "PUBLIC_LND": "PUBLIC_LND",
+        "TAX_AUTH_C": "TAX_AUTH_CD",
+        "TWN": "TWN",
+        "RNG": "RNG",
+        "SEC": "SEC",
+        "CENSUS_BK": "CENSUS_BK",
+        "PHY_ADDR1": "PHY_ADDR1",
+        "PHY_ADDR2": "PHY_ADDR2",
+        "PHY_CITY": "PHY_CITY",
+        "PHY_ZIPCD": "PHY_ZIPCD",
+        "ASS_TRNSFR": "ASS_TRNSFR_FG",
+        "PREV_HMSTD": "PREV_HMSTD_OWN",
+        "ASS_DIF_TR": "ASS_DIF_TRNS",
+        "CONO_PRV_H": "CONO_PRV_HM",
+        "PARCEL_ID_": "PARCEL_ID_PRV_HMSTD",
+        "YR_VAL_TRN": "YR_VAL_TRNSF",
+        "SEQ_NO": "SEQ_NO",
+        "RS_ID": "RS_ID",
+        "MP_ID": "MP_ID",
+        "STATE_PAR_": "STATE_PARCEL_ID",
     }
 }
 LAND_USE_COMMON_KEY = "DOR_UC"
@@ -423,12 +472,19 @@ PARCEL_LU_AREAS = {
     # "NRES_AREA": ["RES_NRES", "NRES"]
     "VAC_AREA": ["GN_VA_LU", Comp(comp_method="==", v="Vacant/Undeveloped")],
     "RES_AREA": ["NO_RES_UNTS", Comp(comp_method=">", v=0)],
-    "NRES_AREA": ["Total_Employment", Comp(comp_method=">", v=0)]
+    "NRES_AREA": ["Total_Employment", Comp(comp_method=">", v=0)],
 }
 
 # Block groups config
 BG_COMMON_KEY = "GEOID"
-BG_PAR_SUM_FIELDS = ["LND_VAL", "LND_SQFOOT", "JV", "NO_BULDNG", "NO_RES_UNTS", "TOT_LVG_AREA"]
+BG_PAR_SUM_FIELDS = [
+    "LND_VAL",
+    "LND_SQFOOT",
+    "JV",
+    "NO_BULDNG",
+    "NO_RES_UNTS",
+    "TOT_LVG_AREA",
+]
 BLOCK_COMMON_KEY = "GEOID10"
 
 # LODES/ACS config
@@ -438,23 +494,92 @@ LODES_COMMON_KEY = "bgrp"
 LODES_YEARS = [2014, 2015, 2016, 2017, 2018]
 
 ACS_RACE_FIELDS = [ACS_COMMON_KEY] + [
-    'Total_Non_Hisp', 'Total_Hispanic', 'White_Non_Hisp', 'Black_Non_Hisp',
-    'Asian_Non_Hisp', 'Multi_Non_Hisp', 'White_Hispanic', 'Black_Hispanic',
-    'Asian_Hispanic', 'Multi_Hispanic', 'Other_Non_Hisp', 'Other_Hispanic'
+    "Total_Non_Hisp",
+    "Total_Hispanic",
+    "White_Non_Hisp",
+    "Black_Non_Hisp",
+    "Asian_Non_Hisp",
+    "Multi_Non_Hisp",
+    "White_Hispanic",
+    "Black_Hispanic",
+    "Asian_Hispanic",
+    "Multi_Hispanic",
+    "Other_Non_Hisp",
+    "Other_Hispanic",
 ]
 ACS_COMMUTE_FIELDS = [ACS_COMMON_KEY] + [
-    'Total_Commutes', 'Drove_alone', 'Carpool', 'Transit', 'Taxi',
-    'Motorcycle', 'Bicycle', 'Walk', 'Other', 'Work_From_Home',
-    'Drove', 'NonMotor', 'AllOther', 'SOV_Share', 'HOV_Share',
-    'PT_Share', 'NM_Share', 'Oth_Share', 'WFH_Share'
+    "Total_Commutes",
+    "Drove_alone",
+    "Carpool",
+    "Transit",
+    "Taxi",
+    "Motorcycle",
+    "Bicycle",
+    "Walk",
+    "Other",
+    "Work_From_Home",
+    "Drove",
+    "NonMotor",
+    "AllOther",
+    "SOV_Share",
+    "HOV_Share",
+    "PT_Share",
+    "NM_Share",
+    "Oth_Share",
+    "WFH_Share",
 ]
 LODES_FIELDS = [LODES_COMMON_KEY] + [
-    'C000', 'CA01', 'CA02', 'CA03', 'CE01', 'CE02', 'CE03',
-    'CNS01', 'CNS02', 'CNS03', 'CNS04', 'CNS05', 'CNS06', 'CNS07', 'CNS08', 'CNS09', 'CNS10',
-    'CNS11', 'CNS12', 'CNS13', 'CNS14', 'CNS15', 'CNS16', 'CNS17', 'CNS18', 'CNS19', 'CNS20',
-    'CR01', 'CR02', 'CR03', 'CR04', 'CR05', 'CR07',
-    'CT01', 'CT02', 'CD01', 'CD02', 'CD03', 'CD04', 'CS01', 'CS02',
-    'CFA01', 'CFA02', 'CFA03', 'CFA04', 'CFA05', 'CFS01', 'CFS02', 'CFS03', 'CFS04', 'CFS05'
+    "C000",
+    "CA01",
+    "CA02",
+    "CA03",
+    "CE01",
+    "CE02",
+    "CE03",
+    "CNS01",
+    "CNS02",
+    "CNS03",
+    "CNS04",
+    "CNS05",
+    "CNS06",
+    "CNS07",
+    "CNS08",
+    "CNS09",
+    "CNS10",
+    "CNS11",
+    "CNS12",
+    "CNS13",
+    "CNS14",
+    "CNS15",
+    "CNS16",
+    "CNS17",
+    "CNS18",
+    "CNS19",
+    "CNS20",
+    "CR01",
+    "CR02",
+    "CR03",
+    "CR04",
+    "CR05",
+    "CR07",
+    "CT01",
+    "CT02",
+    "CD01",
+    "CD02",
+    "CD03",
+    "CD04",
+    "CS01",
+    "CS02",
+    "CFA01",
+    "CFA02",
+    "CFA03",
+    "CFA04",
+    "CFA05",
+    "CFS01",
+    "CFS02",
+    "CFS03",
+    "CFS04",
+    "CFS05",
 ]
 
 LODES_CRITERIA = {
@@ -478,72 +603,118 @@ LODES_CRITERIA = {
     "CNS_18_par": [Comp("==", 21), Comp("==", 22), Comp("==", 33), Comp("==", 39)],
     "CNS_19_par": [Comp("==", 27), Comp("==", 28)],
     "CNS_20_par": And([Comp(">=", 86), Comp("<=", 89)]),
-    "RES_par": [And([Comp(">=", 1), Comp("<=", 9)]),
-                And([Comp(">=", 100), Comp("<=", 102)])]
+    "RES_par": [
+        And([Comp(">=", 1), Comp("<=", 9)]),
+        And([Comp(">=", 100), Comp("<=", 102)]),
+    ],
 }
 
 # SERPM config
 #             base,  future
-MODEL_YEARS = [2015] #2045
+MODEL_YEARS = [2015]  # 2045
 MAZ_COMMON_KEY = "MAZ"
 TAZ_COMMON_KEY = "TAZ"
 SERPM_RENAMES = {
     "mgra": MAZ_COMMON_KEY,
     "MAZ2010": MAZ_COMMON_KEY,
-    "REG_TAZ": TAZ_COMMON_KEY
+    "REG_TAZ": TAZ_COMMON_KEY,
 }
 SKIM_IMP_FIELD = "TIME"
 SKIM_O_FIELD = "OName"
 SKIM_D_FIELD = "DName"
-SKIM_RENAMES = {
-    "F_TAZ": SKIM_O_FIELD,
-    "T_TAZ": SKIM_D_FIELD,
-    "TOTTIME": SKIM_IMP_FIELD
-}
-SKIM_DTYPES = {
-    "F_TAZ": int,
-    "T_TAZ": int,
-    SKIM_IMP_FIELD: float,
-    "TOTTIME": float
-}
+SKIM_RENAMES = {"F_TAZ": SKIM_O_FIELD, "T_TAZ": SKIM_D_FIELD, "TOTTIME": SKIM_IMP_FIELD}
+SKIM_DTYPES = {"F_TAZ": int, "T_TAZ": int, SKIM_IMP_FIELD: float, "TOTTIME": float}
 
 # - MAZ aggregation specs
 MAZ_AGG_COLS = [
     AggColumn("NO_RES_UNTS", rename="HH"),
     AggColumn("Total_Employment", rename="TotalJobs"),
     AggColumn("CNS16_PAR", rename="HCJobs"),
-    AggColumn("CNS15_PAR", rename="EdJobs")
+    AggColumn("CNS15_PAR", rename="EdJobs"),
 ]
 # - MAZ consolidation specs (from parcels)
 MAZ_PAR_CONS = [
     Consolidation(name="RsrcJobs", input_cols=["CNS01_PAR", "CNS02_PAR"]),
     Consolidation(name="IndJobs", input_cols=["CNS05_PAR", "CNS06_PAR", "CNS08_PAR"]),
     Consolidation(name="ConsJobs", input_cols=["CNS07_PAR", "CNS17_PAR", "CNS18_PAR"]),
-    Consolidation(name="OffJobs", input_cols=["CNS09_PAR", "CNS10_PAR", "CNS11_PAR", "CNS12_PAR",
-                                              "CNS13_PAR", "CNS20_PAR"]),
-    Consolidation(name="OthJobs", input_cols=["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"])
+    Consolidation(
+        name="OffJobs",
+        input_cols=[
+            "CNS09_PAR",
+            "CNS10_PAR",
+            "CNS11_PAR",
+            "CNS12_PAR",
+            "CNS13_PAR",
+            "CNS20_PAR",
+        ],
+    ),
+    Consolidation(
+        name="OthJobs", input_cols=["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"]
+    ),
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
     Column(name="hh", rename="HH"),
     Column(name="emp_total", rename="TotalJobs"),
-    Consolidation(name="ConsJobs", input_cols=["emp_retail", "emp_amusement", "emp_hotel",
-                                               "emp_restaurant_bar", "emp_personal_svcs_retail",
-                                               "emp_state_local_gov_ent"]),
-    Consolidation(name="EdJobs", input_cols=["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"]),
+    Consolidation(
+        name="ConsJobs",
+        input_cols=[
+            "emp_retail",
+            "emp_amusement",
+            "emp_hotel",
+            "emp_restaurant_bar",
+            "emp_personal_svcs_retail",
+            "emp_state_local_gov_ent",
+        ],
+    ),
+    Consolidation(
+        name="EdJobs",
+        input_cols=["emp_pvt_ed_k12", "emp_pvt_ed_post_k12_oth", "emp_public_ed"],
+    ),
     Column(name="emp_health", rename="HCJobs"),
-    Consolidation(name="IndJobs", input_cols=["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"]),
-    Consolidation(name="OffJobs", input_cols=["emp_prof_bus_svcs", "emp_personal_svcs_office",
-                                              "emp_state_local_gov_white", "emp_own_occ_dwell_mgmt",
-                                              "emp_fed_gov_accts", "emp_st_lcl_gov_accts", "emp_cap_accts"]),
-    Consolidation(name="OthJobs", input_cols=["emp_const_non_bldg_prod", "emp_const_non_bldg_office",
-                                              "emp_utilities_prod", "emp_utilities_office", "emp_const_bldg_prod",
-                                              "emp_const_bldg_office", "emp_prof_bus_svcs_bldg_maint", "emp_religious",
-                                              "emp_pvt_hh", "emp_scrap_other", "emp_fed_non_mil", "emp_fed_mil",
-                                              "emp_state_local_gov_blue"]),
+    Consolidation(
+        name="IndJobs",
+        input_cols=["emp_mfg_prod", "emp_mfg_office", "emp_whsle_whs", "emp_trans"],
+    ),
+    Consolidation(
+        name="OffJobs",
+        input_cols=[
+            "emp_prof_bus_svcs",
+            "emp_personal_svcs_office",
+            "emp_state_local_gov_white",
+            "emp_own_occ_dwell_mgmt",
+            "emp_fed_gov_accts",
+            "emp_st_lcl_gov_accts",
+            "emp_cap_accts",
+        ],
+    ),
+    Consolidation(
+        name="OthJobs",
+        input_cols=[
+            "emp_const_non_bldg_prod",
+            "emp_const_non_bldg_office",
+            "emp_utilities_prod",
+            "emp_utilities_office",
+            "emp_const_bldg_prod",
+            "emp_const_bldg_office",
+            "emp_prof_bus_svcs_bldg_maint",
+            "emp_religious",
+            "emp_pvt_hh",
+            "emp_scrap_other",
+            "emp_fed_non_mil",
+            "emp_fed_mil",
+            "emp_state_local_gov_blue",
+        ],
+    ),
     Column(name="emp_ag", rename="RsrcJobs"),
-    Consolidation(name="EnrollAdlt", input_cols=["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"]),
-    Consolidation(name="EnrollK12", input_cols=["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"])
+    Consolidation(
+        name="EnrollAdlt",
+        input_cols=["collegeEnroll", "otherCollegeEnroll", "AdultSchEnrl"],
+    ),
+    Consolidation(
+        name="EnrollK12",
+        input_cols=["EnrollGradeKto8", "EnrollGrade9to12", "PrivateEnrollGradeKto8"],
+    ),
 ]
 
 # osm config
@@ -561,13 +732,14 @@ NET_BY_YEAR = {
 NETS_DIR = makePath(CLEANED, "osm_networks")
 SEARCH_CRITERIA = "edges SHAPE;osm_ND_Junctions NONE"
 SEARCH_QUERY = "edges #;osm_ND_Junctions #"
-NET_LOADER = NetLoader("1500 meters",
-                       search_criteria=SEARCH_CRITERIA,
-                       match_type="MATCH_TO_CLOSEST",
-                       append="CLEAR",
-                       exclude_restricted="EXCLUDE",
-                       search_query=SEARCH_QUERY
-                       )
+NET_LOADER = NetLoader(
+    "1500 meters",
+    search_criteria=SEARCH_CRITERIA,
+    match_type="MATCH_TO_CLOSEST",
+    append="CLEAR",
+    exclude_restricted="EXCLUDE",
+    search_query=SEARCH_QUERY,
+)
 OSM_IMPED = "Minutes"
 OSM_CUTOFF = "15 30"
 BIKE_RESTRICTIONS = "Oneway;IsCycleway;LTS1;LTS2;LTS3;LTS4"
@@ -584,7 +756,7 @@ CENTRALITY_NET_LOADER = NetLoader(
     snap="NO_SNAP",
     offset="5 meters",
     exclude_restricted="INCLUDE",
-    search_query="edges #;osm_ND_Junctions #"
+    search_query="edges #;osm_ND_Junctions #",
 )
 
 # walk times config
@@ -617,7 +789,7 @@ MODE_SCALE_REF = {
     "Auto": ["SERPM", "taz", TAZ_COMMON_KEY],
     "Transit": ["SERPM", "taz", TAZ_COMMON_KEY],
     "Walk": ["OSM_Networks", "maz", MAZ_COMMON_KEY],
-    "Bike": ["OSM_Networks", "maz", MAZ_COMMON_KEY]
+    "Bike": ["OSM_Networks", "maz", MAZ_COMMON_KEY],
 }
 ACCESS_TIME_BREAKS = [15, 30, 45, 60]
 ACCESS_UNITS = "Min"
@@ -643,11 +815,21 @@ BUILDINGS_PATH = r"K:\Projects\MiamiDade\PMT\Data\Cleaned\OSM_Buildings\OSM_Buil
 Configuration variables to be used in land use diversity
 """
 LU_RECODE_FIELD = "DIV_CLASS"
-DIV_RELEVANT_LAND_USES = ["auto", "civic", "education",
-                          "entertainment", "grocery",
-                          "healthcare", "industrial",
-                          "lodging", "mf", "office",
-                          "restaurant", "sf", "shopping"]
+DIV_RELEVANT_LAND_USES = [
+    "auto",
+    "civic",
+    "education",
+    "entertainment",
+    "grocery",
+    "healthcare",
+    "industrial",
+    "lodging",
+    "mf",
+    "office",
+    "restaurant",
+    "sf",
+    "shopping",
+]
 # DIV_CHISQ_PROPS = None
 # DIV_REGIONAL_ADJ = True
 # DIV_REGIONAL_CONSTS = None
@@ -661,13 +843,17 @@ PERMITS_COMMON_KEY = "FOLIO"
 PERMITS_UNITS_FIELD = "UNITS"
 PERMITS_BLD_AREA_NAME = "sq. ft."
 # format -->
-PARCEL_REF_TABLE_UNITS_MATCH = {"bed": "NO_RES_UNTS",
-                                "room": "NO_RES_UNTS",
-                                "unit": "NO_RES_UNTS",
-                                "acre": "LND_SQFOOT / 43560", }
-PERMITS_REF_TABLE_UNITS_MATCH = {"student_20": "NO_RES_UNITS",
-                                 "student_25": "NO_RES_UNITS",
-                                 "student_30": "NO_RES_UNITS"}
+PARCEL_REF_TABLE_UNITS_MATCH = {
+    "bed": "NO_RES_UNTS",
+    "room": "NO_RES_UNTS",
+    "unit": "NO_RES_UNTS",
+    "acre": "LND_SQFOOT / 43560",
+}
+PERMITS_REF_TABLE_UNITS_MATCH = {
+    "student_20": "NO_RES_UNITS",
+    "student_25": "NO_RES_UNITS",
+    "student_30": "NO_RES_UNITS",
+}
 
 # Use PARCEL_COMMON_KEY for parcels_id_field
 # Use PARCEL_LU_COL for parcels_lu_field
@@ -681,6 +867,8 @@ PERMITS_LU_FIELD = "DOR_UC"
 PERMITS_VALUES_FIELD = "UNITS_VAL"
 PERMITS_COST_FIELD = "COST"
 # permit unit: parcel_field
-SHORT_TERM_PARCELS_UNITS_MATCH = {"bed": "NO_RES_UNTS",
-                                  "room": "NO_RES_UNTS",
-                                  "unit": "NO_RES_UNTS"}
+SHORT_TERM_PARCELS_UNITS_MATCH = {
+    "bed": "NO_RES_UNTS",
+    "room": "NO_RES_UNTS",
+    "unit": "NO_RES_UNTS",
+}
