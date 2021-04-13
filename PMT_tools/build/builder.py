@@ -283,6 +283,7 @@ def process_year_to_snapshot(year):
             time_breaks=B_CONF.TIME_BREAKS,
             mode=mode,
         )
+        df["Year"] = calc_year
         out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
         PMT.dfToTable(df=df, out_table=out_table, overwrite=True)
 

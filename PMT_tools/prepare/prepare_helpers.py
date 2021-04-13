@@ -22,6 +22,8 @@ import scipy
 import xlrd
 from six import string_types
 from sklearn import linear_model
+import networkx as nx
+from collections.abc import Iterable
 
 import PMT_tools.PMT as PMT
 
@@ -444,21 +446,13 @@ def _stringifyList(input):
     return ";".join(input)
 
 
-def makeBasicFeatures(
-    bf_gdb,
-    stations_fc,
-    stn_diss_fields,
-    stn_corridor_fields,
-    alignments_fc,
-    align_diss_fields,
-    stn_buff_dist="2640 Feet",
-    align_buff_dist="2640 Feet",
-    stn_areas_fc="Station_Areas",
-    corridors_fc="Corridors",
-    long_stn_fc="Stations_Long",
-    rename_dict={},
-    overwrite=False,
-):
+def makeBasicFeatures(bf_gdb, stations_fc, stn_id_field, stn_diss_fields, stn_corridor_fields,
+                      alignments_fc, align_diss_fields, align_corridor_name, stn_buff_dist="2640 Feet",
+                      align_buff_dist="2640 Feet", stn_areas_fc="Station_Areas",
+                      corridors_fc="Corridors", long_stn_fc="Stations_Long",
+                      preset_station_areas=None, preset_station_id=None,
+                      preset_corridors=None, preset_corridor_name=None,
+                      rename_dict={}, overwrite=False):
     """In a geodatabase with basic features (station points and corridor alignments),
         create polygon feature classes used for standard mapping and summarization.
         The output feature classes include:
@@ -473,6 +467,8 @@ def makeBasicFeatures(
         stations_fc (str): A point feature class in`bf_gdb` with station locations and columns
             indicating belonging in individual corridors (i.e., the column names reflect corridor
             names and flag whether the station is served by that corridor).
+        stn_id_field (str): A field in `stations_fc` that identifies stations (common to a single
+            station area)
         stn_diss_fields (list): [String,...] Field(s) on which to dissolve stations when buffering
             station areas. Stations that reflect the same location by different facilities may
             be dissolved by name or ID, e.g. This may occur at intermodal locations.
@@ -481,6 +477,7 @@ def makeBasicFeatures(
         stn_corridor_fields (list): [String,...] The columns in `stations_fc` that flag each
             stations belonging in various corridors.
         alignments_fc (str): Path to a line feature class in `bf_gdb` reflecting corridor alignments
+        align_corridor_name (str): A field in `alignments_fc` that identifies the corridor it belongs to.
         align_diss_fields (list): [String,...] Field(s) on which to dissolve alignments when buffering
             corridor areas.
         stn_buff_dist (str): Linear Unit, [default="2640 Feet"] A linear unit by which to buffer
@@ -492,6 +489,14 @@ def makeBasicFeatures(
         corridors_fc (str): [default="Corridors"], The name of the output feature class to hold corridor polygons
         long_stn_fc (str): [default="Stations_Long"], The name of the output feature class to hold station features,
             elongated based on corridor belonging (to support dashboard menus)
+        preset_station_areas (path or feature layer): [default=None], Features that pre-define station areas will
+            supplant simple station buffers where `preset_station_id` matches `stn_id_field`
+        preset_station_id (str): [default=None], Key field for `preset_station_areas` to lookup and replace geometries
+            in the `stn_areas_fc` output
+        preset_corridors (path or feature layer): [default=None], Features that pre-define corridor areas will
+            supplant simple alignment buffers where `preset_corridor_name` matches `stn_id_field`
+        preset_corridor_name: (str) [default=None], Key field for `preset_corridors` to lookup and replace geometries
+            in the `corridors_fc` output
         rename_dict (dict): [default={}], If given, `stn_corridor_fields` can be relabeled before pivoting
             to create `long_stn_fc`, so that the values reported in the output "Corridor" column are not
             the column names, but values mapped on to the column names
@@ -528,6 +533,11 @@ def makeBasicFeatures(
         dissolve_option="LIST",
         dissolve_field=_diss_flds_,
     )
+
+    # Patch buffers and 
+    print("--- patching preset features")
+    patch_basic_features(bf_gdb, stn_areas_fc, corridors_fc, preset_station_areas=preset_station_areas, station_id_field=preset_station_id,
+                            preset_corridors=preset_corridors, corridor_name_field=preset_corridor_name)
 
     # Add (All corridors) to `corridors_fc`
     # - Setup field outputs
@@ -586,24 +596,18 @@ def makeBasicFeatures(
     arcpy.env.workspace = old_ws
 
 
-def makeSummaryFeatures(
-    bf_gdb,
-    stn_areas,
-    corridors_fc,
-    cor_name_field,
-    out_fc,
-    stn_buffer_meters=804.672,
-    stn_name_field="Name",
-    stn_status_field="Status",
-    stn_cor_field="Corridor",
-    overwrite=False,
-):
+def makeSummaryFeatures(bf_gdb, long_stn_fc, stn_areas_fc, stn_id_field, corridors_fc, cor_name_field,
+                        out_fc, stn_buffer_meters=804.672,
+                        stn_name_field="Name", stn_status_field="Status", stn_cor_field="Corridor",
+                        overwrite=False):
     """Creates a single feature class for data summarization based on station area and corridor geographies.
         The output feature class includes each station area, all combined station areas, the entire corridor area,
         and the portion of the corridor that is outside station areas.
     Args:
         bf_gdb (str): Path to basic features gdb
-        stn_areas (str): path to long station points feature class
+        long_stn_fc (str): path to long station points feature class
+        stn_areas_fc (str): path to station area polygons feature class
+        stn_id_field (str): id field linking `stn_areas_fc` and `long_stn_fc`
         corridors_fc (str): path to corridors feature class
         cor_name_field (str): name field for corridor feature class
         out_fc (str): path to output feature class
@@ -629,22 +633,15 @@ def makeSummaryFeatures(
         out_path, out_name, "POLYGON", spatial_reference=sr
     )
     # - Add fields
-    arcpy.AddField_management(out_fc, P_CONF.STN_NAME_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(out_fc, P_CONF.STN_STATUS_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(
-        out_fc, P_CONF.CORRIDOR_NAME_FIELD, "TEXT", field_length=80
-    )
-    arcpy.AddField_management(out_fc, P_CONF.SUMMARY_AREAS_COMMON_KEY, "LONG")
+    arcpy.AddField_management(out_fc, "STN_ID", "LONG")
+    arcpy.AddField_management(out_fc, prep_conf.STN_NAME_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, prep_conf.STN_STATUS_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, prep_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, prep_conf.SUMMARY_AREAS_COMMON_KEY, "LONG")
 
     # Add all corridors with name="(Entire corridor)", corridor=cor_name_field
     print("--- adding corridor polygons")
-    out_fields = [
-        "SHAPE@",
-        stn_name_field,
-        stn_status_field,
-        stn_cor_field,
-        P_CONF.SUMMARY_AREAS_COMMON_KEY,
-    ]
+    out_fields = ["SHAPE@", "STN_ID", stn_name_field, stn_status_field, stn_cor_field, prep_conf.SUMMARY_AREAS_COMMON_KEY]
     cor_fields = ["SHAPE@", cor_name_field]
     cor_polys = {}
     i = 0
@@ -654,19 +651,14 @@ def makeSummaryFeatures(
                 i += 1
                 # Add row for the whole corridor
                 poly, corridor = sr
-                out_row = [poly, "(Entire corridor)", "NA", corridor, i]
+                out_row = [poly, -1, "(Entire corridor)", "NA", corridor, i]
                 ic.insertRow(out_row)
                 # Keep the polygons in a dictionary for use later
                 cor_polys[corridor] = poly
 
     # Add all station areas with name= stn_name_field, corridor=stn_cor_field
     print("--- adding station polygons by corridor")
-    stn_fields = [
-        "SHAPE@",
-        stn_name_field,
-        stn_status_field,
-        stn_cor_field,
-    ]
+    stn_fields = ["SHAPE@", stn_id_field, stn_name_field, stn_status_field, stn_cor_field]
     cor_stn_polys = {}
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
         # with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
@@ -687,8 +679,15 @@ def makeSummaryFeatures(
             for sr in sc:
                 i += 1
                 # Add row for each station/corridor combo
-                poly, stn_name, stn_status, corridor = sr
-                out_row = [poly, stn_name, stn_status, corridor, i]
+                point, stn_id, stn_name, stn_status, corridor = sr
+
+                ### Get poly from stn_areas_fc
+                where_clause = arcpy.AddFieldDelimiters(stn_areas_fc, stn_id_field) + f"={stn_id}"
+                with arcpy.da.SearchCursor(stn_areas_fc, "SHAPE@", where_clause=where_clause) as ref_c:
+                    poly = reduce(lambda x, y: x.union(y), [ref_r[0] for ref_r in ref_c])
+                ###
+                #poly = point.buffer(buff_dist)
+                out_row = [poly, stn_id, stn_name, stn_status, corridor, i]
                 ic.insertRow(out_row)
                 # Merge station polygons by corridor in a dict for later use
                 cor_poly = cor_stn_polys.get(corridor, None)
@@ -705,17 +704,107 @@ def makeSummaryFeatures(
             # Combined station areas
             i += 1
             all_stn_poly = cor_stn_polys[corridor]
-            out_row = [all_stn_poly, "(All stations)", "NA", corridor, i]
+            out_row = [all_stn_poly, -2, "(All stations)", "NA", corridor, i]
             ic.insertRow(out_row)
             # Non-station areas
             i += 1
             cor_poly = cor_polys[corridor]
             non_stn_poly = cor_poly.difference(all_stn_poly)
-            out_row = [non_stn_poly, "(Outside station areas)", "NA", corridor, i]
+            out_row = [non_stn_poly, -3, "(Outside station areas)", "NA", corridor, i]
             ic.insertRow(out_row)
 
     arcpy.env.workspace = old_ws
 
+
+def patch_basic_features(basic_gdb, station_areas_fc, corridors_fc, preset_station_areas=None, station_id_field=None, 
+                         preset_corridors=None, corridor_name_field=None):
+    """
+    Modifies the basic features database to updata station area and/or corridor geometries
+    based on provided preset features
+
+    Parameters
+    ----------
+    basic_gdb: path
+        Path to the basic_feaures geodatabase. This data base is assumed to include the 
+        feature classes created/updated in `makeBasicFeatures` and `makeSummaryFeatures`
+    preset_station_areas: path or feature layer, default=None
+        If provided, these geometries will be used to update station area features
+        (`StationAreas` and `SummaryAreas`)
+    station_id_field: String, default=None
+        The field in `preset_station_areas` that corresponds to basic_features/StationAreas.Id.
+        It is used to map new geometries into the `StationAreas` and `SummaryAreas` feature classes.
+    preset_corridors: path or feature_layer, default=None
+        If provided, these geometries will be used to update corridor features
+        (`Corridors` and `SummaryAreas`)
+    corridor_name_field: String, default=None
+        The field in `preset_corridors` that corresponds to basic_features/Corridors.Corridor.
+        It is used to map new geometries into the `Corridors` and `SummaryAreas` feature classes.
+
+    See Also
+    ---------
+    makeBasicFeatures
+    makeSummaryFeatures
+    """
+    
+    # stations_long_fc = makePath(basic_gdb, "StationsLong")
+    #station_areas_fc = makePath(basic_gdb, "StationAreas")
+    #corridors_fc = makePath(basic_gdb, "Corridors")
+    #summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
+    
+    # stations_df = PMT.table_to_df(stations_fc)
+    # align_df = PMT.table_to_df(align_fc)
+    # stations_long_df = PMT.table_to_df(stations_long_fc)
+    # station_areas_df = PMT.table_to_df(station_areas_fc)
+    # corridors_df = PMT.table_to_df(corridors_fc)
+    # summ_areas_df = PMT.table_to_df(summ_areas_df)
+
+    # summ_area_updates = []
+    if preset_station_areas is not None:
+        # TODO: functionalize this
+        with arcpy.da.SearchCursor(preset_station_areas, ["SHAPE@", station_id_field]) as c:
+            for r in c:
+                preset_shape, station_id = r
+                # lookup which station -> which station_area
+                where_clause = arcpy.AddFieldDelimiters(station_areas_fc, "Id") + f"= {station_id}"
+                with arcpy.da.UpdateCursor(station_areas_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
+                    for ur in uc:
+                        old_shape = ur[0]
+                        #summ_area_updates.append((old_shape, preset_shape))
+                        ur[0] = preset_shape
+                        uc.updateRow(ur)
+
+    # this repeats the same process - functionalize
+    if preset_corridors is not None:
+        with arcpy.da.SearchCursor(preset_corridors, ["SHAPE@", corridor_name_field]) as c:
+            for r in c:
+                preset_shape, corridor = r
+                # lookup which station -> which station_area
+                where_clause = arcpy.AddFieldDelimiters(corridors_fc, "Corridor") + f"= '{corridor}'"
+                with arcpy.da.UpdateCursor(corridors_fc, ["SHAPE@"], where_clause=where_clause ) as uc:
+                    for ur in uc:
+                        old_shape = ur[0]
+                        #summ_area_updates.append((old_shape, preset_shape))
+                        ur[0] = preset_shape
+                        uc.updateRow(ur)
+
+    # # Update summ areas
+    # summ_layer = arcpy.MakeFeatureLayer_management(summ_areas_fc, "__summ_areas__")
+    # try:
+    #     for old_shape, preset_shape in summ_area_updates:
+    #         # Select summ_layer by location
+    #         arcpy.SelectLayerByLocation_management(
+    #             in_layer=summ_layer, overlap_type="ARE_IDENTICAL_TO", select_features=old_shape, selection_type="NEW_SELECTION")
+    #         # Repalce
+    #         with arcpy.da.UpdateCursor(summ_layer, ["SHAPE@"]) as uc:
+    #             for ur in uc:
+    #                 ur[0] = preset_shape
+    #                 uc.updateRow(ur)
+    # except:
+    #     raise
+    # finally:
+    #     arcpy.Delete_management(summ_layer)
+
+    
 
 # crash functions
 def update_crash_type(feature_class, data_fields, update_field):
@@ -3354,7 +3443,7 @@ def genODTable(
         )
         # Iterate solves as needed
         if o_chunk_size is None:
-            o_chunk_size = arcpy.GetCount_management(origin_pts)[0]
+            o_chunk_size = int(arcpy.GetCount_management(origin_pts)[0])
         write_mode = "w"
         header = True
         for o_pts in PMT.iterRowsAsChunks(origin_pts, chunksize=o_chunk_size):
@@ -3453,6 +3542,7 @@ def taz_travel_stats(
     weight_fields = ["HH", "JOB"]
     suffixes = ("_FROM", "_TO")
     for chunk in pd.read_csv(od_table, chunksize=chunksize, **kwargs):
+        chunk.replace(np.inf, 0, inplace=True)
         chunk["VMT"] = chunk[veh_trips_field] * chunk[dist_field]
         chunk["VHT"] = chunk[veh_trips_field] * chunk[auto_time_field]
         for df_list, key_field in zip([o_sums, d_sums], key_fields):
@@ -3465,7 +3555,10 @@ def taz_travel_stats(
 
     # Calculate rates
     dfs = [o_df, d_df]
-    for df, key_field, weight_field in zip(dfs, key_fields, weight_fields):
+    weight_field = "__activity__"
+    taz_df[weight_field] = taz_df[hh_field] + taz_df[jobs_field]
+    #for df, key_field, weight_field in zip(dfs, key_fields, weight_fields):
+    for df, key_field in zip(dfs, key_fields):
         # Basic
         df["AVG_DIST"] = df.VMT / df[veh_trips_field]
         df["AVG_TIME"] = df.VHT / df[veh_trips_field]
@@ -3474,25 +3567,17 @@ def taz_travel_stats(
         taz_indexed = taz_df.rename(columns=renames).set_index(taz_id_field)
         taz_indexed = taz_indexed.reindex(ref_index, fill_value=0)
         df[weight_field] = taz_indexed[weight_field]
-        df[f"VMT_PER_{weight_field}"] = df.VMT / df[weight_field]
-        df[f"TRIPS_PER_{weight_field}"] = np.select(
-            [df[weight_field] == 0], [-1], df[veh_trips_field] / df[weight_field]
-        )
+        fltr = df[weight_field]==0
+        df[f"VMT_PER_ACT"] = np.select(
+            [fltr], [0], df.VMT / df[weight_field])
+        df[f"TRIPS_PER_ACT"] = np.select(
+            [fltr], [0], df[veh_trips_field] / df[weight_field])
 
     # Combine O and D frames
     taz_stats_df = dfs[0].merge(
-        dfs[1], how="outer", left_index=True, right_index=True, suffixes=suffixes
-    )
-    keep_fields = [
-        "AVG_DIST_FROM",
-        "AVG_TIME_FROM",
-        "VMT_PER_HH",
-        "TRIPS_PER_HH",
-        "AVG_DIST_TO",
-        "AVG_TIME_TO",
-        "VMT_PER_JOB",
-        "TRIPS_PER_JOB",
-    ]
+        dfs[1], how="outer", left_index=True, right_index=True, suffixes=suffixes)
+    keep_fields = ["AVG_DIST_FROM", "AVG_TIME_FROM", "VMT_PER_ACT_FROM", "TRIPS_PER_ACT_FROM",
+                   "AVG_DIST_TO", "AVG_TIME_TO", "VMT_PER_ACT_TO", "TRIPS_PER_ACT_TO"]
     taz_stats_df.index.name = taz_id_field
     return taz_stats_df[keep_fields].reset_index()
 
@@ -5613,6 +5698,170 @@ def build_short_term_parcels(
 #     logger.log_msg("\nDone!")
 #     return short_term_parcels
 
+# def build_short_term_parcels_dep(parcels_path, permits_path, permits_ref_df,
+#                                  parcels_id_field, parcels_lu_field,
+#                                  parcels_living_area_field, parcels_land_value_field,
+#                                  parcels_total_value_field, parcels_buildings_field,
+#                                  permits_id_field, permits_lu_field, permits_units_field,
+#                                  permits_values_field, permits_cost_field,
+#                                  save_gdb_location=None, units_field_match_dict={}):
+#     # First, we need to initialize a save feature class. The feature class
+#     # will be a copy of the parcels with a unique ID (added by the function)
+#     logger.log_msg("--- initializing a save feature class")
+
+#     # Add a unique ID field to the parcels called "ProcessID"
+#     logger.log_msg("--- --- adding a unique ID field for individual parcels")
+#     # creating a temporary copy of parcels
+#     temp_parcels = PMT.make_inmem_path()
+#     temp_dir, temp_name = os.path.split(temp_parcels)
+#     # temp_dir = tempfile.TemporaryDirectory()
+#     # temp_gdb = arcpy.CreateFileGDB_management(out_folder_path=temp_dir.name, out_name="temp_data.gdb")
+#     # temp_parcels = arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path,
+#     #                                                            out_path=temp_gdb, out_name="temp_parcels")
+#     arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path=temp_dir, out_name=temp_name)
+#     process_id_field = PMT.add_unique_id(feature_class=temp_parcels)
+
+#     logger.log_msg("--- --- reading/formatting parcels")
+#     # read in all of our data
+#     #   - read the parcels (after which we'll remove the added unique ID from the original data).
+#     parcels_fields = [f.name for f in arcpy.ListFields(temp_parcels)
+#                       if f.name not in ["OBJECTID", "Shape", "Shape_Length", "Shape_Area"]]
+#     parcels_df = PMT.featureclass_to_df(in_fc=temp_parcels, keep_fields=parcels_fields, null_val=0.0)
+#     # uddate year to increment forward one, and add PERMIT flag
+#     parcels_df["Year"] = parcels_df["Year"].mode()[0] + 1
+#     parcels_df["PERMIT"] = 0
+
+#     # create output dataset keeping only process_id and delete temp file
+#     logger.log_msg("--- --- creating save feature class")
+#     fmap = arcpy.FieldMappings()
+#     fm = arcpy.FieldMap()
+#     fm.addInputField(temp_parcels, 'ProcessID')
+#     fmap.addFieldMap(fm)
+#     short_term_parcels = arcpy.FeatureClassToFeatureClass_conversion(
+#         in_features=temp_parcels, out_path=save_gdb_location, out_name="Parcels", field_mapping=fmap
+#     )[0]
+#     # temp_dir.cleanup()
+
+#     # Now we're ready to process the permits to create the short term parcels data
+#     logger.log_msg("--- creating short term parcels")
+
+#     # First we read the permits
+#     logger.log_msg("--- --- reading/formatting permits_df")
+#     permits_fields = [permits_id_field, permits_lu_field, permits_units_field, permits_values_field, permits_cost_field]
+#     permits_df = PMT.featureclass_to_df(in_fc=permits_path, keep_fields=permits_fields, null_val=0.0)
+#     permits_df = permits_df[permits_df[permits_values_field] >= 0]
+
+#     # Merge the permits_df and permits_df reference
+#     #   - join the two together on the permits_lu_field and permits_units_field
+#     logger.log_msg("--- --- merging permits_df and permits_df reference")
+#     permits_df = pd.merge(left=permits_df, right=permits_ref_df,
+#                           left_on=[permits_lu_field, permits_units_field],
+#                           right_on=[permits_lu_field, permits_units_field], how="left")
+
+#     # Now we add to permits_df the field matches to the parcels (which will be
+#     # helpful come the time of updating parcels from the permits_df)
+#     if units_field_match_dict is not None:
+#         logger.log_msg("--- --- joining units-field matches")
+#         ufm = pd.DataFrame.from_dict(units_field_match_dict, orient="index").reset_index()
+#         ufm.columns = [permits_units_field, "Parcel_Field"]
+#         permits_df = pd.merge(left=permits_df, right=ufm,
+#                               left_on=permits_units_field, right_on=permits_units_field, how="left")
+
+#     # calculate the new building square footage for parcel in the permit features
+#     # using the reference table multipliers and overwrites
+#     logger.log_msg("--- --- applying unit multipliers and overwrites")
+#     new_living_area = []
+#     for value, multiplier, overwrite in zip(
+#             permits_df[permits_values_field],
+#             permits_df["Multiplier"],
+#             permits_df["Overwrite"]):
+#         if (overwrite == -1.0) and (multiplier != -1.0):
+#             new_living_area.append(value * multiplier)
+#         elif (multiplier == -1.0) and (overwrite != -1.0):
+#             new_living_area.append(overwrite)
+#         else:
+#             new_living_area.append(0)
+
+#     logger.log_msg("--- --- appending new living area values to permits_df data")
+#     permits_df["UpdTLA"] = new_living_area
+#     permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
+
+#     # update the parcels with the info from the permits_df
+#     #   - match building permits_df to the parcels using id_match_field,
+#     #   - overwrite parcel LU, building square footage, and anything specified in the match dict
+#     #   - add replacement flag
+#     logger.log_msg("--- --- collecting updated parcel data")
+#     pids = np.unique(permits_df[permits_id_field])
+#     permit_update = []
+#     for i in pids:
+#         df = permits_df[permits_df[permits_id_field] == i]
+#         if len(df.index) > 1:
+#             pid = pd.Series(i, index=[permits_id_field])
+#             # Living area by land use
+#             total_living_area = df.groupby(permits_lu_field)["UpdTLA"].agg("sum").reset_index()
+#             # Series for land use [with most living area]
+#             land_use = pd.Series(total_living_area[permits_lu_field][np.argmax(total_living_area["UpdTLA"])],
+#                                  index=[permits_lu_field])
+#             # Series for living area (total across all land uses)
+#             ba = pd.Series(sum(total_living_area["UpdTLA"]), index=[parcels_living_area_field])
+#             # Series for other fields (from units-field match)
+#             others = df.groupby("Parcel_Field")[permits_values_field].agg("sum")
+#             # Series for cost
+#             cost = pd.Series(sum(df[permits_cost_field]), index=[permits_cost_field])
+#             # Bind
+#             df = pd.DataFrame(pd.concat([pid, land_use, ba, others, cost], axis=0)).T
+#         else:
+#             # Rename columns to match parcels
+#             df.rename(columns={"UpdTLA": parcels_living_area_field,
+#                                permits_values_field: df.Parcel_Field.values[0]},
+#                       inplace=True)
+#             # Drop unnecessary columns (including nulls from units-field match)
+#             df.drop(columns=[permits_units_field, "Parcel_Field"], inplace=True)
+#             df = df.loc[:, df.columns.notnull()]
+#         # Append the results to our storage list
+#         permit_update.append(df)
+
+#     # Now we just merge up the rows. We'll also add 2 columns:
+#     #    - number of buildings = 1 (a constant assumption, unless TLA == 0)
+#     #    - a column to indicate that these are update parcels from the permits_df
+#     # We'll also name our columns to match the parcels
+#     permit_update = pd.concat(permit_update, axis=0).reset_index(drop=True)
+#     permit_update.fillna(0, inplace=True)
+#     permit_update[parcels_buildings_field] = 1
+#     permit_update.loc[permit_update[parcels_living_area_field] == 0, parcels_buildings_field] = 0
+#     permit_update["PERMIT"] = 1
+#     permit_update.rename(columns={permits_id_field: parcels_id_field,
+#                                   permits_lu_field: parcels_lu_field},
+#                          inplace=True)
+
+#     # Finally, we want to update the value field. To do this, we take the
+#     # max of previous value and previous land value + cost of new development
+#     logger.log_msg("--- --- estimating parcel value after permit development")
+#     pv = parcels_df[parcels_df[parcels_id_field].isin(pids)]
+#     pv = pv.groupby(parcels_id_field)[[parcels_land_value_field, parcels_total_value_field]].sum().reset_index()
+#     permit_update = pd.merge(permit_update, pv, on=parcels_id_field, how="left")
+#     permit_update["NV"] = permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
+#     permit_update[parcels_total_value_field] = np.maximum(permit_update["NV"], permit_update[parcels_total_value_field])
+#     permit_update = permit_update.set_index("FOLIO")
+
+#     # make the replacements. - drop all the rows from the parcels whose IDs are in the permits_df, - add all the rows
+#     # for the data we just collected. and retain the process ID from the parcels we're dropping for the sake of joining
+#     logger.log_msg("--- --- replacing parcel data with updated information")
+#     parcel_update = parcels_df.set_index("FOLIO")
+#     parcel_update.update(permit_update)
+#     parcel_update.reset_index(inplace=True)
+
+#     # Now we just write!
+#     logger.log_msg("\nWriting results")
+#     # join to initialized feature class using extend table (and delete the created ID when its all over)
+#     logger.log_msg("--- --- joining results to save feature class (be patient, this will take a while)")
+#     PMT.extendTableDf(in_table=short_term_parcels, table_match_field=process_id_field,
+#                       df=parcel_update, df_match_field="ProcessID")
+#     arcpy.DeleteField_management(in_table=short_term_parcels, drop_field=process_id_field)
+#     logger.log_msg("\nDone!")
+#     return short_term_parcels
+
+# DEPRECATED
 # def prep_parcel_energy_consumption_tbl(in_parcel_lu_tbl, energy_use_field,
 #                                        res_use_tbl, res_use_btu_field,
 #                                        nres_use_tbl, nres_use_btu_field):
@@ -5696,3 +5945,153 @@ def build_short_term_parcels(
 #     df = pd.DataFrame(out_rows, columns=df_cols)
 #     PMT.extendTableDf(out_table, out_id_field, df, parcel_id_field)
 #     return out_table
+
+
+def clean_skim_csv(in_file, out_file, imp_field, drop_val=0, renames={},
+                   node_offset=0, node_fields=["F_TAP", "T_TAP"], chunksize=100000, **kwargs):
+    """
+    Reads an OD table and drops rows where `imp_field` = `drop_val` is true. Optionallly renumbers nodes
+    by applying (adding) an offset to the original values. Saves a new csv containing key columns 
+    (`node_fields` and `imp_field`)
+
+    Parameters
+    -----------
+    in_file: Path
+    out_file: Path
+    imp_field: String 
+        The name of the field containing impedance (time, distance, cost) values between OD pairs.
+        If this field is renamed using `renames`, the new name should be provided here.
+    drop_val: Numeric, default=0
+        Rows where `imp_field` is equal to `drop_val` are dropped from the skim
+    renames: dict
+        Keys are column names in `in_file`, values are new names for those columns in`out_file`
+    node_offset: int, default=0
+        If origin and destiantion nodes need to be renumbered, this value will be added to
+        the original values in `node_fields`. (This is used when the multiple skims are being used to
+        create a network and node number collisions need to be handled.)
+    node_fields: [String,...]
+        List of fields containing node values. At a minimum, there should be two fields listed: the
+        origin and destiantion fields. All fields listed will have the `node_offset` (if given) applied.
+        If columns are renamed used `renames`, give the new column names, not the old ones.
+    chunksize: Int
+    kwargs:
+        Keywords to use when loading `in_file` with `pd.read_csv`.
+
+    Returns
+    --------
+    out_file: path
+    """
+    # TODO: support multiple imped_fields
+    # TODO: support multiple drop values
+    # TODO: support comparison drop values (>, <, !=, etc.)
+    header = True
+    mode = "w"
+    for chunk in pd.read_csv(in_file, chunksize=chunksize, **kwargs):
+        if renames:
+            chunk.rename(columns=renames, inplace=True)
+        fltr = chunk[imp_field] != drop_val
+        chunk = chunk[fltr].copy()
+        for nf in node_fields:
+            chunk[nf] += node_offset
+        chunk.to_csv(out_file, mode=mode, header=header)
+        header = False
+        mode = "a"
+
+    return out_file
+
+
+def _df_to_graph_(df, source, target, attrs, create_using, renames, where=None):
+    if renames:
+        df.rename(columns=renames, inplace=True)
+    return nx.from_pandas_edgelist(df, source=source, target=target,
+                                   edge_attr=attrs, create_using=create_using)
+
+
+def skim_to_graph(in_csv, source, target, attrs, create_using=nx.DiGraph,
+                  renames={}, **kwargs):
+    """
+    Converts a long OD table from a csv into a networkx graph, such that each
+    OD row becomes an edge in the graph, with its origin and destination added as nodes.
+
+    Parameters
+    -----------
+    in_csv: Path
+    source: String
+        The origin field. If fields are renamed used `renames`, give the new name.
+    target: String
+        The destination field. If fields are renamed used `renames`, give the new name.
+    attrs: [String,...]
+        Column names containing values to include as edge attributes
+    create_using: networx graph constructor, default=nx.DiGraph
+        The type of graph to build from the csv.
+    renames: dict
+        Keys are column names in `in_file`, values are new names for those columns
+        to appear as edge attributes.
+    kwargs:
+        Keywords to use when loading `in_file` with `pd.read_csv`.
+    """
+    if "chunksize" in kwargs:
+        graph_list = []
+        for chunk in pd.read_csv(in_csv, **kwargs):
+            graph_list.append(
+                _df_to_graph_(
+                    chunk, source, target, attrs, create_using, renames
+                    )
+                )
+        return reduce(nx.compose, graph_list)
+    else:
+        df = pd.read_csv(in_csv, **kwargs)
+        return _df_to_graph_(df, source, target, attrs, create_using, renames)
+    
+
+def transit_skim_joins(taz_to_tap, tap_to_tap, out_skim, o_col="OName", d_col="DName", imp_col="Minutes",
+                       origin_zones=None, destination_zones=None, total_cutoff=np.inf, *kwargs):
+    """
+
+    ... assumes taz_to_tap and tap_to_tap have identical column headings for key fields
+    """
+    #TODO: enrich to set limits on access time, egress time, IVT
+    #TODO: handle column output names
+    # Read tables
+    z2p_dd = dd.read_csv(taz_to_tap)
+    p2p_dd = dd.read_csv(tap_to_tap)
+    
+    # Prep tables to handle column collisions
+    z2p_dd = z2p_dd.rename(
+        columns={o_col: "OName", d_col: "Boarding_stop", imp_col: "access_time"}
+        )
+    p2p_dd = p2p_dd.rename(
+        columns ={o_col: "Boarding_stop", d_col: "Alighting_stop", imp_col: "IVT"},
+        )
+    
+    # Merge to get alighting stops reachable from origin TAZ via boarding stop
+    o_merge = z2p_dd.merge(p2p_dd, how="inner", on="Boarding_stop")
+    
+    # Rename access skim columns to reflect egress times
+    z2p_dd = z2p_dd.rename(
+        columns={"Boarding_stop": "Alighting_stop", "OName": "DName", "access_time": "egress_time"},
+        )
+
+    # Merge to get destination zones reachable via alighting stop
+    d_merge = o_merge.merge(z2p_dd, how="inner", on="Alighting_stop")
+
+    # Calculate total time
+    d_merge["Minutes"] = d_merge[["access_time", "IVT", "egress_time"]].sum(axis=1)
+
+    # Filter
+    result = d_merge[d_merge["Minutes"] <= total_cutoff]
+    if origin_zones:
+        result = result[result["OName"].isin(origin_zones)]
+    if destination_zones:
+        result = result[result["DName"].isin(destinatin_zones)]
+
+    # Export result
+    out_cols = ["OName", "DName", "Minutes"]
+    result = result[out_cols].groupby(out_cols[:2]).min()
+    result.to_csv(out_skim, single_file=True, index=True, header_first_partition_only=True, chunksize=100000)
+
+
+
+
+
+
