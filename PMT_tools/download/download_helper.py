@@ -82,6 +82,22 @@ def census_geoindex_to_columns(pd_idx, gen_geoid=True, geoid="GEOID10"):
 
 
 def _fetch_acs(year, acs_dataset, state, county, table, columns, census_scale):
+    """internal function to hit the CENSUS api and extract a pandas DataFrame for
+    the requested Table, State, County
+    Args:
+        year (int): year of interest
+        acs_dataset (str): Census data source: 'acs1' for ACS 1-year estimates, 'acs5' for ACS 5-year estimates,
+            'acs3' for ACS 3-year estimates, 'acsse' for ACS 1-year supplemental estimates, 'sf1' for SF1 data.
+        state (str): two letter state abbreviation
+        county (str): three digit FIPS code as a string
+        table (str): string code for the Census table of interest ex: "B03002"
+        columns (dict): key, value pairs of Census table columns and rename
+            (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
+        census_scale:
+
+    Returns:
+
+    """
     variables = [f"{table}_{c}" for c in list(columns.keys())]
     # Reconstruct dictionary with explicit ordering
     values = [columns[c.split("_")[1]] for c in variables]

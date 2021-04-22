@@ -93,7 +93,7 @@ def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
     out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
     # copy in the geometry data containing minimal tabular data
     for fds in ["Networks", "Points", "Polygons"]:
-        print(f"... copying FDS {fds}")
+        print(f"--- copying FDS {fds}")
         source_fd = PMT.makePath(in_gdb, fds)
         out_fd = PMT.makePath(out_gdb, fds)
         arcpy.Copy_management(source_fd, out_fd)
@@ -396,12 +396,14 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=No
     melt_df = df.melt(id_vars=id_field)
     # TODO: add lower time bin value so ranges can be reported in dashboard lists
     melt_df["from_time"] = melt_df["TimeBin"].apply(
-        lambda tb: _get_time_previous_time_break_(time_breaks, tb), axis=1
+        lambda time_break: _get_time_previous_time_break_(time_breaks, time_break)
     )
     return melt_df
 
 
 def _get_time_previous_time_break_(time_breaks, tb):
+    if isinstance(tb, string_types):
+        tb = int(tb)
     idx = time_breaks.index(tb)
     if idx == 0:
         return 0
@@ -459,6 +461,7 @@ def finalize_output(intermediate_gdb, final_gdb):
         arcpy.Copy_management(in_data=temp_gdb, out_data=final_gdb)
     finally:
         arcpy.Delete_management(intermediate_gdb)
+        print("")
 
 
 def list_fcs_in_gdb():
@@ -468,46 +471,68 @@ def list_fcs_in_gdb():
             yield os.path.join(arcpy.env.workspace, fds, fc)
 
 
+def alter_fields(table_list, field, new_field_name):
+    for tbl in table_list:
+        if field in [f.name for f in arcpy.ListFields(tbl)]:
+            print(f"--- --- Converting SummID to RowID for {tbl}")
+            arcpy.AlterField_management(
+                in_table=tbl,
+                field=field,
+                new_field_name=new_field_name,
+                new_field_alias=new_field_name,
+            )
+
+
+def tag_filename(filename, tag):
+    """Simpel method to add a suffix to the end of a filename
+    Args:
+        filename (str): path to file or filename string
+        tag (str): string suffix to append to end of filename
+    Returns:
+        str: updated filepath or filename string with suffix appended
+    """
+    name, ext = os.path.splitext(filename)
+    return "{name}_{tag}_{ext}".format(name=name, tag=tag, ext=ext)
+
+
 def post_process_databases(basic_features_gdb, build_dir):
+    """copies in basic features gdb to build dir and cleans up FCs and Tables
+        with SummID to RowID. Finally deletes the TEMP folder generated in the
+        build process
+    Args:
+        basic_features_gdb (str): path to the basic features geodatabase
+        build_dir (str): path to the build directory
+    Returns:
+        None
+    """
     print("Postprocessing build directory...")
+
     # copy BasicFeatures into Build
+    print("--- Overwriting basic features in BUILD dir with current version")
     path, basename = os.path.split(basic_features_gdb)
     out_basic_features = PMT.makePath(build_dir, basename)
-    if not arcpy.Exists(out_basic_features):
-        arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
+    PMT.checkOverwriteOutput(output=out_basic_features, overwrite=True)
+    arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
+
     # reset SummID to RowID
+    print("--- updating SummID to RowID project wide...")
     arcpy.env.workspace = build_dir
-    # delete TEMP folcer
+    for gdb in arcpy.ListWorkspaces(workspace_type="FileGDB"):
+        print(f"--- Cleaning up {gdb}")
+        arcpy.env.workspace = gdb
+        # update feature classes
+        summ_area_fcs = [fc for fc in list_fcs_in_gdb() if "SummaryAreas" in fc]
+        alter_fields(table_list=summ_area_fcs, field="SummID", new_field_name="RowID")
+        # update tables
+        gdb_tbls = arcpy.ListTables()
+        alter_fields(table_list=gdb_tbls, field="SummID", new_field_name="RowID")
+
+    # TODO: incorporate a more broad AlterField protocol for Popup configuration
+
+    # delete TEMP folder
     temp = PMT.makePath(build_dir, "TEMP")
     if arcpy.Exists(temp):
         print("--- deleting TEMP folder from previous build steps")
         arcpy.Delete_management(temp)
-    for gdb in arcpy.ListWorkspaces(workspace_type="FileGDB"):
-        print(f"Cleaning up {gdb}")
-        arcpy.env.workspace = gdb
-        summ_areas = [fc for fc in list_fcs_in_gdb() if "SummaryAreas" in fc]
-        for sa_path in summ_areas:
-            if "SummID" in [f.name for f in arcpy.ListFields(sa_path)]:
-                print(f"--- Converting SummID to RowID for {sa_path}")
-                arcpy.AlterField_management(
-                    in_table=sa_path,
-                    field="SummID",
-                    new_field_name="RowID",
-                    new_field_alias="RowID",
-                )
-        for tbl in arcpy.ListTables():
-            tbl = os.path.join(gdb, tbl)
-            if "SummID" in [f.name for f in arcpy.ListFields(tbl)]:
-                print(f"--- Converting SummID to RowID for {tbl}")
-                arcpy.AlterField_management(
-                    in_table=tbl,
-                    field="SummID",
-                    new_field_name="RowID",
-                    new_field_alias="RowID",
-                )
-    # TODO: incorporate a more broad AlterField protocol for Popup configuration
 
 
-def tag_filename(filename, tag):
-    name, ext = os.path.splitext(filename)
-    return "{name}_{tag}_{ext}".format(name=name, tag=tag, ext=ext)

@@ -117,7 +117,7 @@ def field_mapper(in_fcs, use_cols, rename_dicts):
 
 
 def geojson_to_feature_class_arc(
-    geojson_path, geom_type, encoding="utf8", unique_id=None
+        geojson_path, geom_type, encoding="utf8", unique_id=None
 ):
     """Converts geojson to feature class in memory and adds unique_id attribute if provided
     Args:
@@ -299,13 +299,13 @@ def _merge_df_(x_specs, y_specs, on=None, how="inner", **kwargs):
 
 
 def combine_csv_dask(
-    merge_fields,
-    out_table,
-    *tables,
-    suffixes=None,
-    col_renames={},
-    how="inner",
-    **kwargs,
+        merge_fields,
+        out_table,
+        *tables,
+        suffixes=None,
+        col_renames={},
+        how="inner",
+        **kwargs,
 ):
     """
     Merges two or more csv tables into a single table based on key columns. All
@@ -376,13 +376,13 @@ def combine_csv_dask(
 
 
 def update_transit_times(
-    od_table,
-    out_table,
-    competing_cols=[],
-    out_col=None,
-    replace_vals={},
-    chunksize=100000,
-    **kwargs,
+        od_table,
+        out_table,
+        competing_cols=[],
+        out_col=None,
+        replace_vals={},
+        chunksize=100000,
+        **kwargs,
 ):
     """
     Opens and updates a csv table containing transit travel time estimates
@@ -416,7 +416,7 @@ def update_transit_times(
     if not isinstance(replace_vals, dict):
         raise TypeError(f"Expected dict for replace_vals, got {type(replace_vals)}")
     if not isinstance(competing_cols, Iterable) or isinstance(
-        competing_cols, string_types
+            competing_cols, string_types
     ):
         raise TypeError(
             f"Expected iterable of column names for competing_cols, got {type(competing_cols)}"
@@ -447,25 +447,25 @@ def _stringifyList(input):
 
 
 def makeBasicFeatures(
-    bf_gdb,
-    stations_fc,
-    stn_id_field,
-    stn_diss_fields,
-    stn_corridor_fields,
-    alignments_fc,
-    align_diss_fields,
-    align_corridor_name,
-    stn_buff_dist="2640 Feet",
-    align_buff_dist="2640 Feet",
-    stn_areas_fc="Station_Areas",
-    corridors_fc="Corridors",
-    long_stn_fc="Stations_Long",
-    preset_station_areas=None,
-    preset_station_id=None,
-    preset_corridors=None,
-    preset_corridor_name=None,
-    rename_dict={},
-    overwrite=False,
+        bf_gdb,
+        stations_fc,
+        stn_id_field,
+        stn_diss_fields,
+        stn_corridor_fields,
+        alignments_fc,
+        align_diss_fields,
+        align_corridor_name,
+        stn_buff_dist="2640 Feet",
+        align_buff_dist="2640 Feet",
+        stn_areas_fc="Station_Areas",
+        corridors_fc="Corridors",
+        long_stn_fc="Stations_Long",
+        preset_station_areas=None,
+        preset_station_id=None,
+        preset_corridors=None,
+        preset_corridor_name=None,
+        rename_dict={},
+        overwrite=False,
 ):
     """In a geodatabase with basic features (station points and corridor alignments),
         create polygon feature classes used for standard mapping and summarization.
@@ -520,7 +520,7 @@ def makeBasicFeatures(
     stn_diss_fields = _listifyInput(stn_diss_fields)
     stn_corridor_fields = _listifyInput(stn_corridor_fields)
     align_diss_fields = _listifyInput(align_diss_fields)
-
+    # TODO: validate stn_id_field and align_corridor_name are in stn_diss and align_diss respectively
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = bf_gdb
 
@@ -530,9 +530,9 @@ def makeBasicFeatures(
     PMT.checkOverwriteOutput(stn_areas_fc, overwrite)
     _diss_flds_ = _stringifyList(stn_diss_fields)
     arcpy.Buffer_analysis(
-        stations_fc,
-        stn_areas_fc,
-        stn_buff_dist,
+        in_features=stations_fc,
+        out_feature_class=stn_areas_fc,
+        buffer_distance_or_field=stn_buff_dist,
         dissolve_option="LIST",
         dissolve_field=_diss_flds_,
     )
@@ -541,9 +541,9 @@ def makeBasicFeatures(
     PMT.checkOverwriteOutput(corridors_fc, overwrite)
     _diss_flds_ = _stringifyList(align_diss_fields)
     arcpy.Buffer_analysis(
-        alignments_fc,
-        corridors_fc,
-        align_buff_dist,
+        in_features=alignments_fc,
+        out_feature_class=corridors_fc,
+        buffer_distance_or_field=align_buff_dist,
         dissolve_option="LIST",
         dissolve_field=_diss_flds_,
     )
@@ -551,13 +551,14 @@ def makeBasicFeatures(
     # Patch buffers and
     print("--- patching preset features")
     patch_basic_features(
-        bf_gdb,
-        stn_areas_fc,
-        corridors_fc,
+        station_areas_fc=stn_areas_fc,
+        corridors_fc=corridors_fc,
         preset_station_areas=preset_station_areas,
-        station_id_field=preset_station_id,
+        preset_station_id_field=preset_station_id,
+        existing_station_id_field=stn_id_field,
         preset_corridors=preset_corridors,
-        corridor_name_field=preset_corridor_name,
+        preset_corridor_name_field=preset_corridor_name,
+        existing_corridor_name_field=align_corridor_name
     )
 
     # Add (All corridors) to `corridors_fc`
@@ -618,25 +619,25 @@ def makeBasicFeatures(
 
 
 def makeSummaryFeatures(
-    bf_gdb,
-    long_stn_fc,
-    stn_areas_fc,
-    stn_id_field,
-    corridors_fc,
-    cor_name_field,
-    out_fc,
-    stn_buffer_meters=804.672,
-    stn_name_field="Name",
-    stn_status_field="Status",
-    stn_cor_field="Corridor",
-    overwrite=False,
+        bf_gdb,
+        long_stn_fc,  # deprecated in lieu of patched features
+        stn_areas_fc,
+        stn_id_field,
+        corridors_fc,
+        cor_name_field,
+        out_fc,
+        stn_buffer_meters=804.672,
+        stn_name_field="Name",
+        stn_status_field="Status",
+        stn_cor_field="Corridor",
+        overwrite=False,
 ):
     """Creates a single feature class for data summarization based on station area and corridor geographies.
         The output feature class includes each station area, all combined station areas, the entire corridor area,
         and the portion of the corridor that is outside station areas.
     Args:
         bf_gdb (str): Path to basic features gdb
-        long_stn_fc (str): path to long station points feature class
+        # long_stn_fc (str): path to long station points feature class  # deprecated in lieu of patched features
         stn_areas_fc (str): path to station area polygons feature class
         stn_id_field (str): id field linking `stn_areas_fc` and `long_stn_fc`
         corridors_fc (str): path to corridors feature class
@@ -652,7 +653,7 @@ def makeSummaryFeatures(
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = bf_gdb
 
-    sr = arcpy.Describe(stn_areas).spatialReference
+    sr = arcpy.Describe(stn_areas_fc).spatialReference
     mpu = float(sr.metersPerUnit)
     buff_dist = stn_buffer_meters / mpu
 
@@ -665,25 +666,16 @@ def makeSummaryFeatures(
     )
     # - Add fields
     arcpy.AddField_management(out_fc, "STN_ID", "LONG")
-    arcpy.AddField_management(out_fc, prep_conf.STN_NAME_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(
-        out_fc, prep_conf.STN_STATUS_FIELD, "TEXT", field_length=80
-    )
-    arcpy.AddField_management(
-        out_fc, prep_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80
-    )
-    arcpy.AddField_management(out_fc, prep_conf.SUMMARY_AREAS_COMMON_KEY, "LONG")
+    arcpy.AddField_management(out_fc, P_CONF.STN_NAME_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, P_CONF.STN_STATUS_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, P_CONF.CORRIDOR_NAME_FIELD, "TEXT", field_length=80)
+    arcpy.AddField_management(out_fc, P_CONF.SUMMARY_AREAS_COMMON_KEY, "LONG")
 
+    # POPULATE SUMMAREAS with CORRIDORS including ENTIRE CORRIDOR
     # Add all corridors with name="(Entire corridor)", corridor=cor_name_field
     print("--- adding corridor polygons")
-    out_fields = [
-        "SHAPE@",
-        "STN_ID",
-        stn_name_field,
-        stn_status_field,
-        stn_cor_field,
-        prep_conf.SUMMARY_AREAS_COMMON_KEY,
-    ]
+    out_fields = ["SHAPE@", "STN_ID", stn_name_field, stn_status_field,
+                  stn_cor_field, P_CONF.SUMMARY_AREAS_COMMON_KEY]
     cor_fields = ["SHAPE@", cor_name_field]
     cor_polys = {}
     i = 0
@@ -700,30 +692,11 @@ def makeSummaryFeatures(
 
     # Add all station areas with name= stn_name_field, corridor=stn_cor_field
     print("--- adding station polygons by corridor")
-    stn_fields = [
-        "SHAPE@",
-        stn_id_field,
-        stn_name_field,
-        stn_status_field,
-        stn_cor_field,
-    ]
+    stn_fields = ["SHAPE@", stn_id_field, stn_name_field, stn_status_field, stn_cor_field]
+    missing = PMT.which_missing(table=long_stn_fc, field_list=stn_fields)
     cor_stn_polys = {}
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
-        # with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
-        #     for sr in sc:
-        #         i += 1
-        #         # Add row for each station/corridor combo
-        #         point, stn_name, stn_status, corridor = sr
-        #         poly = point.buffer(buff_dist)
-        #         out_row = [poly, stn_name, stn_status, corridor, i]
-        #         ic.insertRow(out_row)
-        #         # Merge station polygons by corridor in a dict for later use
-        #         cor_poly = cor_stn_polys.get(corridor, None)
-        #         if cor_poly is None:
-        #             cor_stn_polys[corridor] = poly
-        #         else:
-        #             cor_stn_polys[corridor] = cor_poly.union(poly)
-        with arcpy.da.SearchCursor(stn_areas, stn_fields) as sc:
+        with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
             for sr in sc:
                 i += 1
                 # Add row for each station/corridor combo
@@ -731,16 +704,14 @@ def makeSummaryFeatures(
 
                 ### Get poly from stn_areas_fc
                 where_clause = (
-                    arcpy.AddFieldDelimiters(stn_areas_fc, stn_id_field) + f"={stn_id}"
+                        arcpy.AddFieldDelimiters(stn_areas_fc, stn_id_field) + f"={stn_id}"
                 )
                 with arcpy.da.SearchCursor(
-                    stn_areas_fc, "SHAPE@", where_clause=where_clause
+                        stn_areas_fc, "SHAPE@", where_clause=where_clause
                 ) as ref_c:
                     poly = reduce(
                         lambda x, y: x.union(y), [ref_r[0] for ref_r in ref_c]
                     )
-                ###
-                # poly = point.buffer(buff_dist)
                 out_row = [poly, stn_id, stn_name, stn_status, corridor, i]
                 ic.insertRow(out_row)
                 # Merge station polygons by corridor in a dict for later use
@@ -766,18 +737,19 @@ def makeSummaryFeatures(
             non_stn_poly = cor_poly.difference(all_stn_poly)
             out_row = [non_stn_poly, -3, "(Outside station areas)", "NA", corridor, i]
             ic.insertRow(out_row)
-
+    arcpy.RepairGeometry_management(in_features=out_fc, delete_null="DELETE_NULL")
     arcpy.env.workspace = old_ws
 
 
 def patch_basic_features(
-    basic_gdb,
-    station_areas_fc,
-    corridors_fc,
-    preset_station_areas=None,
-    station_id_field=None,
-    preset_corridors=None,
-    corridor_name_field=None,
+        station_areas_fc,
+        corridors_fc,
+        preset_station_areas=None,
+        preset_station_id_field=None,
+        existing_station_id_field=None,
+        preset_corridors=None,
+        preset_corridor_name_field=None,
+        existing_corridor_name_field=None
 ):
     """
     Modifies the basic features database to updata station area and/or corridor geometries
@@ -785,19 +757,19 @@ def patch_basic_features(
 
     Parameters
     ----------
-    basic_gdb: path
-        Path to the basic_feaures geodatabase. This data base is assumed to include the 
-        feature classes created/updated in `makeBasicFeatures` and `makeSummaryFeatures`
+    # basic_gdb: path
+    #     Path to the basic_feaures geodatabase. This data base is assumed to include the
+    #     feature classes created/updated in `makeBasicFeatures` and `makeSummaryFeatures`
     preset_station_areas: path or feature layer, default=None
         If provided, these geometries will be used to update station area features
         (`StationAreas` and `SummaryAreas`)
-    station_id_field: String, default=None
+    preset_station_id_field: String, default=None
         The field in `preset_station_areas` that corresponds to basic_features/StationAreas.Id.
         It is used to map new geometries into the `StationAreas` and `SummaryAreas` feature classes.
     preset_corridors: path or feature_layer, default=None
         If provided, these geometries will be used to update corridor features
         (`Corridors` and `SummaryAreas`)
-    corridor_name_field: String, default=None
+    preset_corridor_name_field: String, default=None
         The field in `preset_corridors` that corresponds to basic_features/Corridors.Corridor.
         It is used to map new geometries into the `Corridors` and `SummaryAreas` feature classes.
 
@@ -807,95 +779,53 @@ def patch_basic_features(
     makeSummaryFeatures
     """
 
-    # stations_long_fc = makePath(basic_gdb, "StationsLong")
-    # station_areas_fc = makePath(basic_gdb, "StationAreas")
-    # corridors_fc = makePath(basic_gdb, "Corridors")
-    # summ_areas_fc = makePath(basic_gdb, "SummaryAreas")
-
-    # stations_df = PMT.table_to_df(stations_fc)
-    # align_df = PMT.table_to_df(align_fc)
-    # stations_long_df = PMT.table_to_df(stations_long_fc)
-    # station_areas_df = PMT.table_to_df(station_areas_fc)
-    # corridors_df = PMT.table_to_df(corridors_fc)
-    # summ_areas_df = PMT.table_to_df(summ_areas_df)
-
-    # summ_area_updates = []
-    if preset_station_areas is not None:
-        # TODO: functionalize this
+    def update_geography(preset_geog, preset_id, default_geog, default_id):
+        default_id_type = [f.type for f in arcpy.ListFields(default_geog) if f.name == default_id][0]
         with arcpy.da.SearchCursor(
-            preset_station_areas, ["SHAPE@", station_id_field]
+                preset_geog, ["SHAPE@", preset_id]
         ) as c:
             for r in c:
                 preset_shape, station_id = r
                 # lookup which station -> which station_area
+                quot = ''
+                if default_id_type == "String":
+                    quot = "'"
                 where_clause = (
-                    arcpy.AddFieldDelimiters(station_areas_fc, "Id") + f"= {station_id}"
+                        arcpy.AddFieldDelimiters(default_geog, default_id) + f"= {quot}{station_id}{quot}"
                 )
                 with arcpy.da.UpdateCursor(
-                    station_areas_fc, ["SHAPE@"], where_clause=where_clause
+                        default_geog, ["SHAPE@"], where_clause=where_clause
                 ) as uc:
                     for ur in uc:
-                        old_shape = ur[0]
-                        # summ_area_updates.append((old_shape, preset_shape))
                         ur[0] = preset_shape
                         uc.updateRow(ur)
 
-    # this repeats the same process - functionalize
+    if preset_station_areas is not None:
+        update_geography(preset_geog=preset_station_areas, preset_id=preset_station_id_field,
+                         default_geog=station_areas_fc, default_id=existing_station_id_field)
+
     if preset_corridors is not None:
-        with arcpy.da.SearchCursor(
-            preset_corridors, ["SHAPE@", corridor_name_field]
-        ) as c:
-            for r in c:
-                preset_shape, corridor = r
-                # lookup which station -> which station_area
-                where_clause = (
-                    arcpy.AddFieldDelimiters(corridors_fc, "Corridor")
-                    + f"= '{corridor}'"
-                )
-                with arcpy.da.UpdateCursor(
-                    corridors_fc, ["SHAPE@"], where_clause=where_clause
-                ) as uc:
-                    for ur in uc:
-                        old_shape = ur[0]
-                        # summ_area_updates.append((old_shape, preset_shape))
-                        ur[0] = preset_shape
-                        uc.updateRow(ur)
-
-    # # Update summ areas
-    # summ_layer = arcpy.MakeFeatureLayer_management(summ_areas_fc, "__summ_areas__")
-    # try:
-    #     for old_shape, preset_shape in summ_area_updates:
-    #         # Select summ_layer by location
-    #         arcpy.SelectLayerByLocation_management(
-    #             in_layer=summ_layer, overlap_type="ARE_IDENTICAL_TO", select_features=old_shape, selection_type="NEW_SELECTION")
-    #         # Repalce
-    #         with arcpy.da.UpdateCursor(summ_layer, ["SHAPE@"]) as uc:
-    #             for ur in uc:
-    #                 ur[0] = preset_shape
-    #                 uc.updateRow(ur)
-    # except:
-    #     raise
-    # finally:
-    #     arcpy.Delete_management(summ_layer)
+        update_geography(preset_geog=preset_corridors, preset_id=preset_corridor_name_field,
+                         default_geog=corridors_fc, default_id=existing_corridor_name_field)
 
 
-# crash functions
-def update_crash_type(feature_class, data_fields, update_field):
-    arcpy.AddField_management(
-        in_table=feature_class, field_name=update_field, field_type="TEXT"
-    )
-    with arcpy.da.UpdateCursor(
-        feature_class, field_names=[update_field] + data_fields
-    ) as cur:
-        for row in cur:
-            both, ped, bike = row
-            if ped == "Y":
-                row[0] = "PEDESTRIAN"
-            if bike == "Y":
-                row[0] = "BIKE"
-            cur.updateRow(row)
-    for field in data_fields:
-        arcpy.DeleteField_management(in_table=feature_class, drop_field=field)
+# crash functions   DEPRECATED
+# def update_crash_type(feature_class, data_fields, update_field):
+#     arcpy.AddField_management(
+#         in_table=feature_class, field_name=update_field, field_type="TEXT"
+#     )
+#     with arcpy.da.UpdateCursor(
+#         feature_class, field_names=[update_field] + data_fields
+#     ) as cur:
+#         for row in cur:
+#             both, ped, bike = row
+#             if ped == "Y":
+#                 row[0] = "PEDESTRIAN"
+#             if bike == "Y":
+#                 row[0] = "BIKE"
+#             cur.updateRow(row)
+#     for field in data_fields:
+#         arcpy.DeleteField_management(in_table=feature_class, drop_field=field)
 
 
 # def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
@@ -913,7 +843,7 @@ def update_crash_type(feature_class, data_fields, update_field):
 
 # parks functions
 def prep_park_polys(
-    in_fcs, geom, out_fc, use_cols=None, rename_dicts=None, unique_id=None
+        in_fcs, geom, out_fc, use_cols=None, rename_dicts=None, unique_id=None
 ):
     # Align inputs
     if rename_dicts is None:
@@ -940,7 +870,7 @@ def prep_park_polys(
 
 
 def prep_feature_class(
-    in_fc, geom, out_fc, use_cols=None, rename_dict=None, unique_id=None
+        in_fc, geom, out_fc, use_cols=None, rename_dict=None, unique_id=None
 ):
     if rename_dict is None:
         rename_dict = {}
@@ -957,14 +887,14 @@ def prep_feature_class(
 
 # permit functions
 def clean_permit_data(
-    permit_csv,
-    parcel_fc,
-    permit_key,
-    poly_key,
-    rif_lu_tbl,
-    dor_lu_tbl,
-    out_file,
-    out_crs,
+        permit_csv,
+        parcel_fc,
+        permit_key,
+        poly_key,
+        rif_lu_tbl,
+        dor_lu_tbl,
+        out_file,
+        out_crs,
 ):
     """reformats and cleans RER road impact permit data, specific to the PMT
     Args:
@@ -1040,8 +970,7 @@ def clean_permit_data(
 
 # Urban Growth Boundary
 def udbLineToPolygon(udb_fc, county_fc, out_fc):
-    """
-        Uses the urban development boundary line to bisect the county boundary
+    """Uses the urban development boundary line to bisect the county boundary
         and generate two polygon output features.
 
         During processing the UDB line features are dissolved into a single
@@ -1052,21 +981,15 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
         bi-section of the county boundary. If the UDB geometry becomes more
         complex over time, modifications to this function may be needed.
 
-        Parameters
-        -----------
-        udb_fc: Path
-            The udb line features.
-        county_fc: Path
-            The county boundary polygon. This is expected to only include a
+    Args:
+        udb_fc (str): Path, The udb line features.
+        county_fc (str): Path, The county boundary polygon. This is expected to only include a
             single polygon encompassing the entire county.
-        out_fc: Path
-            The location to store the output feature class.
-
-        Returns
-        --------
-        out_fc: Path
+        out_fc (str): Path, The location to store the output feature class.
+    Returns:
+        out_fc (str): Path to output feature class
     """
-    sr = arcpy.Describe(udb_fc)
+    sr = arcpy.Describe(udb_fc).spatialReference
     # Prepare ouptut feature class
     out_path, out_name = os.path.split(out_fc)
     arcpy.CreateFeatureclass_management(
@@ -1188,7 +1111,7 @@ def update_dict(d, values, tag):
 
 
 def prep_transit_ridership(
-    in_table, rename_dict, unique_id, shape_fields, from_sr, to_sr, out_fc
+        in_table, rename_dict, unique_id, shape_fields, from_sr, to_sr, out_fc
 ):
     """converts transit ridership data to a feature class and reformats attributes
     Args:
@@ -1214,8 +1137,8 @@ def prep_transit_ridership(
         transit_df[shp_fld] = transit_df[shp_fld].round(decimals=4)
     transit_df = (
         transit_df.groupby(shape_fields + ["TIME_PERIOD"])
-        .agg({"ON": "sum", "OFF": "sum", "TOTAL": "sum"})
-        .reset_index()
+            .agg({"ON": "sum", "OFF": "sum", "TOTAL": "sum"})
+            .reset_index()
     )
     transit_df["TIME_PERIOD"] = np.where(
         transit_df["TIME_PERIOD"] == "2:00 AM - 2:45 AM",
@@ -1285,14 +1208,14 @@ def clean_parcel_geometry(in_features, fc_key_field, new_fc_key, out_features=No
 
 
 def prep_parcel_land_use_tbl(
-    parcels_fc,
-    parcel_lu_field,
-    parcel_fields,
-    lu_tbl,
-    tbl_lu_field,
-    null_value=None,
-    dtype_map=None,
-    **kwargs,
+        parcels_fc,
+        parcel_lu_field,
+        parcel_fields,
+        lu_tbl,
+        tbl_lu_field,
+        null_value=None,
+        dtype_map=None,
+        **kwargs,
 ):
     """Join parcels with land use classifications based on DOR use codes.
     Args:
@@ -1318,34 +1241,33 @@ def prep_parcel_land_use_tbl(
     if isinstance(parcel_fields, string_types):
         parcel_fields = [parcel_fields]
     par_fields = parcel_fields + [parcel_lu_field]
-    par_df = pd.DataFrame(
-        arcpy.da.TableToNumPyArray(parcels_fc, par_fields, null_value=null_value)
-    )
+    par_df = PMT.featureclass_to_df(in_fc=parcels_fc, keep_fields=par_fields, null_val=null_value)
+
     # Read in the land use reference table
     ref_table = pd.read_csv(lu_tbl, dtype=dtype_map, **kwargs)
     # Join
     return par_df.merge(
-        ref_table, how="left", left_on=parcel_lu_field, right_on=tbl_lu_field
+        right=ref_table, how="left", left_on=parcel_lu_field, right_on=tbl_lu_field
     )
 
 
 # TODO: remove default values and be sure to import globals in preparer.py and insert there
 def enrich_bg_with_parcels(
-    bg_fc,
-    parcels_fc,
-    sum_crit=None,
-    bg_id_field="GEOID10",
-    par_id_field="PARCELNO",
-    par_lu_field="DOR_UC",
-    par_bld_area="TOT_LVG_AREA",
-    par_sum_fields=[
-        "LND_VAL",
-        "LND_SQFOOT",
-        "JV",
-        "NO_BULDNG",
-        "NO_RES_UNTS",
-        "TOT_LVG_AREA",
-    ],
+        bg_fc,
+        parcels_fc,
+        sum_crit=None,
+        bg_id_field="GEOID10",
+        par_id_field="PARCELNO",
+        par_lu_field="DOR_UC",
+        par_bld_area="TOT_LVG_AREA",
+        par_sum_fields=[
+            "LND_VAL",
+            "LND_SQFOOT",
+            "JV",
+            "NO_BULDNG",
+            "NO_RES_UNTS",
+            "TOT_LVG_AREA",
+        ],
 ):
     """Relates parcels to block groups based on centroid location and summarizes
         key parcel fields to the block group level, including building floor area
@@ -1442,7 +1364,7 @@ def get_field_dtype(in_table, field):
 
 
 def enrich_bg_with_econ_demog(
-    tbl_path, tbl_id_field, join_tbl, join_id_field, join_fields
+        tbl_path, tbl_id_field, join_tbl, join_id_field, join_fields
 ):
     """Adds data from another raw table as new columns based on the fields provided.
     Args:
@@ -1476,21 +1398,19 @@ def enrich_bg_with_econ_demog(
 
 # TODO: remove default values for fc_key_field and tbl_key_field and ensure these are globals in preparer.py
 def prep_parcels(
-    in_fc,
-    in_tbl,
-    out_fc,
-    fc_key_field="PARCELNO",
-    new_fc_key_field="FOLIO",
-    tbl_key_field="PARCEL_ID",
-    tbl_renames=None,
-    **kwargs,
+        in_fc,
+        in_tbl,
+        out_fc,
+        fc_key_field="PARCELNO",
+        new_fc_key_field="FOLIO",
+        tbl_key_field="PARCEL_ID",
+        tbl_renames=None,
+        **kwargs,
 ):
-    """
-        Starting with raw parcel features and raw parcel attributes in a table,
+    """Starting with raw parcel features and raw parcel attributes in a table,
         clean features by repairing invalid geometries, deleting null geometries,
         and dissolving common parcel ID's. Then join attribute data based on
         the parcel ID field, managing column names in the process.
-
     Args:
         in_fc: Path or feature layer; A collection of raw parcel features (shapes)
         in_tbl: String; path to a table of raw parcel attributes.
@@ -1689,12 +1609,12 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
 
 
 def analyze_blockgroup_model(
-    bg_enrich_path,
-    bg_key,
-    fields="*",
-    acs_years=None,
-    lodes_years=None,
-    save_directory=None,
+        data_path,
+        bg_enrich_tbl_name,
+        bg_key,
+        fields="*",
+        acs_years=None,
+        lodes_years=None,
 ):
     """fit linear models to block group-level total employment, population, and
         commutes at the block group level, and save the model coefficients for
@@ -1723,60 +1643,28 @@ def analyze_blockgroup_model(
 
     logger.log_msg("--- reading input data (block group)")
     df = []
+    year_gdb = makePath(data_path, "PMT_YEAR.gdb")
     years = np.unique(np.concatenate([acs_years, lodes_years]))
     for year in years:
         logger.log_msg(" ".join(["----> Loading", str(year)]))
-        # Read
-        load_path = re.sub("YEAR", str(year), bg_enrich_path, flags=re.IGNORECASE)
+        load_path = makePath(year_gdb.replace("YEAR", str(year)), bg_enrich_tbl_name)
         tab = PMT.featureclass_to_df(in_fc=load_path, keep_fields=fields, null_val=0.0)
 
         # Edit
         tab["Year"] = year
         tab["Since_2013"] = year - 2013
         tab["Total_Emp_Area"] = (
-            tab["CNS_01_par"]
-            + tab["CNS_02_par"]
-            + tab["CNS_03_par"]
-            + tab["CNS_04_par"]
-            + tab["CNS_05_par"]
-            + tab["CNS_06_par"]
-            + tab["CNS_07_par"]
-            + tab["CNS_08_par"]
-            + tab["CNS_09_par"]
-            + tab["CNS_10_par"]
-            + tab["CNS_11_par"]
-            + tab["CNS_12_par"]
-            + tab["CNS_13_par"]
-            + tab["CNS_14_par"]
-            + tab["CNS_15_par"]
-            + tab["CNS_16_par"]
-            + tab["CNS_17_par"]
-            + tab["CNS_18_par"]
-            + tab["CNS_19_par"]
-            + tab["CNS_20_par"]
+                tab["CNS_01_par"]  + tab["CNS_02_par"] + tab["CNS_03_par"] + tab["CNS_04_par"] + tab["CNS_05_par"]
+                + tab["CNS_06_par"] + tab["CNS_07_par"] + tab["CNS_08_par"] + tab["CNS_09_par"] + tab["CNS_10_par"]
+                + tab["CNS_11_par"] + tab["CNS_12_par"] + tab["CNS_13_par"] + tab["CNS_14_par"] + tab["CNS_15_par"]
+                + tab["CNS_16_par"] + tab["CNS_17_par"] + tab["CNS_18_par"] + tab["CNS_19_par"] + tab["CNS_20_par"]
         )
         if year in lodes_years:
             tab["Total_Employment"] = (
-                tab["CNS01"]
-                + tab["CNS02"]
-                + tab["CNS03"]
-                + tab["CNS04"]
-                + tab["CNS05"]
-                + tab["CNS06"]
-                + tab["CNS07"]
-                + tab["CNS08"]
-                + tab["CNS09"]
-                + tab["CNS10"]
-                + tab["CNS11"]
-                + tab["CNS12"]
-                + tab["CNS13"]
-                + tab["CNS14"]
-                + tab["CNS15"]
-                + tab["CNS16"]
-                + tab["CNS17"]
-                + tab["CNS18"]
-                + tab["CNS19"]
-                + tab["CNS20"]
+                    tab["CNS01"] + tab["CNS02"] + tab["CNS03"] + tab["CNS04"] + tab["CNS05"]
+                    + tab["CNS06"] + tab["CNS07"] + tab["CNS08"] + tab["CNS09"] + tab["CNS10"]
+                    + tab["CNS11"] + tab["CNS12"] + tab["CNS13"] + tab["CNS14"] + tab["CNS15"]
+                    + tab["CNS16"] + tab["CNS17"] + tab["CNS18"] + tab["CNS19"] + tab["CNS20"]
             )
         if year in acs_years:
             tab["Total_Population"] = tab["Total_Non_Hisp"] + tab["Total_Hispanic"]
@@ -1786,35 +1674,12 @@ def analyze_blockgroup_model(
     # 2. Model
     # Variable setup: defines our variables of interest for modeling
     independent_variables = [
-        "LND_VAL",
-        "LND_SQFOOT",
-        "JV",
-        "TOT_LVG_AREA",
-        "NO_BULDNG",
-        "NO_RES_UNTS",
-        "RES_par",
-        "CNS_01_par",
-        "CNS_02_par",
-        "CNS_03_par",
-        "CNS_04_par",
-        "CNS_05_par",
-        "CNS_06_par",
-        "CNS_07_par",
-        "CNS_08_par",
-        "CNS_09_par",
-        "CNS_10_par",
-        "CNS_11_par",
-        "CNS_12_par",
-        "CNS_13_par",
-        "CNS_14_par",
-        "CNS_15_par",
-        "CNS_16_par",
-        "CNS_17_par",
-        "CNS_18_par",
-        "CNS_19_par",
-        "CNS_20_par",
-        "Total_Emp_Area",
-        "Since_2013",
+        "LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA", "NO_BULDNG", "NO_RES_UNTS", "RES_par",
+        "CNS_01_par", "CNS_02_par", "CNS_03_par", "CNS_04_par", "CNS_05_par",
+        "CNS_06_par", "CNS_07_par", "CNS_08_par", "CNS_09_par", "CNS_10_par",
+        "CNS_11_par", "CNS_12_par", "CNS_13_par", "CNS_14_par", "CNS_15_par",
+        "CNS_16_par", "CNS_17_par", "CNS_18_par", "CNS_19_par", "CNS_20_par",
+        "Total_Emp_Area", "Since_2013",
     ]
     response = {
         "Total_Employment": lodes_years,
@@ -1875,20 +1740,16 @@ def analyze_blockgroup_model(
     coefs.rename(columns={"index": "Variable"}, inplace=True)
     coefs.fillna(0, inplace=True)
 
-    logger.log_msg("--- writing results")
-    save_path = makePath(save_directory, "block_group_model_coefficients.csv")
-    coefs.to_csv(save_path, index=False)
-    return save_path
+    return coefs
 
 
 def analyze_blockgroup_apply(
-    year,
-    bg_enrich_path,
-    bg_geometry_path,
-    bg_id_field,
-    model_coefficients_path,
-    save_gdb_location,
-    shares_from=None,
+        year,
+        bg_enrich_path,
+        bg_geometry_path,
+        bg_id_field,
+        model_coefficients,
+        shares_from=None,
 ):
     """predict block group-level total employment, population, and commutes using
         pre-fit linear models, and apply a shares-based approach to subdivide
@@ -1901,7 +1762,8 @@ def analyze_blockgroup_apply(
             models will be applied
         bg_geometry_path : str
             path to geometry of block groups underlying the data
-        model_coefficients_path : str
+        bg_id_field (str): block group unique id column
+        model_coefficients : str
             path to table of model coefficients
         save_gdb_location : str
             gdb location to which to save the results (results will be saved as a
@@ -1929,58 +1791,19 @@ def analyze_blockgroup_apply(
 
     df["Since_2013"] = year - 2013
     df["Total_Emp_Area"] = (
-        df["CNS_01_par"]
-        + df["CNS_02_par"]
-        + df["CNS_03_par"]
-        + df["CNS_04_par"]
-        + df["CNS_05_par"]
-        + df["CNS_06_par"]
-        + df["CNS_07_par"]
-        + df["CNS_08_par"]
-        + df["CNS_09_par"]
-        + df["CNS_10_par"]
-        + df["CNS_11_par"]
-        + df["CNS_12_par"]
-        + df["CNS_13_par"]
-        + df["CNS_14_par"]
-        + df["CNS_15_par"]
-        + df["CNS_16_par"]
-        + df["CNS_17_par"]
-        + df["CNS_18_par"]
-        + df["CNS_19_par"]
-        + df["CNS_20_par"]
+            df["CNS_01_par"] + df["CNS_02_par"] + df["CNS_03_par"] + df["CNS_04_par"] + df["CNS_05_par"]
+            + df["CNS_06_par"] + df["CNS_07_par"] + df["CNS_08_par"] + df["CNS_09_par"] + df["CNS_10_par"]
+            + df["CNS_11_par"] + df["CNS_12_par"] + df["CNS_13_par"] + df["CNS_14_par"] + df["CNS_15_par"]
+            + df["CNS_16_par"] + df["CNS_17_par"] + df["CNS_18_par"] + df["CNS_19_par"] + df["CNS_20_par"]
     )
     # Fill na
     independent_variables = [
-        "LND_VAL",
-        "LND_SQFOOT",
-        "JV",
-        "TOT_LVG_AREA",
-        "NO_BULDNG",
-        "NO_RES_UNTS",
-        "RES_par",
-        "CNS_01_par",
-        "CNS_02_par",
-        "CNS_03_par",
-        "CNS_04_par",
-        "CNS_05_par",
-        "CNS_06_par",
-        "CNS_07_par",
-        "CNS_08_par",
-        "CNS_09_par",
-        "CNS_10_par",
-        "CNS_11_par",
-        "CNS_12_par",
-        "CNS_13_par",
-        "CNS_14_par",
-        "CNS_15_par",
-        "CNS_16_par",
-        "CNS_17_par",
-        "CNS_18_par",
-        "CNS_19_par",
-        "CNS_20_par",
-        "Total_Emp_Area",
-        "Since_2013",
+        "LND_VAL", "LND_SQFOOT", "JV", "TOT_LVG_AREA", "NO_BULDNG", "NO_RES_UNTS", "RES_par",
+        "CNS_01_par", "CNS_02_par", "CNS_03_par", "CNS_04_par", "CNS_05_par",
+        "CNS_06_par", "CNS_07_par", "CNS_08_par", "CNS_09_par", "CNS_10_par",
+        "CNS_11_par", "CNS_12_par", "CNS_13_par", "CNS_14_par", "CNS_15_par",
+        "CNS_16_par", "CNS_17_par", "CNS_18_par", "CNS_19_par", "CNS_20_par",
+        "Total_Emp_Area", "Since_2013",
     ]
     parcel_na_dict = {iv: 0 for iv in independent_variables}
     df.fillna(parcel_na_dict, inplace=True)
@@ -1989,7 +1812,7 @@ def analyze_blockgroup_apply(
     # ---------------
     logger.log_msg("--- applying models to predict totals")
     # Load the coefficients
-    coefs = pd.read_csv(model_coefficients_path)
+    coefs = model_coefficients
     # Predict using matrix multiplication
     mod_inputs = df[coefs["Variable"]]
     coef_values = coefs.drop(columns="Variable")
@@ -2005,52 +1828,21 @@ def analyze_blockgroup_apply(
     # 3. Shares
     # Variable setup: defines our variables of interest for modeling
     dependent_variables_emp = [
-        "CNS01",
-        "CNS02",
-        "CNS03",
-        "CNS04",
-        "CNS05",
-        "CNS06",
-        "CNS07",
-        "CNS08",
-        "CNS09",
-        "CNS10",
-        "CNS11",
-        "CNS12",
-        "CNS13",
-        "CNS14",
-        "CNS15",
-        "CNS16",
-        "CNS17",
-        "CNS18",
-        "CNS19",
-        "CNS20",
+        "CNS01", "CNS02", "CNS03", "CNS04", "CNS05", "CNS06", "CNS07", "CNS08", "CNS09", "CNS10",
+        "CNS11", "CNS12", "CNS13", "CNS14", "CNS15", "CNS16", "CNS17", "CNS18", "CNS19", "CNS20",
     ]
     dependent_variables_pop_tot = ["Total_Hispanic", "Total_Non_Hisp"]
     dependent_variables_pop_sub = [
-        "White_Hispanic",
-        "Black_Hispanic",
-        "Asian_Hispanic",
-        "Multi_Hispanic",
-        "Other_Hispanic",
-        "White_Non_Hisp",
-        "Black_Non_Hisp",
-        "Asian_Non_Hisp",
-        "Multi_Non_Hisp",
-        "Other_Non_Hisp",
+        "White_Hispanic", "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic", "Other_Hispanic",
+        "White_Non_Hisp", "Black_Non_Hisp", "Asian_Non_Hisp", "Multi_Non_Hisp", "Other_Non_Hisp",
     ]
     dependent_variables_trn = [
-        "Drove",
-        "Carpool",
-        "Transit",
-        "NonMotor",
-        "Work_From_Home",
-        "AllOther",
+        "Drove", "Carpool", "Transit", "NonMotor", "Work_From_Home", "AllOther",
     ]
     acs_vars = (
-        dependent_variables_pop_tot
-        + dependent_variables_pop_sub
-        + dependent_variables_trn
+            dependent_variables_pop_tot
+            + dependent_variables_pop_sub
+            + dependent_variables_trn
     )
 
     # Pull shares variables from appropriate sources, recognizing that they
@@ -2086,13 +1878,13 @@ def analyze_blockgroup_apply(
     logger.log_msg("--- calculating shares")
     shares_dict = {}
     for name, variables in zip(
-        ["Emp", "Pop_Tot", "Pop_Sub", "Comm"],
-        [
-            dependent_variables_emp,
-            dependent_variables_pop_tot,
-            dependent_variables_pop_sub,
-            dependent_variables_trn,
-        ],
+            ["Emp", "Pop_Tot", "Pop_Sub", "Comm"],
+            [
+                dependent_variables_emp,
+                dependent_variables_pop_tot,
+                dependent_variables_pop_sub,
+                dependent_variables_trn,
+            ],
     ):
         sdf = shares_df[variables]
         sdf["TOTAL"] = sdf.sum(axis=1)
@@ -2189,49 +1981,31 @@ def analyze_blockgroup_apply(
     for d in dependent_variables_trn:
         alloc[d] = alloc[d] * alloc.Total_Commutes
 
-    # 5. Writing
-    # ----------
-
-    logger.log_msg("--- writing outputs")
-    # Here we write block group for allocation
-    save_path = makePath(save_gdb_location, "Modeled_blockgroups")
-    PMT.dfToTable(df=alloc, out_table=save_path)
-    # TODO: adjust function to return python object instead of path
-    # Done
-    # --- -
-    return save_path
+    return alloc
 
 
-def analyze_blockgroup_allocate(
-    out_gdb,
-    bg_modeled,
-    bg_geom,
-    bg_id_field,
-    parcel_fc,
-    parcels_id="FOLIO",
-    parcel_lu="DOR_UC",
-    parcel_liv_area="TOT_LVG_AREA",
+def allocate_bg_to_parcels(
+        bg_modeled,
+        bg_geom,
+        bg_id_field,
+        parcel_fc,
+        parcels_id=None,
+        parcel_lu=None,
+        parcel_liv_area=None,
 ):
     """Allocate block group data to parcels using relative abundances of parcel building square footage
     Args:
-        parcel_fc: Path
-            path to shape of parcel polygons, containing at a minimum a unique ID
+        parcel_fc (str): Path; path to shape of parcel polygons, containing at a minimum a unique ID
             field, land use field, and total living area field (Florida DOR)
-        bg_modeled: Path
-            path to table of modeled block group job, populatiom, and commute
+        bg_modeled (str): Path; path to table of modeled block group job, populatiom, and commute
             data for allocation
-        bg_geom: Path
-            path to feature class of block group polygons
-        out_gdb: Path
-            path to location in which the allocated results will be saved
-        parcels_id: str
-            unique ID field in the parcels shape
+        bg_geom (str): Path; path to feature class of block group polygons
+        bg_id_field (str): block group key
+        parcels_id (str): str, unique ID field in the parcels shape
             Default is "PARCELNO" for Florida parcels
-        parcel_lu: str
-            land use code field in the parcels shape
+        parcel_lu (str): land use code field in the parcels shape
             Default is "DOR_UC" for Florida parcels
-        parcel_liv_area: str
-            building square footage field in the parcels shape
+        parcel_liv_area (str): building square footage field in the parcels shape
             Default is "TOT_LVG_AREA" for Florida parcels
     Returns:
         path of location at which the allocation results are saved.
@@ -2239,51 +2013,24 @@ def analyze_blockgroup_allocate(
         will be joined to the original parcels shape
 
     """
+    if parcels_id is None:
+        parcels_id = "FOLIO"
+    if parcel_lu is None:
+        parcel_lu = "DOR_UC"
+    if parcel_liv_area is None:
+        parcel_liv_area = "TOT_LVG_AREA"
 
     # Organize constants for allocation
     lodes_attrs = [
-        "CNS01",
-        "CNS02",
-        "CNS03",
-        "CNS04",
-        "CNS05",
-        "CNS06",
-        "CNS07",
-        "CNS08",
-        "CNS09",
-        "CNS10",
-        "CNS11",
-        "CNS12",
-        "CNS13",
-        "CNS14",
-        "CNS15",
-        "CNS16",
-        "CNS17",
-        "CNS18",
-        "CNS19",
-        "CNS20",
+        "CNS01", "CNS02", "CNS03", "CNS04", "CNS05", "CNS06", "CNS07", "CNS08", "CNS09", "CNS10",
+        "CNS11", "CNS12", "CNS13", "CNS14", "CNS15", "CNS16", "CNS17", "CNS18", "CNS19", "CNS20",
     ]
     demog_attrs = [
-        "Total_Hispanic",
-        "White_Hispanic",
-        "Black_Hispanic",
-        "Asian_Hispanic",
-        "Multi_Hispanic",
-        "Other_Hispanic",
-        "Total_Non_Hisp",
-        "White_Non_Hisp",
-        "Black_Non_Hisp",
-        "Asian_Non_Hisp",
-        "Multi_Non_Hisp",
-        "Other_Non_Hisp",
+        "Total_Hispanic", "White_Hispanic", "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic", "Other_Hispanic",
+        "Total_Non_Hisp", "White_Non_Hisp", "Black_Non_Hisp", "Asian_Non_Hisp", "Multi_Non_Hisp", "Other_Non_Hisp",
     ]
     commute_attrs = [
-        "Drove",
-        "Carpool",
-        "Transit",
-        "NonMotor",
-        "Work_From_Home",
-        "AllOther",
+        "Drove", "Carpool", "Transit", "NonMotor", "Work_From_Home", "AllOther",
     ]
     block_group_attrs = [bg_id_field] + lodes_attrs + demog_attrs + commute_attrs
 
@@ -2310,7 +2057,7 @@ def analyze_blockgroup_allocate(
     logger.log_msg("--- formatting block group for allocation data")
     # set any value below 0 to 0 and set any land use from -1 to NA
     to_clip = (
-        lodes_attrs + demog_attrs + commute_attrs + [parcel_liv_area, "Shape_Area"]
+            lodes_attrs + demog_attrs + commute_attrs + [parcel_liv_area, "Shape_Area"]
     )
     for var in to_clip:
         intersect_df[f"{var}"] = intersect_df[f"{var}"].clip(lower=0)
@@ -2332,53 +2079,53 @@ def analyze_blockgroup_allocate(
         "CNS06": (intersect_df[pluf] == 29),
         "CNS07": ((intersect_df[pluf] >= 11) & (intersect_df[pluf] <= 16)),
         "CNS08": (
-            (intersect_df[pluf] == 48)
-            | (intersect_df[pluf] == 49)
-            | (intersect_df[pluf] == 20)
+                (intersect_df[pluf] == 48)
+                | (intersect_df[pluf] == 49)
+                | (intersect_df[pluf] == 20)
         ),
         "CNS09": (
-            (intersect_df[pluf] == 17)
-            | (intersect_df[pluf] == 18)
-            | (intersect_df[pluf] == 19)
+                (intersect_df[pluf] == 17)
+                | (intersect_df[pluf] == 18)
+                | (intersect_df[pluf] == 19)
         ),
         "CNS10": ((intersect_df[pluf] == 23) | (intersect_df[pluf] == 24)),
         "CNS11": (
-            (intersect_df[pluf] == 17)
-            | (intersect_df[pluf] == 18)
-            | (intersect_df[pluf] == 19)
+                (intersect_df[pluf] == 17)
+                | (intersect_df[pluf] == 18)
+                | (intersect_df[pluf] == 19)
         ),
         "CNS12": (
-            (intersect_df[pluf] == 17)
-            | (intersect_df[pluf] == 18)
-            | (intersect_df[pluf] == 19)
+                (intersect_df[pluf] == 17)
+                | (intersect_df[pluf] == 18)
+                | (intersect_df[pluf] == 19)
         ),
         "CNS13": (
-            (intersect_df[pluf] == 17)
-            | (intersect_df[pluf] == 18)
-            | (intersect_df[pluf] == 19)
+                (intersect_df[pluf] == 17)
+                | (intersect_df[pluf] == 18)
+                | (intersect_df[pluf] == 19)
         ),
         "CNS14": (intersect_df[pluf] == 89),
         "CNS15": (
-            (intersect_df[pluf] == 72)
-            | (intersect_df[pluf] == 83)
-            | (intersect_df[pluf] == 84)
+                (intersect_df[pluf] == 72)
+                | (intersect_df[pluf] == 83)
+                | (intersect_df[pluf] == 84)
         ),
         "CNS16": ((intersect_df[pluf] == 73) | (intersect_df[pluf] == 85)),
         "CNS17": (
-            ((intersect_df[pluf] >= 30) & (intersect_df[pluf] <= 38))
-            | (intersect_df[pluf] == 82)
+                ((intersect_df[pluf] >= 30) & (intersect_df[pluf] <= 38))
+                | (intersect_df[pluf] == 82)
         ),
         "CNS18": (
-            (intersect_df[pluf] == 21)
-            | (intersect_df[pluf] == 22)
-            | (intersect_df[pluf] == 33)
-            | (intersect_df[pluf] == 39)
+                (intersect_df[pluf] == 21)
+                | (intersect_df[pluf] == 22)
+                | (intersect_df[pluf] == 33)
+                | (intersect_df[pluf] == 39)
         ),
         "CNS19": ((intersect_df[pluf] == 27) | (intersect_df[pluf] == 28)),
         "CNS20": ((intersect_df[pluf] >= 86) & (intersect_df[pluf] <= 89)),
         "Population": (
-            ((intersect_df[pluf] >= 1) & (intersect_df[pluf] <= 9))
-            | ((intersect_df[pluf] >= 100) & (intersect_df[pluf] <= 102))
+                ((intersect_df[pluf] >= 1) & (intersect_df[pluf] <= 9))
+                | ((intersect_df[pluf] >= 100) & (intersect_df[pluf] <= 102))
         ),
     }
 
@@ -2390,46 +2137,10 @@ def analyze_blockgroup_allocate(
     #  ['all non-res' will be used if a land use isn't present for a given activity;
     #  [ the 'all developed' will be used if 'all non-res' fails]
     non_res_lu_codes = [
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
-        37,
-        38,
-        39,
-        41,
-        42,
-        48,
-        49,
-        72,
-        73,
-        82,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
+        11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        21, 22, 23, 24, 27, 28, 29, 30, 31, 32,
+        33, 34, 35, 36, 37, 38, 39, 41, 42, 48,
+        49, 72, 73, 82, 84, 85, 86, 87, 88, 89,
     ]
     all_dev_lu_codes = non_res_lu_codes + [1, 2, 3, 4, 5, 6, 7, 8, 9, 100, 101, 102]
     all_non_res = {"NR": (intersect_df[pluf].isin(non_res_lu_codes))}
@@ -2455,8 +2166,8 @@ def analyze_blockgroup_allocate(
         # mask by LU, group on bg_id_field
         area = (
             intersect_df[lu_mask[var]]
-            .groupby([bg_id_field])[parcel_liv_area]
-            .agg(["sum"])
+                .groupby([bg_id_field])[parcel_liv_area]
+                .agg(["sum"])
         )
         area.rename(columns={"sum": f"{var}_Area"}, inplace=True)
         area = area[area[f"{var}_Area"] > 0]
@@ -2510,8 +2221,8 @@ def analyze_blockgroup_allocate(
     logger.log_msg("--- totaling living area for population")
     area = (
         intersect_df[lu_mask["Population"]]
-        .groupby([bg_id_field])[parcel_liv_area]
-        .agg(["sum"])
+            .groupby([bg_id_field])[parcel_liv_area]
+            .agg(["sum"])
     )
     area.rename(columns={"sum": "Population_Area"}, inplace=True)
     area = area[area["Population_Area"] > 0]
@@ -2584,28 +2295,28 @@ def analyze_blockgroup_allocate(
     for var in lu_mask.keys():
         # First for lu mask
         intersect_df.loc[lu[var] & lu_mask[var], f"{var}_Par_Prop"] = (
-            intersect_df[parcel_liv_area][lu[var] & lu_mask[var]]
-            / intersect_df[f"{var}_Area"][lu[var] & lu_mask[var]]
+                intersect_df[parcel_liv_area][lu[var] & lu_mask[var]]
+                / intersect_df[f"{var}_Area"][lu[var] & lu_mask[var]]
         )
         # Then for non res
         intersect_df.loc[nr[var] & all_non_res["NR"], f"{var}_Par_Prop"] = (
-            intersect_df[parcel_liv_area][nr[var] & all_non_res["NR"]]
-            / intersect_df[f"{var}_Area"][nr[var] & all_non_res["NR"]]
+                intersect_df[parcel_liv_area][nr[var] & all_non_res["NR"]]
+                / intersect_df[f"{var}_Area"][nr[var] & all_non_res["NR"]]
         )
         # Then for all dev
         intersect_df.loc[ad[var] & all_developed["AD"], f"{var}_Par_Prop"] = (
-            intersect_df[parcel_liv_area][ad[var] & all_developed["AD"]]
-            / intersect_df[f"{var}_Area"][ad[var] & all_developed["AD"]]
+                intersect_df[parcel_liv_area][ad[var] & all_developed["AD"]]
+                / intersect_df[f"{var}_Area"][ad[var] & all_developed["AD"]]
         )
         # Then for living area
         intersect_df.loc[lvg_area[var], f"{var}_Par_Prop"] = (
-            intersect_df[parcel_liv_area][lvg_area[var]]
-            / intersect_df[f"{var}_Area"][lvg_area[var]]
+                intersect_df[parcel_liv_area][lvg_area[var]]
+                / intersect_df[f"{var}_Area"][lvg_area[var]]
         )
         # Then for land area
         intersect_df.loc[lnd_area[var], f"{var}_Par_Prop"] = (
-            intersect_df[pldaf][lnd_area[var]]
-            / intersect_df[f"{var}_Area"][lnd_area[var]]
+                intersect_df[pldaf][lnd_area[var]]
+                / intersect_df[f"{var}_Area"][lnd_area[var]]
         )
         # Now fill NAs with 0 for proportions
         intersect_df[f"{var}_Par_Prop"] = intersect_df[f"{var}_Par_Prop"].fillna(0)
@@ -2614,26 +2325,16 @@ def analyze_blockgroup_allocate(
         # for all racial subsets)
         if var != "Population":
             intersect_df[f"{var}_PAR"] = (
-                intersect_df[f"{var}_Par_Prop"] * intersect_df[var]
+                    intersect_df[f"{var}_Par_Prop"] * intersect_df[var]
             )
         else:
             race_vars = [
-                "Total_Hispanic",
-                "White_Hispanic",
-                "Black_Hispanic",
-                "Asian_Hispanic",
-                "Multi_Hispanic",
-                "Other_Hispanic",
-                "Total_Non_Hisp",
-                "White_Non_Hisp",
-                "Black_Non_Hisp",
-                "Asian_Non_Hisp",
-                "Multi_Non_Hisp",
-                "Other_Non_Hisp",
+                "Total_Hispanic", "White_Hispanic", "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic", "Other_Hispanic",
+                "Total_Non_Hisp", "White_Non_Hisp", "Black_Non_Hisp", "Asian_Non_Hisp", "Multi_Non_Hisp", "Other_Non_Hisp",
             ]
             for rv in race_vars:
                 intersect_df[f"{rv}_PAR"] = (
-                    intersect_df["Population_Par_Prop"] * intersect_df[rv]
+                        intersect_df["Population_Par_Prop"] * intersect_df[rv]
                 )
 
     # If what we did worked, all the proportions should sum to 1. This will
@@ -2645,29 +2346,16 @@ def analyze_blockgroup_allocate(
     # Now we can sum up totals
     logger.log_msg("--- totaling allocated jobs and population")
     intersect_df["Total_Employment"] = (
-        intersect_df["CNS01_PAR"]
-        + intersect_df["CNS02_PAR"]
-        + intersect_df["CNS03_PAR"]
-        + intersect_df["CNS04_PAR"]
-        + intersect_df["CNS05_PAR"]
-        + intersect_df["CNS06_PAR"]
-        + intersect_df["CNS07_PAR"]
-        + intersect_df["CNS08_PAR"]
-        + intersect_df["CNS09_PAR"]
-        + intersect_df["CNS10_PAR"]
-        + intersect_df["CNS11_PAR"]
-        + intersect_df["CNS12_PAR"]
-        + intersect_df["CNS13_PAR"]
-        + intersect_df["CNS14_PAR"]
-        + intersect_df["CNS15_PAR"]
-        + intersect_df["CNS16_PAR"]
-        + intersect_df["CNS17_PAR"]
-        + intersect_df["CNS18_PAR"]
-        + intersect_df["CNS19_PAR"]
-        + intersect_df["CNS20_PAR"]
+            intersect_df["CNS01_PAR"] + intersect_df["CNS02_PAR"] + intersect_df["CNS03_PAR"]
+            + intersect_df["CNS04_PAR"] + intersect_df["CNS05_PAR"] + intersect_df["CNS06_PAR"]
+            + intersect_df["CNS07_PAR"] + intersect_df["CNS08_PAR"] + intersect_df["CNS09_PAR"]
+            + intersect_df["CNS10_PAR"] + intersect_df["CNS11_PAR"] + intersect_df["CNS12_PAR"]
+            + intersect_df["CNS13_PAR"] + intersect_df["CNS14_PAR"] + intersect_df["CNS15_PAR"]
+            + intersect_df["CNS16_PAR"] + intersect_df["CNS17_PAR"] + intersect_df["CNS18_PAR"]
+            + intersect_df["CNS19_PAR"] + intersect_df["CNS20_PAR"]
     )
     intersect_df["Total_Population"] = (
-        intersect_df["Total_Non_Hisp_PAR"] + intersect_df["Total_Hispanic_PAR"]
+            intersect_df["Total_Non_Hisp_PAR"] + intersect_df["Total_Hispanic_PAR"]
     )
 
     # Finally, we'll allocate transportation usage
@@ -2679,7 +2367,7 @@ def analyze_blockgroup_allocate(
     geoid_edit = tp_props[tp_props.TP_Agg == 0][bg_id_field]
     intersect_df = pd.merge(intersect_df, tp_props, how="left", on=bg_id_field)
     intersect_df["TP_Par_Prop"] = (
-        intersect_df["Total_Population"] / intersect_df["TP_Agg"]
+            intersect_df["Total_Population"] / intersect_df["TP_Agg"]
     )
     # If there are any 0s (block groups with 0 population) replace with
     # the population area population, in case commutes are predicted where
@@ -2689,12 +2377,7 @@ def analyze_blockgroup_allocate(
     ] = intersect_df["Population_Par_Prop"][intersect_df[bg_id_field].isin(geoid_edit)]
     # Now we can allocate commutes
     transit_vars = [
-        "Drove",
-        "Carpool",
-        "Transit",
-        "NonMotor",
-        "Work_From_Home",
-        "AllOther",
+        "Drove", "Carpool", "Transit", "NonMotor", "Work_From_Home", "AllOther",
     ]
     for var in transit_vars:
         intersect_df[f"{var}_PAR"] = intersect_df["TP_Par_Prop"] * intersect_df[var]
@@ -2702,12 +2385,8 @@ def analyze_blockgroup_allocate(
     # And, now we can sum up totals
     logger.log_msg("--- totaling allocated commutes")
     intersect_df["Total_Commutes"] = (
-        intersect_df["Drove_PAR"]
-        + intersect_df["Carpool_PAR"]
-        + intersect_df["Transit_PAR"]
-        + intersect_df["NonMotor_PAR"]
-        + intersect_df["Work_From_Home_PAR"]
-        + intersect_df["AllOther_PAR"]
+            intersect_df["Drove_PAR"] + intersect_df["Carpool_PAR"] + intersect_df["Transit_PAR"]
+            + intersect_df["NonMotor_PAR"] + intersect_df["Work_From_Home_PAR"] + intersect_df["AllOther_PAR"]
     )
 
     # Now we're ready to write
@@ -2718,76 +2397,36 @@ def analyze_blockgroup_allocate(
     # initialized with this already!
     logger.log_msg("--- selecting columns of interest")
     to_keep = [
-        parcels_id,
-        parcel_liv_area,
-        parcel_lu,
-        bg_id_field,
-        "Total_Employment",
-        "CNS01_PAR",
-        "CNS02_PAR",
-        "CNS03_PAR",
-        "CNS04_PAR",
-        "CNS05_PAR",
-        "CNS06_PAR",
-        "CNS07_PAR",
-        "CNS08_PAR",
-        "CNS09_PAR",
-        "CNS10_PAR",
-        "CNS11_PAR",
-        "CNS12_PAR",
-        "CNS13_PAR",
-        "CNS14_PAR",
-        "CNS15_PAR",
-        "CNS16_PAR",
-        "CNS17_PAR",
-        "CNS18_PAR",
-        "CNS19_PAR",
-        "CNS20_PAR",
+        parcels_id, parcel_liv_area, parcel_lu, bg_id_field, "Total_Employment",
+        "CNS01_PAR", "CNS02_PAR", "CNS03_PAR", "CNS04_PAR", "CNS05_PAR", "CNS06_PAR",
+        "CNS07_PAR", "CNS08_PAR", "CNS09_PAR", "CNS10_PAR", "CNS11_PAR", "CNS12_PAR",
+        "CNS13_PAR", "CNS14_PAR", "CNS15_PAR", "CNS16_PAR", "CNS17_PAR", "CNS18_PAR",
+        "CNS19_PAR", "CNS20_PAR",
         "Total_Population",
-        "Total_Hispanic_PAR",
-        "White_Hispanic_PAR",
-        "Black_Hispanic_PAR",
-        "Asian_Hispanic_PAR",
-        "Multi_Hispanic_PAR",
-        "Other_Hispanic_PAR",
-        "Total_Non_Hisp_PAR",
-        "White_Non_Hisp_PAR",
-        "Black_Non_Hisp_PAR",
-        "Asian_Non_Hisp_PAR",
-        "Multi_Non_Hisp_PAR",
-        "Other_Non_Hisp_PAR",
+        "Total_Hispanic_PAR", "White_Hispanic_PAR", "Black_Hispanic_PAR", "Asian_Hispanic_PAR",
+        "Multi_Hispanic_PAR", "Other_Hispanic_PAR",
+        "Total_Non_Hisp_PAR", "White_Non_Hisp_PAR", "Black_Non_Hisp_PAR", "Asian_Non_Hisp_PAR",
+        "Multi_Non_Hisp_PAR", "Other_Non_Hisp_PAR",
         "Total_Commutes",
-        "Drove_PAR",
-        "Carpool_PAR",
-        "Transit_PAR",
-        "NonMotor_PAR",
-        "Work_From_Home_PAR",
-        "AllOther_PAR",
+        "Drove_PAR", "Carpool_PAR", "Transit_PAR", "NonMotor_PAR", "Work_From_Home_PAR", "AllOther_PAR",
     ]
     intersect_df = intersect_df[to_keep]
 
-    # For saving, we join the allocation estimates back to the ID shape we
-    # initialized during spatial processing
-    logger.log_msg("--- writing table of allocation results")
-    sed_path = makePath(out_gdb, "EconDemog_parcels")
-    PMT.dfToTable(intersect_df, sed_path)
-    # TODO: adjust function to return python object instead of path
-    print("")
-    return sed_path
+    return intersect_df
 
 
 # TODO: move joinAttributes and summarizeAttributes from build_helper.py to PMT.py
 # MAZ/TAZ data prep helpers
 def estimate_maz_from_parcels(
-    par_fc,
-    par_id_field,
-    maz_fc,
-    maz_id_field,
-    taz_id_field,
-    se_data,
-    se_id_field,
-    agg_cols,
-    consolidations,
+        par_fc,
+        par_id_field,
+        maz_fc,
+        maz_id_field,
+        taz_id_field,
+        se_data,
+        se_id_field,
+        agg_cols,
+        consolidations,
 ):
     """Estimate jobs, housing, etc. at the MAZ level based on underlying parcel
         data.
@@ -2991,14 +2630,14 @@ def lines_to_centrality(line_features, impedance_attribute):
 
 
 def network_centrality(
-    in_nd,
-    in_features,
-    net_loader,
-    name_field="OBJECTID",
-    impedance_attribute="Length",
-    cutoff="1609",
-    restrictions="",
-    chunk_size=1000,
+        in_nd,
+        in_features,
+        net_loader,
+        name_field="OBJECTID",
+        impedance_attribute="Length",
+        cutoff="1609",
+        restrictions="",
+        chunk_size=1000,
 ):
     """Uses Network Analyst to create and iteratively solve an OD matrix problem
         to assess connectivity among point features.
@@ -3123,13 +2762,13 @@ def parcel_walk_time_bin(in_table, bin_field, time_field, code_block):
 
 
 def parcel_walk_times(
-    parcel_fc,
-    parcel_id_field,
-    ref_fc,
-    ref_name_field,
-    ref_time_field,
-    preselect_fc,
-    target_name,
+        parcel_fc,
+        parcel_id_field,
+        ref_fc,
+        ref_name_field,
+        ref_time_field,
+        preselect_fc,
+        target_name,
 ):
     """For features in a parcel feature class, summarize walk times reported
         in a reference features class of service area lines. Generates fields
@@ -3226,15 +2865,15 @@ def parcel_walk_times(
 
 
 def parcel_ideal_walk_time(
-    parcels_fc,
-    parcel_id_field,
-    target_fc,
-    target_name_field,
-    radius,
-    target_name,
-    overlap_type="HAVE_THEIR_CENTER_IN",
-    sr=None,
-    assumed_mph=3,
+        parcels_fc,
+        parcel_id_field,
+        target_fc,
+        target_name_field,
+        radius,
+        target_name,
+        overlap_type="HAVE_THEIR_CENTER_IN",
+        sr=None,
+        assumed_mph=3,
 ):
     """Estimate walk time between parcels and target features (stations, parks,
         e.g.) based on a straight-line distance estimate and an assumed walking
@@ -3331,18 +2970,18 @@ def parcel_ideal_walk_time(
 
 
 def summarizeAccess(
-    skim_table,
-    o_field,
-    d_field,
-    imped_field,
-    se_data,
-    id_field,
-    act_fields,
-    imped_breaks,
-    units="minutes",
-    join_by="D",
-    chunk_size=100000,
-    **kwargs,
+        skim_table,
+        o_field,
+        d_field,
+        imped_field,
+        se_data,
+        id_field,
+        act_fields,
+        imped_breaks,
+        units="minutes",
+        join_by="D",
+        chunk_size=100000,
+        **kwargs,
 ):
     """
     Reads an origin-destination skim table, joins activity data,
@@ -3392,7 +3031,7 @@ def summarizeAccess(
     use_cols = [o_field, d_field, imped_field]
     print("--- --- --- binning skims")
     for chunk in pd.read_csv(
-        skim_table, usecols=use_cols, chunksize=chunk_size, **kwargs
+            skim_table, usecols=use_cols, chunksize=chunk_size, **kwargs
     ):
         # Define impedance bins
         low = -np.inf
@@ -3447,21 +3086,21 @@ def summarizeAccess(
 
 
 def genODTable(
-    origin_pts,
-    origin_name_field,
-    dest_pts,
-    dest_name_field,
-    in_nd,
-    imped_attr,
-    cutoff,
-    net_loader,
-    out_table,
-    restrictions=None,
-    use_hierarchy=False,
-    uturns="ALLOW_UTURNS",
-    o_location_fields=None,
-    d_location_fields=None,
-    o_chunk_size=None,
+        origin_pts,
+        origin_name_field,
+        dest_pts,
+        dest_name_field,
+        in_nd,
+        imped_attr,
+        cutoff,
+        net_loader,
+        out_table,
+        restrictions=None,
+        use_hierarchy=False,
+        uturns="ALLOW_UTURNS",
+        o_location_fields=None,
+        d_location_fields=None,
+        o_chunk_size=None,
 ):
     """Creates and solves an OD Matrix problem for a collection of origin and
         destination points using a specified network dataset. Results are
@@ -3565,18 +3204,18 @@ def genODTable(
 
 
 def taz_travel_stats(
-    od_table,
-    o_field,
-    d_field,
-    veh_trips_field,
-    auto_time_field,
-    dist_field,
-    taz_df,
-    taz_id_field,
-    hh_field,
-    jobs_field,
-    chunksize=100000,
-    **kwargs,
+        od_table,
+        o_field,
+        d_field,
+        veh_trips_field,
+        auto_time_field,
+        dist_field,
+        taz_df,
+        taz_id_field,
+        hh_field,
+        jobs_field,
+        chunksize=100000,
+        **kwargs,
 ):
     """
     Calculate rates of vehicle trip generation, vehicle miles of travel, and
@@ -3825,7 +3464,7 @@ def validate_weights(weights):
 
 
 def contiguity_index(
-    quadrats_fc, parcels_fc, mask_fc, parcels_id_field, cell_size=40, weights="nn"
+        quadrats_fc, parcels_fc, mask_fc, parcels_id_field, cell_size=40, weights="nn"
 ):
     """calculate contiguity of developable area
     Args:
@@ -4020,7 +3659,7 @@ def contiguity_index(
                 & (meshed.NRow < nrow)
                 & (meshed.NCol >= 0)
                 & (meshed.NCol < ncol)
-            ]
+                ]
 
             logger.log_msg(
                 "--- --- --- tagging cells and their neighbors with polygon IDs"
@@ -4141,8 +3780,8 @@ def contiguity_index(
             weight_max = sum(weights.values())
             contiguity = (
                 weight_tbl.groupby("ID")
-                .apply(lambda x: (sum(x.Weight) / len(x.Weight) - 1) / (weight_max - 1))
-                .reset_index(name="Contiguity")
+                    .apply(lambda x: (sum(x.Weight) / len(x.Weight) - 1) / (weight_max - 1))
+                    .reset_index(name="Contiguity")
             )
             contiguity.columns = ["PolyID", "Contiguity"]
 
@@ -4181,7 +3820,7 @@ def contiguity_index(
 
 
 def contiguity_index_dep(
-    parcels_fc, buildings_fc, parcels_id_field, chunks=20, cell_size=40, weights="nn"
+        parcels_fc, buildings_fc, parcels_id_field, chunks=20, cell_size=40, weights="nn"
 ):
     """calculate contiguity of developable area
     Args:
@@ -4683,7 +4322,7 @@ def contiguity_index_dep(
                 & (meshed.NRow < nrow)
                 & (meshed.NCol >= 0)
                 & (meshed.NCol < ncol)
-            ]
+                ]
 
             # Now that we've identified neighbors for each cell of interest,
             # we want to know what the polygon is represented in the cell and
@@ -4814,8 +4453,8 @@ def contiguity_index_dep(
             weight_max = sum(weights.values())
             contiguity = (
                 wtab.groupby("ID")
-                .apply(lambda x: (sum(x.Weight) / len(x.Weight) - 1) / (weight_max - 1))
-                .reset_index(name="Contiguity")
+                    .apply(lambda x: (sum(x.Weight) / len(x.Weight) - 1) / (weight_max - 1))
+                    .reset_index(name="Contiguity")
             )
             contiguity.columns = ["PolyID", "Contiguity"]
 
@@ -4864,10 +4503,10 @@ def contiguity_index_dep(
 
 
 def contiguity_summary(
-    full_results_df,
-    parcels_id_field,
-    summary_funcs=["min", "max", "median", "mean"],
-    area_scaling=True,
+        full_results_df,
+        parcels_id_field,
+        summary_funcs=["min", "max", "median", "mean"],
+        area_scaling=True,
 ):
     """summarize contiguity/developable area results from
         `analyze_contiguity_index` from sub-parcel to parcel
@@ -4912,8 +4551,8 @@ def contiguity_summary(
         var_name = f"{func.title()}_Contiguity"
         ci = (
             full_results_df.groupby(parcels_id_field)
-            .agg({"Contiguity": getattr(np, func)})
-            .reset_index()
+                .agg({"Contiguity": getattr(np, func)})
+                .reset_index()
         )
         ci.columns = [parcels_id_field, var_name]
         ctgy_summary.append(ci)
@@ -4931,8 +4570,8 @@ def contiguity_summary(
     logger.log_msg("--- ---summarizing developable area to the parcels")
     area_summary = (
         full_results_df.groupby(parcels_id_field)[["Developable_Area"]]
-        .agg("sum")
-        .reset_index()
+            .agg("sum")
+            .reset_index()
     )
 
     # The final summary step is then merging the contiguity and developable
@@ -4963,13 +4602,13 @@ def contiguity_summary(
 
 
 def simpson_diversity(
-    in_df,
-    group_col,
-    weight_col=None,
-    total_col=None,
-    pct_col=None,
-    count_lu=None,
-    **kwargs,
+        in_df,
+        group_col,
+        weight_col=None,
+        total_col=None,
+        pct_col=None,
+        count_lu=None,
+        **kwargs,
 ):
     """
     Simpson index: mathematically, the probability that a random draw of
@@ -4995,13 +4634,13 @@ def simpson_diversity(
 
 
 def shannon_diversity(
-    in_df,
-    group_col,
-    weight_col=None,
-    total_col=None,
-    pct_col=None,
-    count_lu=None,
-    **kwargs,
+        in_df,
+        group_col,
+        weight_col=None,
+        total_col=None,
+        pct_col=None,
+        count_lu=None,
+        **kwargs,
 ):
     """
     Shannon index: borrowing from information theory, Shannon quantifies
@@ -5019,13 +4658,13 @@ def shannon_diversity(
 
 
 def berger_parker_diversity(
-    in_df,
-    group_col,
-    weight_col=None,
-    total_col=None,
-    pct_col=None,
-    count_lu=None,
-    **kwargs,
+        in_df,
+        group_col,
+        weight_col=None,
+        total_col=None,
+        pct_col=None,
+        count_lu=None,
+        **kwargs,
 ):
     """
     Berger-Parker index: the maximum proportional abundance, giving a
@@ -5040,19 +4679,19 @@ def berger_parker_diversity(
     best_possible = 1 / count_lu
     worst_possible = 1
     diversity_col = 1 - (
-        (diversity_col - best_possible) / (worst_possible - best_possible)
+            (diversity_col - best_possible) / (worst_possible - best_possible)
     )
     return diversity_col
 
 
 def enp_diversity(
-    in_df,
-    group_col,
-    weight_col=None,
-    total_col=None,
-    pct_col=None,
-    count_lu=None,
-    **kwargs,
+        in_df,
+        group_col,
+        weight_col=None,
+        total_col=None,
+        pct_col=None,
+        count_lu=None,
+        **kwargs,
 ):
     """
     Effective number of parties (ENP): a count of land uses, as weighted
@@ -5122,7 +4761,7 @@ def enp_diversity(
 
 
 def assign_features_to_agg_area(
-    in_features, agg_features=None, buffer=None, in_fields="*", as_df=False
+        in_features, agg_features=None, buffer=None, in_fields="*", as_df=False
 ):
     """
     Generates a feature class or table that relates disaggregate features to
@@ -5178,13 +4817,13 @@ def assign_features_to_agg_area(
 
 
 def lu_diversity(
-    in_df,
-    groupby_field,
-    lu_field,
-    div_funcs,
-    weight_field=None,
-    count_lu=None,
-    regional_comp=False,
+        in_df,
+        groupby_field,
+        lu_field,
+        div_funcs,
+        weight_field=None,
+        count_lu=None,
+        regional_comp=False,
 ):
     """
     if `weight_field` is none, a field called "COUNT" containing row counts by
@@ -5216,7 +4855,7 @@ def lu_diversity(
     wt_by_grp.rename(columns={weight_field: tot_weight_field}, inplace=True)
     wt_by_lu_grp = wt_by_lu_grp.merge(wt_by_grp, on=groupby_field)
     wt_by_lu_grp[pct_weight_field] = (
-        wt_by_lu_grp[weight_field] / wt_by_lu_grp[tot_weight_field]
+            wt_by_lu_grp[weight_field] / wt_by_lu_grp[tot_weight_field]
     )
     if count_lu is None:
         count_lu = len(np.unique(_in_df_[lu_field]))
@@ -5238,7 +4877,7 @@ def lu_diversity(
         reg_by_lu = _in_df_.groupby(lu_field).agg(agg_dict).reset_index()
         reg_by_lu[tot_weight_field] = _in_df_[weight_field].sum()
         reg_by_lu[pct_weight_field] = (
-            reg_by_lu[weight_field] / reg_by_lu[tot_weight_field]
+                reg_by_lu[weight_field] / reg_by_lu[tot_weight_field]
         )
         reg_by_lu["RegID"] = "Region"
         div_kwargs["in_df"] = reg_by_lu
@@ -5275,13 +4914,13 @@ def match_units_fields(d):
 
 
 def create_permits_units_reference(
-    parcels,
-    permits,
-    lu_key,
-    parcels_living_area_key,
-    permit_value_key,
-    permits_units_name="sq. ft.",
-    units_match_dict=None,
+        parcels,
+        permits,
+        lu_key,
+        parcels_living_area_key,
+        permit_value_key,
+        permits_units_name="sq. ft.",
+        units_match_dict=None,
 ):
     """creates a reference table by which to convert various units provided in
         the Florida permits_df data to building square footage
@@ -5376,7 +5015,7 @@ def create_permits_units_reference(
             # Case (2)
             if unit in units_match_dict.keys():
                 sqft_per_unit = (
-                    plu[parcels_living_area_key] / plu[units_match_dict[unit]]
+                        plu[parcels_living_area_key] / plu[units_match_dict[unit]]
                 )
                 median_value = np.nanmedian(sqft_per_unit)
                 units_multipliers.append(median_value)
@@ -5401,21 +5040,21 @@ def create_permits_units_reference(
 
 
 def build_short_term_parcels(
-    parcel_fc,
-    parcels_id_field,
-    parcels_lu_field,
-    parcels_living_area_field,
-    parcels_land_value_field,
-    parcels_total_value_field,
-    parcels_buildings_field,
-    permit_fc,
-    permits_ref_df,
-    permits_id_field,
-    permits_lu_field,
-    permits_units_field,
-    permits_values_field,
-    permits_cost_field,
-    units_field_match_dict={},
+        parcel_fc,
+        parcels_id_field,
+        parcels_lu_field,
+        parcels_living_area_field,
+        parcels_land_value_field,
+        parcels_total_value_field,
+        parcels_buildings_field,
+        permit_fc,
+        permits_ref_df,
+        permits_id_field,
+        permits_lu_field,
+        permits_units_field,
+        permits_values_field,
+        permits_cost_field,
+        units_field_match_dict={},
 ):
     # First, we need to initialize a save feature class. The feature class
     # will be a copy of the parcels with a unique ID (added by the function)
@@ -5498,9 +5137,9 @@ def build_short_term_parcels(
     print("--- --- applying unit multipliers and overwrites")
     new_living_area = []
     for value, multiplier, overwrite in zip(
-        permits_df[permits_values_field],
-        permits_df["Multiplier"],
-        permits_df["Overwrite"],
+            permits_df[permits_values_field],
+            permits_df["Multiplier"],
+            permits_df["Overwrite"],
     ):
         if (overwrite == -1.0) and (multiplier != -1.0):
             new_living_area.append(value * multiplier)
@@ -5555,7 +5194,7 @@ def build_short_term_parcels(
                 inplace=True,
             )
             # Drop unnecessary columns (including nulls from units-field match)
-            df.drop(columns=[permits_units_field, "Parcel_Field",], inplace=True)
+            df.drop(columns=[permits_units_field, "Parcel_Field", ], inplace=True)
             df = df.loc[:, df.columns.notnull()]
         # Append the results to our storage list
         permit_update.append(df)
@@ -5569,7 +5208,7 @@ def build_short_term_parcels(
     permit_update["PERMIT"] = 1
     # combine the net living area from permits with current living area
     permit_update[parcels_living_area_field] = (
-        permit_update[parcels_living_area_field] + permit_update["UPDT_LVG_AREA"]
+            permit_update[parcels_living_area_field] + permit_update["UPDT_LVG_AREA"]
     )
     permit_update.rename(
         columns={
@@ -5585,12 +5224,12 @@ def build_short_term_parcels(
         pv.groupby(parcels_id_field)[
             [parcels_land_value_field, parcels_total_value_field]
         ]
-        .sum()
-        .reset_index()
+            .sum()
+            .reset_index()
     )
     permit_update = pd.merge(permit_update, pv, on=parcels_id_field, how="left")
     permit_update["NV"] = (
-        permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
+            permit_update[parcels_land_value_field] + permit_update[permits_cost_field]
     )
     permit_update[parcels_total_value_field] = np.maximum(
         permit_update["NV"], permit_update[parcels_total_value_field]
@@ -6030,15 +5669,15 @@ def build_short_term_parcels(
 
 
 def clean_skim_csv(
-    in_file,
-    out_file,
-    imp_field,
-    drop_val=0,
-    renames={},
-    node_offset=0,
-    node_fields=["F_TAP", "T_TAP"],
-    chunksize=100000,
-    **kwargs,
+        in_file,
+        out_file,
+        imp_field,
+        drop_val=0,
+        renames={},
+        node_offset=0,
+        node_fields=["F_TAP", "T_TAP"],
+        chunksize=100000,
+        **kwargs,
 ):
     """
     Reads an OD table and drops rows where `imp_field` = `drop_val` is true. Optionallly renumbers nodes
@@ -6100,7 +5739,7 @@ def _df_to_graph_(df, source, target, attrs, create_using, renames, where=None):
 
 
 def skim_to_graph(
-    in_csv, source, target, attrs, create_using=nx.DiGraph, renames={}, **kwargs
+        in_csv, source, target, attrs, create_using=nx.DiGraph, renames={}, **kwargs
 ):
     """
     Converts a long OD table from a csv into a networkx graph, such that each
@@ -6136,16 +5775,16 @@ def skim_to_graph(
 
 
 def transit_skim_joins(
-    taz_to_tap,
-    tap_to_tap,
-    out_skim,
-    o_col="OName",
-    d_col="DName",
-    imp_col="Minutes",
-    origin_zones=None,
-    destination_zones=None,
-    total_cutoff=np.inf,
-    *kwargs,
+        taz_to_tap,
+        tap_to_tap,
+        out_skim,
+        o_col="OName",
+        d_col="DName",
+        imp_col="Minutes",
+        origin_zones=None,
+        destination_zones=None,
+        total_cutoff=np.inf,
+        *kwargs,
 ):
     """
 

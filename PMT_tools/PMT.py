@@ -28,12 +28,12 @@ from PMT_tools.utils import *
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
 ROOT = Path(SCRIPTS).parents[0]
 DATA = makePath(ROOT, "Data")
-RAW = makePath(DATA, "Raw")
-CLEANED = makePath(DATA, "Cleaned")
+RAW = makePath(DATA, "RAW")
+CLEANED = makePath(DATA, "CLEANED")
 REF = makePath(DATA, "Reference")
-BUILD = makePath(DATA, "Build")
-BASIC_FEATURES = makePath(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
-YEAR_GDB_FORMAT = makePath(DATA, "IDEAL_PMT_{year}.gdb")
+BUILD = makePath(DATA, "BUILD")
+BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb", "BasicFeatures")
+YEAR_GDB_FORMAT = makePath(CLEANED, "PMT_{year}.gdb")
 RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
 DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
 

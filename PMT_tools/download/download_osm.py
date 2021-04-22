@@ -28,13 +28,21 @@ import pickle
 from datetime import datetime
 
 import geopandas as gpd
+from shapely.geometry import Polygon, MultiPolygon
 import osmnx as ox
 from six import string_types
 
 
+# globals for scripts
+VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
+EPSG_LL = 4326
+EPSG_FLSPF = 2881
+EPSG_WEB_MERC = 3857
+
+
 def makePath(in_folder, *subnames):
     """Dynamically set a path (e.g., for iteratively referencing
-        year-specific geodatabases)
+    year-specific geodatabases)
     Args:
         in_folder (str): String or Path
         subnames (list/tuple): A list of arguments to join in making the full path
@@ -46,6 +54,13 @@ def makePath(in_folder, *subnames):
 
 
 def validate_directory(directory):
+    """Checks a provided directory path and returns the path if it exists,
+    if it doesnt exist, will attempt to create and return directory
+    Args:
+        directory (str): path to directory
+    Returns:
+        directory (str): path to the directory
+    """
     if os.path.isdir(directory):
         return directory
     else:
@@ -56,32 +71,20 @@ def validate_directory(directory):
             raise
 
 
-# globals for scripts
-VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
-EPSG_LL = 4326
-EPSG_FLSPF = 2881
-EPSG_WEB_MERC = 3857
-
-
 def validate_bbox(bbox):
-    """
-    Given a dictionary defining a bounding box, confirm its values are
+    """Given a dictionary defining a bounding box, confirm its values are
     valid. North/south values must be between -90 and 90 (latitude);
     east/west values must be between -180 and 180 (longitude).
 
-    Parameters
-    ------------
-    bbox: dict, A dictionary with keys 'south', 'west', 'north', and 'east' of EPSG:4326-style coordinates
+    Args:
+        bbox (dict): A dictionary with keys 'south', 'west', 'north', and 'east' of EPSG:4326-style coordinates
 
-    Returns
-    --------
-    None, This function simply raises exceptions if an invalid bounding box is provided
-
-    Raises
-    --------
-    ValueError
-        - If required keys are not found
-        - If provided coordinate values are not within valid ranges
+    Returns:
+        None, This function simply raises exceptions if an invalid bounding box is provided
+    Raises:
+        ValueError
+            - If required keys are not found
+            - If provided coordinate values are not within valid ranges
     """
     required = ["north", "south", "east", "west"]
     keys = list(bbox.keys())
@@ -103,7 +106,19 @@ def validate_bbox(bbox):
             raise ValueError(f"Invalid bounds provided - {problems}")
 
 
-def calc_bbox(gdf):
+def calc_osm_bbox(gdf):
+    """Given a polygon GeoDataFrame, returns an appropriately formatted bbox dict for OSM
+    Args:
+        gdf (gpd.GeoDataFrame): GeoDataFrame object
+    Returns:
+        bbox (dict): dictionary of coordinates representing the bbox for an area of interest,
+            formatted to work with osmnx
+    """
+    if not isinstance(gdf, Polygon):
+        raise TypeError(
+            f"geometry provided should be of 'Polygon' type,"
+            f"got {type(gdf)}"
+        )
     bounds = gdf.total_bounds
     return {
         "north": bounds[3],
@@ -114,29 +129,52 @@ def calc_bbox(gdf):
 
 
 def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
+    """validation method for input downloading osm data via osmnx
+    Args:
+        study_area_poly (:
+        bbox:
+        data_crs:
+    Returns:
+        bbox (dict): dictionary of 'north', 'south', 'east', 'west' coordinates
+    """
     if not any([study_area_poly, bbox]):
-        raise ValueError("You must provide a polygon or bbox for osmnx download")
+        raise ValueError(
+            "You must provide a polygon or bbox for osmnx download"
+        )
     if study_area_poly is not None:
         print("...Reading and formatting provided polygons for OSMnx extraction")
         sa_gdf = gpd.read_file(study_area_poly)
         # buffer aoi
-        sa_proj = sa_gdf.to_crs(epsg=EPSG_WEB_MERC)
+        sa_proj = sa_gdf.to_crs(epsg=data_crs)
         # Buffer AOI ~1 mile (necessary for proper composition of OSMnx networks)
         sa_buff = sa_proj.buffer(distance=1609.34).to_crs(epsg=EPSG_LL)
-        return calc_bbox(gdf=sa_buff)
+        return calc_osm_bbox(gdf=sa_buff)
     elif bbox is None:
-        raise ValueError("One of `study_area_polygons_path` or `bbox` must be provided")
+        raise ValueError(
+            "One of `study_area_polygons_path` or `bbox` must be provided"
+        )
     else:
         validate_bbox(bbox)
         return bbox
 
 
 def validate_network_types(network_types):
+    """validation method to confirm whether provided network string matches osmnx types
+    Args:
+        network_types (str or list): string or list of strings
+    Returns:
+        network_types (list): return list of network types
+    Raises:
+        ValueError
+            - if no item is in valid types
+    """
     if isinstance(network_types, string_types):
         network_types = [network_types]
     problems = [nt for nt in network_types if nt.lower() not in VALID_NETWORK_TYPES]
     if problems:
-        raise ValueError("Invalid net_type specified ({})".format(problems))
+        raise ValueError(
+            "Invalid net_type specified ({})".format(problems)
+        )
     else:
         return [nt.lower() for nt in network_types]
 
@@ -153,26 +191,27 @@ def download_osm_networks(
     """Download an OpenStreetMap network within the area defined by a polygon
         feature class of a bounding box.
     Args:
-        output_dir: Path, Path to output directory. Each modal network (specified by `net_types`)
+        output_dir (str): Path, Path to output directory. Each modal network (specified by `net_types`)
                 is saved to this directory within an epoynmous folder  as a shape file.
                 If `pickle_save` is True, pickled graph objects are also stored in this directory in the
                 appropriate subfolders.
-        polygon: Path, default=None; Path to study area polygon(s) shapefile. If provided, the polygon
+        polygon (str): Path, default=None; Path to study area polygon(s) shapefile. If provided, the polygon
                 features define the area from which to fetch OSM features and `bbox` is ignored.
                 See module notes for performance and suggestions on usage.
-        bbox: dict, default=None; A dictionary with keys 'south', 'west', 'north', and 'east' of
+        bbox (dict): default=None; A dictionary with keys 'south', 'west', 'north', and 'east' of
                 EPSG:4326-style coordinates, defining a bounding box for the area from which to
                 fetch OSM features. Only required when `study_area_polygon_path` is not provided.
                 See module notes for performance and suggestions on usage.
-        net_types: list, [String,...], default=["drive", "walk", "bike"]
+        data_crs (int): integer value representing an EPSG code
+        net_types (list): [String,...], default=["drive", "walk", "bike"]
                 A list containing any or all of "drive", "walk", or "bike", specifying
                 the desired OSM network features to be downloaded.
-        pickle_save: boolean, default=False; If True, the downloaded OSM networks are saved as
+        pickle_save (bool): default=False; If True, the downloaded OSM networks are saved as
                 python `networkx` objects using the `pickle` module. See module notes for usage.
-        suffix: String, default=""; Downloaded datasets may optionally be stored in folders with
+        suffix (str): default=""; Downloaded datasets may optionally be stored in folders with
                 a suffix appended, differentiating networks by date, for example.
     Returns:
-        G: dict; A dictionary of networkx graph objects. Keys are mode names based on
+        G (dict): A dictionary of networkx graph objects. Keys are mode names based on
                 `net_types`; values are graph objects.
     """
     # Validation of inputs
@@ -228,38 +267,30 @@ def download_osm_buildings(
     polygon=None,
     bbox=None,
     data_crs=None,
-    fields=["osmid", "building", "name", "geometry"],
+    keep_fields=["osmid", "building", "name", "geometry"],
     suffix="",
 ):
-    """
-    Uses an Overpass query to fetch the OSM building polygons within a
+    """Uses an Overpass query to fetch the OSM building polygons within a
     specified bounding box or the bounding box of a provided shapefile.
-
-    Parameters
-    -----------
-    output_dir: Path
-        Path to output directory.
-    bbox: dict, default=None
-        A dictionary with keys 'south', 'west', 'north', and 'east' of
-        EPSG:4326-style coordinates, defining a bounding box for the area
-        from which to fetch OSM features. Only required when
-        `study_area_polygon_path` is not provided. See module notes for
-        performance and suggestions on usage.
-    fields:
-    Returns
-    ----------
-    buildings_gdf: geodataframe
-        A gdf of OSM building features. By default, the CRS of the gdf will be
-        EPSG:4326 unless a tranformation is specified using `transfor_epsg` or
-        a shape file with a differnt CRS is provided as
-        `study_area_polygon_path`.
-
-    Notes
-    --------
-    1. OSM building polygons features will automatically be saved in the
-       `output_dir`s `OSM_Buildings_{YYYYMMDDHHMMSS}.shp` where
-       `YYYYMMDDHHMMSS` is the date and time at which the Overpass query was
-        pushed. This is done for record keeping purposes.
+    Args:
+        output_dir: Path
+            Path to output directory.
+        polygon (str): path to a shapefile or geojson object readable by geopandas
+        bbox (dict): default=None; A dictionary with keys 'south', 'west', 'north', and 'east' of
+            EPSG:4326-style coordinates, defining a bounding box for the area from which to fetch
+            OSM features. Only required when `study_area_polygon_path` is not provided. See module
+            notes for performance and suggestions on usage.
+        data_crs (int): integer value representing an EPSG code
+        keep_fields (list): list of fields to keep in output dataset
+        suffix (str): string value to be added to the end of the output folder
+    Returns:
+        buildings_gdf (gpd.GeoDataFrame): A gdf of OSM building features. By default, the CRS of
+            the gdf will be EPSG:4326 unless a tranformation is specified using `transfor_epsg` or
+            a shape file with a differnt CRS is provided as `study_area_polygon_path`.
+    Notes:
+        1. OSM building polygons features will automatically be saved in the `output_dir`s
+        `OSM_Buildings_{YYYYMMDDHHMMSS}.shp` where `YYYYMMDDHHMMSS` is the date and time at which
+        the Overpass query was pushed. This is done for record keeping purposes.
     """
 
     # Validation of inputs
@@ -285,7 +316,7 @@ def download_osm_buildings(
     buildings_gdf = buildings_gdf[
         buildings_gdf.geom_type.isin(["MultiPolygon", "Polygon"])
     ]
-    drop_cols = [col for col in buildings_gdf.columns if col not in fields]
+    drop_cols = [col for col in buildings_gdf.columns if col not in keep_fields]
     buildings_gdf.drop(labels=drop_cols, axis=1, inplace=True)
     buildings_gdf.reset_index()
 

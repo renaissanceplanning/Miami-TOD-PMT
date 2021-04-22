@@ -21,7 +21,8 @@ STN_NAME_FIELD = "Name"
 STN_STATUS_FIELD = "Status"
 STN_BUFF_DIST = "2640 Feet"
 STN_BUFF_METERS = 804.672
-STN_DISS_FIELDS = ["Id", "Name", "Status"]
+STN_ID_FIELD = "Id"
+STN_DISS_FIELDS = [STN_ID_FIELD, STN_NAME_FIELD, STN_STATUS_FIELD]
 STN_CORRIDOR_FIELDS = [
     "Beach",
     "EastWest",
@@ -654,7 +655,7 @@ MAZ_PAR_CONS = [
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
-    Column(name="hh", rename="HH"),
+    Column(name="HH"),
     Column(name="emp_total", rename="TotalJobs"),
     Consolidation(
         name="ConsJobs",

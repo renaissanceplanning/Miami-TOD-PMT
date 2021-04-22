@@ -235,10 +235,11 @@ SA_BLOCK_ENRICH = {
         AggColumn(BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks"),
         AggColumn(name="TotalArea", rename="BlockArea"),
         AggColumn(name="NonDevArea"),
-        AggColumn("DevOSArea"),
-        AggColumn("DevLowArea"),
+        AggColumn(name="DevOSArea"),
+        AggColumn(name="DevLowArea"),
         AggColumn(name="DevMedArea"),
-        AggColumn("DevHighArea"),
+        AggColumn(name="DevHighArea"),
+        AggColumn(name="IMP_PCT", agg_method="mean"),
     ],
     "consolidate": [
         Consolidation(
@@ -371,7 +372,7 @@ ENRICH_INTS = [
 
 """ 
 #######################
-elongate var dicts 
+ELONGATE var dicts 
 sources: Summary geometry and disaggregation geometry pair ordered Summ, Disag
 grouping: Attribute used to group the disaggregated data up to the summary geometry
 agg_cols: columns to be aggregate up, including any renaming, optional aggregation method available (default=sum)
@@ -540,7 +541,38 @@ SA_BLOCK_DEV_STATUS_LONG = {
     "sources": (SUM_AREA_FC_SPECS, BLOCK_FC_SPECS),
     "grouping": SA_GROUP_COLS,
     "agg_cols": [YEAR_COL, AggColumn(name="TotalArea")],
-    "consolidate": [],
+    "consolidate": [
+        Consolidation(
+            name="BlocKFlrAr",
+            input_cols=["TotalArea", "TOT_LVG_AREA"],
+            cons_method=np.product,
+        ),
+        Consolidation(
+            name="NonDevFlrAr",
+            input_cols=["NonDevArea", "TOT_LVG_AREA"],
+            cons_method=np.product,
+        ),
+        Consolidation(
+            name="DevOSFlrAr",
+            input_cols=["DevOSArea", "TOT_LVG_AREA"],
+            cons_method=np.product,
+        ),
+        Consolidation(
+            name="DevLowFlrAr",
+            input_cols=["DevLowArea", "TOT_LVG_AREA"],
+            cons_method=np.product,
+        ),
+        Consolidation(
+            name="DevMedFlrAr",
+            input_cols=["DevMedArea", "TOT_LVG_AREA"],
+            cons_method=np.product,
+        ),
+        Consolidation(
+            name="DevHiFlrAr",
+            input_cols=["DevHighArea", "TOT_LVG_AREA"],
+            cons_method=np.product,
+        ),
+    ],
     "melt_cols": MeltColumn(
         label_col="DevStatus",
         val_col="Area",
@@ -606,6 +638,15 @@ def divide(numerator, denominator):
         return None
     else:
         return numerator / denominator
+    """
+DIVIDE_TO_PERCENT_CODE_BLOCK = """
+def divide(numerator, denominator):
+    if None in [numerator, denominator]:
+        return None
+    elif denominator == 0:
+        return None
+    else:
+        return (numerator / denominator) * 100
     """
 DENSITY_CODE_BLOCK = """
 def density(numerator, denominator, scalar):
@@ -908,39 +949,39 @@ CENT_IDX = {
     "code_block": DIVIDE_CODE_BLOCK,
 }
 NONDEV_FA_SHR = {
-    "tables": [SUM_AREA_FC_SPECS],
+    "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "NONDEV_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!NonDevFlrAr!, !BlockFlrAr!) * 100",
-    "code_block": DIVIDE_CODE_BLOCK
+    "expr": "divide(!NonDevFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
 }
 DEVOS_FA_SHR = {
-    "tables": [SUM_AREA_FC_SPECS],
+    "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVOS_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevOSFlrAr!, !BlockFlrAr!) * 100",
-    "code_block": DIVIDE_CODE_BLOCK
+    "expr": "divide(!DevOSFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
 }
 DEVLOW_FA_SHR = {
-    "tables": [SUM_AREA_FC_SPECS],
+    "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVLOW_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevLowFlrAr!, !BlockFlrAr!)* 100",
-    "code_block": DIVIDE_CODE_BLOCK
+    "expr": "divide(!DevLowFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
 }
 DEVMED_FA_SHR = {
-    "tables": [SUM_AREA_FC_SPECS],
+    "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVMED_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevMedFlrAr!, !BlockFlrAr!) * 100",
-    "code_block": DIVIDE_CODE_BLOCK
+    "expr": "divide(!DevMedFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
 }
 DEVHI_FA_SHR = {
-    "tables": [SUM_AREA_FC_SPECS],
+    "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVHI_FA_SHR",
     "field_type": "FLOAT",
-    "expr": "divide(!DevHiFlrAr!, !BlockFlrAr!) * 100",
-    "code_block": DIVIDE_CODE_BLOCK
+    "expr": "divide(!DevHiFlrAr!, !BlockFlrAr!)",
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
 }
 PARKS_PER_CAP = {
     "tables": [SUM_AREA_FC_SPECS],
@@ -991,6 +1032,7 @@ CALCS = [
     DEVMED_FA_SHR,
     DEVHI_FA_SHR,
     PARKS_PER_CAP,
+    #
 ]
 
 """ TREND PARAMS """

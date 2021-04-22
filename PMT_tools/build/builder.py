@@ -306,13 +306,13 @@ def process_year_to_snapshot(year):
     B_HELP.apply_field_calcs(gdb=out_gdb, new_field_specs=B_CONF.CALCS + reg_ref_calcs)
 
     # Delete tempfiles
-    print("Removing temp files")
+    print("--- --- Removing temp files")
     for summ_key, summ_val in int_fcs.items():
         for disag_key, disag_val in summ_val.items():
             arcpy.Delete_management(in_data=disag_val)
 
     # Rename this output
-    print("Finalizing the snapshot")
+    print("--- --- Finalizing the snapshot")
     if year == PMT.SNAPSHOT_YEAR:
         year = "Current"
     year_out_gdb = PMT.makePath(BUILD, f"Snapshot_{year}.gdb")
@@ -320,7 +320,7 @@ def process_year_to_snapshot(year):
 
 
 def process_years_to_trend(
-    years, tables, long_features, diff_features, base_year=None, snapshot_year=None
+    years, tables, long_features, diff_features, base_year=None, snapshot_year=None, out_gdb_name=None
 ):
     """
     TODO: add a try/except to delete any intermediate data created
@@ -332,6 +332,8 @@ def process_years_to_trend(
         snapshot_year = years[-1]
     if base_year not in years or snapshot_year not in years:
         raise ValueError("Base year and snapshot year must be in years list")
+    if out_gdb_name is None:
+        out_gdb_name = "Trend"
 
     # Set criteria
     table_criteria = [spec["table"] for spec in tables]
@@ -341,12 +343,17 @@ def process_years_to_trend(
     # make a blank geodatabase
     out_path = PMT.validate_directory(BUILD)
     out_gdb = B_HELP.make_trend_template(out_path)
-    # out_gdb = r"K:\Projects\MiamiDade\PMT\Data\PROCESSING_TEST\BUILD\_b778e67ba92e4497953587e6c94122f9.gdb"
 
     # Get snapshot data
     for yi, year in enumerate(years):
+        process_year = year
+        if year == snapshot_year:
+            if year == "NearTerm":
+                process_year = snapshot_year = "NearTerm"
+            else:
+                process_year = snapshot_year = "Current"
         in_gdb = PMT.validate_geodatabase(
-            gdb_path=PMT.makePath(BUILD, f"Snapshot_{year}.gdb"), overwrite=False
+            gdb_path=PMT.makePath(BUILD, f"Snapshot_{process_year}.gdb"), overwrite=False
         )
         # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
@@ -365,22 +372,23 @@ def process_years_to_trend(
                 )
             else:
                 # Append to the output table
-                print(f"Appending to long table {elong_out_name} ({year})")
+                print(f"Appending to long table {elong_out_name} ({process_year})")
                 out_table = PMT.makePath(out_gdb, elong_out_name)
                 arcpy.Append_management(
                     inputs=elong_table, target=out_table, schema_type="NO_TEST"
                 )
         # Get snapshot and base year params
-        if year == base_year:
+        if process_year == base_year:
             base_tables = year_tables[:]
             base_fcs = B_HELP._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
-        elif year == snapshot_year:
+        elif process_year == snapshot_year:
             snap_tables = year_tables[:]
             snap_fcs = B_HELP._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
+
     # Make difference tables (snapshot - base)
     for base_table, snap_table, specs in zip(base_tables, snap_tables, tables):
         out_name = os.path.split(base_table)[1] + "_diff"
@@ -437,7 +445,7 @@ def process_years_to_trend(
     # TODO: calculate percent change in value over base for summary areas
 
     print("Finalizing the trend")
-    final_gdb = PMT.makePath(BUILD, f"{out_name}.gdb")
+    final_gdb = PMT.makePath(BUILD, f"{out_gdb_name}.gdb")
     B_HELP.finalize_output(intermediate_gdb=out_gdb, final_gdb=final_gdb)
 
 
@@ -474,6 +482,7 @@ if __name__ == "__main__":
         tables=B_CONF.DIFF_TABLES,
         long_features=B_CONF.LONG_FEATURES,
         diff_features=B_CONF.DIFF_FEATURES,
+        out_gdb_name="Trend"
     )
     # Process near term "trend"
     print("Building Near term 'Trend' database...")
@@ -484,5 +493,6 @@ if __name__ == "__main__":
         diff_features=B_CONF.DIFF_FEATURES,
         base_year="Current",
         snapshot_year="NearTerm",
+        out_gdb_name="NearTerm"
     )
     B_HELP.post_process_databases(basic_features_gdb=BASIC_FEATURES, build_dir=BUILD)

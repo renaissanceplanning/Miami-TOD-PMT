@@ -49,7 +49,6 @@ def download_census():
         - downloads LODES data to table
     """
     # download and extract census geographies
-    geo_types = ["tabblock", "bg"]
     dl_dir = makePath(RAW, "temp_downloads")
     ext_dir = makePath(RAW, "CENSUS")
     for path in [dl_dir, ext_dir]:
