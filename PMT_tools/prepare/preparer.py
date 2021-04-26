@@ -589,12 +589,16 @@ def agg_to_zone(parcel_fc, agg_field, zone_fc, zone_id):
 
 def process_osm_networks():
     """
-    - copy bike edges and walk edges to osm version database (formatting if field mapping is passed)
-    - Year over Year, copy the bike_edges to the Networks FDS
-    - generate NetworkDataset for both walk and bike networks
-    Returns:
-        intermediate GDB for bike and walk networks containing the ND
-        bike and walk edges in the year gdb Network FDS
+    Creates bicycle and walk networks from osm-downloaded shape files and a network
+    dataset template.
+
+    Inputs:
+    - RAW\\OpenStreetMap\\{mode}_{vintage}\\edges.shp
+    - REF\\osm_{mode}_template.xml
+
+    Outputs:
+    - CLEANED\\osm_networks\\{mode}_{vintage}.gdb
+    - CLEANED\\PMT_{year}.gdb\\Networks\\edges_bike
     """
     net_versions = sorted({v[0] for v in prep_conf.NET_BY_YEAR.values()})
     for net_version in net_versions:
@@ -651,7 +655,7 @@ def process_osm_networks():
 
             # Build network datasets
             template = makePath(REF, f"osm_{net_type}_template.xml")
-            P_HELP.makeNetworkDataset(
+            OSM_HELP.makeNetworkDataset(
                 template_xml=template,
                 out_feature_dataset=net_type_fd,
                 net_name="osm_ND",
@@ -741,6 +745,17 @@ def process_allocate_bg_to_parcels(overwrite=True):
 
 
 def process_osm_skims():
+    """
+    Estimated travel time by walking and biking between all MAZ origin-destination
+    pairs and store in a long csv table.
+
+    Inputs
+    - CLEANED\osm_networks\{mode}_{vintage}.gdb
+    - CLEANED\PMT_{year}.gdb\Polygons\MAZ
+
+    Outputs
+    - CLEANED\osm_networks\{mode}_Skim_{vintage}.csv
+    """
     if arcpy.CheckExtension("network") == "Available":
         arcpy.CheckOutExtension("network")
     else:
@@ -935,6 +950,25 @@ def process_model_skims():
 
 
 def process_osm_service_areas():
+    """
+    Estimates service area lines and polygons defining the 30-minute walkshed
+    around transit stations and park facilities.
+
+    Inputs
+    - BASIC_FEATURES\\SMARTplanStations
+    - CLEANED\\Park_Points.shp
+    - CLEANED\\osm_networks\\walk_{vintage}.gdb
+
+    Outputs
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_parks_MERGE
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_parks_NO_MERGE
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_parks_NON_OVERLAP
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_parks_OVERLAP
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_stn_MERGE
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_stn_NO_MERGE
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_stn_NON_OVERLAP
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_stn_OVERLAP
+    """
     # Facilities
     #  - Stations
     stations = makePath(BASIC_FEATURES, "SMARTplanStations")
@@ -1016,7 +1050,18 @@ def process_osm_service_areas():
 
 
 def process_centrality():
-    # For each analysis year, analyze networks (avoid redundant solves)
+    """
+    For each analysis year, analyze network centrality for all nodes in the bike
+    network. Assigns a centrality score to parcels based on nearby network nodes.
+
+    Inputs:
+    - CLEANED\\osm_networks\\bike_{vintage}.gdb
+    - CLEANED\\PMT_{year}.gdb\\Polygons\\parcels
+
+    Outputs:
+    - CLEANED\\PMT_{year}.gdb\\Networks\\nodes_bike
+    - CLEANED\\PMT_{year}.gdb\\Centrality_parcels
+    """
     solved = []
     solved_years = []
     node_id = "NODE_ID"
@@ -1143,6 +1188,18 @@ def process_centrality():
 
 
 def process_walk_times():
+    """
+    Estimates walk times from parcels to stations and parcels to parks based on
+    spatial relationships among parcel features and service area lines.
+
+    Inputs
+    - CLEANED\\PMT_{year}.gdb\\Polygons\\parcels
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_stn_MERGE
+    - CLEANED\\PMT_{year}.gdb\\Networks\\walk_to_parks_MERGE
+
+    Outputs
+    - CLEANED\\PMT_{year}.gdb\\WalkTime_parcels
+    """
     print("\nProcessing Walk Times:")
     target_names = ["stn_walk", "park_walk"]  # , "stn_bike", "park_bike"]
     ref_fcs = [
@@ -1198,6 +1255,19 @@ def process_walk_times():
 
 
 def process_ideal_walk_times(overwrite=True):
+    """
+    Estimates hypothetical walk times from parcels to stations and parcels to parks based on
+    spatial relationships among parcel features and stations, parks. Assumes a constant walk
+    speed.
+
+    Inputs
+    - CLEANED\\PMT_{year}.gdb\\Polygons\\parcels
+    - CLEANED\\Park_Points.shp
+    - BASIC_FEATURES\\SMARTplanStations
+
+    Outputs
+    - CLEANED\\PMT_{year}.gdb\\WalkTimeIdeal_parcels
+    """
     print("\nProcessing Ideal Walk Times:")
     targets = ["stn", "park"]
     for year in YEARS:
@@ -1248,6 +1318,23 @@ def process_ideal_walk_times(overwrite=True):
 
 
 def process_access():
+    """
+    Summarizes activities (jobs, school enrollments, housing units, etc.) reachable
+    from zone features (MAZs for non-motorized modes, TAZs for motorized modes) by
+    alternative travel modes (walk, bike, transit, auto).
+
+    Inputs
+    - CLEANED\\osm_networks\\{mode})Skim_{vintage}.csv
+    - CLEANED\\SERPM\\SERPM_OD_{model_year}.csv
+    - CLEANED\\PMT_{year}.gdb\\EconDemog_MAZ
+    - CLEANED\\PMT_{year}.gdb\\EconDemog_TAZ
+
+    Outputs
+    - CLEANED\\PMT_{year}.gdb\\Access_maz_Bike
+    - CLEANED\\PMT_{year}.gdb\\Access_maz_Walk
+    - CLEANED\\PMT_{year}.gdb\\Access_taz_Auto
+    - CLEANED\\PMT_{year}.gdb\\Access_taz_Transit
+    """
     for year in YEARS:
         print(f"Analysis year: {year}")
         gdb = makePath(CLEANED, f"PMT_{year}.gdb")
@@ -1632,6 +1719,9 @@ def process_walk_to_transit_skim():
 
 
 def process_serpm_transit():
+    """
+
+    """
     # Make a graph from TAP to TAP skim
     serpm_raw = makePath(RAW, "SERPM")
     serpm_clean = makePath(CLEANED, "SERPM")
@@ -1752,7 +1842,7 @@ if __name__ == "__main__":
         changes to the code you might need to handle without munging the existing data
         """
         ROOT = (
-            r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data"
+            r"K:\Projects\temp_PMT\network_updates"
         )
         RAW = validate_directory(
             directory=makePath(ROOT, "RAW")
@@ -1800,14 +1890,14 @@ if __name__ == "__main__":
     # enrich_block_groups()  # TESTED CR 03/12/21 added src attributes for enrichement data
 
     # MODELS MISSING DATA WHERE APPROPRIATE AND DISAGGREGATES BLOCK LEVEL DATA DOWN TO PARCEL LEVEL
-    process_bg_apply_activity_models()  # TESTED CR 03/02/21
-    process_allocate_bg_to_parcels()
+    # process_bg_apply_activity_models()  # TESTED CR 03/02/21
+    # process_allocate_bg_to_parcels()
 
     # ADDS LAND USE TABLE FOR PARCELS INCLUDING VACANT, RES AND NRES AREA
     # process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
 
     # prepare maz and taz socioeconomic/demographic data
-    process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
+    # process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
 
     ###################################################################
     # ------------------ NETWORK ANALYSES -----------------------------
@@ -1843,15 +1933,15 @@ if __name__ == "__main__":
     # -----------------DEPENDENT ANALYSIS------------------------------
     ###################################################################
     # ANALYZE ACCESS BY MAZ, TAZ
-    process_access()  # TESTED by AB 4/11/21 with transit skim
+    # process_access()  # TESTED by AB 4/11/21 with transit skim
 
     # PREPARE TAZ TRIP LENGTH AND VMT RATES
-    process_travel_stats()  # Tested by AB 4/1/21
+    # process_travel_stats()  # Tested by AB 4/1/21
 
     # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
-    process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
+    # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
 
-    process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
+    # process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years
     # process_contiguity()
