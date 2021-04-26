@@ -495,7 +495,8 @@ def intersectFeatures(
     full_geometries=False,
 ):
     """
-        creates a temporary intersected feature class for disaggregation of data
+    creates a temporary intersected feature class for disaggregation of data
+
     Args:
         summary_fc: String; path to path to polygon feature class with data to be disaggregated from
         disag_fc: String; path to polygon feature class with data to be disaggregated to
@@ -506,9 +507,11 @@ def intersectFeatures(
             they are stored in memory
         full_geometries: Boolean; if True, intersections are run against the complete geometries of
             features in `disag_fc`, otherwise only centroids are used.
+
     Returns:
         int_fc: String; path to temp intersected feature class
     """
+    desc = arcpy.Describe(value=disag_fc)
     if in_temp_dir:
         # Create a temporary gdb for storing the intersection result
         temp_dir = tempfile.mkdtemp()
@@ -528,6 +531,8 @@ def intersectFeatures(
 
     if not full_geometries:
         # dump to centroids
+        if desc.shapeType != "Polygon":
+            raise Exception("disagg features must be polygon to limit intersection to centroids")
         disag_fc = polygonsToPoints(
             in_fc=disag_fc,
             out_fc=points_fc,

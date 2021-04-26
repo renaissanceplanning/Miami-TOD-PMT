@@ -256,6 +256,8 @@ PARK_POLY_COMMON_KEY = "PARK_PY_ID"
 bike facilities configuration
 """
 BIKE_FAC_COMMON_KEY = "FacID"
+BIKE_FAC_COL = "Bike_Fac"
+BIKE_MILES_COL = "Bike_Miles"
 
 """
 Configuration variables to be used with building permit data

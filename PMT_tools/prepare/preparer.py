@@ -1420,13 +1420,43 @@ def process_contiguity(overwrite=True):
         dfToTable(df=ctgy_summarized, out_table=summarized_path, overwrite=overwrite)
 
 
-def process_bike_miles(): # process bike miles at summary area (wide by facility type)
+def process_bike_miles(overwrite=True):
+    """
+    Takes in
+
+    """
+    # process bike miles at summary area (wide by facility type)
     print("\nProcessing Bike Facilities to summary areas")
     for year in YEARS:
         print(f"{str(year)}:")
         gdb = makePath(CLEANED, f"PMT_{year}.gdb")
-        bike_fac_fc = makePath(gdb, "Networks", "bike_facilites")
-        summ_area_fc = makePath(gdb, "Polygons", "")
+        bike_fac_fc = makePath(gdb, "Networks", "bike_facilities")
+        summ_area_fc = makePath(gdb, "Polygons", "SummaryAreas")
+        out_tbl = makePath(gdb, "BikeFac_summaryareas")
+        use_cols = [prep_conf.SUMMARY_AREAS_COMMON_KEY, prep_conf.BIKE_MILES_COL]
+
+        # intersect bike_fac and summary areas
+        print("--- intersecting summary areas with bike facilities")
+        fac_int = PMT.intersectFeatures(
+            summary_fc=summ_area_fc, disag_fc=bike_fac_fc, full_geometries=True
+        )
+        # update Bike_miles based on intersection
+        print("--- recalculating length of facilities within each summary area")
+        arcpy.CalculateGeometryAttributes_management(
+            in_features=fac_int, geometry_property=f"{prep_conf.BIKE_MILES_COL} LENGTH_GEODESIC", length_unit="MILES_US"
+        )
+        fac_int_df = PMT.featureclass_to_df(in_fc=fac_int, keep_fields=use_cols)
+        # Intersect can alter field name
+        col_rename = {
+            f"{prep_conf.SUMMARY_AREAS_COMMON_KEY}_": prep_conf.SUMMARY_AREAS_COMMON_KEY
+        }
+        fac_int_df.rename(columns=col_rename, inplace=True)
+        print("--- summarizing bike miles to summary area")
+        sa_grp = fac_int_df.groupby(prep_conf.SUMMARY_AREAS_COMMON_KEY).agg({prep_conf.BIKE_MILES_COL: sum})
+        sa_grp.reset_index(inplace=True)
+        dfToTable(df=sa_grp, out_table=out_tbl, overwrite=overwrite)
+
+
 def process_lu_diversity():
     print("\nProcessing Land Use Diversity...")
     summary_areas_fc = makePath(BASIC_FEATURES, "SummaryAreas")
@@ -1461,6 +1491,7 @@ def process_lu_diversity():
             as_df=True,
         )
 
+
         # Intersect can alter field name
         col_rename = {
             f"{prep_conf.SUMMARY_AREAS_COMMON_KEY}_": prep_conf.SUMMARY_AREAS_COMMON_KEY
@@ -1485,10 +1516,10 @@ def process_lu_diversity():
         ]
         count_lu = len(prep_conf.DIV_RELEVANT_LAND_USES)
         div_df = P_HELP.lu_diversity(
-            in_df,
-            prep_conf.SUMMARY_AREAS_COMMON_KEY,
-            prep_conf.LU_RECODE_FIELD,
-            div_funcs,
+            in_df=in_df,
+            groupby_field=prep_conf.SUMMARY_AREAS_COMMON_KEY,
+            lu_field=prep_conf.LU_RECODE_FIELD,
+            div_funcs=div_funcs,
             weight_field=prep_conf.PARCEL_BLD_AREA_COL,
             count_lu=count_lu,
             regional_comp=True,
@@ -1806,7 +1837,7 @@ if __name__ == "__main__":
         REF = makePath(ROOT, "Reference")
         RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
         DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
-        YEARS = ["NearTerm"]
+        YEARS = PMT.YEARS + ["NearTerm"]
 
     ###################################################################
     # ------------------- SETUP CLEAN DATA ----------------------------
@@ -1840,7 +1871,7 @@ if __name__ == "__main__":
 
     # MODELS MISSING DATA WHERE APPROPRIATE AND DISAGGREGATES BLOCK LEVEL DATA DOWN TO PARCEL LEVEL
     # process_bg_apply_activity_models()  # TESTED CR 03/02/21
-    process_allocate_bg_to_parcels()
+    # process_allocate_bg_to_parcels()
 
     # ADDS LAND USE TABLE FOR PARCELS INCLUDING VACANT, RES AND NRES AREA
     # process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
@@ -1890,6 +1921,8 @@ if __name__ == "__main__":
     # # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
     # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
     #
+    # # make a wide table of bike facilities
+    process_bike_miles()
     # process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years
