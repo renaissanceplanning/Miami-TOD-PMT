@@ -1912,7 +1912,7 @@ if __name__ == "__main__":
         changes to the code you might need to handle without munging the existing data
         """
         ROOT = (
-            r"K:\Projects\temp_PMT\network_updates"
+            r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data"
         )
         RAW = validate_directory(
             directory=makePath(ROOT, "RAW")
@@ -1967,7 +1967,7 @@ if __name__ == "__main__":
     # process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
 
     # prepare maz and taz socioeconomic/demographic data
-    # process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
+    process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
 
     ###################################################################
     # ------------------ NETWORK ANALYSES -----------------------------
@@ -2012,7 +2012,7 @@ if __name__ == "__main__":
     # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
     #
     # # make a wide table of bike facilities
-    process_bike_miles()
+    # process_bike_miles()
     # process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years

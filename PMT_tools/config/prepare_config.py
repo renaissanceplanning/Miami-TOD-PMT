@@ -657,7 +657,7 @@ MAZ_PAR_CONS = [
 ]
 # - MAZ consolidation specs (from MAZ se data)
 MAZ_SE_CONS = [
-    Column(name="HH"),
+    Column(name="HH", rename="HH"),
     Column(name="emp_total", rename="TotalJobs"),
     Consolidation(
         name="ConsJobs",

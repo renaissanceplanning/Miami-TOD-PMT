@@ -57,6 +57,8 @@ class Column:
         self.default = default
         self.rename = rename
         self.domain = domain
+        if self.rename is None:
+            self.rename = self.name
 
     def __setattr__(self, name, value):
         if name == "domain":
