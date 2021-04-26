@@ -651,7 +651,7 @@ def process_osm_networks():
 
             # Build network datasets
             template = makePath(REF, f"osm_{net_type}_template.xml")
-            P_HELP.makeNetworkDataset(
+            OSM_HELP.makeNetworkDataset(
                 template_xml=template,
                 out_feature_dataset=net_type_fd,
                 net_name="osm_ND",
@@ -1752,7 +1752,7 @@ if __name__ == "__main__":
         changes to the code you might need to handle without munging the existing data
         """
         ROOT = (
-            r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data"
+            r"K:\Projects\temp_PMT\network_updates"
         )
         RAW = validate_directory(
             directory=makePath(ROOT, "RAW")
@@ -1800,14 +1800,14 @@ if __name__ == "__main__":
     # enrich_block_groups()  # TESTED CR 03/12/21 added src attributes for enrichement data
 
     # MODELS MISSING DATA WHERE APPROPRIATE AND DISAGGREGATES BLOCK LEVEL DATA DOWN TO PARCEL LEVEL
-    process_bg_apply_activity_models()  # TESTED CR 03/02/21
-    process_allocate_bg_to_parcels()
+    # process_bg_apply_activity_models()  # TESTED CR 03/02/21
+    # process_allocate_bg_to_parcels()
 
     # ADDS LAND USE TABLE FOR PARCELS INCLUDING VACANT, RES AND NRES AREA
     # process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
 
     # prepare maz and taz socioeconomic/demographic data
-    process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
+    # process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
 
     ###################################################################
     # ------------------ NETWORK ANALYSES -----------------------------
@@ -1843,15 +1843,15 @@ if __name__ == "__main__":
     # -----------------DEPENDENT ANALYSIS------------------------------
     ###################################################################
     # ANALYZE ACCESS BY MAZ, TAZ
-    process_access()  # TESTED by AB 4/11/21 with transit skim
+    # process_access()  # TESTED by AB 4/11/21 with transit skim
 
     # PREPARE TAZ TRIP LENGTH AND VMT RATES
-    process_travel_stats()  # Tested by AB 4/1/21
+    # process_travel_stats()  # Tested by AB 4/1/21
 
     # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
-    process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
+    # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
 
-    process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
+    # process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years
     # process_contiguity()
