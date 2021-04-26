@@ -18,6 +18,7 @@ from PMT_tools.config import prepare_config as prep_conf
 # prep/clean helper functions
 import PMT_tools.prepare.prepare_helpers as P_HELP
 import PMT_tools.prepare.prepare_osm_networks as OSM_HELP
+import PMT_tools.build.build_helper as B_HELP
 
 # PMT functions
 from PMT_tools import PMT
@@ -712,32 +713,65 @@ def process_bg_apply_activity_models(overwrite=True):
 
 def process_allocate_bg_to_parcels(overwrite=True):
     print("\nProcessing modeled data to generate allocation to parcels...")
+    snap_gdb = makePath(CLEANED, f"PMT_{SNAPSHOT_YEAR}.gdb")
     for year in YEARS:
         # Set the inputs based on the year
         print(f"{year} allocation begun")
-        out_gdb = YEAR_GDB_FORMAT.replace("YEAR", str(year))
+        out_gdb = makePath(CLEANED, f"PMT_{year}.gdb")
         parcel_fc = makePath(out_gdb, "Polygons", "Parcels")
-        bg_modeled = makePath(out_gdb, "Modeled_blockgroups")    # TODO: read in as DF for the function
         bg_geom = makePath(out_gdb, "Polygons", "Census_BlockGroups")
-        # TODO: if nearterm, filter parcels to permitted
-        #   then process bg_modeled as difference between NT and Snapshot
-        #       - B_HELP.table_difference (update alloc_bg_to to check type of bg_modeled)
-        #       - add where clause to read in permitted parcels
+        bg_modeled = makePath(out_gdb, "Modeled_blockgroups")    # TODO: read in as DF for the function
+
+        # if nearterm, filter parcels to permitted then process bg_modeled as difference between NT and Snapshot
+        if year == "NearTerm":
+            # set where clause to limit parecel data to only PERMITTED changes
+            wc = arcpy.AddFieldDelimiters(datasource=parcel_fc, field="PERMIT") + " = 1"
+            # take the difference between NT and Snap modeled data prior to allocation
+            bg_modeled_snap = makePath(snap_gdb, "Modeled_blockgroups")
+            bg_modeled = B_HELP.table_difference(
+                this_table=bg_modeled, base_table=bg_modeled_snap, idx_cols=prep_conf.BG_COMMON_KEY
+            )
+        else:
+            wc = ""
+            bg_modeled = PMT.table_to_df(in_tbl=bg_modeled)
         # Allocate
-        checkOverwriteOutput(
-            output=makePath(out_gdb, "EconDemog_parcels"), overwrite=overwrite
-        )
-        alloc_df = P_HELP.allocate_bg_to_parcels(bg_modeled=bg_modeled, bg_geom=bg_geom,
-                                                 bg_id_field=prep_conf.BG_COMMON_KEY, parcel_fc=parcel_fc,
-                                                 parcels_id=prep_conf.PARCEL_COMMON_KEY,
-                                                 parcel_lu=prep_conf.LAND_USE_COMMON_KEY,
+        alloc_df = P_HELP.allocate_bg_to_parcels(bg_modeled_df=bg_modeled, bg_geom=bg_geom,
+                                                 bg_id_field=prep_conf.BG_COMMON_KEY,
+                                                 parcel_fc=parcel_fc, parcels_id=prep_conf.PARCEL_COMMON_KEY,
+                                                 parcel_wc=wc, parcel_lu=prep_conf.LAND_USE_COMMON_KEY,
                                                  parcel_liv_area=prep_conf.PARCEL_BLD_AREA_COL)
-        # TODO: if NT, read in snapshot allocation result and update that table with NT allocation results
+
+        if year == "NearTerm":
+            # make a data frame of parcels with no change
+            snap_data = makePath(snap_gdb, "EconDemog_parcels")
+            snap_df = PMT.table_to_df(in_tbl=snap_data)
+            snap_df["Year"] = 9998
+
+            # mask out parcels without permits
+            permit_mask = snap_df[prep_conf.PARCEL_COMMON_KEY].isin(alloc_df[prep_conf.PARCEL_COMMON_KEY])
+            masked_snap_df = snap_df.copy()[permit_mask]
+
+            # add the rows with permitted change based on the allocation process back to the snapshot rows
+            # Old data: set index and subset to numeric cols
+            masked_snap_df.set_index(prep_conf.PARCEL_COMMON_KEY, inplace=True)
+            masked_snap_df = masked_snap_df.select_dtypes(["number"])
+            # New data: set index and subset to numeric cols
+            alloc_df.set_index(prep_conf.PARCEL_COMMON_KEY, inplace=True)
+            alloc_df = alloc_df.select_dtypes(["number"])
+            # add Old and New data
+            add_df = masked_snap_df.add(alloc_df)
+
+            # update original data with updated allocation to permits
+            snap_df.set_index(prep_conf.PARCEL_COMMON_KEY, inplace=True)
+            snap_df.update(other=add_df)
+            alloc_df = snap_df.reset_index()
+
         # For saving, we join the allocation estimates back to the ID shape we
         # initialized during spatial processing
         print("--- writing table of allocation results")
         out_path = makePath(out_gdb, "EconDemog_parcels")
-        PMT.dfToTable(alloc_df, out_path)
+        checkOverwriteOutput(output=out_path, overwrite=overwrite)
+        PMT.dfToTable(df=alloc_df, out_table=out_path)
 
 
 def process_osm_skims():
@@ -1386,8 +1420,13 @@ def process_contiguity(overwrite=True):
         dfToTable(df=ctgy_summarized, out_table=summarized_path, overwrite=overwrite)
 
 
-# TODO: process_bike_miles(): process bike miles at summary area (wide by facility type)
-
+def process_bike_miles(): # process bike miles at summary area (wide by facility type)
+    print("\nProcessing Bike Facilities to summary areas")
+    for year in YEARS:
+        print(f"{str(year)}:")
+        gdb = makePath(CLEANED, f"PMT_{year}.gdb")
+        bike_fac_fc = makePath(gdb, "Networks", "bike_facilites")
+        summ_area_fc = makePath(gdb, "Polygons", "")
 def process_lu_diversity():
     print("\nProcessing Land Use Diversity...")
     summary_areas_fc = makePath(BASIC_FEATURES, "SummaryAreas")
@@ -1415,7 +1454,7 @@ def process_lu_diversity():
             prep_conf.PARCEL_BLD_AREA_COL,
         ]
         par_sa_int = P_HELP.assign_features_to_agg_area(
-            parcel_fc,
+            in_features=parcel_fc,
             agg_features=summary_areas_fc,
             in_fields=par_fields,
             buffer=None,
@@ -1767,7 +1806,7 @@ if __name__ == "__main__":
         REF = makePath(ROOT, "Reference")
         RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
         DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
-        YEARS = PMT.YEARS + ["NearTerm"]
+        YEARS = ["NearTerm"]
 
     ###################################################################
     # ------------------- SETUP CLEAN DATA ----------------------------
@@ -1800,14 +1839,14 @@ if __name__ == "__main__":
     # enrich_block_groups()  # TESTED CR 03/12/21 added src attributes for enrichement data
 
     # MODELS MISSING DATA WHERE APPROPRIATE AND DISAGGREGATES BLOCK LEVEL DATA DOWN TO PARCEL LEVEL
-    process_bg_apply_activity_models()  # TESTED CR 03/02/21
+    # process_bg_apply_activity_models()  # TESTED CR 03/02/21
     process_allocate_bg_to_parcels()
 
     # ADDS LAND USE TABLE FOR PARCELS INCLUDING VACANT, RES AND NRES AREA
     # process_parcel_land_use()  # Tested by CR 3/11/21 verify NearTerm year works
 
     # prepare maz and taz socioeconomic/demographic data
-    process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
+    # process_model_se_data()  # TESTED 3/16/21   # TODO: standardize the SERPM pathing and clean up any clutter
 
     ###################################################################
     # ------------------ NETWORK ANALYSES -----------------------------
@@ -1842,16 +1881,16 @@ if __name__ == "__main__":
     ###################################################################
     # -----------------DEPENDENT ANALYSIS------------------------------
     ###################################################################
-    # ANALYZE ACCESS BY MAZ, TAZ
-    process_access()  # TESTED by AB 4/11/21 with transit skim
-
-    # PREPARE TAZ TRIP LENGTH AND VMT RATES
-    process_travel_stats()  # Tested by AB 4/1/21
-
-    # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
-    process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
-
-    process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
+    # # ANALYZE ACCESS BY MAZ, TAZ
+    # process_access()  # TESTED by AB 4/11/21 with transit skim
+    #
+    # # PREPARE TAZ TRIP LENGTH AND VMT RATES
+    # process_travel_stats()  # Tested by AB 4/1/21
+    #
+    # # ONLY UPDATED WHEN NEW IMPERVIOUS DATA ARE MADE AVAILABLE
+    # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
+    #
+    # process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years
     # process_contiguity()

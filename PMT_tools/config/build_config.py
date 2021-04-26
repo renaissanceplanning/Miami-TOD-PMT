@@ -131,30 +131,57 @@ disagg_full_geometries: use all geometries or just those that overlap when perfo
 BLOCK_PAR_ENRICH = {
     "sources": (BLOCK_FC_SPECS, PAR_FC_SPECS),
     "grouping": Column(name=BLOCK_FC_SPECS[1]),
-    "agg_cols":
-        [AggColumn("Total_Population"), AggColumn("NO_RES_UNTS"), AggColumn("JV"), # AggColumn("TOT_LVG_AREA")
-         AggColumn("TV_NSD"), AggColumn("LND_VAL"), AggColumn("LND_SQFOOT"),
-         AggColumn("Total_Commutes"),
-         AggColumn("Drove_PAR", rename="Drove"),
-         AggColumn("Carpool_PAR", rename="Carpool"),
-         AggColumn("Transit_PAR", rename="Transit"),
-         AggColumn("NonMotor_PAR", rename="NonMotor"),
-         AggColumn("Work_From_Home_PAR", rename="Work_From_Home"),
-         AggColumn("AllOther_PAR", rename="AllOther"),
-         # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
-         AggColumn(name="Developable_Area"),
-         AggColumn(name="VAC_AREA"), AggColumn(name="RES_AREA"), AggColumn(name="NRES_AREA"),
-         AggColumn(name="Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"),
-         AggColumn(name="Max_Scaled_Area", rename="Scaled_Area"),
-         AggColumn(name="Total_Employment"),
-         AggColumn(name="CNS16_PAR", rename="HCJobs"), AggColumn(name="CNS15_PAR", rename="EdJobs")],
-    "consolidate":
-        [Consolidation(name="RsrcJobs", input_cols=["CNS01_PAR", "CNS02_PAR"]),
-         Consolidation(name="IndJobs", input_cols=["CNS05_PAR", "CNS06_PAR", "CNS08_PAR"]),
-         Consolidation(name="ConsJobs", input_cols=["CNS07_PAR", "CNS17_PAR", "CNS18_PAR"]),
-         Consolidation(name="OffJobs",
-                       input_cols=["CNS09_PAR", "CNS10_PAR", "CNS11_PAR", "CNS12_PAR", "CNS13_PAR", "CNS20_PAR"]),
-         Consolidation(name="OthJobs", input_cols=["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"])],
+    "agg_cols": [
+        AggColumn("Total_Population"),
+        AggColumn("NO_RES_UNTS"),
+        AggColumn("JV"),  # AggColumn("TOT_LVG_AREA")
+        AggColumn("TV_NSD"),
+        AggColumn("LND_VAL"),
+        AggColumn("LND_SQFOOT"),
+        AggColumn("Total_Commutes"),
+        AggColumn("Drove_PAR", rename="Drove"),
+        AggColumn("Carpool_PAR", rename="Carpool"),
+        AggColumn("Transit_PAR", rename="Transit"),
+        AggColumn("NonMotor_PAR", rename="NonMotor"),
+        AggColumn("Work_From_Home_PAR", rename="Work_From_Home"),
+        AggColumn("AllOther_PAR", rename="AllOther"),
+        # AggColumn("BTU_RES"), AggColumn("NRES_BTU"),
+        AggColumn(name="Developable_Area"),
+        AggColumn(name="VAC_AREA"),
+        AggColumn(name="RES_AREA"),
+        AggColumn(name="NRES_AREA"),
+        AggColumn(
+            name="Max_Contiguity", agg_method=np.nanmedian, rename="Median_Contiguity"
+        ),
+        AggColumn(name="Max_Scaled_Area", rename="Scaled_Area"),
+        AggColumn(name="Total_Employment"),
+        AggColumn(name="CNS16_PAR", rename="HCJobs"),
+        AggColumn(name="CNS15_PAR", rename="EdJobs"),
+    ],
+    "consolidate": [
+        Consolidation(name="RsrcJobs", input_cols=["CNS01_PAR", "CNS02_PAR"]),
+        Consolidation(
+            name="IndJobs", input_cols=["CNS05_PAR", "CNS06_PAR", "CNS08_PAR"]
+        ),
+        Consolidation(
+            name="ConsJobs", input_cols=["CNS07_PAR", "CNS17_PAR", "CNS18_PAR"]
+        ),
+        Consolidation(
+            name="OffJobs",
+            input_cols=[
+                "CNS09_PAR",
+                "CNS10_PAR",
+                "CNS11_PAR",
+                "CNS12_PAR",
+                "CNS13_PAR",
+                "CNS20_PAR",
+            ],
+        ),
+        Consolidation(
+            name="OthJobs",
+            input_cols=["CNS03_PAR", "CNS04_PAR", "CNS14_PAR", "CNS19_PAR"],
+        ),
+    ],
     "melt_cols": [],
     "disag_full_geometries": False,
 }
@@ -311,7 +338,7 @@ SA_TAZ_ENRICH = {
         AggColumn("AVG_TIME_TO", agg_method="mean"),
         AggColumn("AVG_DIST_TO", agg_method="mean"),
         AggColumn("TRIPS_PER_ACT_TO", agg_method="mean"),
-        AggColumn("VMT_PER_ACT_TO", agg_method="mean")
+        AggColumn("VMT_PER_ACT_TO", agg_method="mean"),
     ],
     "consolidate": [],
     "melt_cols": [],
@@ -948,40 +975,60 @@ CENT_IDX = {
     "expr": "divide(!CentIdxFA!, !TOT_LVG_AREA!)",
     "code_block": DIVIDE_CODE_BLOCK,
 }
+DEV_STAT_USE_FA_SHR = {
+    "tables": [(SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
+    "new_field": "FA_SHR",
+    "field_type": "FLOAT",
+    "expr": "fa_shr(!DevStatus!, !TotalArea!, !NonDevFlrAr!, !DevOSFlrAr!, !DevLowFlrAr!, !DevMedFlrAr!, DevHiFlrAr!)",
+    "code_block": """
+    def fa_shr(row_status, tot_area, nd_area, os_area, lo_area, md_area, hi_area):
+        if row_status == "NonDevArea":
+            num = nd_area
+        elif row_status == "DevOSArea:
+            num = os_area
+        elif row_status == "DevLowArea:
+            num = lo_area
+        elif row_status == "DevMedArea:
+            num = md_area
+        elif row_status == "DevHighArea:
+            num = hi_area
+        return num/tot_area
+    """,
+}
 NONDEV_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "NONDEV_FA_SHR",
     "field_type": "FLOAT",
     "expr": "divide(!NonDevFlrAr!, !BlockFlrAr!)",
-    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK,
 }
 DEVOS_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVOS_FA_SHR",
     "field_type": "FLOAT",
     "expr": "divide(!DevOSFlrAr!, !BlockFlrAr!)",
-    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK,
 }
 DEVLOW_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVLOW_FA_SHR",
     "field_type": "FLOAT",
     "expr": "divide(!DevLowFlrAr!, !BlockFlrAr!)",
-    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK,
 }
 DEVMED_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVMED_FA_SHR",
     "field_type": "FLOAT",
     "expr": "divide(!DevMedFlrAr!, !BlockFlrAr!)",
-    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK,
 }
 DEVHI_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "DEVHI_FA_SHR",
     "field_type": "FLOAT",
     "expr": "divide(!DevHiFlrAr!, !BlockFlrAr!)",
-    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK
+    "code_block": DIVIDE_TO_PERCENT_CODE_BLOCK,
 }
 PARKS_PER_CAP = {
     "tables": [SUM_AREA_FC_SPECS],
@@ -1026,18 +1073,19 @@ CALCS = [
     TV_SF_AGG,
     JV_SF_AGG,
     LV_SF_AGG,
-    NONDEV_FA_SHR,
-    DEVOS_FA_SHR,
-    DEVLOW_FA_SHR,
-    DEVMED_FA_SHR,
-    DEVHI_FA_SHR,
-    PARKS_PER_CAP,
+    DEV_STAT_USE_FA_SHR
+    # NONDEV_FA_SHR,
+    # DEVOS_FA_SHR,
+    # DEVLOW_FA_SHR,
+    # DEVMED_FA_SHR,
+    # DEVHI_FA_SHR,
+    # PARKS_PER_CAP,
     #
 ]
 
 """ TREND PARAMS """
 STD_IDX_COLS = [pconfig.SUMMARY_AREAS_COMMON_KEY, "Name", "Corridor"]
-ACC_IDX_COLS = ["Activity", "TimeBin"]
+ACC_IDX_COLS = ["Activity", "TimeBin", "from_time"]
 AUTO_ACC_DIFF = {
     "table": "ActivityByTime_Auto",
     "index_cols": STD_IDX_COLS + ACC_IDX_COLS,

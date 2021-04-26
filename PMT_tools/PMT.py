@@ -885,6 +885,13 @@ def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
 
 
 def which_missing(table, field_list):
+    """returns a list of the fields that are missing from a given table
+    Args:
+        table (str): path to a table
+        field_list (list): list of fields
+    Returns:
+        list
+    """
     f_names = [f.name for f in arcpy.ListFields(table)]
     return [f for f in field_list if f not in f_names]
 

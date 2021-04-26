@@ -1985,11 +1985,12 @@ def analyze_blockgroup_apply(
 
 
 def allocate_bg_to_parcels(
-        bg_modeled,
+        bg_modeled_df,
         bg_geom,
         bg_id_field,
         parcel_fc,
         parcels_id=None,
+        parcel_wc="",
         parcel_lu=None,
         parcel_liv_area=None,
 ):
@@ -1997,12 +1998,14 @@ def allocate_bg_to_parcels(
     Args:
         parcel_fc (str): Path; path to shape of parcel polygons, containing at a minimum a unique ID
             field, land use field, and total living area field (Florida DOR)
-        bg_modeled (str): Path; path to table of modeled block group job, populatiom, and commute
+        bg_modeled_df (pd.DataFrame): pandas DataFrame of modeled block group job, population, and commute
             data for allocation
         bg_geom (str): Path; path to feature class of block group polygons
         bg_id_field (str): block group key
         parcels_id (str): str, unique ID field in the parcels shape
             Default is "PARCELNO" for Florida parcels
+        parcel_wc (str): where clause to select out parcels and limit allocation to only the selected parcels
+            Default is None or "", used to handle allocation for NearTerm permitted parcels
         parcel_lu (str): land use code field in the parcels shape
             Default is "DOR_UC" for Florida parcels
         parcel_liv_area (str): building square footage field in the parcels shape
@@ -2038,15 +2041,21 @@ def allocate_bg_to_parcels(
     print("--- intersecting blocks and parcels")
     temp_spatial = PMT.make_inmem_path()
     PMT.copyFeatures(in_fc=bg_geom, out_fc=temp_spatial)
-    arcpy.JoinField_management(
-        in_data=temp_spatial,
-        in_field=bg_id_field,
-        join_table=bg_modeled,
-        join_field=bg_id_field,
+    # drop any duplicated fields from bg_modeled_df
+    dups = [f.name for f in arcpy.ListFields(temp_spatial)
+            if f.name in bg_modeled_df.columns.to_list()
+            and f.name != bg_id_field]
+    bg_modeled_df.drop(columns=dups, inplace=True)
+    PMT.extendTableDf(in_table=temp_spatial, table_match_field=bg_id_field,
+                      df=bg_modeled_df, df_match_field=bg_id_field)
+
+    # feature layer created in the event a where clause is provided
+    parcel_fl = arcpy.MakeFeatureLayer_management(
+        in_features=parcel_fc, out_layer="parcel_fl", where_clause=parcel_wc
     )
     parcel_fields = [parcels_id, parcel_lu, parcel_liv_area, "Shape_Area"]
     intersect_fc = PMT.intersectFeatures(
-        summary_fc=temp_spatial, disag_fc=parcel_fc, disag_fields=parcel_fields
+        summary_fc=temp_spatial, disag_fc=parcel_fl, disag_fields=parcel_fields
     )
     intersect_fields = parcel_fields + block_group_attrs
     intersect_df = PMT.featureclass_to_df(

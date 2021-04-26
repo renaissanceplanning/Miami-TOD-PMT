@@ -394,7 +394,6 @@ def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=No
     df.reset_index(inplace=True)
     # Melt
     melt_df = df.melt(id_vars=id_field)
-    # TODO: add lower time bin value so ranges can be reported in dashboard lists
     melt_df["from_time"] = melt_df["TimeBin"].apply(
         lambda time_break: _get_time_previous_time_break_(time_breaks, time_break)
     )
@@ -416,8 +415,8 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     this_table minus base_table
     """
     # Fetch data frames
-    this_df = PMT.featureclass_to_df(this_table, keep_fields=fields, **kwargs)
-    base_df = PMT.featureclass_to_df(base_table, keep_fields=fields, **kwargs)
+    this_df = PMT.featureclass_to_df(in_fc=this_table, keep_fields=fields, **kwargs)
+    base_df = PMT.featureclass_to_df(in_fc=base_table, keep_fields=fields, **kwargs)
     # Set index columns
     base_df.set_index(idx_cols, inplace=True)
     this_df.set_index(idx_cols, inplace=True)
