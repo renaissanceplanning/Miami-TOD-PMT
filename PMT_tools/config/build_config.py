@@ -93,7 +93,7 @@ TABLE_SPECS = [
     ("Centrality_parcels", pconfig.PARCEL_COMMON_KEY, "*", {"CentIdx": "CentIdx_PAR"}),
     ("Contiguity_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),
-    ("BikeFac_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}) # TODO: confirm this pattern with Alex
+    ("BikeFac_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),  # TODO: confirm this pattern with Alex
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     # ("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),   # dropped from project but left in config to allow calc
     ("Imperviousness_census_blocks", pconfig.BLOCK_COMMON_KEY, "*", {}),
@@ -295,13 +295,13 @@ SA_MAZ_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, MAZ_FC_SPECS),
     "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
     "agg_cols": [
-        AggColumn(name=maz_col, agg_method="mean")
-        for maz_col in MAZ_WALK_RENAMES.values()
-    ]
-    + [
-        AggColumn(name=maz_col, agg_method="mean")
-        for maz_col in MAZ_BIKE_RENAMES.values()
-    ],
+                    AggColumn(name=maz_col, agg_method="mean")
+                    for maz_col in MAZ_WALK_RENAMES.values()
+                ]
+                + [
+                    AggColumn(name=maz_col, agg_method="mean")
+                    for maz_col in MAZ_BIKE_RENAMES.values()
+                ],
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False,
@@ -310,24 +310,24 @@ SA_TAZ_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, TAZ_FC_SPECS),
     "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
     "agg_cols": [
-        AggColumn(name=taz_col, agg_method="mean")
-        for taz_col in TAZ_AUTO_RENAMES.values()
-    ]
-    + [
-        AggColumn(name=taz_col, agg_method="mean")
-        for taz_col in TAZ_TRANSIT_RENAMES.values()
-    ]
-    + [
-        AggColumn("VMT_ALL"),
-        AggColumn("AVG_TIME_FROM", agg_method="mean"),
-        AggColumn("AVG_DIST_FROM", agg_method="mean"),
-        AggColumn("TRIPS_PER_ACT_FROM", agg_method="mean"),
-        AggColumn("VMT_PER_ACT_FROM", agg_method="mean"),
-        AggColumn("AVG_TIME_TO", agg_method="mean"),
-        AggColumn("AVG_DIST_TO", agg_method="mean"),
-        AggColumn("TRIPS_PER_ACT_TO", agg_method="mean"),
-        AggColumn("VMT_PER_ACT_TO", agg_method="mean"),
-    ],
+                    AggColumn(name=taz_col, agg_method="mean")
+                    for taz_col in TAZ_AUTO_RENAMES.values()
+                ]
+                + [
+                    AggColumn(name=taz_col, agg_method="mean")
+                    for taz_col in TAZ_TRANSIT_RENAMES.values()
+                ]
+                + [
+                    AggColumn("VMT_ALL"),
+                    AggColumn("AVG_TIME_FROM", agg_method="mean"),
+                    AggColumn("AVG_DIST_FROM", agg_method="mean"),
+                    AggColumn("TRIPS_PER_ACT_FROM", agg_method="mean"),
+                    AggColumn("VMT_PER_ACT_FROM", agg_method="mean"),
+                    AggColumn("AVG_TIME_TO", agg_method="mean"),
+                    AggColumn("AVG_DIST_TO", agg_method="mean"),
+                    AggColumn("TRIPS_PER_ACT_TO", agg_method="mean"),
+                    AggColumn("VMT_PER_ACT_TO", agg_method="mean"),
+                ],
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False,
@@ -348,15 +348,7 @@ SA_TRANSIT_ENRICH = {
     "melt_cols": [],
     "disag_full_geometries": False,
 }
-# TODO: confirm this pattern with Alex
-SA_BIKE_FAC_ENRICH = {
-    "sources": (SUM_AREA_FC_SPECS, EDGES_FC_SPECS),
-    "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
-    "agg_cols": [],
-    "consolidate": [],
-    "melt_cols": [],
-    "disagg_full_geometries": True,
-}
+
 BLOCK_TRANSIT_ENRICH = {
     "sources": (BLOCK_FC_SPECS, TRANSIT_FC_SPECS),
     "grouping": Column(name=BLOCK_FC_SPECS[1]),
@@ -373,14 +365,7 @@ SA_PARKS_ENRICH = {
     "melt_cols": [],
     "disag_full_geometries": False,
 }
-SA_EDGES_ENRICH = {
-    "sources": (SUM_AREA_FC_SPECS, EDGES_FC_SPECS),
-    "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
-    "agg_cols": [AggColumn(name="Bike_Miles")],
-    "consolidate": [],
-    "melt_cols": [],
-    "disag_full_geometries": True,
-}
+
 ENRICH_INTS = [
     BLOCK_PAR_ENRICH,
     SA_PAR_ENRICH,
@@ -391,7 +376,6 @@ ENRICH_INTS = [
     SA_TRANSIT_ENRICH,
     BLOCK_TRANSIT_ENRICH,
     SA_PARKS_ENRICH,
-    SA_EDGES_ENRICH,
 ]
 
 """ 
@@ -467,7 +451,7 @@ WALK_DOM = DomainColumn(
 SA_PARCELS_LU_LONG = {
     "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS
-    + [Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM)],
+                + [Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM)],
     "agg_cols": [
         YEAR_COL,
         AggColumn(name="NO_RES_UNTS"),
@@ -532,10 +516,10 @@ SA_PARCELS_JSECTOR_LONG = {
 SA_PARCELS_WALK_STA_LONG = {
     "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS
-    + [
-        Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM),
-        Column(name="bin_stn_walk", domain=WALK_DOM),
-    ],
+                + [
+                    Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM),
+                    Column(name="bin_stn_walk", domain=WALK_DOM),
+                ],
     "agg_cols": [
         YEAR_COL,
         AggColumn(name="TOT_LVG_AREA"),
@@ -621,12 +605,30 @@ SA_TRANSIT_LONG = {
     ),
     "out_table": "TransitByTimeOfDay",
 }
+
+BIKE_FAC_TYPE_COLS = [
+    "Bike_Lane",
+    "Paved_Path",
+    "Sidewalk",
+    "Wide_Curb_Lane",
+    "Paved_Shoulder",
+    "Sidepath",
+]
 SA_BIKE_LONG = {
-    "sources": (SUM_AREA_FC_SPECS, EDGES_FC_SPECS),
-    "grouping": SA_GROUP_COLS + [Column(name="Bike_Fac")],
+    "sources": (SUM_AREA_FC_SPECS, SUM_AREA_FC_SPECS),
+    "grouping": SA_GROUP_COLS,
     "agg_cols": [YEAR_COL, AggColumn(name="Bike_Miles")],
-    "consolidate": [],
-    "melt_cols": None,
+    "consolidate": [Consolidation(name="Total_Miles", input_cols=BIKE_FAC_TYPE_COLS)],
+    "melt_cols": [
+        MeltColumn(
+            label_col="Bike_Fac",
+            val_col="Bike_Miles",
+            input_cols=BIKE_FAC_TYPE_COLS,
+            agg_method=sum,
+            default=0.0,
+            domain=None,
+        )
+    ],
     "out_table": "BikeFacilityMilesByTier",
 }
 ELONGATE_SPECS = [
@@ -1077,7 +1079,6 @@ CALCS = [
     # DEVMED_FA_SHR,
     # DEVHI_FA_SHR,
     # PARKS_PER_CAP,
-    #
 ]
 
 """ TREND PARAMS """

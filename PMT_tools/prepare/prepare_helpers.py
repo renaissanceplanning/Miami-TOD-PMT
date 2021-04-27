@@ -3386,6 +3386,41 @@ def symmetric_difference(in_fc, diff_fc, out_fc_name):
     return out_fc
 
 
+# TODO: move this to prepare_helper.py
+def merge_and_subset(fcs, subset_fc):
+    """
+
+    Args:
+        fcs:
+        subset_fc:
+
+    Returns:
+
+    """
+    if isinstance(fcs, str):
+        fcs = [fcs]
+    project_crs = arcpy.Describe(subset_fc).spatialReference
+    temp_dir = tempfile.TemporaryDirectory()
+    prj_fcs = []
+    for fc in fcs:
+        print(f"--- projecting and clipping {fc}")
+        arcpy.env.outputCoordinateSystem = project_crs
+        basename = get_filename(fc)
+        prj_fc = makePath(temp_dir.name, f"{basename}.shp")
+        arcpy.Clip_analysis(
+            in_features=fc, clip_features=subset_fc, out_feature_class=prj_fc
+        )
+        prj_fcs.append(prj_fc)
+    merge_fc = PMT.make_inmem_path()
+    arcpy.Merge_management(inputs=prj_fcs, output=merge_fc)
+    return merge_fc
+
+
+def get_filename(file_path):
+    basename, ext = os.path.splitext(os.path.split(file_path)[1])
+    return basename
+
+
 def validate_weights(weights):
     if type(weights) == str:
         weights = weights.lower()

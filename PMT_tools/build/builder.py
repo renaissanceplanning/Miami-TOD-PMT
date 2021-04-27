@@ -225,7 +225,7 @@ def process_year_to_snapshot(year):
     in_gdb = PMT.validate_geodatabase(
         gdb_path=PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False
     )
-    B_HELP.add_year_columns(in_gdb, calc_year)
+    B_HELP.add_year_columns(in_gdb=in_gdb, year=calc_year)
     print("Making Snapshot Template...")
     out_gdb = B_HELP.make_snapshot_template(
         in_gdb=in_gdb, out_path=out_path, out_gdb_name=None, overwrite=False
