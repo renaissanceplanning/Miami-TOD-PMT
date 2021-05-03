@@ -1,9 +1,10 @@
-from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
-from PMT_tools.config import prepare_config as pconfig
+from ..PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
+from ..config import prepare_config as pconfig
 import numpy as np
 
 # GLOBALS
 # SNAPSHOT_YEAR = PMT.YEARS[-1] # TODO: not a config item? always take a snapshot of each year in PMT.YEARS?
+SUMMARY_AREAS_FINAL_KEY = "RowID"
 MODES = ["Auto", "Transit", "Walk", "Bike"]
 NM_MODES = ["W", "B"]
 ACTIVITIES = ["TotalJobs", "ConsJobs", "HCJobs", "EnrollAdlt", "EnrollK12", "HH"]
@@ -47,6 +48,8 @@ PAR_FC_SPECS = ("Parcels", pconfig.PARCEL_COMMON_KEY, "Polygons")
 MAZ_FC_SPECS = ("MAZ", pconfig.MAZ_COMMON_KEY, "Polygons")
 TAZ_FC_SPECS = ("TAZ", pconfig.TAZ_COMMON_KEY, "Polygons")
 SUM_AREA_FC_SPECS = ("SummaryAreas", pconfig.SUMMARY_AREAS_COMMON_KEY, "Polygons")
+# SUM_AREA_FC_SPECS = ("SummaryAreas", SUMMARY_AREAS_FINAL_KEY, "Polygons")
+
 NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks")  # TODO: define common key
 TRANSIT_FC_SPECS = (
     "TransitRidership",
@@ -106,6 +109,12 @@ TABLE_SPECS = [
     ("Centrality_parcels", pconfig.PARCEL_COMMON_KEY, "*", {"CentIdx": "CentIdx_PAR"}),
     ("Contiguity_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),
+    (
+        "BikeFac_summaryareas",
+        pconfig.SUMMARY_AREAS_COMMON_KEY,
+        "*",
+        {},
+    ),  # TODO: confirm this pattern with Alex
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     # ("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),   # dropped from project but left in config to allow calc
     ("Imperviousness_census_blocks", pconfig.BLOCK_COMMON_KEY, "*", {}),
@@ -270,7 +279,7 @@ SA_BLOCK_ENRICH = {
     ],
     "consolidate": [
         Consolidation(
-            name="BlocKFlrAr",
+            name="BlockFlrAr",
             input_cols=["TotalArea", "TOT_LVG_AREA"],
             cons_method=np.product,
         ),
@@ -360,6 +369,7 @@ SA_TRANSIT_ENRICH = {
     "melt_cols": [],
     "disag_full_geometries": False,
 }
+
 BLOCK_TRANSIT_ENRICH = {
     "sources": (BLOCK_FC_SPECS, TRANSIT_FC_SPECS),
     "grouping": Column(name=BLOCK_FC_SPECS[1]),
@@ -376,14 +386,7 @@ SA_PARKS_ENRICH = {
     "melt_cols": [],
     "disag_full_geometries": False,
 }
-SA_EDGES_ENRICH = {
-    "sources": (SUM_AREA_FC_SPECS, EDGES_FC_SPECS),
-    "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
-    "agg_cols": [AggColumn(name="Bike_Miles")],
-    "consolidate": [],
-    "melt_cols": [],
-    "disag_full_geometries": True,
-}
+
 ENRICH_INTS = [
     BLOCK_PAR_ENRICH,
     SA_PAR_ENRICH,
@@ -394,7 +397,6 @@ ENRICH_INTS = [
     SA_TRANSIT_ENRICH,
     BLOCK_TRANSIT_ENRICH,
     SA_PARKS_ENRICH,
-    SA_EDGES_ENRICH,
 ]
 
 """ 
@@ -570,7 +572,7 @@ SA_BLOCK_DEV_STATUS_LONG = {
     "agg_cols": [YEAR_COL, AggColumn(name="TotalArea")],
     "consolidate": [
         Consolidation(
-            name="BlocKFlrAr",
+            name="BlockFlrAr",
             input_cols=["TotalArea", "TOT_LVG_AREA"],
             cons_method=np.product,
         ),
@@ -624,12 +626,30 @@ SA_TRANSIT_LONG = {
     ),
     "out_table": "TransitByTimeOfDay",
 }
+
+BIKE_FAC_TYPE_COLS = [
+    "Bike_Lane",
+    "Paved_Path",
+    "Sidewalk",
+    "Wide_Curb_Lane",
+    "Paved_Shoulder",
+    "Sidepath",
+]
 SA_BIKE_LONG = {
-    "sources": (SUM_AREA_FC_SPECS, EDGES_FC_SPECS),
-    "grouping": SA_GROUP_COLS + [Column(name="Bike_Fac")],
-    "agg_cols": [YEAR_COL, AggColumn(name="Bike_Miles")],
-    "consolidate": [],
-    "melt_cols": None,
+    "sources": (SUM_AREA_FC_SPECS, SUM_AREA_FC_SPECS),
+    "grouping": SA_GROUP_COLS,
+    "agg_cols": [],  # [YEAR_COL, AggColumn(name="Bike_Miles")],
+    "consolidate": [Consolidation(name="Total_Miles", input_cols=BIKE_FAC_TYPE_COLS)],
+    "melt_cols": [
+        MeltColumn(
+            label_col="Bike_Fac",
+            val_col="Bike_Miles",
+            input_cols=BIKE_FAC_TYPE_COLS,
+            agg_method=sum,
+            default=0.0,
+            domain=None,
+        )
+    ],
     "out_table": "BikeFacilityMilesByTier",
 }
 ELONGATE_SPECS = [
@@ -979,21 +999,25 @@ DEV_STAT_USE_FA_SHR = {
     "tables": [(SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "FA_SHR",
     "field_type": "FLOAT",
-    "expr": "fa_shr(!DevStatus!, !TotalArea!, !NonDevFlrAr!, !DevOSFlrAr!, !DevLowFlrAr!, !DevMedFlrAr!, DevHiFlrAr!)",
+    "expr": "fa_shr(!DevStatus!, !BlockFlrAr!, !NonDevFlrAr!, !DevOSFlrAr!, !DevLowFlrAr!, !DevMedFlrAr!, !DevHiFlrAr!)",
     "code_block": """
-    def fa_shr(row_status, tot_area, nd_area, os_area, lo_area, md_area, hi_area):
-        if row_status == "NonDevArea":
-            num = nd_area
-        elif row_status == "DevOSArea:
-            num = os_area
-        elif row_status == "DevLowArea:
-            num = lo_area
-        elif row_status == "DevMedArea:
-            num = md_area
-        elif row_status == "DevHighArea:
-            num = hi_area
-        return num/tot_area
-    """,
+def fa_shr(dev_status, tot_fl_area, nd_area, os_area, lo_area, md_area, hi_area):
+    if None in [dev_status, tot_fl_area, nd_area, os_area, lo_area, md_area, hi_area]:
+        return 0
+    if tot_fl_area == 0:
+        return 0
+    if dev_status == "NonDevArea":
+        num = nd_area
+    if dev_status == "DevOSArea":
+        num = os_area
+    if dev_status == "DevLowArea":
+        num = lo_area
+    if dev_status == "DevMedArea":
+        num = md_area
+    if dev_status == "DevHighArea":
+        num = hi_area
+    return num/tot_fl_area
+""",
 }
 NONDEV_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
@@ -1080,11 +1104,12 @@ CALCS = [
     # DEVMED_FA_SHR,
     # DEVHI_FA_SHR,
     # PARKS_PER_CAP,
-    #
 ]
 
 """ TREND PARAMS """
 STD_IDX_COLS = [pconfig.SUMMARY_AREAS_COMMON_KEY, "Name", "Corridor"]
+# STD_IDX_COLS = [SUMMARY_AREAS_FINAL_KEY, "Name", "Corridor"]
+
 ACC_IDX_COLS = ["Activity", "TimeBin", "from_time"]
 AUTO_ACC_DIFF = {
     "table": "ActivityByTime_Auto",
@@ -1135,6 +1160,7 @@ DIFF_TABLES = [
     WALK_ACC_DIFF,
     DEV_STATUS_DIFF,
     ATTR_LU_DIFF,
+    BIKE_FAC_DIFF,
     COMMUTE_DIFF,
     JOBS_DIFF,
     TRAN_DIFF,

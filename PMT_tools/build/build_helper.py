@@ -8,8 +8,10 @@ import numpy as np
 import pandas as pd
 from six import string_types
 
-import PMT_tools.PMT as PMT
-from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
+from .. import PMT
+from ..PMT import Column, AggColumn, Consolidation, MeltColumn
+from ..config import prepare_config as p_conf
+from ..config import build_config as b_conf
 
 
 def _list_table_paths(gdb, criteria="*"):
@@ -47,8 +49,10 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
 
 
 def unique_values(table, field):
-    with arcpy.da.SearchCursor(table, [field]) as cursor:
-        return sorted({row[0] for row in cursor})
+    data = arcpy.da.TableToNumPyArray(in_table=table, field_names=[field], null_value=0)
+    return np.unique(data[field])
+    # with arcpy.da.SearchCursor(table, [field]) as cursor:
+    #     return sorted({row[0] for row in cursor})
 
 
 def add_year_columns(in_gdb, year):
@@ -63,16 +67,18 @@ def add_year_columns(in_gdb, year):
             if len(values) == 1 and values[0] == year:
                 print(f"--- 'Year' already in {fc}...skipping")
                 continue
-        arcpy.AddField_management(fc, "Year", "LONG")
-        arcpy.CalculateField_management(fc, "Year", str(year))
+        print(f"--- Adding and calculating 'Year' attribute for {fc}")
+        arcpy.AddField_management(in_table=fc, field_name="Year", field_type="LONG")
+        arcpy.CalculateField_management(in_table=fc, field="Year", expression=str(year))
     for table in tables:
         if "Year" in [f.name for f in arcpy.ListFields(table)]:
-            values = unique_values(table=fc, field="Year")
+            values = unique_values(table=table, field="Year")
             if len(values) == 1 and values[0] == year:
-                print(f"--- 'Year' already in {fc}...skipping")
+                print(f"--- 'Year' already in {table}...skipping")
                 continue
-        arcpy.AddField_management(table, "Year", "LONG")
-        arcpy.CalculateField_management(table, "Year", str(year))
+        print(f"--- Adding and calculating 'Year' attribute for {table}")
+        arcpy.AddField_management(in_table=table, field_name="Year", field_type="LONG")
+        arcpy.CalculateField_management(in_table=table, field="Year", expression=str(year))
     arcpy.env.workspace = old_ws
 
 
@@ -473,7 +479,7 @@ def list_fcs_in_gdb():
 def alter_fields(table_list, field, new_field_name):
     for tbl in table_list:
         if field in [f.name for f in arcpy.ListFields(tbl)]:
-            print(f"--- --- Converting SummID to RowID for {tbl}")
+            print(f"--- --- Converting SummID to {new_field_name} for {tbl}")
             arcpy.AlterField_management(
                 in_table=tbl,
                 field=field,
@@ -520,12 +526,13 @@ def post_process_databases(basic_features_gdb, build_dir):
         print(f"--- Cleaning up {gdb}")
         arcpy.env.workspace = gdb
         # update feature classes
-        summ_area_fcs = [fc for fc in list_fcs_in_gdb() if "SummaryAreas" in fc]
-        alter_fields(table_list=summ_area_fcs, field="SummID", new_field_name="RowID")
-        # update tables
-        gdb_tbls = arcpy.ListTables()
-        alter_fields(table_list=gdb_tbls, field="SummID", new_field_name="RowID")
-
+        fcs = [fc for fc in list_fcs_in_gdb()]
+        tbls = arcpy.ListTables()
+        all_tbls = fcs + tbls
+        alter_fields(
+            table_list=all_tbls,
+            field=p_conf.SUMMARY_AREAS_COMMON_KEY,
+            new_field_name=b_conf.SUMMARY_AREAS_FINAL_KEY)
     # TODO: incorporate a more broad AlterField protocol for Popup configuration
 
     # delete TEMP folder

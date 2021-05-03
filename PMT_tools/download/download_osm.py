@@ -28,10 +28,9 @@ import pickle
 from datetime import datetime
 
 import geopandas as gpd
-from shapely.geometry import Polygon, MultiPolygon
 import osmnx as ox
+from shapely.geometry import Polygon
 from six import string_types
-
 
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]

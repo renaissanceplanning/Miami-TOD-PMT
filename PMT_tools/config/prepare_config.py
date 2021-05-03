@@ -1,14 +1,12 @@
 from collections import OrderedDict
 
-from PMT_tools.PMT import (
+from ..PMT import (
     Comp,
     And,
     Column,
     AggColumn,
     Consolidation,
     NetLoader,
-    makePath,
-    CLEANED,
 )
 
 # CRS
@@ -870,8 +868,11 @@ PERMITS_LU_FIELD = "DOR_UC"
 PERMITS_VALUES_FIELD = "UNITS_VAL"
 PERMITS_COST_FIELD = "COST"
 # permit unit: parcel_field
+# SHORT_TERM_PARCELS_UNITS_MATCH = {
+#     "bed": "NO_RES_UNTS",
+#     "room": "NO_RES_UNTS",
+#     "unit": "NO_RES_UNTS",
+# }
 SHORT_TERM_PARCELS_UNITS_MATCH = {
-    "bed": "NO_RES_UNTS",
-    "room": "NO_RES_UNTS",
-    "unit": "NO_RES_UNTS",
+    "NO_RES_UNTS": ["bed", "room", "unit"]
 }

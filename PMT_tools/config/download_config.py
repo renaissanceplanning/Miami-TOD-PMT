@@ -1,6 +1,7 @@
 from collections import OrderedDict
 """ FOLDER LIST """
-RAW_FOLDERS = ["BUILDING_PERMITS", "CENSUS", "LODES", "OPEN_STREET_MAP", "PARCELS", "TRANSIT"]
+RAW_FOLDERS = ["BUILDING_PERMITS", "CENSUS", "LODES", "OPEN_STREET_MAP", "PARCELS", "TRANSIT", "ENVIRONMENTAL_FEATURES",
+               "IMPERVIOUS",]
 
 '''Crash Configuration'''
 # download configuration

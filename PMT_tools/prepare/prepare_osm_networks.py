@@ -18,12 +18,13 @@ folder are used to construct walk and bike networks.
 # TODO: confirm docstrings
 # TODO: print status messages
 
-# %% IMPORTS
-import arcpy
-import PMT_tools.PMT as PMT
-from six import string_types
 import os
 import shutil
+
+# %% IMPORTS
+import arcpy
+
+from .. import PMT as PMT
 
 # %% GLOBALS
 NET_VERSIONS = ["_q1_2021"]
