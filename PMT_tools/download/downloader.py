@@ -6,13 +6,13 @@ import os
 from shutil import rmtree
 
 # global values configured for downloading
-import PMT_tools.config.download_config as dl_conf
+from ..config import download_config as dl_conf
 
 # PMT globals
-from PMT_tools.utils import RAW, YEARS
+from ..utils import RAW, YEARS
 
 # PMT Functions
-from PMT_tools.utils import validate_directory, makePath
+from ..utils import validate_directory, makePath
 
 # helper functions from other modules
 from download_census_geo import get_one_geo_type
@@ -23,13 +23,6 @@ from download_helper import (
     download_file_from_url,
 )
 from download_osm import download_osm_networks, download_osm_buildings
-
-DEBUG = True
-if DEBUG:
-    ROOT = r"C:\PMT_TEST_FOLDER"
-    RAW = validate_directory(makePath(ROOT, "RAW"))
-    YEARS = YEARS + ["NearTerm"]
-    SNAPSHOT_YEAR = 2019
 
 
 def setup_download_folder(dl_folder):
@@ -142,6 +135,7 @@ def download_osm_data():
         - downloads all buildings, subset to poly/multipoly features
         - both functions will create the output folder if not there
     """
+    # TODO: incorporate Aarons function to drop tiny sections of network
     out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
     osm_data_dir = makePath(RAW, "OPEN_STREET_MAP")
     data_crs = 4326
@@ -154,6 +148,13 @@ def download_osm_data():
 
 
 if __name__ == "__main__":
+    DEBUG = True
+    if DEBUG:
+        ROOT = r"C:\PMT_TEST_FOLDER"
+        RAW = validate_directory(makePath(ROOT, "RAW"))
+        YEARS = YEARS + ["NearTerm"]
+        SNAPSHOT_YEAR = 2019
+
     setup_download_folder(dl_folder=RAW)
     # download_urls()
     download_osm_data()

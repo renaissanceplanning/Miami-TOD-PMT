@@ -13,16 +13,16 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.getcwd())
 # config global variables
-from PMT_tools.config import prepare_config as prep_conf
+from ..config import prepare_config as prep_conf
 
 # prep/clean helper functions
-import PMT_tools.prepare.prepare_helpers as P_HELP
-import PMT_tools.prepare.prepare_osm_networks as OSM_HELP
-import PMT_tools.build.build_helper as B_HELP
+from ..prepare import prepare_helpers as P_HELP
+from ..prepare import prepare_osm_networks as OSM_HELP
+from ..build import build_helper as B_HELP
 
 # PMT functions
-from PMT_tools import PMT
-from PMT_tools.PMT import (
+from .. import PMT
+from ..PMT import (
     makePath,
     make_inmem_path,
     checkOverwriteOutput,
@@ -31,18 +31,16 @@ from PMT_tools.PMT import (
     extendTableDf,
     table_to_df,
     intersectFeatures,
-)
-from PMT_tools.PMT import (
     validate_directory,
     validate_geodatabase,
     validate_feature_dataset,
 )
 
 # PMT classes
-from PMT_tools.PMT import ServiceAreaAnalysis
+from ..PMT import ServiceAreaAnalysis
 
 # PMT globals
-from PMT_tools.PMT import (
+from ..PMT import (
     RAW,
     CLEANED,
     BASIC_FEATURES,
@@ -53,9 +51,9 @@ from PMT_tools.PMT import (
     SR_FL_SPF,
     EPSG_FLSPF,
 )
-from PMT_tools.PMT import arcpy, np, pd, tempfile
+from ..PMT import arcpy, np, pd, tempfile
 
-import PMT_tools.logger as log
+from  .. import logger as log
 
 logger = log.Logger(
     add_logs_to_arc_messages=True
@@ -360,41 +358,42 @@ def process_parcels(overwrite=True):
 def process_permits(overwrite=True):
     print("PROCESSING PERMIT DATA ... ")
     try:
-        permit_csv = makePath(
-            RAW, "BUILDING_PERMITS", "Road Impact Fee Collection Report -- 2019.csv"
-        )
-        out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_NearTerm.gdb"))
-        in_fds = validate_feature_dataset(
-            fds_path=makePath(out_gdb, "Polygons"), sr=SR_FL_SPF
-        )
-        parcels = makePath(in_fds, "Parcels")
-        out_fds = validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
-        permits_out = makePath(out_fds, "BuildingPermits")
+        # workspaces
+        permit_dir = makePath(RAW, "BUILDING_PERMITS")
+        snap_gdb = validate_geodatabase(makePath(CLEANED, f"PMT_{SNAPSHOT_YEAR}.gdb"))
+        near_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_NearTerm.gdb"))
+        # input data
+        permit_csv = makePath(permit_dir, "Road Impact Fee Collection Report -- 2019.csv")
+        snap_parcels = makePath(snap_gdb, "Polygons", "Parcels")
+        # output data
+        out_permits = makePath(near_gdb, "Points", "BuildingPermits")
+        out_parcels = makePath(near_gdb, "Polygons", "Parcels")
 
-        checkOverwriteOutput(output=permits_out, overwrite=overwrite)
+        print("--- processing permit cleaning/formatting...")
+        checkOverwriteOutput(output=out_permits, overwrite=overwrite)
         P_HELP.clean_permit_data(
             permit_csv=permit_csv,
-            parcel_fc=parcels,
+            parcel_fc=snap_parcels,
             permit_key=prep_conf.PERMITS_COMMON_KEY,
             poly_key=prep_conf.PARCEL_COMMON_KEY,
             rif_lu_tbl=RIF_CAT_CODE_TBL,
             dor_lu_tbl=DOR_LU_CODE_TBL,
-            out_file=permits_out,
+            out_file=out_permits,
             out_crs=EPSG_FLSPF,
         )
         unit_ref_df = P_HELP.create_permits_units_reference(
-            parcels=parcels,
-            permits=permits_out,
+            parcels=snap_parcels,
+            permits=out_permits,
             lu_key=prep_conf.LAND_USE_COMMON_KEY,
             parcels_living_area_key=prep_conf.PARCEL_BLD_AREA_COL,
             permit_value_key=prep_conf.PERMITS_UNITS_FIELD,
             permits_units_name=prep_conf.PERMITS_BLD_AREA_NAME,
             units_match_dict=prep_conf.PARCEL_REF_TABLE_UNITS_MATCH,
         )
-
+        print("--- processing Near Term parcels updates/formatting...")
         temp_update = P_HELP.build_short_term_parcels(
-            parcel_fc=parcels,
-            permit_fc=permits_out,
+            parcel_fc=snap_parcels,
+            permit_fc=out_permits,
             permits_ref_df=unit_ref_df,
             parcels_id_field=prep_conf.PARCEL_COMMON_KEY,
             parcels_lu_field=prep_conf.LAND_USE_COMMON_KEY,
@@ -410,13 +409,12 @@ def process_permits(overwrite=True):
             units_field_match_dict=prep_conf.SHORT_TERM_PARCELS_UNITS_MATCH,
         )
 
-        checkOverwriteOutput(output=parcels, overwrite=overwrite)
+        checkOverwriteOutput(output=out_parcels, overwrite=overwrite)
         print("--- --- writing out updated parcels with new permit data")
+        out_fds = makePath(near_gdb, "Polygons")
         arcpy.FeatureClassToFeatureClass_conversion(
-            in_features=temp_update, out_path=in_fds, out_name="Parcels"
+            in_features=temp_update, out_path=out_fds, out_name="Parcels"
         )
-        # TODO: clean up data in temp locations
-
     except:
         raise
 
@@ -1542,8 +1540,8 @@ def process_contiguity(overwrite=True):
 
 def process_bike_miles(overwrite=True):
     """
-    Takes in
-
+    Intersects Summary area polygons with bike facilities and summarizes each facility
+    type by miles within the summary area.
     """
     # process bike miles at summary area (wide by facility type)
     print("\nProcessing Bike Facilities to summary areas")
@@ -1558,6 +1556,19 @@ def process_bike_miles(overwrite=True):
             prep_conf.BIKE_MILES_COL,
             prep_conf.BIKE_FAC_COL,
         ]
+        BIKE_FAC_TYPE_COLS = [
+            "Bike_Lane",
+            "Paved_Path",
+            "Sidewalk",
+            "Wide_Curb_Lane",
+            "Paved_Shoulder",
+            "Sidepath",
+        ]
+
+        # grab all summArea rows by SummID and generate blank dataframe
+        summ_df = PMT.featureclass_to_df(in_fc=summ_area_fc, keep_fields=prep_conf.SUMMARY_AREAS_COMMON_KEY)
+        summ_df[BIKE_FAC_TYPE_COLS] = 0
+        summ_df.set_index(keys=prep_conf.SUMMARY_AREAS_COMMON_KEY, inplace=True)
 
         # intersect bike_fac and summary areas
         print("--- intersecting summary areas with bike facilities")
@@ -1586,8 +1597,9 @@ def process_bike_miles(overwrite=True):
             fill_value=0.0
         )
         pivot.rename(columns=col_rename, inplace=True)
-        pivot.reset_index(inplace=True)
-        dfToTable(df=pivot, out_table=out_tbl, overwrite=overwrite)
+        summ_df.update(other=pivot)
+        summ_df.reset_index(inplace=True)
+        dfToTable(df=summ_df, out_table=out_tbl, overwrite=overwrite)
 
 
 def process_lu_diversity():
@@ -1638,7 +1650,7 @@ def process_lu_diversity():
         in_df[prep_conf.PARCEL_BLD_AREA_COL] /= 1000
 
         # Calculate div indices
-        print(" - calculating diversity indices")
+        print("--- calculating diversity indices")
         div_funcs = [
             P_HELP.simpson_diversity,
             P_HELP.shannon_diversity,
@@ -1968,7 +1980,7 @@ if __name__ == "__main__":
         REF = makePath(ROOT, "Reference")
         RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
         DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
-        YEARS = PMT.YEARS + ["NearTerm"]
+        YEARS = [2018, 2019] + ["NearTerm"]
 
     ###################################################################
     # ------------------- SETUP CLEAN DATA ----------------------------
@@ -1992,7 +2004,7 @@ if __name__ == "__main__":
     #
     # # CLEANS AND GEOCODES PERMITS TO ASSOCIATED PARCELS AND
     # #   GENERATES A NEAR TERM PARCELS LAYER WITH PERMIT INFO
-    # process_permits()  # TESTED CR 03/01/21
+    process_permits()  # TESTED CR 03/01/21
 
     ###################################################################
     # ---------------------- ENRICH DATA------------------------------
@@ -2053,7 +2065,7 @@ if __name__ == "__main__":
     # process_imperviousness()  # TESTED by CR 3/21/21 Added NearTerm
     #
     # # make a wide table of bike facilities
-    process_bike_miles()
+    # process_bike_miles()
     # process_lu_diversity()  # TESTED by CR 3/21/21 Added NearTerm
 
     # generate contiguity index for all years

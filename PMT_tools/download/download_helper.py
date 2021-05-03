@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 from requests.exceptions import RequestException
 
-from PMT_tools.utils import makePath, check_overwrite_path
+from ..utils import makePath, check_overwrite_path
 
 
 def download_file_from_url(url, save_path, overwrite=False):

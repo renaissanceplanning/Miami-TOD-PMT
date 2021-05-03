@@ -33,20 +33,21 @@ TODO: Review function list above and move to build helper where appropriate, pop
 """
 import os
 import sys
+from six import string_types
 
 sys.path.insert(0, os.getcwd())
 # build helper functions
-from PMT_tools.build import build_helper as B_HELP
+from ..build import build_helper as B_HELP
 
 # configuration variables
-from PMT_tools.config import build_config as B_CONF
-from PMT_tools.config import prepare_config as P_CONF
+from ..config import build_config as B_CONF
+from ..config import prepare_config as P_CONF
 
 # global project functions/variables
-import PMT_tools.PMT as PMT
-from PMT_tools.PMT import CLEANED, BUILD, YEARS
+from .. import PMT
+from ..PMT import CLEANED, BUILD, BASIC_FEATURES
 
-from six import string_types
+
 import arcpy
 
 
@@ -172,7 +173,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
         )
         try:
             out_name = spec["out_table"]
-            print(f"... to long table {out_name}")
+            print(f"--- --- to long table {out_name}")
             out_table = PMT.makePath(gdb, out_name)
             PMT.dfToTable(df=summary_df, out_table=out_table, overwrite=True)
         except KeyError:
@@ -320,7 +321,13 @@ def process_year_to_snapshot(year):
 
 
 def process_years_to_trend(
-    years, tables, long_features, diff_features, base_year=None, snapshot_year=None, out_gdb_name=None
+    years,
+    tables,
+    long_features,
+    diff_features,
+    base_year=None,
+    snapshot_year=None,
+    out_gdb_name=None,
 ):
     """
     TODO: add a try/except to delete any intermediate data created
@@ -353,7 +360,8 @@ def process_years_to_trend(
             else:
                 process_year = snapshot_year = "Current"
         in_gdb = PMT.validate_geodatabase(
-            gdb_path=PMT.makePath(BUILD, f"Snapshot_{process_year}.gdb"), overwrite=False
+            gdb_path=PMT.makePath(BUILD, f"Snapshot_{process_year}.gdb"),
+            overwrite=False,
         )
         # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
@@ -460,8 +468,8 @@ if __name__ == "__main__":
         ROOT = (
             r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data"
         )
-        RAW = PMT.validate_directory(directory=PMT.makePath(ROOT, "RAW"))
         CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, "CLEANED"))
+        # BUILD = PMT.validate_directory(directory=PMT.makePath(r"C:\PMT_TEST_FOLDER", "BUILD"))
         BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "BUILD"))
         DATA = ROOT
         BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
@@ -469,20 +477,20 @@ if __name__ == "__main__":
         RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
         DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
         YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
-        YEARS = PMT.YEARS + ["NearTerm"]
+        YEARS = ["NearTerm"]
 
     # Snapshot data
     print("Building snapshot databases...")
-    for year in YEARS:
-        print(f"- Snapshot for {year}")
-        process_year_to_snapshot(year)
+    # for year in YEARS:
+    #     print(f"- Snapshot for {year}")
+    #     process_year_to_snapshot(year)
     print("Building Trend database...")
     process_years_to_trend(
         years=PMT.YEARS,
         tables=B_CONF.DIFF_TABLES,
         long_features=B_CONF.LONG_FEATURES,
         diff_features=B_CONF.DIFF_FEATURES,
-        out_gdb_name="Trend"
+        out_gdb_name="Trend",
     )
     # Process near term "trend"
     print("Building Near term 'Trend' database...")
@@ -493,6 +501,8 @@ if __name__ == "__main__":
         diff_features=B_CONF.DIFF_FEATURES,
         base_year="Current",
         snapshot_year="NearTerm",
-        out_gdb_name="NearTerm"
+        out_gdb_name="NearTerm",
     )
-    B_HELP.post_process_databases(basic_features_gdb=BASIC_FEATURES, build_dir=BUILD)
+    B_HELP.post_process_databases(
+        basic_features_gdb=BASIC_FEATURES, build_dir=PMT.makePath(BUILD, "TEMP")
+    )

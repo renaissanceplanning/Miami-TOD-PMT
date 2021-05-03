@@ -29,10 +29,14 @@ def validate_directory(directory):
 def check_overwrite_path(output, overwrite=True):
     if Path.exists(output):
         if overwrite:
-            print(f"--- --- deleting existing file {output}")
+            print(
+                f"--- --- deleting existing file {output}"
+            )
             Path(output).unlink()
         else:
-            raise RuntimeError(f"Output file {output} already exists")
+            raise RuntimeError(
+                f"Output file {output} already exists"
+            )
 
 
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")

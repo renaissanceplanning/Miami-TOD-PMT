@@ -8,7 +8,6 @@ cleaning, analysis, and summarization processes.
 import fnmatch
 import re
 import tempfile
-
 # %% imports
 import uuid
 from collections.abc import Iterable
@@ -22,7 +21,7 @@ import pandas as pd
 from simpledbf import Dbf5
 from six import string_types
 
-from PMT_tools.utils import *
+from utils import *
 
 # %% CONSTANTS - FOLDERS
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
@@ -533,8 +532,10 @@ def intersectFeatures(
 
     if not full_geometries:
         # dump to centroids
-        if desc.shapeType != "Polygon":
-            raise Exception("disagg features must be polygon to limit intersection to centroids")
+        if desc.shapeType not in ["Polygon", "Point", "Multipoint"]:
+            raise Exception(
+                "disagg features must be polygon to limit intersection to centroids"
+            )
         disag_fc = polygonsToPoints(
             in_fc=disag_fc,
             out_fc=points_fc,
@@ -971,11 +972,16 @@ def add_unique_id(feature_class, new_id_field=None):
     Returns:
         new_id_field: String; name of new id field
     """
+    # OID = arcpy.Describe(feature_class).OIDFIeldName
     if new_id_field is None:
         new_id_field = "ProcessID"
     arcpy.AddField_management(
         in_table=feature_class, field_name=new_id_field, field_type="LONG"
     )
+    # arcpy.CalculateField_management(
+    #     in_table=feature_class, field=new_id_field,
+    #     expression=f"!{OID}!", expression_type="PYTHON3"
+    # )
     with arcpy.da.UpdateCursor(feature_class, new_id_field) as ucur:
         for i, row in enumerate(ucur):
             row[0] = i
@@ -1480,8 +1486,6 @@ def _sanitize_column_names(
 
     # use snake case
     if use_snake_case:
-        import re
-
         for ind, val in enumerate(new_col_names):
             # skip reserved cols
             if val == geo.name:

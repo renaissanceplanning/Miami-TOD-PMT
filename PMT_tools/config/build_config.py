@@ -1,9 +1,10 @@
-from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
-from PMT_tools.config import prepare_config as pconfig
+from ..PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
+from ..config import prepare_config as pconfig
 import numpy as np
 
 # GLOBALS
 # SNAPSHOT_YEAR = PMT.YEARS[-1] # TODO: not a config item? always take a snapshot of each year in PMT.YEARS?
+SUMMARY_AREAS_FINAL_KEY = "RowID"
 MODES = ["Auto", "Transit", "Walk", "Bike"]
 NM_MODES = ["W", "B"]
 ACTIVITIES = ["TotalJobs", "ConsJobs", "HCJobs", "EnrollAdlt", "EnrollK12", "HH"]
@@ -47,9 +48,19 @@ PAR_FC_SPECS = ("Parcels", pconfig.PARCEL_COMMON_KEY, "Polygons")
 MAZ_FC_SPECS = ("MAZ", pconfig.MAZ_COMMON_KEY, "Polygons")
 TAZ_FC_SPECS = ("TAZ", pconfig.TAZ_COMMON_KEY, "Polygons")
 SUM_AREA_FC_SPECS = ("SummaryAreas", pconfig.SUMMARY_AREAS_COMMON_KEY, "Polygons")
+# SUM_AREA_FC_SPECS = ("SummaryAreas", SUMMARY_AREAS_FINAL_KEY, "Polygons")
+
 NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks")  # TODO: define common key
-TRANSIT_FC_SPECS = ("TransitRidership", pconfig.TRANSIT_COMMON_KEY, "Points",)
-PARKS_FC_SPECS = ("Park_points", pconfig.PARK_POINTS_COMMON_KEY, "Points",)
+TRANSIT_FC_SPECS = (
+    "TransitRidership",
+    pconfig.TRANSIT_COMMON_KEY,
+    "Points",
+)
+PARKS_FC_SPECS = (
+    "Park_points",
+    pconfig.PARK_POINTS_COMMON_KEY,
+    "Points",
+)
 # EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks")  # removed to utilize MD bike facility data
 EDGES_FC_SPECS = ("bike_facilities", pconfig.BIKE_FAC_COMMON_KEY, "Networks")
 
@@ -89,11 +100,21 @@ TABLE_SPECS = [
     ("Access_maz_Walk", pconfig.MAZ_COMMON_KEY, MAZ_WALK_FIELDS, MAZ_WALK_RENAMES),
     ("Access_maz_Bike", pconfig.MAZ_COMMON_KEY, MAZ_BIKE_FIELDS, MAZ_BIKE_RENAMES),
     ("Access_taz_Auto", pconfig.TAZ_COMMON_KEY, TAZ_AUTO_FIELDS, TAZ_AUTO_RENAMES),
-    ("Access_taz_Transit", pconfig.TAZ_COMMON_KEY, TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES),
+    (
+        "Access_taz_Transit",
+        pconfig.TAZ_COMMON_KEY,
+        TAZ_TRANSIT_FIELDS,
+        TAZ_TRANSIT_RENAMES,
+    ),
     ("Centrality_parcels", pconfig.PARCEL_COMMON_KEY, "*", {"CentIdx": "CentIdx_PAR"}),
     ("Contiguity_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),
-    ("BikeFac_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),  # TODO: confirm this pattern with Alex
+    (
+        "BikeFac_summaryareas",
+        pconfig.SUMMARY_AREAS_COMMON_KEY,
+        "*",
+        {},
+    ),  # TODO: confirm this pattern with Alex
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     # ("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),   # dropped from project but left in config to allow calc
     ("Imperviousness_census_blocks", pconfig.BLOCK_COMMON_KEY, "*", {}),
@@ -258,7 +279,7 @@ SA_BLOCK_ENRICH = {
     ],
     "consolidate": [
         Consolidation(
-            name="BlocKFlrAr",
+            name="BlockFlrAr",
             input_cols=["TotalArea", "TOT_LVG_AREA"],
             cons_method=np.product,
         ),
@@ -295,13 +316,13 @@ SA_MAZ_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, MAZ_FC_SPECS),
     "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
     "agg_cols": [
-                    AggColumn(name=maz_col, agg_method="mean")
-                    for maz_col in MAZ_WALK_RENAMES.values()
-                ]
-                + [
-                    AggColumn(name=maz_col, agg_method="mean")
-                    for maz_col in MAZ_BIKE_RENAMES.values()
-                ],
+        AggColumn(name=maz_col, agg_method="mean")
+        for maz_col in MAZ_WALK_RENAMES.values()
+    ]
+    + [
+        AggColumn(name=maz_col, agg_method="mean")
+        for maz_col in MAZ_BIKE_RENAMES.values()
+    ],
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False,
@@ -310,24 +331,24 @@ SA_TAZ_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, TAZ_FC_SPECS),
     "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
     "agg_cols": [
-                    AggColumn(name=taz_col, agg_method="mean")
-                    for taz_col in TAZ_AUTO_RENAMES.values()
-                ]
-                + [
-                    AggColumn(name=taz_col, agg_method="mean")
-                    for taz_col in TAZ_TRANSIT_RENAMES.values()
-                ]
-                + [
-                    AggColumn("VMT_ALL"),
-                    AggColumn("AVG_TIME_FROM", agg_method="mean"),
-                    AggColumn("AVG_DIST_FROM", agg_method="mean"),
-                    AggColumn("TRIPS_PER_ACT_FROM", agg_method="mean"),
-                    AggColumn("VMT_PER_ACT_FROM", agg_method="mean"),
-                    AggColumn("AVG_TIME_TO", agg_method="mean"),
-                    AggColumn("AVG_DIST_TO", agg_method="mean"),
-                    AggColumn("TRIPS_PER_ACT_TO", agg_method="mean"),
-                    AggColumn("VMT_PER_ACT_TO", agg_method="mean"),
-                ],
+        AggColumn(name=taz_col, agg_method="mean")
+        for taz_col in TAZ_AUTO_RENAMES.values()
+    ]
+    + [
+        AggColumn(name=taz_col, agg_method="mean")
+        for taz_col in TAZ_TRANSIT_RENAMES.values()
+    ]
+    + [
+        AggColumn("VMT_ALL"),
+        AggColumn("AVG_TIME_FROM", agg_method="mean"),
+        AggColumn("AVG_DIST_FROM", agg_method="mean"),
+        AggColumn("TRIPS_PER_ACT_FROM", agg_method="mean"),
+        AggColumn("VMT_PER_ACT_FROM", agg_method="mean"),
+        AggColumn("AVG_TIME_TO", agg_method="mean"),
+        AggColumn("AVG_DIST_TO", agg_method="mean"),
+        AggColumn("TRIPS_PER_ACT_TO", agg_method="mean"),
+        AggColumn("VMT_PER_ACT_TO", agg_method="mean"),
+    ],
     "consolidate": [],
     "melt_cols": [],
     "disag_full_geometries": False,
@@ -451,7 +472,7 @@ WALK_DOM = DomainColumn(
 SA_PARCELS_LU_LONG = {
     "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS
-                + [Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM)],
+    + [Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM)],
     "agg_cols": [
         YEAR_COL,
         AggColumn(name="NO_RES_UNTS"),
@@ -516,10 +537,10 @@ SA_PARCELS_JSECTOR_LONG = {
 SA_PARCELS_WALK_STA_LONG = {
     "sources": (SUM_AREA_FC_SPECS, PAR_FC_SPECS),
     "grouping": SA_GROUP_COLS
-                + [
-                    Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM),
-                    Column(name="bin_stn_walk", domain=WALK_DOM),
-                ],
+    + [
+        Column(name="GN_VA_LU", default="Unknown", domain=LU_CAT_DOM),
+        Column(name="bin_stn_walk", domain=WALK_DOM),
+    ],
     "agg_cols": [
         YEAR_COL,
         AggColumn(name="TOT_LVG_AREA"),
@@ -551,7 +572,7 @@ SA_BLOCK_DEV_STATUS_LONG = {
     "agg_cols": [YEAR_COL, AggColumn(name="TotalArea")],
     "consolidate": [
         Consolidation(
-            name="BlocKFlrAr",
+            name="BlockFlrAr",
             input_cols=["TotalArea", "TOT_LVG_AREA"],
             cons_method=np.product,
         ),
@@ -617,7 +638,7 @@ BIKE_FAC_TYPE_COLS = [
 SA_BIKE_LONG = {
     "sources": (SUM_AREA_FC_SPECS, SUM_AREA_FC_SPECS),
     "grouping": SA_GROUP_COLS,
-    "agg_cols": [YEAR_COL, AggColumn(name="Bike_Miles")],
+    "agg_cols": [],  # [YEAR_COL, AggColumn(name="Bike_Miles")],
     "consolidate": [Consolidation(name="Total_Miles", input_cols=BIKE_FAC_TYPE_COLS)],
     "melt_cols": [
         MeltColumn(
@@ -978,21 +999,25 @@ DEV_STAT_USE_FA_SHR = {
     "tables": [(SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
     "new_field": "FA_SHR",
     "field_type": "FLOAT",
-    "expr": "fa_shr(!DevStatus!, !TotalArea!, !NonDevFlrAr!, !DevOSFlrAr!, !DevLowFlrAr!, !DevMedFlrAr!, DevHiFlrAr!)",
+    "expr": "fa_shr(!DevStatus!, !BlockFlrAr!, !NonDevFlrAr!, !DevOSFlrAr!, !DevLowFlrAr!, !DevMedFlrAr!, !DevHiFlrAr!)",
     "code_block": """
-    def fa_shr(row_status, tot_area, nd_area, os_area, lo_area, md_area, hi_area):
-        if row_status == "NonDevArea":
-            num = nd_area
-        elif row_status == "DevOSArea:
-            num = os_area
-        elif row_status == "DevLowArea:
-            num = lo_area
-        elif row_status == "DevMedArea:
-            num = md_area
-        elif row_status == "DevHighArea:
-            num = hi_area
-        return num/tot_area
-    """,
+def fa_shr(dev_status, tot_fl_area, nd_area, os_area, lo_area, md_area, hi_area):
+    if None in [dev_status, tot_fl_area, nd_area, os_area, lo_area, md_area, hi_area]:
+        return 0
+    if tot_fl_area == 0:
+        return 0
+    if dev_status == "NonDevArea":
+        num = nd_area
+    if dev_status == "DevOSArea":
+        num = os_area
+    if dev_status == "DevLowArea":
+        num = lo_area
+    if dev_status == "DevMedArea":
+        num = md_area
+    if dev_status == "DevHighArea":
+        num = hi_area
+    return num/tot_fl_area
+""",
 }
 NONDEV_FA_SHR = {
     "tables": [SUM_AREA_FC_SPECS, (SA_BLOCK_DEV_STATUS_LONG["out_table"], "", "")],
@@ -1083,6 +1108,8 @@ CALCS = [
 
 """ TREND PARAMS """
 STD_IDX_COLS = [pconfig.SUMMARY_AREAS_COMMON_KEY, "Name", "Corridor"]
+# STD_IDX_COLS = [SUMMARY_AREAS_FINAL_KEY, "Name", "Corridor"]
+
 ACC_IDX_COLS = ["Activity", "TimeBin", "from_time"]
 AUTO_ACC_DIFF = {
     "table": "ActivityByTime_Auto",
@@ -1133,6 +1160,7 @@ DIFF_TABLES = [
     WALK_ACC_DIFF,
     DEV_STATUS_DIFF,
     ATTR_LU_DIFF,
+    BIKE_FAC_DIFF,
     COMMUTE_DIFF,
     JOBS_DIFF,
     TRAN_DIFF,

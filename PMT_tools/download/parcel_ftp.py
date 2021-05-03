@@ -9,8 +9,9 @@ Created on Mon Jan 11 12:59:09 2021
 
 import ftplib
 import re
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 # %% Functions
@@ -595,9 +596,9 @@ if __name__ == "__main__":
     # save_path = None
 
     # Run
-    df = fdor_gis_and_tax(save_path=save_path)
-    # df
-    # md_current = fdor_availability(df = df,
-    #                                year = 2020,
-    #                                county = "Baker")
-    # md_current.url.tolist()
+    df = fdor_gis_and_tax()
+
+    md_current = fdor_availability(df=df,
+                                   year=2020,
+                                   county="Miami-Dade")
+    md_current.url.tolist()
