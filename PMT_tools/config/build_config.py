@@ -1,5 +1,6 @@
 from ..PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
 from ..config import prepare_config as pconfig
+from ..build.build_helper import _makeAccessColSpecs
 import numpy as np
 
 # GLOBALS
@@ -18,22 +19,6 @@ PAR_SUM_FIELDS = [
     "LND_VAL",
     "LND_SQFOOT",
 ]
-
-
-def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
-    cols = []
-    new_names = []
-    for a in activities:
-        for tb in time_breaks:
-            col = f"{a}{tb}Min"
-            cols.append(col)
-            new_names.append(f"{col}{mode[0]}")
-        if include_average:
-            col = f"AvgMin{a}"
-            cols.append(col)
-            new_names.append(f"{col}{mode[0]}")
-    renames = dict(zip(cols, new_names))
-    return cols, renames
 
 
 """ 
@@ -268,7 +253,7 @@ SA_BLOCK_ENRICH = {
     "sources": (SUM_AREA_FC_SPECS, BLOCK_FC_SPECS),
     "grouping": Column(name=SUM_AREA_FC_SPECS[1]),
     "agg_cols": [
-        AggColumn(BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks"),
+        AggColumn(name=BLOCK_FC_SPECS[1], agg_method="size", rename="NBlocks"),
         AggColumn(name="TotalArea", rename="BlockArea"),
         AggColumn(name="NonDevArea"),
         AggColumn(name="DevOSArea"),
