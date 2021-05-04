@@ -33,6 +33,7 @@ TODO: Review function list above and move to build helper where appropriate, pop
 """
 import os
 import sys
+
 from six import string_types
 
 sys.path.insert(0, os.getcwd())
@@ -41,37 +42,15 @@ from ..build import build_helper as B_HELP
 
 # configuration variables
 from ..config import build_config as B_CONF
-from ..config import prepare_config as P_CONF
 
 # global project functions/variables
 from .. import PMT
 from ..PMT import CLEANED, BUILD, BASIC_FEATURES
 
-
 import arcpy
 
 
 # SNAPSHOT Functions
-def build_access_by_mode(sum_area_fc, modes, out_gdb):
-    id_fields = [
-        P_CONF.SUMMARY_AREAS_COMMON_KEY,
-        P_CONF.STN_NAME_FIELD,
-        P_CONF.CORRIDOR_NAME_FIELD,
-        B_CONF.YEAR_COL.name,
-    ]
-    for mode in modes:
-        print(f"--- --- {mode}")
-        df = B_HELP._createLongAccess(
-            int_fc=sum_area_fc,
-            id_field=id_fields,
-            activities=B_CONF.ACTIVITIES,
-            time_breaks=B_CONF.TIME_BREAKS,
-            mode=mode,
-        )
-        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
-        PMT.dfToTable(df, out_table)
-
-
 def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
     """Joins feature classes to associated tabular data from year set and appends to FC in output gdb
         in_gdb: String; path to g
@@ -108,105 +87,6 @@ def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
             )
             joined_fcs.append(fc)
     return joined_fcs
-
-
-# TODO: add debug flag/debug_folder to allow intersections to be written to know location
-def build_intersections(gdb, enrich_specs):
-    """
-    performs a batch intersection of polygon feature classes
-    Args:
-        enrich_specs:
-        gdb:
-    Returns:
-    """
-    # Intersect features for long tables
-    int_out = {}
-    for intersect in enrich_specs:
-        # Parse specs
-        summ, disag = intersect["sources"]
-        summ_name, summ_id, summ_fds = summ
-        disag_name, disag_id, disag_fds = disag
-        summ_in = PMT.makePath(gdb, summ_fds, summ_name)
-        disag_in = PMT.makePath(gdb, disag_fds, disag_name)
-        full_geometries = intersect["disag_full_geometries"]
-        # Run intersect
-        print(f"--- Intersecting {summ_name} with {disag_name}")
-        int_fc = PMT.intersectFeatures(
-            summary_fc=summ_in,
-            disag_fc=disag_in,
-            in_temp_dir=True,
-            full_geometries=full_geometries,
-        )
-        # Record with specs
-        sum_dict = int_out.get(summ, {})
-        sum_dict[disag] = int_fc
-        int_out[summ] = sum_dict
-
-    return int_out
-
-
-def build_enriched_tables(gdb, fc_dict, specs):
-    # Enrich features through summarization
-    for spec in specs:
-        summ, disag = spec["sources"]
-        fc_name, fc_id, fc_fds = summ
-        d_name, d_id, d_fds = disag
-        if summ == disag:
-            # Simple pivot wide to long
-            fc = PMT.makePath(gdb, fc_fds, fc_name)
-        else:
-            # Pivot from intersection
-            fc = fc_dict[summ][disag]
-
-        print(f"--- Summarizing data from {d_name} to {fc_name}")
-        # summary vars
-        group = spec["grouping"]
-        agg = spec["agg_cols"]
-        consolidate = spec["consolidate"]
-        melts = spec["melt_cols"]
-        summary_df = B_HELP.summarizeAttributes(
-            in_fc=fc,
-            group_fields=group,
-            agg_cols=agg,
-            consolidations=consolidate,
-            melt_col=melts,
-        )
-        try:
-            out_name = spec["out_table"]
-            print(f"--- --- to long table {out_name}")
-            out_table = PMT.makePath(gdb, out_name)
-            PMT.dfToTable(df=summary_df, out_table=out_table, overwrite=True)
-        except KeyError:
-            # extend input table
-            feature_class = PMT.makePath(gdb, fc_fds, fc_name)
-            # if being run again, delete any previous data as da.ExtendTable will fail if a field exists
-            summ_cols = [col for col in summary_df.columns.to_list() if col != fc_id]
-            drop_fields = [
-                f.name for f in arcpy.ListFields(feature_class) if f.name in summ_cols
-            ]
-            if drop_fields:
-                print(
-                    f"--- --- deleting previously generated data and replacing with current summarizations"
-                )
-                arcpy.DeleteField_management(
-                    in_table=feature_class, drop_field=drop_fields
-                )
-            PMT.extendTableDf(
-                in_table=feature_class,
-                table_match_field=fc_id,
-                df=summary_df,
-                df_match_field=fc_id,
-                append_only=False,
-            )  # TODO: handle append/overwrite more explicitly
-
-
-def sum_parcel_cols(gdb, par_spec, columns):
-    par_name, par_id, par_fds = par_spec
-    par_fc = PMT.makePath(gdb, par_fds, par_name)
-    df = PMT.featureclass_to_df(
-        in_fc=par_fc, keep_fields=columns, skip_nulls=False, null_val=0
-    )
-    return df.sum()
 
 
 def process_year_to_snapshot(year):
@@ -247,13 +127,13 @@ def process_year_to_snapshot(year):
 
     # Summarize reference values
     print("Calculating parcels sums to generate regional statistics...")
-    par_sums = sum_parcel_cols(
+    par_sums = B_HELP.sum_parcel_cols(
         gdb=out_gdb, par_spec=B_CONF.PAR_FC_SPECS, columns=B_CONF.PAR_SUM_FIELDS
     )
 
     # Intersect tables for enrichment
     print("Intersecting feature classes to generate summaries...")
-    int_fcs = build_intersections(gdb=out_gdb, enrich_specs=B_CONF.ENRICH_INTS)
+    int_fcs = B_HELP.build_intersections(gdb=out_gdb, enrich_specs=B_CONF.ENRICH_INTS)
 
     # # Store / load intersection fcs (temp locations) in debugging mode
     # if DEBUG:
@@ -263,11 +143,11 @@ def process_year_to_snapshot(year):
     #     #     int_fcs = pickle.load(__f__)
     # enrich tables
     print("Enriching feature classes with tabular data...")
-    build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=B_CONF.ENRICH_INTS)
+    B_HELP.build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=B_CONF.ENRICH_INTS)
 
     # elongate tables
     print("Elongating tabular data...")
-    build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=B_CONF.ELONGATE_SPECS)
+    B_HELP.build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=B_CONF.ELONGATE_SPECS)
 
     # build access by mode tables
     print("Access scores by activity and time bin")
