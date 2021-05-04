@@ -42,6 +42,7 @@ from ..build import build_helper as B_HELP
 
 # configuration variables
 from ..config import build_config as B_CONF
+from ..config import prepare_config as P_CONF
 
 # global project functions/variables
 from .. import PMT
@@ -153,20 +154,16 @@ def process_year_to_snapshot(year):
     print("Access scores by activity and time bin")
     sa_fc, sa_id, sa_fds = B_CONF.SUM_AREA_FC_SPECS
     sum_areas_fc = PMT.makePath(out_gdb, sa_fds, sa_fc)
-    id_fields = [sa_id, "Name", "Corridor"]  # , build_conf.YEAR_COL.name]
-
-    for mode in B_CONF.MODES:
-        print(f"--- --- {mode}")
-        df = B_HELP._createLongAccess(
-            int_fc=sum_areas_fc,
-            id_field=id_fields,
-            activities=B_CONF.ACTIVITIES,
-            time_breaks=B_CONF.TIME_BREAKS,
-            mode=mode,
-        )
-        df["Year"] = calc_year
-        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
-        PMT.dfToTable(df=df, out_table=out_table, overwrite=True)
+    id_fields = [
+        P_CONF.SUMMARY_AREAS_COMMON_KEY,
+        P_CONF.STN_NAME_FIELD,
+        P_CONF.CORRIDOR_NAME_FIELD,
+    ]
+    B_HELP.build_access_by_mode(sum_area_fc=sum_areas_fc,
+                                modes=B_CONF.MODES,
+                                id_field=id_fields,
+                                out_gdb=out_gdb,
+                                year_val=calc_year)
 
     # Prepare regional reference columns
     reg_ref_calcs = []

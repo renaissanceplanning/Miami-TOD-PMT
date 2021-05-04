@@ -72,32 +72,29 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     return paths
 
 
-def build_access_by_mode(sum_area_fc, modes, out_gdb):
+def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
     """
     helper function to generate access tables by mode
     Args:
         sum_area_fc (str): path to summary area feature class
         modes (list): modes of travel
+        id_fields (list): fields to be used as index
         out_gdb (str): path to output geodatabase
+        year_val (int): value to insert for year
 
     Returns:
         None
     """
-    id_fields = [
-        p_conf.SUMMARY_AREAS_COMMON_KEY,
-        p_conf.STN_NAME_FIELD,
-        p_conf.CORRIDOR_NAME_FIELD,
-        p_conf.YEAR_COL.name,
-    ]
     for mode in modes:
         print(f"--- --- {mode}")
         df = _createLongAccess(
             int_fc=sum_area_fc,
-            id_field=id_fields,
+            id_field=id_field,
             activities=b_conf.ACTIVITIES,
             time_breaks=b_conf.TIME_BREAKS,
             mode=mode,
         )
+        df["Year"] = year_val
         out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
         PMT.dfToTable(df, out_table)
 
