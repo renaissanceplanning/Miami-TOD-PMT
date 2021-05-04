@@ -752,6 +752,7 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
     Returns:
         None; `in_table` is modified in place
     """
+    # TODO: set defaults by reindexing and filling NANs based on table match field and array match field
     in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
     arcpy.da.ExtendTable(
         in_table=in_table,
