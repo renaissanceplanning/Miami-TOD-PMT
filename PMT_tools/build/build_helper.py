@@ -99,6 +99,44 @@ def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
         PMT.dfToTable(df, out_table)
 
 
+def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
+    """Joins feature classes to associated tabular data from year set and appends to FC in output gdb
+        in_gdb: String; path to g
+    Returns:
+        [String,...]; list of paths to joined feature classes ordered as
+            Blocks, Parcels, MAZ, TAZ, SummaryAreas, NetworkNodes
+    """
+
+    #   tables need to be ordered the same as FCs
+    _table_specs_ = []
+    for fc in fc_specs:
+        t_specs = [spec for spec in table_specs if fc[0].lower() in spec[0].lower()]
+        _table_specs_.append(t_specs)
+    table_specs = _table_specs_
+
+    # join tables to feature classes, making them WIDE
+    joined_fcs = []  # --> blocks, parcels, maz, taz, sa, net_nodes
+    for fc_spec, table_spec in zip(fc_specs, table_specs):
+        fc_name, fc_id, fds = fc_spec
+        fc = PMT.makePath(out_gdb, fds, fc_name)
+
+        for spec in table_spec:
+            tbl_name, tbl_id, tbl_fields, tbl_renames = spec
+            tbl = PMT.makePath(in_gdb, tbl_name)
+            print(f"--- Joining fields from {tbl_name} to {fc_name}")
+            joinAttributes(
+                to_table=fc,
+                to_id_field=fc_id,
+                from_table=tbl,
+                from_id_field=tbl_id,
+                join_fields=tbl_fields,
+                renames=tbl_renames,
+                drop_dup_cols=True,
+            )
+            joined_fcs.append(fc)
+    return joined_fcs
+
+
 # TODO: add debug flag/debug_folder to allow intersections to be written to know location
 def build_intersections(gdb, enrich_specs):
     """

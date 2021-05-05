@@ -6,30 +6,12 @@ for ingestion to AGOL for the tool
 
 Functions:
     year_to_snapshot:
-        process/task to take year gdb, making the geometries wide where needed and
+        - process/task to take year gdb, making the geometries wide where needed and
         metrics long on categorical data
-    _validateAggSpecs:
-        validates fields provides match the supplied Column Class
-    _makeAccessColSpecs:
-        creates columns specifications for access variables
-    _createLongAccess:
-        creates a pandas dataframe for access metrics, long on activity and time bin
-    joinAttributes:
-        joins tabular data to an existing FC or table
-    summarizeAttributes:
-        consolidates and melts data as requested, returns a dataframe of the summarized metrics
 
-    snapshot_to_trend:
-        process/task to stack snapshot metrics, making them long on year, ref_YEAR_Snapshot data
-        will be used to generate difference values by metric within the summary geometries
-    _build_change_table:
-        reads in Snap and Base year tables, compares fields in both, calculates diff
-    build_near_term_parcels:
-        function to replace existing parcel data with updates from building permit data to create
-        a projected parcel layer  for the near term
-
-TODO: Review function list above and move to build helper where appropriate, populate with below functions
-
+    snapshot_to_trend: (used to process Trend and NearTerm geodatabases with alterations to inputs)
+        - process/task to stack snapshot metrics, making them long on year, ref_YEAR_Snapshot
+        - data also generate difference values by metric within the summary geometries, blocks, MAZ, TAZ
 """
 import os
 import sys
@@ -48,52 +30,29 @@ from ..config import prepare_config as P_CONF
 from .. import PMT
 from ..PMT import CLEANED, BUILD, BASIC_FEATURES
 
+import argparse
 import arcpy
-
-
-# SNAPSHOT Functions
-def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
-    """Joins feature classes to associated tabular data from year set and appends to FC in output gdb
-        in_gdb: String; path to g
-    Returns:
-        [String,...]; list of paths to joined feature classes ordered as
-            Blocks, Parcels, MAZ, TAZ, SummaryAreas, NetworkNodes
-    """
-
-    #   tables need to be ordered the same as FCs
-    _table_specs_ = []
-    for fc in fc_specs:
-        t_specs = [spec for spec in table_specs if fc[0].lower() in spec[0].lower()]
-        _table_specs_.append(t_specs)
-    table_specs = _table_specs_
-
-    # join tables to feature classes, making them WIDE
-    joined_fcs = []  # --> blocks, parcels, maz, taz, sa, net_nodes
-    for fc_spec, table_spec in zip(fc_specs, table_specs):
-        fc_name, fc_id, fds = fc_spec
-        fc = PMT.makePath(out_gdb, fds, fc_name)
-
-        for spec in table_spec:
-            tbl_name, tbl_id, tbl_fields, tbl_renames = spec
-            tbl = PMT.makePath(in_gdb, tbl_name)
-            print(f"--- Joining fields from {tbl_name} to {fc_name}")
-            B_HELP.joinAttributes(
-                to_table=fc,
-                to_id_field=fc_id,
-                from_table=tbl,
-                from_id_field=tbl_id,
-                join_fields=tbl_fields,
-                renames=tbl_renames,
-                drop_dup_cols=True,
-            )
-            joined_fcs.append(fc)
-    return joined_fcs
 
 
 def process_year_to_snapshot(year):
     """process cleaned yearly data to a Snapshot database
-    Returns:
+    1) copies feature datasets into a temporary geodatabase
+    2) performs a series of permenant joins of tabular data onto feature classes making wide tables
+    3) Calculates a series of new fields in the existing feature classes
+    4) calculated a dataframe of region wide parcel level statistics
+    5) Intersects a series of geometries together, allowing us to aggregate and summarize data from higher to lower
+        spatial scales
+    6) Enrichment of existing feature class tables with the information from higher spatial resolution, in effect
+        widening the tables (ex: roll parcel level data up to blocks, or parcel level data up to Station Areas)
+    7) Generate new tables that are long on categorical information derived from the intersections
+        (ex: pivot TOT_LVG_AREA on Land Use, taking the sum of living area by land use)
+    8) Create separate access by mode tables (bike, walk, transit, auto)
+    9) Calculate new attributes based on region wide summaries
+    10) Calculate additional attributes for dashboards that require all previous steps to be run
+    11) If successful, replace existing copy of Snapshot with newly processed version.
 
+    Returns:
+        None
     """
     # define numeric for year in the case of NearTerm
     calc_year = year
@@ -115,7 +74,7 @@ def process_year_to_snapshot(year):
 
     # Join tables to the features
     print("Joining tables to feature classes...")
-    process_joins(
+    B_HELP.process_joins(
         in_gdb=in_gdb,
         out_gdb=out_gdb,
         fc_specs=B_CONF.FC_SPECS,
@@ -197,15 +156,8 @@ def process_year_to_snapshot(year):
     B_HELP.finalize_output(intermediate_gdb=out_gdb, final_gdb=year_out_gdb)
 
 
-def process_years_to_trend(
-    years,
-    tables,
-    long_features,
-    diff_features,
-    base_year=None,
-    snapshot_year=None,
-    out_gdb_name=None,
-):
+def process_years_to_trend(years, tables, long_features, diff_features,
+                           base_year=None, snapshot_year=None, out_gdb_name=None,):
     """
     TODO: add a try/except to delete any intermediate data created
     """
@@ -355,6 +307,10 @@ if __name__ == "__main__":
         DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
         YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
         YEARS = ["NearTerm"]
+
+    # # parse arguments to allow these to be run as scripts
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument()
 
     # Snapshot data
     print("Building snapshot databases...")
