@@ -158,7 +158,12 @@ def process_year_to_snapshot(year):
 
 def process_years_to_trend(years, tables, long_features, diff_features,
                            base_year=None, snapshot_year=None, out_gdb_name=None,):
-    """
+    """Utilizing a base and snapshot year, trend data are generated for the associated time period.
+    1) creates a a blank output workspace with necessary feature dataset categories uniquely named
+    2) generates tables long on year for all tabular data and summary areas
+    3) generated difference tables for all tabular data summary features
+        (Summary Areas, Census Blocks, MAZ, and TAZ)
+    4) upon completion, replace existing copy of Trend/NearTerm gdb with newly processed version.
     TODO: add a try/except to delete any intermediate data created
     """
     # Validation
