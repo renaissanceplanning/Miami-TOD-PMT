@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from six import string_types
 
-from download_helper import download_file_from_url
+from helper import download_file_from_url
 from ..config.download_config import (
     LODES_URL,
     LODES_YEARS,
