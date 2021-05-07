@@ -64,7 +64,7 @@ arcpy.env.overwriteOutput = True
 
 def process_normalized_geometries(overwrite=True):
     """ YEAR BY YEAR
-          - Sets up Year GDB, and Polygons FDS
+          - Sets up Year GDB, and 'Polygons' feature dataset
           - Adds MAZ, TAZ, Census_Blocks, Census_BlockGroups, SummaryAreas
           - for each geometry type, the year is added as an attribute
           - for NearTerm, year is set to 9998
@@ -142,6 +142,14 @@ def process_normalized_geometries(overwrite=True):
 
 
 def process_basic_features(overwrite=True):
+    """utilizing the basic features, SummaryAreas are generated for the project
+        -
+    Args:
+        overwrite:
+
+    Returns:
+
+    """
     # TODO: add check for existing basic features, and compare for changes
     print("MAKING BASIC FEATURES...")
     station_presets = makePath(BASIC_FEATURES, "StationArea_presets")

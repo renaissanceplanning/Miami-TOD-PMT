@@ -1,6 +1,9 @@
 # Miami-TOD-PMT
 Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
-
+## Table of Contents
+1. [Environment Setup](#environment-setup)
+   2. [Conda Envs](#building-python-conda-environment)
+2. 
 ## Environment Setup
 ##### Assumptions
 - ArcGIS Pro is installed in a standard location
@@ -9,9 +12,30 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
 - Familiarity with command line interactions
 
 ##### Building python CONDA environment
-1) Select Windows Start
-2) Navigate to 'Python Command Prompt' under ArcGIS folder --> Open
-3) In the command window run the below commands:
+###### Env: pmt_download
+1. Select Windows Start
+2. Navigate to 'Python Command Prompt' under ArcGIS folder --> Open
+3. In the command window run the below commands:
+4. _Create a new environment_
+    ```
+    conda create --name %LocalAppData%\ESRI\conda\envs\pmt_download
+    ```
+4) _Activate the newly created environment_
+    ```
+    activate pmt_download
+    ```
+5) _Install conda packages using **conda-forge** channel_
+    ```
+    conda install -c conda-forge osmnx geopandas pandas numpy scipy
+    * enter 'y/yes' and return when asked
+    ```
+6) _Install pip packages_
+    ```
+    pip install censusdata
+    ```
+###### Env: pmt_tools
+repeat steps 1-3 from above
+
 4) _Clone the existing ArcGIS python environment_
     ```
     conda create --clone arcgispro-py3 --name %LocalAppData%\ESRI\conda\envs\pmt_tools
@@ -32,9 +56,8 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
     ```
     pip install esridump censusdata simpledbf
     ```
-
-#### _WARNING_
-If you have recently updated ArcGIS Pro, you will need to remove the existing environment and recreate it using
+_WARNING_
+If you have recently updated ArcGIS Pro to a new Major Version, you will need to remove the existing environment and recreate it using
 steps 4-7 again.
 - Remove env
     ```
