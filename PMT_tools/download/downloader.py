@@ -15,14 +15,14 @@ from ..utils import RAW, YEARS
 from ..utils import validate_directory, makePath
 
 # helper functions from other modules
-from download_census_geo import get_one_geo_type
-from download_census_lodes import download_aggregate_lodes
-from download_helper import (
+from census_geo import get_one_geo_type
+from census import download_aggregate_lodes
+from helper import (
     download_race_vars,
     download_commute_vars,
     download_file_from_url,
 )
-from download_osm import download_osm_networks, download_osm_buildings
+from open_street_map import download_osm_networks, download_osm_buildings
 
 
 def setup_download_folder(dl_folder):

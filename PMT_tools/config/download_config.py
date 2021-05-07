@@ -48,7 +48,8 @@ LODES_FILE_TYPE = "wac"
     - Impervious Surface data NLCD
     - Urban Growth Boundary
     - County Boundary
-    - Various Parks data'''
+    - Various Parks data
+    - Various Bike Facility Layers'''
 DOWNLOAD_URL_DICT = {
     "Imperviousness": r"https://s3-us-west-2.amazonaws.com/mrlc/NLCD_2016_Impervious_L48_20190405.zip",
     "MD_Urban_Growth_Boundary": r"https://opendata.arcgis.com/datasets/a468dc11c02f4467ade836947627554b_0.geojson",

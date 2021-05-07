@@ -1,4 +1,9 @@
 """
+''''''''''''''''Developer_CTW comment'''''''''''''''''''''''
+much of this code has been borrowed from:
+    https://github.com/censusreporter/census-shapefile-utils
+        - fetch_shapefiles.py
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 This script will download TIGER data shapefiles from the Census FTP site.
 It can be used to download a set of geographies defined in GEO_TYPES_LIST,
 or can be used to fetch files for a single state and/or single geography type.

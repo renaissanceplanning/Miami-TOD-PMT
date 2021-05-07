@@ -15,6 +15,18 @@ from ..config import build_config as b_conf
 
 
 def _list_table_paths(gdb, criteria="*"):
+    """
+    internal function, returns a list of all tables within a geodatabase
+    Args:
+        gdb (str/path): string path to a geodatabase
+        criteria (list): wildcards to limit the results returned from ListTables;
+            list of table names generated from trend table parameter dictionaries,
+            table name serves as a wildcard for the ListTables method, however if no criteria is given
+            all table names in the gdb will be returned
+
+    Returns (list):
+        list of full paths to tables in geodatabase
+    """
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = gdb
     if isinstance(criteria, string_types):
@@ -28,6 +40,18 @@ def _list_table_paths(gdb, criteria="*"):
 
 
 def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
+    """
+    internal function, returns a list of all feature classes within a geodatabase
+    Args:
+        gdb (str/path): string path to a geodatabase
+        fds_criteria (str/list): wildcards to limit results returned. List of
+            feature datasets
+        fc_criteria (str/list): wildcard to limit results returned. List of
+            feature class names.
+
+    Returns (list):
+        list of full paths to feature classes in geodatabase
+    """
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = gdb
     paths = []
@@ -48,14 +72,223 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     return paths
 
 
+def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
+    """
+    helper function to generate access tables by mode
+    Args:
+        sum_area_fc (str): path to summary area feature class
+        modes (list): modes of travel
+        id_fields (list): fields to be used as index
+        out_gdb (str): path to output geodatabase
+        year_val (int): value to insert for year
+
+    Returns:
+        None
+    """
+    for mode in modes:
+        print(f"--- --- {mode}")
+        df = _createLongAccess(
+            int_fc=sum_area_fc,
+            id_field=id_field,
+            activities=b_conf.ACTIVITIES,
+            time_breaks=b_conf.TIME_BREAKS,
+            mode=mode,
+        )
+        df["Year"] = year_val
+        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
+        PMT.dfToTable(df, out_table)
+
+
+def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
+    """Joins feature classes to associated tabular data from year set and appends to FC in output gdb
+        in_gdb: String; path to g
+    Returns:
+        [String,...]; list of paths to joined feature classes ordered as
+            Blocks, Parcels, MAZ, TAZ, SummaryAreas, NetworkNodes
+    """
+
+    #   tables need to be ordered the same as FCs
+    _table_specs_ = []
+    for fc in fc_specs:
+        t_specs = [spec for spec in table_specs if fc[0].lower() in spec[0].lower()]
+        _table_specs_.append(t_specs)
+    table_specs = _table_specs_
+
+    # join tables to feature classes, making them WIDE
+    joined_fcs = []  # --> blocks, parcels, maz, taz, sa, net_nodes
+    for fc_spec, table_spec in zip(fc_specs, table_specs):
+        fc_name, fc_id, fds = fc_spec
+        fc = PMT.makePath(out_gdb, fds, fc_name)
+
+        for spec in table_spec:
+            tbl_name, tbl_id, tbl_fields, tbl_renames = spec
+            tbl = PMT.makePath(in_gdb, tbl_name)
+            print(f"--- Joining fields from {tbl_name} to {fc_name}")
+            joinAttributes(
+                to_table=fc,
+                to_id_field=fc_id,
+                from_table=tbl,
+                from_id_field=tbl_id,
+                join_fields=tbl_fields,
+                renames=tbl_renames,
+                drop_dup_cols=True,
+            )
+            joined_fcs.append(fc)
+    return joined_fcs
+
+
+# TODO: add debug flag/debug_folder to allow intersections to be written to know location
+def build_intersections(gdb, enrich_specs):
+    """
+    helper function that performs a batch intersection of polygon feature classes
+    Args:
+        enrich_specs (list): list of dictionaries specifying source data, groupings, aggregations,
+            consolidations, melt/elongation, and boolean for full geometry or centroid use in intersection
+        gdb (str): path to geodatabase that contains the source data
+    Returns (dict):
+        dictionary of the format {summ fc: {
+                                    disag_fc: path/to/intersection
+                                    }
+                                }
+        will return multiple results for each summ_fc if more than one intersection is made against it.
+    """
+    # Intersect features for long tables
+    int_out = {}
+    for intersect in enrich_specs:
+        # Parse specs
+        summ, disag = intersect["sources"]
+        summ_name, summ_id, summ_fds = summ
+        disag_name, disag_id, disag_fds = disag
+        summ_in = PMT.makePath(gdb, summ_fds, summ_name)
+        disag_in = PMT.makePath(gdb, disag_fds, disag_name)
+        full_geometries = intersect["disag_full_geometries"]
+        # Run intersect
+        print(f"--- Intersecting {summ_name} with {disag_name}")
+        int_fc = PMT.intersectFeatures(
+            summary_fc=summ_in,
+            disag_fc=disag_in,
+            in_temp_dir=True,
+            full_geometries=full_geometries,
+        )
+        # Record with specs
+        sum_dict = int_out.get(summ, {})
+        sum_dict[disag] = int_fc
+        int_out[summ] = sum_dict
+
+    return int_out
+
+
+def build_enriched_tables(gdb, fc_dict, specs):
+    """
+    helper function used to enrich and/or elongate data for a summarization area
+    Args:
+        gdb (str): path to geodatabase where outputs are written
+        fc_dict (dict): dictionary returned from build_intersections
+        specs (list of dicts): list of dictionaries specifying sources, grouping, aggregations,
+            consolidations, melts/elongations, and an output table (this is used by the try/except
+            clause to make a new table (elongation) or append to an existing feature class (widening)
+
+    Returns:
+        None
+    """
+    # Enrich features through summarization
+    for spec in specs:
+        summ, disag = spec["sources"]
+        fc_name, fc_id, fc_fds = summ
+        d_name, d_id, d_fds = disag
+        if summ == disag:
+            # Simple pivot wide to long
+            fc = PMT.makePath(gdb, fc_fds, fc_name)
+        else:
+            # Pivot from intersection
+            fc = fc_dict[summ][disag]
+
+        print(f"--- Summarizing data from {d_name} to {fc_name}")
+        # summary vars
+        group = spec["grouping"]
+        agg = spec["agg_cols"]
+        consolidate = spec["consolidate"]
+        melts = spec["melt_cols"]
+        summary_df = summarizeAttributes(
+            in_fc=fc,
+            group_fields=group,
+            agg_cols=agg,
+            consolidations=consolidate,
+            melt_col=melts,
+        )
+        try:
+            out_name = spec["out_table"]
+            print(f"--- --- to long table {out_name}")
+            out_table = PMT.makePath(gdb, out_name)
+            PMT.dfToTable(df=summary_df, out_table=out_table, overwrite=True)
+        except KeyError:
+            # extend input table
+            feature_class = PMT.makePath(gdb, fc_fds, fc_name)
+            # if being run again, delete any previous data as da.ExtendTable will fail if a field exists
+            summ_cols = [col for col in summary_df.columns.to_list() if col != fc_id]
+            drop_fields = [
+                f.name for f in arcpy.ListFields(feature_class) if f.name in summ_cols
+            ]
+            if drop_fields:
+                print(
+                    f"--- --- deleting previously generated data and replacing with current summarizations"
+                )
+                arcpy.DeleteField_management(
+                    in_table=feature_class, drop_field=drop_fields
+                )
+            PMT.extendTableDf(
+                in_table=feature_class,
+                table_match_field=fc_id,
+                df=summary_df,
+                df_match_field=fc_id,
+                append_only=False,
+            )  # TODO: handle append/overwrite more explicitly
+
+
+def sum_parcel_cols(gdb, par_spec, columns):
+    """
+    helper function to summarize a provided list of columns for the parcel layer, creating
+    region wide statistics
+    Args:
+        gdb (str): path to geodatabase that parcel layer exists in
+        par_spec (tuple): tuple of format (fc name, unique id column, feature dataset location)
+        columns (list): string list of fields/columns needing summarization
+
+    Returns:
+        pandas.Dataframe
+    """
+    par_name, par_id, par_fds = par_spec
+    par_fc = PMT.makePath(gdb, par_fds, par_name)
+    df = PMT.featureclass_to_df(
+        in_fc=par_fc, keep_fields=columns, skip_nulls=False, null_val=0
+    )
+    return df.sum()
+
+
 def unique_values(table, field):
+    """
+    helper function to return all unique values for a provided field/column
+    Args:
+        table (str): path to table of interest
+        field (str): field name of interest
+
+    Returns (ndarray):
+        sorted unique values from the field
+    """
     data = arcpy.da.TableToNumPyArray(in_table=table, field_names=[field], null_value=0)
     return np.unique(data[field])
-    # with arcpy.da.SearchCursor(table, [field]) as cursor:
-    #     return sorted({row[0] for row in cursor})
 
 
 def add_year_columns(in_gdb, year):
+    """
+    helper function ensuring the year attribute is present in all layers/tables
+    Args:
+        in_gdb (str): path to geodatabase
+        year (int): value to be calculated as year
+
+    Returns:
+        None
+    """
     print("--- checking for/adding year columns")
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = in_gdb
@@ -83,6 +316,16 @@ def add_year_columns(in_gdb, year):
 
 
 def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
+    """
+    helper function to create a temporary geodatabase to hold data as its procesed
+    Args:
+        out_path (str): path to folder
+        out_gdb_name (str): name of geodatabase, Default is None, resulting in a unique name
+        overwrite (bool): flag to delete an existing geodatabase
+
+    Returns (str):
+        path to output geodatabase
+    """
     if not out_gdb_name:
         out_gdb_name = f"_{uuid.uuid4().hex}.gdb"
         out_gdb = PMT.makePath(out_path, out_gdb_name)
@@ -96,6 +339,18 @@ def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
 
 
 def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False):
+    """
+    helper function to copy yearly feature classes into a reporting geodatabase;
+    copies all feature datasets from corresponding clean data workspace
+    Args:
+        in_gdb (str): path to clean data workspace
+        out_path (str): path where snapshot template gdb is written
+        out_gdb_name (str): optional name of output gdb
+        overwrite (bool): boolean flag to overwrite an existing copy of the out_gdb_name
+
+    Returns (str):
+        path to the newly created reporting geodatabase
+    """
     out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
     # copy in the geometry data containing minimal tabular data
     for fds in ["Networks", "Points", "Polygons"]:
@@ -107,6 +362,17 @@ def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
 
 
 def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
+    """
+    helper function to generate a blank output workspace with necessary feature
+    dataset categories
+    Args:
+        out_path (str): path where trend template gdb is written
+        out_gdb_name (str): optional name of output gdb
+        overwrite (bool): boolean flag to overwrite an existing copy of the out_gdb_name
+
+    Returns (str):
+        path to the newly created reporting geodatabase
+    """
     out_gdb = make_reporting_gdb(out_path, out_gdb_name, overwrite)
     for fds in ["Networks", "Points", "Polygons"]:
         arcpy.CreateFeatureDataset_management(
@@ -116,6 +382,15 @@ def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
 
 
 def _validateAggSpecs(var, expected_type):
+    """
+    helper function to validate a set of aggregation/grouping specs match the necessary object type
+    Args:
+        var (list/str): list of grouping/aggregation specs
+        expected_type (str): object type
+
+    Returns (list):
+        if the var variable validates, the same list is returned
+    """
     e_type = expected_type.__name__
     # Simplest: var is the expected type
     if isinstance(var, expected_type):
@@ -143,12 +418,26 @@ def joinAttributes(
     to_id_field,
     from_table,
     from_id_field,
-    join_fields,
+    join_fields="*",
     null_value=0.0,
     renames=None,
     drop_dup_cols=False,
 ):
     """
+    helper function to join attributes of one table to another
+    Args:
+        to_table (str): path to table being extended
+        to_id_field (str): primary key
+        from_table (str): path to table being joined
+        from_id_field (str): foreign key
+        join_fields (list/str): list of fields to be added to to_table;
+            Default: "*", indicates all fields are to be joined
+        null_value (int/str): value to insert for nulls
+        renames (dict): key/value pairs of existing field names/ new field names
+        drop_dup_cols (bool): flag to eliminate duplicated fields
+
+    Returns:
+        None
     """
     # If all columns, get their names
     if renames is None:
@@ -202,6 +491,19 @@ def summarizeAttributes(
     in_fc, group_fields, agg_cols, consolidations=None, melt_col=None
 ):
     """
+    helper function to perform summarizations of input feature class defined by the
+    group, agg, consolidate, and melt columns/objects provided
+    Args:
+        in_fc (str): path to feature class, typically this will be the result of an
+            intersection of a summary fc and disaggregated fc
+        group_fields (list): list of Column objects with optional rename attribute
+        agg_cols (list): list of AggColumn objects with optional agg_method and rename attributes
+        consolidations (list): list of Consolidation objects with optional consolidation method attribute
+        melt_col (list): list of MeltColumn objects with optional agg_method, default value, and
+            DomainColumn object
+
+    Returns:
+        pandas.Dataframe object with all data summarized according to specs
     """
     # Validation (listify inputs, validate values)
     # - Group fields (domain possible)
@@ -294,6 +596,32 @@ def summarizeAttributes(
 
 
 def apply_field_calcs(gdb, new_field_specs, recalculate=False):
+    """
+    helper function that applies field calculations, adding a new field to a table
+    Args:
+        gdb (str): path to geodatabase containing table to have new calc added
+        new_field_specs (list): list of dictionaries specifying table(s), new_field, field_type,
+            expr, code_block
+            Example:
+                {"tables": [PAR_FC_SPECS], "new_field": "RES_AREA", "field_type": "FLOAT",
+                "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
+                "code_block": '''
+                def calc_area(sq_ft, activity):
+                if activity is None:
+                    return 0
+                elif activity <= 0:
+                    return 0
+                else:
+                    return sq_ft
+                ''',
+            }
+
+        recalculate (bool): flag to rerun a calculation if the field already exsits in the table;
+            currently unused
+
+    Returns:
+        None
+    """
     # Iterate over new fields
     for nf_spec in new_field_specs:
         # Get params
@@ -338,6 +666,7 @@ def apply_field_calcs(gdb, new_field_specs, recalculate=False):
                     length = nf_spec["length"]
                     add_args["field_length"] = length
 
+                # TODO: fix the below to work, was failing previously
                 # # check if new field already in dataset, if recalc True delete and recalculate
                 # if PMT.which_missing(table=in_table, field_list=[new_field]):
                 #     if recalculate:
@@ -352,6 +681,18 @@ def apply_field_calcs(gdb, new_field_specs, recalculate=False):
 
 
 def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
+    """
+    helper function to generate access column specs
+    Args:
+        activities (list): list of job sectors
+        time_breaks (list): integer list of time bins
+        mode (list): string list of transportation modes
+        include_average (bool): flag to create a long column of average minutes to access
+            a given mode
+
+    Returns:
+        cols (list), renames (dict); list of columns created, dict of old/new name pairs
+    """
     cols = []
     new_names = []
     for a in activities:
@@ -368,6 +709,19 @@ def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
 
 
 def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=None):
+    """
+
+    Args:
+        int_fc:
+        id_field:
+        activities:
+        time_breaks:
+        mode:
+        domain:
+
+    Returns:
+
+    """
     # result is long on id_field, activity, time_break
     # TODO: update to use Column objects? (null handling, e.g.)
     # --------------
@@ -418,7 +772,18 @@ def _get_time_previous_time_break_(time_breaks, tb):
 
 def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     """
-    this_table minus base_table
+    helper function to calculate the difference between this_table and base_table
+        ie... this_table minus base_table
+    Args:
+        this_table (str): path to a snapshot table
+        base_table (str): path to a previous years snapshot table
+        idx_cols (list): column names used to generate a common index
+        fields (list): if provided, a list of fields to calculate the difference on;
+            Default: "*" indicates all fields
+        **kwargs: keyword arguments for featureclass_to_df
+
+    Returns:
+        pandas.Dataframe; df of difference values
     """
     # Fetch data frames
     this_df = PMT.featureclass_to_df(in_fc=this_table, keep_fields=fields, **kwargs)
@@ -430,8 +795,7 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     # Drop all remaining non-numeric columns
     base_df_n = base_df.select_dtypes(["number"])
     this_df_n = this_df.select_dtypes(["number"])
-    # Reindex columns
-    # this_df_n.reindex(columns=base_df_n.columns, inplace=True)
+
     # Take difference
     diff_df = this_df_n - base_df_n
     # Restore index columns
@@ -441,12 +805,13 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
 
 
 def finalize_output(intermediate_gdb, final_gdb):
-    """Takes an intermediate GDB path and the final GDB path for that data and
+    """
+    Takes an intermediate GDB path and the final GDB path for that data and
         replaces the existing GDB if it exists, otherwise it makes a copy
         of the intermediate GDB and deletes the original
     Args:
         intermediate_gdb (str): path to file geodatabase
-        final_gdb (str): poth to file geodatabase, cannot be the same as intermediate
+        final_gdb (str): path to file geodatabase, cannot be the same as intermediate
     Returns:
         None
     """
@@ -470,13 +835,29 @@ def finalize_output(intermediate_gdb, final_gdb):
 
 
 def list_fcs_in_gdb():
-    """ set your arcpy.env.workspace to a gdb before calling """
+    """
+    helper function to grab all feature classes ina geodatabase, assumes you
+    set your arcpy.env.workspace to a gdb before calling
+    Yields:
+        path to feature class
+    """
     for fds in arcpy.ListDatasets("", "feature") + [""]:
         for fc in arcpy.ListFeatureClasses("", "", fds):
             yield os.path.join(arcpy.env.workspace, fds, fc)
 
 
 def alter_fields(table_list, field, new_field_name):
+    """
+    helper function to rename a field found in multiple tables
+        created to handle RowID used for summary features
+    Args:
+        table_list (list): list of paths to tables containing the field of interest
+        field (str): current field name
+        new_field_name (str): desired field name to replace existing
+
+    Returns:
+        None
+    """
     for tbl in table_list:
         if field in [f.name for f in arcpy.ListFields(tbl)]:
             print(f"--- --- Converting SummID to {new_field_name} for {tbl}")
@@ -489,19 +870,21 @@ def alter_fields(table_list, field, new_field_name):
 
 
 def tag_filename(filename, tag):
-    """Simpel method to add a suffix to the end of a filename
+    """
+    helper method to add a suffix to the end of a filename
     Args:
         filename (str): path to file or filename string
         tag (str): string suffix to append to end of filename
     Returns:
-        str: updated filepath or filename string with suffix appended
+        str; updated filepath or filename string with suffix appended
     """
     name, ext = os.path.splitext(filename)
     return "{name}_{tag}_{ext}".format(name=name, tag=tag, ext=ext)
 
 
 def post_process_databases(basic_features_gdb, build_dir):
-    """copies in basic features gdb to build dir and cleans up FCs and Tables
+    """
+    copies in basic features gdb to build dir and cleans up FCs and Tables
         with SummID to RowID. Finally deletes the TEMP folder generated in the
         build process
     Args:
