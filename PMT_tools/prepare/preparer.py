@@ -1,5 +1,41 @@
 """
-preparation scripts used set up cleaned geodatabases
+The prepare module standardizes and formats all raw datasets into a common storage pattern, normalizing or
+separating geospatial data from tabular data where possible to decrease overall file sizes. The standardized
+databases include PMT_BasicFeatures and PMT_YYYY (where YYYY = the relevant year of data). Standardization includes
+removing unnecessary attributes, renaming attributes for readability, merging data where needed, and placing outputs
+in a common geodatabase structure. In addition to standardization, much of the analytical processing is performed via
+this module.
+
+Functions:
+    process_normalized_geometries()
+    process_basic_features()
+    process_parks()
+    process_udb()
+    process_transit()
+    process_parcels()
+    process_permits()
+    enrich_block_groups()
+    process_parcel_land_use()
+    process_imperviousness()
+    agg_to_zone()
+    process_osm_networks()
+    process_bg_apply_activity_models()
+    process_allocate_bg_to_parcels()
+    process_model_se_data()
+    process_osm_skims()
+    process_model_skims()
+    process_osm_service_areas()
+    process_centrality()
+    process_walk_times()
+    process_ideal_walk_times()
+    process_access()
+    process_contiguity()
+    process_bike_miles()
+    process_travel_stats()
+    process_walk_to_transit_skim()
+    process_serpm_transit()
+    full_skim() TODO: evaluate if this needs to go into helper.py
+
 """
 import datetime
 import os
@@ -614,6 +650,16 @@ def process_imperviousness(overwrite=True):
 
 
 def agg_to_zone(parcel_fc, agg_field, zone_fc, zone_id):
+    """aggregate parcel data up to a zone feature class, limited to one field for aggregation
+    Args:
+        parcel_fc (str): parcel feature class path
+        agg_field (str): field to be aggregated
+        zone_fc (str): feature class data will be summarized to
+        zone_id (str): primary key of zone fc
+
+    Returns:
+        pandas.DataFrame; dataframe of zoneID and summarized attribute
+    """
     parcel_pts = polygonsToPoints(
         in_fc=parcel_fc, out_fc=make_inmem_path(), fields=[agg_field], null_value=0.0
     )
@@ -717,6 +763,17 @@ def process_osm_networks():
 
 
 def process_bg_apply_activity_models(overwrite=True):
+    """
+    Using existing LODES and Census demographic data, a linear model is fitted to the data at the block
+    group level. We use modeled results in all years, even in those with observed data, so that there are
+    clearer relationships and trends over time;
+        i.e., mixing observed and modeled results can yield some pretty weird patterns at the boundary
+                of observed and forecasted data
+    Inputs:
+        - enriched Block group data (LODES, demographics) with parcel summarizations
+    Outputs:
+        - modeled version of the original enriched data
+    """
     print("Modeling Block Group data...")
     model_coefficients = P_HELP.analyze_blockgroup_model(
         data_path=CLEANED,
@@ -769,6 +826,18 @@ def process_bg_apply_activity_models(overwrite=True):
 
 
 def process_allocate_bg_to_parcels(overwrite=True):
+    """disaggregation of modeled block group data back to parcels, for the NearTerm time period, only parcels with
+        permits are allocated to, as the other parcels are considered to be relatively static and carry over data
+        from the allocation
+    Inputs:
+        parcel geometry, block group geometry, modeled block group tables
+        - CLEANED\PMT_YYYY.gdb\Polygons\Parcels
+        - CLEANED\PMT_YYYY.gdb\Polygons\Census_BlockGroups
+        - CLEANED\PMT_YYYY.gdb\Modeled_blockgroups
+    Outputs:
+        EconDemog_parcels: table of disaggregated economic and demographic data at the parcel level
+        - CLEANED\EconDemog_parcels
+    """
     print("\nProcessing modeled data to generate allocation to parcels...")
     snap_gdb = makePath(CLEANED, f"PMT_{SNAPSHOT_YEAR}.gdb")
     for year in YEARS:
@@ -911,6 +980,18 @@ def process_osm_skims():
 
 
 def process_model_se_data(overwrite=True):
+    """summarizing parcel level data up to MAZ and TAZ as well as SERPM model data
+    Inputs:
+        parcel geometry, MAZ geometry (includes TAZ geometry)
+        - CLEANED\PMT_YYYY.gdb\Polygons\MAZ
+        - CLEANED\PMT_YYYY.gdb\Polygons\Parcels
+        - CLEANED\PMT_YYYY.gdb\EconDemog_parcels
+        - RAW\SERPM\maz_data_2015.csv
+    Ouputs:
+        parcel and SERPM data summarized up to MAZ and TAZ
+        - CLEANED\PMT_YYYY.gdb\EconDemog_MAZ
+        - CLEANED\PMT_YYYY.gdb\EconDemog_TAZ
+    """
     print("\nProcessing parcel data to MAZ/TAZ...")
     # Summarize parcel data to MAZ
     for year in YEARS:
@@ -919,9 +1000,7 @@ def process_model_se_data(overwrite=True):
         out_gdb = validate_geodatabase(makePath(CLEANED, f"PMT_{year}.gdb"))
         out_fds = validate_feature_dataset(makePath(out_gdb, "Polygons"), sr=SR_FL_SPF)
         out_fc = makePath(out_fds, "MAZ")
-        maz_se_data = makePath(
-            RAW, "SERPM", "maz_data_2015.csv"
-        )  # TODO: standardize SERPM pathing
+        maz_se_data = makePath(RAW, "SERPM", "maz_data_2015.csv")  # TODO: standardize SERPM pathing
         # Summarize parcels to MAZ
         print("--- summarizing MAZ activities from parcels")
         par_fc = makePath(out_gdb, "Polygons", "Parcels")
@@ -1494,16 +1573,24 @@ def process_access():
 
 
 def process_contiguity(overwrite=True):
+    """Estimates contiguity of developable land year over year by removing building footprints and other non-developable
+    areas from the parcel layer and calculating the area of the remaining space on each parcel
+    Inputs:
+        - CLEANED\BASIC_FEATURES\MiamiDadeCountyBoundary
+        - CLEANED\PMT_YYYY.gdb\Polygons\Parcels
+        - RAW\ENVIRONMENTAL_FEATURES\NHDPLUS_H_0309_HU4_GDB.gdb\NHDWaterbody
+        - RAW\ENVIRONMENTAL_FEATURES\PADUS2_0FL.gdb\PADUS2_0Combined_DOD_Fee_Designation_Easement_FL
+        - RAW\OpenStreetMap\buildings_{prefix_qX_YYYY}\OSM_Buildings_{YYYYMMDDTTTT}.shp
+    Returns:
+        - CLEANED\PMT_YYYY.gdb\Congiguity_parcels
+    """
     county_fc = makePath(BASIC_FEATURES, "MiamiDadeCountyBoundary")
     parks = makePath(CLEANED, "Park_Polys.shp")
     water_bodies = makePath(
         RAW, "ENVIRONMENTAL_FEATURES", "NHDPLUS_H_0309_HU4_GDB.gdb", "NHDWaterbody"
     )
     pad_area = makePath(
-        RAW,
-        "ENVIRONMENTAL_FEATURES",
-        "PADUS2_0FL.gdb",
-        "PADUS2_0Combined_DOD_Fee_Designation_Easement_FL",
+        RAW, "ENVIRONMENTAL_FEATURES", "PADUS2_0FL.gdb", "PADUS2_0Combined_DOD_Fee_Designation_Easement_FL",
     )
     chunk_fishnet = P_HELP.generate_chunking_fishnet(
         template_fc=county_fc, out_fishnet_name="quadrats", chunks=prep_conf.CTGY_CHUNKS
@@ -1513,13 +1600,11 @@ def process_contiguity(overwrite=True):
         gdb = YEAR_GDB_FORMAT.replace("YEAR", str(year))
         parcel_fc = makePath(gdb, "Polygons", "Parcels")
 
-        # merge mask layers and subset to County (builidngs held in year loop as future versions may take advantage of
-        #   historical building footprint data via OSM attic
+        # merge mask layers and subset to County
+        #   (builidngs held in year loop as future versions may take advantage of
+        #       historical building footprint data via OSM attic)
         buildings = makePath(
-            RAW,
-            "OpenStreetMap",
-            "buildings_q1_2021",
-            "OSM_Buildings_20210201074346.shp",
+            RAW, "OpenStreetMap", "buildings_q1_2021", "OSM_Buildings_20210201074346.shp",
         )
         mask = P_HELP.merge_and_subset(
             fcs=[buildings, water_bodies, pad_area, parks], subset_fc=county_fc
@@ -1550,6 +1635,11 @@ def process_bike_miles(overwrite=True):
     """
     Intersects Summary area polygons with bike facilities and summarizes each facility
     type by miles within the summary area.
+    Inputs:
+        - CLEANED\PMT_YYYY.gdb\Networks\bike_facilities
+        - CLEANED\PMT_YYYY.gdb\Polygons\SummaryAreas
+    Outputs:
+        - CLEANED\PMT_YYYY.gdb\BikeFac_summaryareas
     """
     # process bike miles at summary area (wide by facility type)
     print("\nProcessing Bike Facilities to summary areas")
@@ -1610,7 +1700,36 @@ def process_bike_miles(overwrite=True):
         dfToTable(df=summ_df, out_table=out_tbl, overwrite=overwrite)
 
 
-def process_lu_diversity():
+def process_lu_diversity(overwrite=True):
+    """year over year, calculates land use diversity within aggregate geometries using parcels
+        The diversity measures are defined as followed:
+        1. Simpson index: mathematically, the probability that a random draw of one unit of land use A would be
+            followed by a random draw of one unit of land use B. Ranges from 0 (only one land use present) to
+            1 (all land uses present in equal abundance)
+        2. Shannon index: borrowing from information theory, Shannon quantifies the uncertainty in predicting the
+            land use of a random one unit draw. The higher the uncertainty, the higher the diversity. Ranges from 0
+           (only one land use present) to -log(1/|land uses|) (all land uses present in equal abundance)
+        3. Berger-Parker index: the maximum proportional abundance, giving a measure of dominance. Ranges from 1
+            (only one land use present) to 1/|land uses| (all land uses present in equal abundance). Lower values
+            indicate a more even spread, while high values indicate the dominance of one land use.
+        4. Effective number of parties (ENP): a count of land uses, as weighted by their proportional abundance.
+            A land use contributes less to ENP if it is relatively rare, and more if it is relatively common. Ranges
+            from 1 (only one land use present) to |land uses| (all land uses present in equal abunance)
+        5. Chi-squared goodness of fit: the ratio of an observed chi-squared goodness of fit test statistic to a
+            "worst case scenario" chi-squared goodness of fit test statistic. The goodness of fit test requires
+            the definition of an "optimal" land use distribution ("optimal" is assumed  to be equal abundance of
+            all land uses, but can be specified by the user). The "worst case scenario" defines the highest possible
+            chi-squared statistic that could be observed under the optimal land use distribution. In practice, this
+            "worst case scenario" is the equivalent of the least likely land use [according to the optimal
+            distribution] comprising the entire area. Ranges from 0 (all land uses present in equal abundance)
+            to 1 (only one land use present)
+    Inputs:
+        - CLEANED\PMT_BasicFeatures.gdb\SummaryAreas (geometry)
+        - REF\Land_Use_Recode.csv
+        - CLEANED\PMT_YYYY.gdb\Polygons\Parcels
+    Outputs:
+        - CLEANED\PMT_YYYY.gdb\Diversity_summaryareas
+    """
     print("\nProcessing Land Use Diversity...")
     summary_areas_fc = makePath(BASIC_FEATURES, "SummaryAreas")
     lu_recode_table = makePath(REF, "Land_Use_Recode.csv")
@@ -1679,10 +1798,16 @@ def process_lu_diversity():
 
         # Export results
         print(" - exporting results")
-        dfToTable(div_df, out_fc, overwrite=True)
+        dfToTable(div_df, out_fc, overwrite=overwrite)
 
 
-def process_travel_stats():
+def process_travel_stats(overwrite=True):
+    """
+    TODO: add desc and IO
+    Inputs:
+    Outputs:
+
+    """
     rates = {}
     hh_field = "HH"
     jobs_field = "TotalJobs"
@@ -1733,10 +1858,15 @@ def process_travel_stats():
 
         # Export results
         loaded_df = loaded_df.drop(columns=[hh_field, jobs_field, "__activity__"])
-        dfToTable(df=loaded_df, out_table=out_table, overwrite=True)
+        dfToTable(df=loaded_df, out_table=out_table, overwrite=overwrite)
 
 
 def process_walk_to_transit_skim():
+    """
+    TODO: ad
+    Returns:
+
+    """
     # Create OD table of TAZ centroids to TAP nodes
     serpm_raw = makePath(RAW, "SERPM")
     serpm_clean = makePath(CLEANED, "SERPM")
@@ -1855,6 +1985,9 @@ def process_walk_to_transit_skim():
 
 def process_serpm_transit():
     """
+    TODO: add desc and IO
+    Inputs:
+    Outputs:
 
     """
     # Make a graph from TAP to TAP skim
@@ -1925,6 +2058,12 @@ def process_serpm_transit():
 def full_skim(
     tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs
 ):
+    """
+        TODO: add desc and IO
+        Inputs:
+        Outputs:
+
+        """
     serpm_clean = makePath(CLEANED, "SERPM")
     G = P_HELP.skim_to_graph(
         tap_to_tap_clean,

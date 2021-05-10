@@ -25,14 +25,14 @@ from sklearn import linear_model
 import networkx as nx
 from collections.abc import Iterable
 
-import PMT_tools.PMT as PMT
+from .. import PMT as PMT
 
 # temporary
-import PMT_tools.build.build_helper as B_HELP
-import PMT_tools.config.prepare_config as P_CONF
-import PMT_tools.logger as log
-from PMT_tools.PMT import arcpy, pd, np
-from PMT_tools.utils import *
+from ..build import build_helper as B_HELP
+from ..config import prepare_config as P_CONF
+from .. import logger as log
+from ..PMT import arcpy, pd, np
+from ..utils import *
 from arcgis.features import GeoAccessor, GeoSeriesAccessor
 
 logger = log.Logger(add_logs_to_arc_messages=True)
@@ -5814,7 +5814,7 @@ def transit_skim_joins(
     if origin_zones:
         result = result[result["OName"].isin(origin_zones)]
     if destination_zones:
-        result = result[result["DName"].isin(destinatin_zones)]
+        result = result[result["DName"].isin(destination_zones)]
 
     # Export result
     out_cols = ["OName", "DName", "Minutes"]
