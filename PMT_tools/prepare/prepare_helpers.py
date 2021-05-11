@@ -18,22 +18,19 @@ from json.decoder import JSONDecodeError
 from pathlib import Path
 
 import dask.dataframe as dd
+import networkx as nx
 import scipy
 import xlrd
 from six import string_types
 from sklearn import linear_model
-import networkx as nx
-from collections.abc import Iterable
 
 from .. import PMT as PMT
-
+from .. import logger as log
+from ..PMT import arcpy, pd, np
 # temporary
 from ..build import build_helper as B_HELP
 from ..config import prepare_config as P_CONF
-from .. import logger as log
-from ..PMT import arcpy, pd, np
 from ..utils import *
-from arcgis.features import GeoAccessor, GeoSeriesAccessor
 
 logger = log.Logger(add_logs_to_arc_messages=True)
 
@@ -41,40 +38,34 @@ logger = log.Logger(add_logs_to_arc_messages=True)
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
 # general use functions
 def is_gz_file(filepath):
+    """
+    test if a file is zipped
+    Args:
+        filepath (str): path to file of interest
+
+    Returns:
+        boolean
+    """
     with open(filepath, "rb") as test_f:
         return test_f.read(2) == b"\x1f\x8b"
 
 
 def validate_json(json_file, encoding="utf8"):
+    """
+    check for valid json file
+    Args:
+        json_file (str): path to file
+        encoding (str): name of the encoding used to decode or encode the file
+
+    Returns:
+        json deserialized to python object
+    """
     with open(json_file, encoding=encoding) as file:
         try:
             return json.load(file)
         except JSONDecodeError:
             logger.log("Invalid JSON file passed")
             logger.log_error()
-
-
-def update_field_values(in_fc, fields, mappers):
-    # ensure number of fields and dictionaries is the same
-    try:
-        if len(fields) == len(mappers):
-            for attribute, mapper in zip(fields, mappers):
-                # check that bother input types are as expected
-                if isinstance(attribute, str) and isinstance(mapper, dict):
-                    with arcpy.da.UpdateCursor(in_fc, field_names=attribute) as cur:
-                        for row in cur:
-                            code = row[0]
-                            if code is not None:
-                                if mapper.get(int(code)) in mapper:
-                                    row[0] = mapper.get(int(code))
-                                else:
-                                    row[0] = "None"
-                            cur.updateRow(row)
-    except ValueError:
-        logger.log_msg(
-            "either attributes (String) or mappers (dict) are of the incorrect type"
-        )
-        logger.log_error()
 
 
 # TODO: mapping isnt working as expected, needs debugging
@@ -121,10 +112,11 @@ def geojson_to_feature_class_arc(
 ):
     """Converts geojson to feature class in memory and adds unique_id attribute if provided
     Args:
-        geojson_path:
-        geom_type:
-        encoding:
-        unique_id:
+        geojson_path (str): path to geojson file
+        geom_type (str): The geometry type to convert from GeoJSON to features.
+                        OPTIONS: POINT, MULTIPOINT, POLYLINE, POLYGON
+        encoding (str): name of the encoding used to decode or encode the file
+        unique_id (str): name of unique id column, Default is None
     Returns:
         temp_feature (str): path to temporary feature class
     """
@@ -146,22 +138,17 @@ def geojson_to_feature_class_arc(
 
 
 def csv_to_df(csv_file, use_cols, rename_dict):
-    """
-    helper function to convert CSV file to pandas dataframe, and drop unnecessary columns
+    """helper function to convert CSV file to pandas dataframe, and drop unnecessary columns
     assumes any strings with comma (,) should have those removed and dtypes infered
-    Parameters
-    --- --- --- -
-    csv_file: String
-        path to csv file
-    use_cols: List
-        list of columns to keep from input csv
-    rename_dict: dict
-        dictionary mapping existing column name to standardized column names
-
-    Returns: Pandas dataframe
-    --- --- -
-
+    Args:
+        csv_file (str): path to csv file
+        use_cols (list): list of columns to keep from input csv
+        rename_dict (dict): dictionary mapping existing column name to standardized column names
+    Returns:
+        Pandas dataframe
     """
+    if isinstance(use_cols, str):
+        use_cols = [use_cols]
     df = pd.read_csv(filepath_or_buffer=csv_file, usecols=use_cols, thousands=",")
     df = df.convert_dtypes()
     df.rename(columns=rename_dict, inplace=True)
@@ -171,8 +158,8 @@ def csv_to_df(csv_file, use_cols, rename_dict):
 def split_date(df, date_field, unix_time=False):
     """ingest date attribute and splits it out to DAY, MONTH, YEAR
     Args:
-        df: DataFrame; DataFrame with a date field
-        date_field: column name
+        df (pd.DataFrame): DataFrame with a date field
+        date_field (str): column name
         unix_time (str): unix time stamp
     Returns:
         df (pd.DataFrame): DataFrame reformatted to include split day, month and year
@@ -222,11 +209,20 @@ def split_date(df, date_field, unix_time=False):
 
 
 def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
+    """generate points from polygon centroids inside polygon
+    UNUSED IN CURRENT ITERATION
+    Args:
+        in_fc (str): path to polygon featureclass
+        id_field (str): if not None, the new features created will only have an ID attribute
+        point_loc (str): CENTROID or INSIDE (see documentation of arcpy.FeatureToPoint)
+
+    Returns:
+        temporary feature class
+    """
     # TODO: replace usages with PMT.polygonsToPoints
     try:
         # convert json to temp feature class
-        unique_name = str(uuid.uuid4().hex)
-        temp_feature = PMT.makePath("in_memory", f"_{unique_name}")
+        temp_feature = PMT.make_inmem_path()
         arcpy.FeatureToPoint_management(
             in_features=in_fc, out_feature_class=temp_feature, point_location=point_loc
         )
@@ -252,6 +248,17 @@ def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
 
 # TODO: move this to PMT
 def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
+    """calculates x,y coordinates for a given polygon feature class and returns as new
+    columns of a data
+    Args:
+        poly_fc (str): path to polygon feature class
+        poly_key (str): primary key from polygon feature class
+        table_df (pd.DataFrame): pandas dataframe
+        table_key (str): primary key of table df
+
+    Returns:
+        pandas.DataFrame; updated table_df with XY centroid coordinates appended
+    """
     pts = PMT.polygonsToPoints(
         in_fc=poly_fc, out_fc=PMT.make_inmem_path(), fields=poly_key, null_value=0.0
     )
@@ -269,6 +276,14 @@ def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
 
 
 def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
+    """remove and rename fields provided for a feature class to format as desired
+    Args:
+        feature_class (str): path to feature class
+        use_cols (list): list of columns to keep
+        rename_dict (dict): key, value pairs of columns to keep and new column names
+    Returns:
+        None
+    """
     # reformat attributes and keep only useful
     if rename_dict is None:
         rename_dict = {}
@@ -291,6 +306,17 @@ def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
 
 
 def _merge_df_(x_specs, y_specs, on=None, how="inner", **kwargs):
+    """internal helper function
+    Args:
+        x_specs:
+        y_specs:
+        on:
+        how:
+        **kwargs:
+
+    Returns:
+
+    """
     df_x, suffix_x = x_specs
     df_y, suffix_y = y_specs
     merge_df = df_x.merge(df_y, on=on, how=how, suffixes=(suffix_x, suffix_y), **kwargs)
@@ -839,6 +865,39 @@ def patch_basic_features(
 #
 #     # combine bike and ped type into single attribute and drop original
 #     update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
+#
+#
+# def update_field_values(in_fc, fields, mappers):
+#     """
+#     deprecated function
+#     Args:
+#         in_fc:
+#         fields:
+#         mappers:
+#
+#     Returns:
+#
+#     """
+#     # ensure number of fields and dictionaries is the same
+#     try:
+#         if len(fields) == len(mappers):
+#             for attribute, mapper in zip(fields, mappers):
+#                 # check that bother input types are as expected
+#                 if isinstance(attribute, str) and isinstance(mapper, dict):
+#                     with arcpy.da.UpdateCursor(in_fc, field_names=attribute) as cur:
+#                         for row in cur:
+#                             code = row[0]
+#                             if code is not None:
+#                                 if mapper.get(int(code)) in mapper:
+#                                     row[0] = mapper.get(int(code))
+#                                 else:
+#                                     row[0] = "None"
+#                             cur.updateRow(row)
+#     except ValueError:
+#         logger.log_msg(
+#             "either attributes (String) or mappers (dict) are of the incorrect type"
+#         )
+#         logger.log_error()
 
 
 # parks functions

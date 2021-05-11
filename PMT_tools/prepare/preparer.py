@@ -17,7 +17,7 @@ Functions:
     enrich_block_groups()
     process_parcel_land_use()
     process_imperviousness()
-    agg_to_zone()
+    agg_to_zone()   TODO: evaluate if this needs to go into helper.py
     process_osm_networks()
     process_bg_apply_activity_models()
     process_allocate_bg_to_parcels()
@@ -37,13 +37,14 @@ Functions:
     full_skim() TODO: evaluate if this needs to go into helper.py
 
 """
+import csv
 import datetime
 import os
 import sys
 import warnings
-import csv
-import networkx as nx
 from functools import reduce
+
+import networkx as nx
 
 warnings.filterwarnings("ignore")
 
@@ -87,9 +88,9 @@ from ..PMT import (
     SR_FL_SPF,
     EPSG_FLSPF,
 )
-from ..PMT import arcpy, np, pd, tempfile
+from ..PMT import arcpy, np, pd
 
-from  .. import logger as log
+from .. import logger as log
 
 logger = log.Logger(
     add_logs_to_arc_messages=True
@@ -1670,7 +1671,7 @@ def process_bike_miles(overwrite=True):
 
         # intersect bike_fac and summary areas
         print("--- intersecting summary areas with bike facilities")
-        fac_int = PMT.intersectFeatures(
+        fac_int = intersectFeatures(
             summary_fc=summ_area_fc, disag_fc=bike_fac_fc, full_geometries=True
         )
         # update Bike_miles based on intersection

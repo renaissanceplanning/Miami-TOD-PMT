@@ -26,12 +26,12 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
     ```
 5) _Install conda packages using **conda-forge** channel_
     ```
-    conda install -c conda-forge osmnx geopandas pandas numpy scipy
+    conda install geopandas pandas numpy scipy
     * enter 'y/yes' and return when asked
     ```
 6) _Install pip packages_
     ```
-    pip install censusdata
+    pip install censusdata osmnx
     ```
 ###### Env: pmt_tools
 repeat steps 1-3 from above
@@ -48,13 +48,13 @@ repeat steps 1-3 from above
     ```
 5) _Install conda packages using **conda-forge** channel_
     ```
-    conda install -c conda-forge momepy osmnx sphinx dask
+    conda install -c conda-forge momepy sphinx dask
     * enter 'y/yes' and return when asked
     * spyder is optional if you want to install a Data Science focused IDE
     ```
 6) _Install pip packages_
     ```
-    pip install esridump censusdata simpledbf
+    pip install simpledbf
     ```
 _WARNING_
 If you have recently updated ArcGIS Pro to a new Major Version, you will need to remove the existing environment and recreate it using
