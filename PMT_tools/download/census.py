@@ -7,17 +7,9 @@ import pandas as pd
 from six import string_types
 
 from helper import download_file_from_url
-from ..config.download_config import (
-    LODES_URL,
-    LODES_YEARS,
-    LODES_FILE_TYPES,
-    LODES_STATES,
-    LODES_WORKFORCE_SEGMENTS,
-    LODES_PART,
-    LODES_JOB_TYPES,
-    LODES_AGG_GEOS,
-)
-from ..utils import makePath, validate_directory
+from PMT_tools.config.download_config import LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES, \
+    LODES_WORKFORCE_SEGMENTS, LODES_PART, LODES_JOB_TYPES, LODES_AGG_GEOS
+from PMT_tools.utils import makePath, validate_directory
 
 current_year = datetime.now().year
 

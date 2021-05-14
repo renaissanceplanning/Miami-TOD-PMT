@@ -11,3 +11,4 @@ PMT_Tools/__pycache__
 *.pyc
 *.pyc
 PMT_tools/ref/explicit_pmt.yml
+**/cache

@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 from requests.exceptions import RequestException
 
-from ..utils import makePath, check_overwrite_path
+from PMT_tools.utils import makePath, check_overwrite_path
 
 
 def download_file_from_url(url, save_path, overwrite=False):
@@ -81,7 +81,7 @@ def census_geoindex_to_columns(pd_idx, gen_geoid=True, geoid="GEOID10"):
     return geo_cols.set_index(pd_idx)
 
 
-def _fetch_acs(year, acs_dataset, state, county, table, columns, census_scale):
+def fetch_acs(year, acs_dataset, state, county, table, columns):
     """internal function to hit the CENSUS api and extract a pandas DataFrame for
     the requested Table, State, County
     Args:
@@ -93,7 +93,6 @@ def _fetch_acs(year, acs_dataset, state, county, table, columns, census_scale):
         table (str): string code for the Census table of interest ex: "B03002"
         columns (dict): key, value pairs of Census table columns and rename
             (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
-        census_scale:
 
     Returns:
 
@@ -103,7 +102,7 @@ def _fetch_acs(year, acs_dataset, state, county, table, columns, census_scale):
     values = [columns[c.split("_")[1]] for c in variables]
     rename = dict(zip(variables, values))
     # Set the geography object
-    geo = census.censusgeo([("state", state), ("county", county), (census_scale, "*")])
+    geo = census.censusgeo([("state", state), ("county", county)])
     # Fetch data
     data = census.download(src=acs_dataset, year=year, geo=geo, var=variables)
     # Rename columns
@@ -132,8 +131,8 @@ def download_race_vars(
             If the table is not found (i.e. the requested year's data are not available)
     """
     # Set table and columns to fetch (with renaming specs for legibility)
-    _fetch_acs(year, acs_dataset, state, county, table, columns)
-    race_data = _fetch_acs(
+    # _fetch_acs(year, acs_dataset, state, county, table, columns)
+    race_data = fetch_acs(
         year=year,
         acs_dataset=acs_dataset,
         state=state,
@@ -167,7 +166,7 @@ def download_race_vars(
 
 
 def download_commute_vars(
-    year, acs_dataset="acs5", state="fl", county="086", table=None, columns=None
+    year, acs_dataset="acs5", state="12", county="086", table=None, columns=None
 ):
     """Downloads commute (journey to work) data from available ACS data
         in table B08301.
@@ -190,7 +189,7 @@ def download_commute_vars(
     """
     # Set table and columns to fetch (with renaming specs for legibility)
     # Fetch data
-    mode_data = _fetch_acs(year, acs_dataset, state, county, table, columns)
+    mode_data = fetch_acs(year, acs_dataset, state, county, table, columns)
     # Create Subtotals
     mode_data["Drove"] = mode_data.Drove_alone + mode_data.Motorcycle
     mode_data["NonMotor"] = mode_data.Bicycle + mode_data.Walk

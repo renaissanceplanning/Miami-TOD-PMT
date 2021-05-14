@@ -12,7 +12,7 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
 - Familiarity with command line interactions
 
 ##### Building python CONDA environment
-###### Env: pmt_download
+###### Env: *pmt_download* [used for download procedures only]
 1. Select Windows Start
 2. Navigate to 'Python Command Prompt' under ArcGIS folder --> Open
 3. In the command window run the below commands:
@@ -24,22 +24,21 @@ Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
     ```
     activate pmt_download
     ```
-5) _Install conda packages using **conda-forge** channel_
+5) _Install conda packages_
     ```
-    conda install geopandas pandas numpy scipy
+    conda install geopandas pandas numpy scipy rtree=0.9.4
     * enter 'y/yes' and return when asked
     ```
 6) _Install pip packages_
     ```
     pip install censusdata osmnx
     ```
-###### Env: pmt_tools
+###### Env: *pmt_tools*
 repeat steps 1-3 from above
 
 4) _Clone the existing ArcGIS python environment_
     ```
     conda create --clone arcgispro-py3 --name %LocalAppData%\ESRI\conda\envs\pmt_tools
-
     * (this may take some time, so be patient)
     ```
 4) _Activate the newly created environment_

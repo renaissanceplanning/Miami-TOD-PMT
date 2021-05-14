@@ -36,16 +36,8 @@ SUM_AREA_FC_SPECS = ("SummaryAreas", pconfig.SUMMARY_AREAS_COMMON_KEY, "Polygons
 # SUM_AREA_FC_SPECS = ("SummaryAreas", SUMMARY_AREAS_FINAL_KEY, "Polygons")
 
 NODES_FC_SPECS = ("nodes_bike", "NODE_ID", "Networks")  # TODO: define common key
-TRANSIT_FC_SPECS = (
-    "TransitRidership",
-    pconfig.TRANSIT_COMMON_KEY,
-    "Points",
-)
-PARKS_FC_SPECS = (
-    "Park_points",
-    pconfig.PARK_POINTS_COMMON_KEY,
-    "Points",
-)
+TRANSIT_FC_SPECS = ("TransitRidership", pconfig.TRANSIT_COMMON_KEY, "Points",)
+PARKS_FC_SPECS = ("Park_points", pconfig.PARK_POINTS_COMMON_KEY, "Points",)
 # EDGES_FC_SPECS = ("edges_bike", "OBJECTID", "Networks")  # removed to utilize MD bike facility data
 EDGES_FC_SPECS = ("bike_facilities", pconfig.BIKE_FAC_COMMON_KEY, "Networks")
 
@@ -85,21 +77,11 @@ TABLE_SPECS = [
     ("Access_maz_Walk", pconfig.MAZ_COMMON_KEY, MAZ_WALK_FIELDS, MAZ_WALK_RENAMES),
     ("Access_maz_Bike", pconfig.MAZ_COMMON_KEY, MAZ_BIKE_FIELDS, MAZ_BIKE_RENAMES),
     ("Access_taz_Auto", pconfig.TAZ_COMMON_KEY, TAZ_AUTO_FIELDS, TAZ_AUTO_RENAMES),
-    (
-        "Access_taz_Transit",
-        pconfig.TAZ_COMMON_KEY,
-        TAZ_TRANSIT_FIELDS,
-        TAZ_TRANSIT_RENAMES,
-    ),
+    ("Access_taz_Transit", pconfig.TAZ_COMMON_KEY, TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES,),
     ("Centrality_parcels", pconfig.PARCEL_COMMON_KEY, "*", {"CentIdx": "CentIdx_PAR"}),
     ("Contiguity_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     ("Diversity_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {}),
-    (
-        "BikeFac_summaryareas",
-        pconfig.SUMMARY_AREAS_COMMON_KEY,
-        "*",
-        {},
-    ),  # TODO: confirm this pattern with Alex
+    ("BikeFac_summaryareas", pconfig.SUMMARY_AREAS_COMMON_KEY, "*", {},),
     ("EconDemog_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
     # ("EnergyCons_parcels", pconfig.PARCEL_COMMON_KEY, "*"),   # dropped from project but left in config to allow calc
     ("Imperviousness_census_blocks", pconfig.BLOCK_COMMON_KEY, "*", {}),
