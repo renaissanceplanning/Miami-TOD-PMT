@@ -1057,7 +1057,7 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
         geometry_type="POLYGON",
         spatial_reference=sr,
     )
-    arcpy.AddField_management(in_table=out_fc, field_name="IN_UDB", field_type="LONG")
+    arcpy.AddField_management(in_table=out_fc, field_name=P_CONF.UDB_FLAG, field_type="LONG")
 
     # Get geometry objects
     temp_udb = PMT.makePath("in_memory", "UDB_dissolve")
@@ -1095,7 +1095,7 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
     in_udb[min_idx] = 0
 
     # Write cut polygons to output feature class
-    with arcpy.da.InsertCursor(out_fc, ["SHAPE@", "IN_UDB"]) as c:
+    with arcpy.da.InsertCursor(out_fc, ["SHAPE@", P_CONF.UDB_FLAG]) as c:
         for cut, b in zip(cuts, in_udb):
             c.insertRow([cut, b])
 
@@ -1665,6 +1665,44 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
         ]
     )
     return zonal.reset_index()
+
+
+def agg_to_zone(parcel_fc, agg_field, zone_fc, zone_id):
+    """aggregate parcel data up to a zone feature class, limited to one field for aggregation
+    Args:
+        parcel_fc (str): parcel feature class path
+        agg_field (str): field to be aggregated
+        zone_fc (str): feature class data will be summarized to
+        zone_id (str): primary key of zone fc
+
+    Returns:
+        pandas.DataFrame; dataframe of zoneID and summarized attribute
+    """
+    parcel_pts = PMT.polygonsToPoints(
+        in_fc=parcel_fc, out_fc=PMT.make_inmem_path(), fields=[agg_field], null_value=0.0
+    )
+    block_par = arcpy.SpatialJoin_analysis(
+        target_features=zone_fc,
+        join_features=parcel_pts,
+        join_operation="JOIN_ONE_TO_MANY",
+        out_feature_class=PMT.make_inmem_path(),
+    )
+    block_par = arcpy.Dissolve_management(
+        in_features=block_par,
+        out_feature_class=PMT.make_inmem_path(),
+        dissolve_field=zone_id,
+        statistics_fields=f"{agg_field} SUM",
+    )
+    arcpy.AlterField_management(
+        in_table=block_par,
+        field=f"SUM_{agg_field}",
+        new_field_name=agg_field,
+        new_field_alias=agg_field,
+    )
+    df = PMT.featureclass_to_df(
+        in_fc=block_par, keep_fields=[zone_id, agg_field], null_val=0.0
+    )
+    return df
 
 
 def analyze_blockgroup_model(
