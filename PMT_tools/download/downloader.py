@@ -3,26 +3,29 @@ downloading raw data to set up raw data folder
 """
 # standard modules
 import os
+import sys
+import warnings
 from shutil import rmtree
 
+warnings.filterwarnings("ignore")
+from pathlib import Path
+script = Path(__file__).parent.parent.absolute()
+sys.path.insert(0, script)
+
 # global values configured for downloading
-from ..config import download_config as dl_conf
+from PMT_tools.config import download_config as dl_conf
 
 # PMT globals
-from ..utils import RAW, YEARS
+from PMT_tools.utils import RAW, YEARS
 
 # PMT Functions
-from ..utils import validate_directory, makePath
+from PMT_tools.utils import validate_directory, makePath
 
 # helper functions from other modules
-from census_geo import get_one_geo_type
-from census import download_aggregate_lodes
-from helper import (
-    download_race_vars,
-    download_commute_vars,
-    download_file_from_url,
-)
-from open_street_map import download_osm_networks, download_osm_buildings
+import census_geo
+import census
+import helper
+import open_street_map
 
 
 def setup_download_folder(dl_folder):
@@ -47,7 +50,7 @@ def download_census():
     for path in [dl_dir, ext_dir]:
         validate_directory(path)
     for geo_type in dl_conf.CENSUS_GEO_TYPES:
-        get_one_geo_type(
+        census_geo.get_one_geo_type(
             geo_type=geo_type,
             download_dir=dl_dir,
             extract_dir=ext_dir,
@@ -63,7 +66,7 @@ def download_census():
         commute_out = makePath(bg_path, f"ACS_{year}_commute.csv")
         print(f"...Fetching race data ({race_out})")
         try:
-            race = download_race_vars(
+            race = helper.download_race_vars(
                 year,
                 acs_dataset="acs5",
                 state="12",
@@ -77,8 +80,10 @@ def download_census():
 
         print(f"...Fetching commute data ({commute_out})")
         try:
-            commute = download_commute_vars(
-                year, acs_dataset="acs5", state="12", county="086"
+            commute = helper.download_commute_vars(
+                year, acs_dataset="acs5", state="12", county="086",
+                table=dl_conf.ACS_MODE_TABLE,
+                columns=dl_conf.ACS_MODE_COLUMNS
             )
             commute.to_csv(commute_out, index=False)
         except:
@@ -91,8 +96,8 @@ def download_LODES():
     """
     lodes_path = makePath(RAW, "LODES")
     print("LODES:")
-    for year in [2019]:
-        download_aggregate_lodes(
+    for year in YEARS:
+        census.download_aggregate_lodes(
             output_directory=lodes_path,
             file_type="wac",
             state="fl",
@@ -116,7 +121,6 @@ def download_urls(overwrite=False):
         - current version downloads and converts to shapefile, this step will be skipped
             in next iteration of prep script
     """
-    # TODO: add error handling
     for file, url in dl_conf.DOWNLOAD_URL_DICT.items():
         _, ext = os.path.splitext(url)
         if ext == ".zip":
@@ -126,7 +130,7 @@ def download_urls(overwrite=False):
         else:
             print("downloader doesnt handle that extension")
         print(f"Downloading {out_file}")
-        download_file_from_url(url=url, save_path=out_file, overwrite=overwrite)
+        helper.download_file_from_url(url=url, save_path=out_file, overwrite=overwrite)
 
 
 def download_osm_data():
@@ -139,12 +143,24 @@ def download_osm_data():
     out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
     osm_data_dir = makePath(RAW, "OPEN_STREET_MAP")
     data_crs = 4326
-    download_osm_networks(
+    open_street_map.download_osm_networks(
         output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021"
     )
-    download_osm_buildings(
+    open_street_map.download_osm_buildings(
         output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021"
     )
+
+
+def parse_args(args):
+    import argparse
+    parser = argparse.ArgumentParser(description="Download RAW data...")
+    parser.add_argument('-s', '--setup_dl_folder', default=True)
+    parser.add_argument('-u', '--dl_urls', default=True)
+    parser.add_argument('-o', '--dl_osm_data', default=True)
+    parser.add_argument('-c', '--dl_census', default=True)
+    parser.add_argument('-l', '--dl_commutes', default=True)
+    args = parser.parse_args(args)
+    return args
 
 
 if __name__ == "__main__":
@@ -156,13 +172,11 @@ if __name__ == "__main__":
         SNAPSHOT_YEAR = 2019
 
     setup_download_folder(dl_folder=RAW)
-    # download_urls()
-    download_osm_data()
-    # download_census()
+    download_urls()
+    # download_osm_data()
+    download_census()
     # download_LODES()
-    # download_energy_consumption()
-    #
-    # download_crashes()
+
 
 # TODO: Add logging and print statements to procedures to better track progress
 # TODO: Currently the download tools all function as expected but are organized poorly. The __main__

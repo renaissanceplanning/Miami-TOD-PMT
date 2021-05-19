@@ -1,8 +1,15 @@
 # -*- coding: utf-8 -*-
 """ builder.py will serve as the final processing tool
 
-This module will do the heavy lifting to build out the PMT time step geodatabases
-for ingestion to AGOL for the tool
+This module will do the heavy lifting to build out the PMT time step geodatabases for ingestion to AGOL for the tool.
+The build module generates the final time series geodatabases used in the Experience Builder site.
+
+For each PMT_XXX geodatabase, a Snapshot summary is generated, creating wide tables and calculating new attributes by
+aggregating data up from lower spatial scales. Tables long on categorical information are created as well. Trend and
+NearTerm (trend) geodatabases are created as well, both utilizing the same procedure and creating tables long on year
+and calculating difference values for start and end time frames (Trend: start = 2014, end=current year; NearTerm:
+start = current year, end = forecasted near term from permits) These pre-canned calculations and transformations
+allow for more robust and speedy indicators and widgets in the site.
 
 Functions:
     year_to_snapshot:
@@ -157,7 +164,7 @@ def process_year_to_snapshot(year):
 
 
 def process_years_to_trend(years, tables, long_features, diff_features,
-                           base_year=None, snapshot_year=None, out_gdb_name=None,):
+                           base_year=None, snapshot_year=None, out_gdb_name=None, ):
     """Utilizing a base and snapshot year, trend data are generated for the associated time period.
     1) creates a a blank output workspace with necessary feature dataset categories uniquely named
     2) generates tables long on year for all tabular data and summary areas

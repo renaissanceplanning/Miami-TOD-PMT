@@ -18,22 +18,19 @@ from json.decoder import JSONDecodeError
 from pathlib import Path
 
 import dask.dataframe as dd
+import networkx as nx
 import scipy
 import xlrd
 from six import string_types
 from sklearn import linear_model
-import networkx as nx
-from collections.abc import Iterable
 
-import PMT_tools.PMT as PMT
-
+from .. import PMT as PMT
+from .. import logger as log
+from ..PMT import arcpy, pd, np
 # temporary
-import PMT_tools.build.build_helper as B_HELP
-import PMT_tools.config.prepare_config as P_CONF
-import PMT_tools.logger as log
-from PMT_tools.PMT import arcpy, pd, np
-from PMT_tools.utils import *
-from arcgis.features import GeoAccessor, GeoSeriesAccessor
+from ..build import build_helper as B_HELP
+from ..config import prepare_config as P_CONF
+from ..utils import *
 
 logger = log.Logger(add_logs_to_arc_messages=True)
 
@@ -41,11 +38,28 @@ logger = log.Logger(add_logs_to_arc_messages=True)
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
 # general use functions
 def is_gz_file(filepath):
+    """
+    test if a file is zipped
+    Args:
+        filepath (str): path to file of interest
+
+    Returns:
+        boolean
+    """
     with open(filepath, "rb") as test_f:
         return test_f.read(2) == b"\x1f\x8b"
 
 
 def validate_json(json_file, encoding="utf8"):
+    """
+    check for valid json file
+    Args:
+        json_file (str): path to file
+        encoding (str): name of the encoding used to decode or encode the file
+
+    Returns:
+        json deserialized to python object
+    """
     with open(json_file, encoding=encoding) as file:
         try:
             return json.load(file)
@@ -54,36 +68,12 @@ def validate_json(json_file, encoding="utf8"):
             logger.log_error()
 
 
-def update_field_values(in_fc, fields, mappers):
-    # ensure number of fields and dictionaries is the same
-    try:
-        if len(fields) == len(mappers):
-            for attribute, mapper in zip(fields, mappers):
-                # check that bother input types are as expected
-                if isinstance(attribute, str) and isinstance(mapper, dict):
-                    with arcpy.da.UpdateCursor(in_fc, field_names=attribute) as cur:
-                        for row in cur:
-                            code = row[0]
-                            if code is not None:
-                                if mapper.get(int(code)) in mapper:
-                                    row[0] = mapper.get(int(code))
-                                else:
-                                    row[0] = "None"
-                            cur.updateRow(row)
-    except ValueError:
-        logger.log_msg(
-            "either attributes (String) or mappers (dict) are of the incorrect type"
-        )
-        logger.log_error()
-
-
-# TODO: mapping isnt working as expected, needs debugging
 def field_mapper(in_fcs, use_cols, rename_dicts):
     """create a field mapping for one or more feature classes
     Args:
-        in_fcs - list (string), list of feature classes
-        use_cols - list (string), list or tuple of lists of column names to keep
-        rename_dict - list of dict(s), dict or tuple of dicts to map field names
+        in_fcs (list,str): list of feature classes
+        use_cols (list, str): list or tuple of lists of column names to keep
+        rename_dict (dict): dict or tuple of dicts to map field names
     Returns:
         arcpy.FieldMappings object
     """
@@ -121,10 +111,11 @@ def geojson_to_feature_class_arc(
 ):
     """Converts geojson to feature class in memory and adds unique_id attribute if provided
     Args:
-        geojson_path:
-        geom_type:
-        encoding:
-        unique_id:
+        geojson_path (str): path to geojson file
+        geom_type (str): The geometry type to convert from GeoJSON to features.
+                        OPTIONS: POINT, MULTIPOINT, POLYLINE, POLYGON
+        encoding (str): name of the encoding used to decode or encode the file
+        unique_id (str): name of unique id column, Default is None
     Returns:
         temp_feature (str): path to temporary feature class
     """
@@ -146,22 +137,17 @@ def geojson_to_feature_class_arc(
 
 
 def csv_to_df(csv_file, use_cols, rename_dict):
-    """
-    helper function to convert CSV file to pandas dataframe, and drop unnecessary columns
+    """helper function to convert CSV file to pandas dataframe, and drop unnecessary columns
     assumes any strings with comma (,) should have those removed and dtypes infered
-    Parameters
-    --- --- --- -
-    csv_file: String
-        path to csv file
-    use_cols: List
-        list of columns to keep from input csv
-    rename_dict: dict
-        dictionary mapping existing column name to standardized column names
-
-    Returns: Pandas dataframe
-    --- --- -
-
+    Args:
+        csv_file (str): path to csv file
+        use_cols (list): list of columns to keep from input csv
+        rename_dict (dict): dictionary mapping existing column name to standardized column names
+    Returns:
+        Pandas dataframe
     """
+    if isinstance(use_cols, str):
+        use_cols = [use_cols]
     df = pd.read_csv(filepath_or_buffer=csv_file, usecols=use_cols, thousands=",")
     df = df.convert_dtypes()
     df.rename(columns=rename_dict, inplace=True)
@@ -171,8 +157,8 @@ def csv_to_df(csv_file, use_cols, rename_dict):
 def split_date(df, date_field, unix_time=False):
     """ingest date attribute and splits it out to DAY, MONTH, YEAR
     Args:
-        df: DataFrame; DataFrame with a date field
-        date_field: column name
+        df (pd.DataFrame): DataFrame with a date field
+        date_field (str): column name
         unix_time (str): unix time stamp
     Returns:
         df (pd.DataFrame): DataFrame reformatted to include split day, month and year
@@ -192,41 +178,21 @@ def split_date(df, date_field, unix_time=False):
     return df
 
 
-# DEPRECATED
-# def geojson_to_gdf(geojson, crs, use_cols=None, rename_dict=None):
-#     """
-#     reads in geojson, drops unnecessary attributes and renames the kept attributes
-#     Parameters
-#     --- --- --- -
-#     geojson: json
-#         GeoJSON text file consisting of points for bike/ped crashes
-#     crs:
-#         EPSG code representing
-#     use_cols: list
-#         list of columns to use in formatting
-#     rename_dict: dict
-#         dictionary to map existing column names to more readable names
-#     Returns
-#     --- --- -
-#         geodataframe
-#     """
-#     if rename_dict is None:
-#         rename_dict = []
-#     if use_cols is None:
-#         use_cols = []
-#     with open(str(geojson), "r") as src:
-#         js = json.load(src)
-#         gdf = gpd.GeoDataFrame.from_features(js["features"], crs=crs, columns=use_cols)
-#         gdf.rename(columns=rename_dict, inplace=True)
-#     return gdf
-
-
 def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
+    """generate points from polygon centroids inside polygon
+    UNUSED IN CURRENT ITERATION
+    Args:
+        in_fc (str): path to polygon featureclass
+        id_field (str): if not None, the new features created will only have an ID attribute
+        point_loc (str): CENTROID or INSIDE (see documentation of arcpy.FeatureToPoint)
+
+    Returns:
+        temporary feature class
+    """
     # TODO: replace usages with PMT.polygonsToPoints
     try:
         # convert json to temp feature class
-        unique_name = str(uuid.uuid4().hex)
-        temp_feature = PMT.makePath("in_memory", f"_{unique_name}")
+        temp_feature = PMT.make_inmem_path()
         arcpy.FeatureToPoint_management(
             in_features=in_fc, out_feature_class=temp_feature, point_location=point_loc
         )
@@ -238,20 +204,18 @@ def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
         logger.log_error()
 
 
-# DEPRECATED
-# def polygon_to_points_gpd(poly_fc, id_field=None):
-#     # TODO: add validation and checks
-#     poly_df = gpd.read_file(poly_fc)
-#     if id_field:
-#         columns = poly_df.columns
-#         drops = [col for col in columns if col != id_field]
-#         poly_df = poly_df.drop(columns=drops)
-#     pts_df = poly_df.copy()
-#     pts_df['geometry'] = pts_df['geometry'].centroid
-#     return pts_df
-
-# TODO: move this to PMT
 def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
+    """calculates x,y coordinates for a given polygon feature class and returns as new
+    columns of a data
+    Args:
+        poly_fc (str): path to polygon feature class
+        poly_key (str): primary key from polygon feature class
+        table_df (pd.DataFrame): pandas dataframe
+        table_key (str): primary key of table df
+
+    Returns:
+        pandas.DataFrame; updated table_df with XY centroid coordinates appended
+    """
     pts = PMT.polygonsToPoints(
         in_fc=poly_fc, out_fc=PMT.make_inmem_path(), fields=poly_key, null_value=0.0
     )
@@ -269,6 +233,14 @@ def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
 
 
 def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
+    """remove and rename fields provided for a feature class to format as desired
+    Args:
+        feature_class (str): path to feature class
+        use_cols (list): list of columns to keep
+        rename_dict (dict): key, value pairs of columns to keep and new column names
+    Returns:
+        None
+    """
     # reformat attributes and keep only useful
     if rename_dict is None:
         rename_dict = {}
@@ -291,11 +263,15 @@ def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
 
 
 def _merge_df_(x_specs, y_specs, on=None, how="inner", **kwargs):
+    """internal helper function when using dask frames
+    See Also: combine_csv_dask
+
+    """
     df_x, suffix_x = x_specs
     df_y, suffix_y = y_specs
     merge_df = df_x.merge(df_y, on=on, how=how, suffixes=(suffix_x, suffix_y), **kwargs)
     # Must return a tuple to support reliably calling from `reduce`
-    return (merge_df, suffix_y)
+    return merge_df, suffix_y
 
 
 def combine_csv_dask(
@@ -311,29 +287,28 @@ def combine_csv_dask(
     Merges two or more csv tables into a single table based on key columns. All
     other columns from the original tables are included in the output csv.
 
-    Parameters
-    -----------
-    merge_fields: [String, ...]
-        One or more columns common to all `tables` on which they will be merged
-    out_table: Path
-    tables: [Path, ...]
-        Paths to the tables to be combined.
-    suffixes: [String, ...], default=None
-        If any tables have common column names (other than `merge_fields`) that
-        would create naming collisions, the user can specify the suffixes to
-        apply to each input table. If None, name collisions may generate
-        unexpected colums in the output, so it is recommended to provide specific
-        suffixes, especially if collisions are expected. Length of the list must
-        match the number of `tables`.
-    col_renames: {String: String, ...}
-        A dictionary for renaming columns in any of the provided `tables`. Keys are
-        old column names, values are new column names.
-    how: "inner" or "outer", default="inner"
-        If "inner" combined csv tables will only include rows with common values
-        in `merge_fields` across all `tables`. If "outer", all rows are retained
-        with `nan` values for unmatched pairs in any table.
-    kwargs:
-        Any keyword arguments are passed to the `read_csv` method.
+    Args:
+        merge_fields (list): [String, ...]
+            One or more columns common to all `tables` on which they will be merged
+        out_table (str): Path
+        tables (list): [Path, ...]
+            Paths to the tables to be combined.
+        suffixes (list): [String, ...], default=None
+            If any tables have common column names (other than `merge_fields`) that
+            would create naming collisions, the user can specify the suffixes to
+            apply to each input table. If None, name collisions may generate
+            unexpected colums in the output, so it is recommended to provide specific
+            suffixes, especially if collisions are expected. Length of the list must
+            match the number of `tables`.
+        col_renames (dict): {String: String, ...}
+            A dictionary for renaming columns in any of the provided `tables`. Keys are
+            old column names, values are new column names.
+        how (str): "inner" or "outer", default="inner"
+            If "inner" combined csv tables will only include rows with common values
+            in `merge_fields` across all `tables`. If "outer", all rows are retained
+            with `nan` values for unmatched pairs in any table.
+        kwargs:
+            Any keyword arguments are passed to the `read_csv` method.
     """
     # Read csvs
     ddfs = [dd.read_csv(t, **kwargs) for t in tables]
@@ -384,33 +359,30 @@ def update_transit_times(
         chunksize=100000,
         **kwargs,
 ):
-    """
-    Opens and updates a csv table containing transit travel time estimates
+    """Opens and updates a csv table containing transit travel time estimates
     between origin-destination pairs.
 
-    Parameters
-    -----------
-    od_table: Path
-        csv of OD data that includes transit travel time estimates
-    out_table: Path
-        The location of the new csv table containing updated values
-    competing_cols: [String, ...], default=[]
-        The minimum value among competing columns will be written to `out_col`
-    out_col: String, default=None
-        A new column to be populated with updated transit travel time
-        estimates based on `competing_cols` comparisons and value replacement
-        indicated by `replace_vals`
-    replace_vals: {from_val: to_val}, default=[]
-        A dict whose keys indicate old values (those to be replaced) and whose
-        values indicate new values.
-    chunksize: Int, default=100000
-    kwargs:
-        Keyword arguments to pass to the pandas read_csv method
+    Args:
+        od_table (str): Path
+            csv of OD data that includes transit travel time estimates
+        out_table (str): Path
+            The location of the new csv table containing updated values
+        competing_cols (list): [String, ...], default=[]
+            The minimum value among competing columns will be written to `out_col`
+        out_col (str): String, default=None
+            A new column to be populated with updated transit travel time
+            estimates based on `competing_cols` comparisons and value replacement
+            indicated by `replace_vals`
+        replace_vals (dict): {from_val: to_val}, default=[]
+            A dict whose keys indicate old values (those to be replaced) and whose
+            values indicate new values.
+        chunksize (int): Int, default=100000
+        kwargs:
+            Keyword arguments to pass to the pandas read_csv method
 
-    Returns
-    --------
-    out_table: Path
-        A new csv table with updated transit times is stored at the path specified
+    Returns:
+        out_table (str): Path
+            A new csv table with updated transit times is stored at the path specified
     """
     # Validate
     if not isinstance(replace_vals, dict):
@@ -436,6 +408,10 @@ def update_transit_times(
 
 # basic features functions
 def _listifyInput(input):
+    """helper function to convert string input to list
+    Returns:
+        list
+    """
     if isinstance(input, string_types):
         return input.split(";")
     else:
@@ -443,6 +419,10 @@ def _listifyInput(input):
 
 
 def _stringifyList(input):
+    """helper function to convert input to string
+    Returns:
+        str
+    """
     return ";".join(input)
 
 
@@ -751,32 +731,28 @@ def patch_basic_features(
         preset_corridor_name_field=None,
         existing_corridor_name_field=None
 ):
-    """
-    Modifies the basic features database to updata station area and/or corridor geometries
+    """Modifies the basic features database to updata station area and/or corridor geometries
     based on provided preset features
 
-    Parameters
-    ----------
-    # basic_gdb: path
-    #     Path to the basic_feaures geodatabase. This data base is assumed to include the
-    #     feature classes created/updated in `makeBasicFeatures` and `makeSummaryFeatures`
-    preset_station_areas: path or feature layer, default=None
-        If provided, these geometries will be used to update station area features
-        (`StationAreas` and `SummaryAreas`)
-    preset_station_id_field: String, default=None
-        The field in `preset_station_areas` that corresponds to basic_features/StationAreas.Id.
-        It is used to map new geometries into the `StationAreas` and `SummaryAreas` feature classes.
-    preset_corridors: path or feature_layer, default=None
-        If provided, these geometries will be used to update corridor features
-        (`Corridors` and `SummaryAreas`)
-    preset_corridor_name_field: String, default=None
-        The field in `preset_corridors` that corresponds to basic_features/Corridors.Corridor.
-        It is used to map new geometries into the `Corridors` and `SummaryAreas` feature classes.
+    Args:
+        station_areas_fc (str): path or feature layer
+        corridors_fc (str): path or feature layer
+        preset_station_areas: path or feature layer, default=None
+            If provided, these geometries will be used to update station area features
+            (`StationAreas` and `SummaryAreas`)
+        preset_station_id_field: String, default=None
+            The field in `preset_station_areas` that corresponds to basic_features/StationAreas.Id.
+            It is used to map new geometries into the `StationAreas` and `SummaryAreas` feature classes.
+        preset_corridors: path or feature_layer, default=None
+            If provided, these geometries will be used to update corridor features
+            (`Corridors` and `SummaryAreas`)
+        preset_corridor_name_field: String, default=None
+            The field in `preset_corridors` that corresponds to basic_features/Corridors.Corridor.
+            It is used to map new geometries into the `Corridors` and `SummaryAreas` feature classes.
 
-    See Also
-    ---------
-    makeBasicFeatures
-    makeSummaryFeatures
+    See Also:
+        makeBasicFeatures
+        makeSummaryFeatures
     """
 
     def update_geography(preset_geog, preset_id, default_geog, default_id):
@@ -809,42 +785,24 @@ def patch_basic_features(
                          default_geog=corridors_fc, default_id=existing_corridor_name_field)
 
 
-# crash functions   DEPRECATED
-# def update_crash_type(feature_class, data_fields, update_field):
-#     arcpy.AddField_management(
-#         in_table=feature_class, field_name=update_field, field_type="TEXT"
-#     )
-#     with arcpy.da.UpdateCursor(
-#         feature_class, field_names=[update_field] + data_fields
-#     ) as cur:
-#         for row in cur:
-#             both, ped, bike = row
-#             if ped == "Y":
-#                 row[0] = "PEDESTRIAN"
-#             if bike == "Y":
-#                 row[0] = "BIKE"
-#             cur.updateRow(row)
-#     for field in data_fields:
-#         arcpy.DeleteField_management(in_table=feature_class, drop_field=field)
-
-
-# def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
-#     # dump subset to new FC
-#     out_fc = PMT.makePath(out_path, out_name)
-#     arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
-#                                                 out_name=out_name, where_clause=where_clause)
-#     # update city code/injury severity/Harmful event to text value
-#     update_field_values(in_fc=out_fc, fields=CRASH_CODE_TO_STRING,
-#                         mappers=[CRASH_CITY_CODES, CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES])
-#
-#     # combine bike and ped type into single attribute and drop original
-#     update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
-
-
 # parks functions
 def prep_park_polys(
-        in_fcs, geom, out_fc, use_cols=None, rename_dicts=None, unique_id=None
+        in_fcs, out_fc, geom="POLYGON", use_cols=None, rename_dicts=None, unique_id=None
 ):
+    """Merges park polygon data into single feature class, creating a unique ID for each polygon and
+    reformatting the table
+
+    Args:
+        in_fcs (list): [Path, ...] list of paths to park feature classes
+        out_fc (str): path to output dataset
+        geom (str): geometry type of input features
+        use_cols (list): [col_name,...] list of column names to keep
+        rename_dicts (list): [{k,v},...] list of dictionaries mapping attributes by feature class
+        unique_id (str): name of new field to add as unique identifier (defined in prepare_config)
+
+    Returns:
+        None
+    """
     # Align inputs
     if rename_dicts is None:
         rename_dicts = [{} for _ in in_fcs]
@@ -872,6 +830,20 @@ def prep_park_polys(
 def prep_feature_class(
         in_fc, geom, out_fc, use_cols=None, rename_dict=None, unique_id=None
 ):
+    """tidies up a provided feature class, removing unnecessary fields and mapping existing
+    fields to prefered values
+
+    Args:
+        in_fc (list): [Path, ...] list of paths to park feature classes
+        geom (str): geometry type of input features
+        out_fc (str): path to output dataset
+        use_cols (list): [col_name,...] list of column names to keep
+        rename_dict (list): [{k,v},...] list of dictionaries mapping attributes by feature class
+        unique_id (str): name of new field to add as unique identifier (defined in prepare_config)
+
+    Returns:
+        None
+    """
     if rename_dict is None:
         rename_dict = {}
     if use_cols is None:
@@ -896,15 +868,16 @@ def clean_permit_data(
         out_file,
         out_crs,
 ):
-    """reformats and cleans RER road impact permit data, specific to the PMT
+    """reformat and clean RER road impact permit data, specific to the PMT
     Args:
-        permit_csv:
-        parcel_fc:
-        permit_key:
-        poly_key:
-        out_file:
-        out_crs:
+        permit_csv (str): path to permit csv
+        parcel_fc (str): path to parcel feature class; should be most recent parcel year
+        permit_key (str): foreign key of permit data that ties to parcels (FOLIO)
+        poly_key (str): primary key of parcel data that ties to permits (FOLIO)
+        out_file (str): path to output permit point feature class
+        out_crs (int): EPSG code
     Returns:
+        None
     """
     # TODO: add validation
     # read permit data to dataframe
@@ -998,7 +971,7 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
         geometry_type="POLYGON",
         spatial_reference=sr,
     )
-    arcpy.AddField_management(in_table=out_fc, field_name="IN_UDB", field_type="LONG")
+    arcpy.AddField_management(in_table=out_fc, field_name=P_CONF.UDB_FLAG, field_type="LONG")
 
     # Get geometry objects
     temp_udb = PMT.makePath("in_memory", "UDB_dissolve")
@@ -1036,7 +1009,7 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
     in_udb[min_idx] = 0
 
     # Write cut polygons to output feature class
-    with arcpy.da.InsertCursor(out_fc, ["SHAPE@", "IN_UDB"]) as c:
+    with arcpy.da.InsertCursor(out_fc, ["SHAPE@", P_CONF.UDB_FLAG]) as c:
         for cut, b in zip(cuts, in_udb):
             c.insertRow([cut, b])
 
@@ -1050,10 +1023,10 @@ def read_transit_xls(xls_path, sheet=None, head_row=None, rename_dict=None):
         reads in the provided xls file and due to odd formatting concatenates
         the sheets into a single data frame. The
     Args:
-        xls_path: str; String path to xls file
-        sheet: str, int, list, or None, default None as we need to read the entire file
-        head_row: int, list of int, default None as wee need to read the entire file
-        rename_dict: dict; dictionary to map existing column names to more readable names
+        xls_path (str): String path to xls file
+        sheet (str, int, list, or None): default None as we need to read the entire file
+        head_row (int, list of int): default None as wee need to read the entire file
+        rename_dict (dict): dictionary to map existing column names to more readable names
     Returns:
         pd.Dataframe; pandas dataframe of data from xls
     """
@@ -1077,16 +1050,13 @@ def read_transit_xls(xls_path, sheet=None, head_row=None, rename_dict=None):
 
 
 def read_transit_file_tag(file_path):
-    """
-    extracts a tag from the file path that is used in the naming of "ON" and "OFF"
+    """extracts a tag from the file path that is used in the naming of "ON" and "OFF"
     counts per stop
-    Parameters
-    ----------
-    file_path: Path; string path of transit ridership file
+    Args:
+        file_path (str): Path; string path of transit ridership file
 
-    Returns
-    -------
-    tag: String
+    Returns:
+        tag: String
     """
     # returns "time_year_month" tag for ridership files
     # ex: AVERAGE_RIDERSHIP_PER_STOP_PER_TRIP_WEEKDAY_1411_2015_APR_standard_format.XLS
@@ -1099,11 +1069,11 @@ def update_dict(d, values, tag):
     """adds new key:value pairs to dictionary given a set of values and
         tags in the keys --- only valuable in the Transit ridership context
     Args:
-        d: dict
-        values: [String,...]; output value names
-        tag: String; unique tag found in a column
+        d (dict): existing dictionary
+        values (list): [String,...]; output value names
+        tag (str): String; unique tag found in a column
     Returns:
-        d: dict; updated with new key value pairs
+        d (dict): updated with new key value pairs
     """
     for value in values:
         d[f"{value}_{tag}"] = value
@@ -1162,13 +1132,12 @@ def prep_transit_ridership(
 def clean_parcel_geometry(in_features, fc_key_field, new_fc_key, out_features=None):
     """cleans parcel geometry and sets common key to user supplied new_fc_key
     Args:
-        in_features:
-        fc_key_field:
-        new_fc_key:
-        out_features:
-        overwrite (bool):
+        in_features (str): path to raw parcel shapefile
+        fc_key_field (str): primary key of raw shapefile data
+        new_fc_key (str): new primary key name used throughout processing
+        out_features (str): path to output parcel feature class
     Returns:
-
+        None
     """
     try:
         if out_features is None:
@@ -1260,14 +1229,7 @@ def enrich_bg_with_parcels(
         par_id_field="PARCELNO",
         par_lu_field="DOR_UC",
         par_bld_area="TOT_LVG_AREA",
-        par_sum_fields=[
-            "LND_VAL",
-            "LND_SQFOOT",
-            "JV",
-            "NO_BULDNG",
-            "NO_RES_UNTS",
-            "TOT_LVG_AREA",
-        ],
+        par_sum_fields=None,
 ):
     """Relates parcels to block groups based on centroid location and summarizes
         key parcel fields to the block group level, including building floor area
@@ -1291,6 +1253,15 @@ def enrich_bg_with_parcels(
         bg_df (pd.DataFrame): DataFrame of block group ids and related/summarized parcel data
     """
     # Prep output
+    if par_sum_fields is None:
+        par_sum_fields = [
+            "LND_VAL",
+            "LND_SQFOOT",
+            "JV",
+            "NO_BULDNG",
+            "NO_RES_UNTS",
+            "TOT_LVG_AREA",
+        ]
     if sum_crit is None:
         sum_crit = {}
     # PMT.checkOverwriteOutput(output=out_tbl, overwrite=overwrite)
@@ -1358,6 +1329,14 @@ def enrich_bg_with_parcels(
 
 
 def get_field_dtype(in_table, field):
+    """helper function to get map type from arcgis type to pandas type
+    Args:
+        in_table (str): path to table
+        field (str): field of interest
+
+    Returns:
+        dtype of input field in format pandas can use
+    """
     arc_to_pd = {"Double": np.float, "Integer": np.int, "String": np.str}
     f_dtype = [f.type for f in arcpy.ListFields(in_table) if f.name == field]
     return arc_to_pd.get(f_dtype[0])
@@ -1401,9 +1380,9 @@ def prep_parcels(
         in_fc,
         in_tbl,
         out_fc,
-        fc_key_field="PARCELNO",
-        new_fc_key_field="FOLIO",
-        tbl_key_field="PARCEL_ID",
+        fc_key_field=None,
+        new_fc_key_field=None,
+        tbl_key_field=None,
         tbl_renames=None,
         **kwargs,
 ):
@@ -1430,6 +1409,12 @@ def prep_parcels(
     Returns:
         updates parcel data
     """
+    if fc_key_field is None:
+        fc_key_field = "PARCELNO"
+    if new_fc_key_field is None:
+        new_fc_key_field = "FOLIO"
+    if tbl_key_field is None:
+        tbl_key_field = "PARCEL_ID"
     # prepare geometry data
     logger.log_msg("--- cleaning geometry")
     if tbl_renames is None:
@@ -1468,14 +1453,15 @@ def prep_parcels(
 
 
 # impervious surface
-def unzip_data_to_temp(zipped_file):
-    temp_dir = tempfile.TemporaryDirectory()
-
-    return temp_dir.name
-
-
 def get_raster_file(folder):
-    # Get the name of the raster from within the zip (the .img file), there should be only one
+    """Get the name of the raster from within the zip (the .img file), there should be only one
+
+    Args:
+        folder (str): path to folder containing raster data
+    Returns:
+        path to raster file
+    """
+
     rast_files = []
     raster_formats = [".img", ".tif"]
     logger.log_msg(f"--- finding all raster files of type {raster_formats}")
@@ -1509,7 +1495,6 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
         File will be clipped, transformed, and saved to the save directory; the
         save path will be returned upon completion
     """
-    # temp_unzip_folder = unzip_data_to_temp(zipped_file=zip_path)
     with tempfile.TemporaryDirectory() as temp_unzip_folder:
         logger.log_msg("--- unzipping imperviousness raster in temp directory")
         with zipfile.ZipFile(zip_path, "r") as z:
@@ -1608,6 +1593,44 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
     return zonal.reset_index()
 
 
+def agg_to_zone(parcel_fc, agg_field, zone_fc, zone_id):
+    """aggregate parcel data up to a zone feature class, limited to one field for aggregation
+    Args:
+        parcel_fc (str): parcel feature class path
+        agg_field (str): field to be aggregated
+        zone_fc (str): feature class data will be summarized to
+        zone_id (str): primary key of zone fc
+
+    Returns:
+        pandas.DataFrame; dataframe of zoneID and summarized attribute
+    """
+    parcel_pts = PMT.polygonsToPoints(
+        in_fc=parcel_fc, out_fc=PMT.make_inmem_path(), fields=[agg_field], null_value=0.0
+    )
+    block_par = arcpy.SpatialJoin_analysis(
+        target_features=zone_fc,
+        join_features=parcel_pts,
+        join_operation="JOIN_ONE_TO_MANY",
+        out_feature_class=PMT.make_inmem_path(),
+    )
+    block_par = arcpy.Dissolve_management(
+        in_features=block_par,
+        out_feature_class=PMT.make_inmem_path(),
+        dissolve_field=zone_id,
+        statistics_fields=f"{agg_field} SUM",
+    )
+    arcpy.AlterField_management(
+        in_table=block_par,
+        field=f"SUM_{agg_field}",
+        new_field_name=agg_field,
+        new_field_alias=agg_field,
+    )
+    df = PMT.featureclass_to_df(
+        in_fc=block_par, keep_fields=[zone_id, agg_field], null_val=0.0
+    )
+    return df
+
+
 def analyze_blockgroup_model(
         data_path,
         bg_enrich_tbl_name,
@@ -1620,25 +1643,23 @@ def analyze_blockgroup_model(
         commutes at the block group level, and save the model coefficients for
         future prediction
     Args:
-        bg_enrich_path : str
-            path to enriched block group data, with a fixed-string wild card for
+        data_path (str): path to enriched block group data, with a fixed-string wild card for
             year (see Notes)
-        acs_years : list of int
-            years for which ACS variables (population, commutes) are present in
-            the data
-        lodes_years : list of int
+        bg_enrich_tbl_name (str): name of enriched block group table data
+            see Notes
+        bg_key (str): name of primary key to block group data
+        fields (list): list of fields to use for processing
+        acs_years (list): list of int
+            years for which ACS variables (population, commutes) are present in the data
+        lodes_years (list): list of int
             years for which LODES variables (employment) are present in the data
-        save_directory : str
-            directory to which to save the model coefficients (results will be
-            saved as a csv)
     Notes:
         in `bg_enrich_path`, replace the presence of a year with the string
         "{year}". For example, if your enriched block group data for 2010-2015 is
-        stored at "Data_2010.gdb/enriched", "Data_2010.gdb/enriched", ..., then
-        `bg_enrich_path = "Data_{year}.gdb/enriched"`.
+        stored at "Data_2010.gdb/enriched", "PMT_2019.gdb/Enrichment_census_blockgroups", ..., then
+        `bg_enrich_tbl_name = "Enrichment_census_blockgroups"`.
     Returns:
-        save_path : str
-            path to a table of model coefficients
+       coeffs (pandas.DataFrame): pd.DataFrame of model coefficients
     """
 
     logger.log_msg("--- reading input data (block group)")
@@ -1654,7 +1675,7 @@ def analyze_blockgroup_model(
         tab["Year"] = year
         tab["Since_2013"] = year - 2013
         tab["Total_Emp_Area"] = (
-                tab["CNS_01_par"]  + tab["CNS_02_par"] + tab["CNS_03_par"] + tab["CNS_04_par"] + tab["CNS_05_par"]
+                tab["CNS_01_par"] + tab["CNS_02_par"] + tab["CNS_03_par"] + tab["CNS_04_par"] + tab["CNS_05_par"]
                 + tab["CNS_06_par"] + tab["CNS_07_par"] + tab["CNS_08_par"] + tab["CNS_09_par"] + tab["CNS_10_par"]
                 + tab["CNS_11_par"] + tab["CNS_12_par"] + tab["CNS_13_par"] + tab["CNS_14_par"] + tab["CNS_15_par"]
                 + tab["CNS_16_par"] + tab["CNS_17_par"] + tab["CNS_18_par"] + tab["CNS_19_par"] + tab["CNS_20_par"]
@@ -1755,20 +1776,13 @@ def analyze_blockgroup_apply(
         pre-fit linear models, and apply a shares-based approach to subdivide
         totals into relevant subgroups
     Args:
-        year : int
-            year of the `bg_enrich` data
-        bg_enrich_path : str
-            path to enriched block group data; this is the data to which the
+        year (int): year of the `bg_enrich` data
+        bg_enrich_path (str): path to enriched block group data; this is the data to which the
             models will be applied
-        bg_geometry_path : str
-            path to geometry of block groups underlying the data
+        bg_geometry_path (str): path to geometry of block groups underlying the data
         bg_id_field (str): block group unique id column
-        model_coefficients : str
-            path to table of model coefficients
-        save_gdb_location : str
-            gdb location to which to save the results (results will be saved as a
-            table)
-        shares_from : dict, optional
+        model_coefficients (pd.DataFrame): pandas.DataFrame of model coefficients
+        shares_from (dict): optional
             if the year of interest does not have observed data for either LODES
             or ACS, provide other files from which subgroup shares can be
             calculated (with the keys "LODES" and "ACS", respectively).
@@ -1781,8 +1795,7 @@ def analyze_blockgroup_apply(
             The default is None, which assumes LODES and ACS data are available
             for the year of interest in the provided `bg_enrich` file
     Returns:
-        save_path : str
-            path to a table of model application results
+        alloc (pd.DataFrame): pd.DataFrame of model application results
     """
 
     logger.log_msg("--- reading input data (block group)")
@@ -2011,9 +2024,7 @@ def allocate_bg_to_parcels(
         parcel_liv_area (str): building square footage field in the parcels shape
             Default is "TOT_LVG_AREA" for Florida parcels
     Returns:
-        path of location at which the allocation results are saved.
-        Saving will be completed as part of the function. The allocation estimates
-        will be joined to the original parcels shape
+        intersect_df (pd.DataFrame): dataframe of the resultant allocation based on model
 
     """
     if parcels_id is None:
@@ -2338,8 +2349,10 @@ def allocate_bg_to_parcels(
             )
         else:
             race_vars = [
-                "Total_Hispanic", "White_Hispanic", "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic", "Other_Hispanic",
-                "Total_Non_Hisp", "White_Non_Hisp", "Black_Non_Hisp", "Asian_Non_Hisp", "Multi_Non_Hisp", "Other_Non_Hisp",
+                "Total_Hispanic", "White_Hispanic", "Black_Hispanic", "Asian_Hispanic", "Multi_Hispanic",
+                "Other_Hispanic",
+                "Total_Non_Hisp", "White_Non_Hisp", "Black_Non_Hisp", "Asian_Non_Hisp", "Multi_Non_Hisp",
+                "Other_Non_Hisp",
             ]
             for rv in race_vars:
                 intersect_df[f"{rv}_PAR"] = (
@@ -2487,7 +2500,7 @@ def consolidate_cols(df, base_fields, consolidations):
     """ Use the `PMT.Consolidation` class to combine columns and
         return a clean data frame.
     Args:
-        df: DataFrame
+        df (pd.DataFrame):
         base_fields (list): [String, ...]; Field(s) in `df` that are not subject to consolidation but which
             are to be retained in the returned data frame.
         consolidations (iterable): [Consolidation, ...]; Specifications for output columns that consolidate columns
@@ -2542,38 +2555,6 @@ def patch_local_regional_maz(maz_par_df, maz_par_key, maz_df, maz_key):
     return pd.concat([all_par, maz_df[~patch_fltr]])
 
 
-# def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
-#                chunk_size=100000, rename={}, **kwargs):
-#     """A simple function to read rows from a skim table (csv file), select
-#         key columns, and save to an ouptut csv file. Keyword arguments can be
-#         given to set column types, etc.
-#     Args:
-#         in_csv (str): Path to skim table csv
-#         o_field (str): field containing origin ids
-#         d_field (str): field containing destination ids
-#         imp_fields (str, list): [String, ...]; impedance fields
-#         out_csv (str): Path to processed table
-#         chunk_size (int): Integer, default=1000000; number of rows to process as a subset
-#         rename (dict): Dict, default={}; A dictionary to rename columns with keys reflecting
-#             existing column names and values new column names.
-#         kwargs: Keyword arguments parsed by the pandas `read_csv` method.
-#     """
-#     # Manage vars
-#     if isinstance(imp_fields, string_types):
-#         imp_fields = [imp_fields]
-#     # Read chunks
-#     mode = "w"
-#     header = True
-#     usecols = [o_field, d_field] + imp_fields
-#     for chunk in pd.read_csv(in_csv, usecols=usecols, chunksize=chunk_size, **kwargs):
-#         if rename:
-#             chunk.rename(columns=rename, inplace=True)
-#         # write output
-#         chunk.to_csv(out_csv, header=header, mode=mode, index=False)
-#         header = False
-#         mode = "a"
-
-
 def copy_net_result(source_fds, target_fds, fc_names):
     # TODO: Generalize function name and docstring, as this now just copies one or more fcs across fds's
     """Since some PMT years use the same OSM network, a solved network analysis
@@ -2586,7 +2567,8 @@ def copy_net_result(source_fds, target_fds, fc_names):
         target_fds (str): Path to destination FeatureDataset
         fc_names (str, list): [String, ...] The feature class(es) to be copied from an already-solved
             analysis. Provide the names only (not paths).
-    Returns: None; Copies network service area feature classes to the target year
+    Returns:
+        None; Copies network service area feature classes to the target year
             output from a source year using the same OSM data. Any existing
             features in the feature dataset implied by the target year are
             overwritten.
@@ -2785,22 +2767,15 @@ def parcel_walk_times(
         reference feature, number of reference features within the service
         area walk time cutoff, and a minimum walk time "category" field.
     Args:
-        parcel_fc: Path
-            The parcel features to which walk time estimates will be appended.
-        parcel_id_field: String
-            The field in `parcel_fc` that uniquely identifies each feature.
-        ref_fc: Path
-            A feature class of line features with travel time estimates from/to
+        parcel_fc (str): Path; The parcel features to which walk time estimates will be appended.
+        parcel_id_field (str): The field in `parcel_fc` that uniquely identifies each feature.
+        ref_fc (str): A feature class of line features with travel time estimates from/to
             key features (stations, parks, etc.)
-        ref_name_field: String
-            A field in `ref_fc` that identifies key features (which station, e.g.)
-        ref_time_field: String
-            A field in `ref_fc` that reports the time to walk from each line
+        ref_name_field (str): A field in `ref_fc` that identifies key features (which station, e.g.)
+        ref_time_field (str): A field in `ref_fc` that reports the time to walk from each line
             feature from/to key features.
-        preselect_fc: String
-            A feature class used to subset parcel_fc prior to spatial join
-        target_name: String
-            A string suffix included in output field names.
+        preselect_fc (str): A feature class used to subset parcel_fc prior to spatial join
+        target_name (str): A string suffix included in output field names.
     Returns:
         walk_time_df: DataFrame
             A data frame with columns storing walk time data:
@@ -2872,7 +2847,7 @@ def parcel_walk_times(
     walk_time_df.columns = renames
     return walk_time_df
 
-
+# TODO: Resume here
 def parcel_ideal_walk_time(
         parcels_fc,
         parcel_id_field,
@@ -5201,7 +5176,7 @@ def build_short_term_parcels(
     permit_update.rename(columns={
         permits_id_field: parcels_id_field,
         permits_lu_field: parcels_lu_field,
-        }, inplace=True,
+    }, inplace=True,
     )
 
     # Finally, we want to update the value field
@@ -5229,7 +5204,7 @@ def build_short_term_parcels(
     # tac on new lvg area field, no_res_units for good measure
     parcel_update = pd.merge(left=parcel_update,
                              right=permit_update[[parcels_id_field] + increment_fields],
-                             how="outer", on=parcels_id_field,)
+                             how="outer", on=parcels_id_field, )
     parcel_update.fillna(0, inplace=True)
 
     print("--- --- joining results to save feature class...")
@@ -5814,7 +5789,7 @@ def transit_skim_joins(
     if origin_zones:
         result = result[result["OName"].isin(origin_zones)]
     if destination_zones:
-        result = result[result["DName"].isin(destinatin_zones)]
+        result = result[result["DName"].isin(destination_zones)]
 
     # Export result
     out_cols = ["OName", "DName", "Minutes"]
@@ -5826,3 +5801,137 @@ def transit_skim_joins(
         header_first_partition_only=True,
         chunksize=100000,
     )
+
+# DEPRECATED
+# def geojson_to_gdf(geojson, crs, use_cols=None, rename_dict=None):
+#     """
+#     reads in geojson, drops unnecessary attributes and renames the kept attributes
+#     Parameters
+#     --- --- --- -
+#     geojson: json
+#         GeoJSON text file consisting of points for bike/ped crashes
+#     crs:
+#         EPSG code representing
+#     use_cols: list
+#         list of columns to use in formatting
+#     rename_dict: dict
+#         dictionary to map existing column names to more readable names
+#     Returns
+#     --- --- -
+#         geodataframe
+#     """
+#     if rename_dict is None:
+#         rename_dict = []
+#     if use_cols is None:
+#         use_cols = []
+#     with open(str(geojson), "r") as src:
+#         js = json.load(src)
+#         gdf = gpd.GeoDataFrame.from_features(js["features"], crs=crs, columns=use_cols)
+#         gdf.rename(columns=rename_dict, inplace=True)
+#     return gdf
+# DEPRECATED
+# def polygon_to_points_gpd(poly_fc, id_field=None):
+#     # TODO: add validation and checks
+#     poly_df = gpd.read_file(poly_fc)
+#     if id_field:
+#         columns = poly_df.columns
+#         drops = [col for col in columns if col != id_field]
+#         poly_df = poly_df.drop(columns=drops)
+#     pts_df = poly_df.copy()
+#     pts_df['geometry'] = pts_df['geometry'].centroid
+#     return pts_df
+
+# crash functions   DEPRECATED
+# def update_crash_type(feature_class, data_fields, update_field):
+#     arcpy.AddField_management(
+#         in_table=feature_class, field_name=update_field, field_type="TEXT"
+#     )
+#     with arcpy.da.UpdateCursor(
+#         feature_class, field_names=[update_field] + data_fields
+#     ) as cur:
+#         for row in cur:
+#             both, ped, bike = row
+#             if ped == "Y":
+#                 row[0] = "PEDESTRIAN"
+#             if bike == "Y":
+#                 row[0] = "BIKE"
+#             cur.updateRow(row)
+#     for field in data_fields:
+#         arcpy.DeleteField_management(in_table=feature_class, drop_field=field)
+
+
+# def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
+#     # dump subset to new FC
+#     out_fc = PMT.makePath(out_path, out_name)
+#     arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
+#                                                 out_name=out_name, where_clause=where_clause)
+#     # update city code/injury severity/Harmful event to text value
+#     update_field_values(in_fc=out_fc, fields=CRASH_CODE_TO_STRING,
+#                         mappers=[CRASH_CITY_CODES, CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES])
+#
+#     # combine bike and ped type into single attribute and drop original
+#     update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
+#
+#
+# def update_field_values(in_fc, fields, mappers):
+#     """
+#     deprecated function
+#     Args:
+#         in_fc:
+#         fields:
+#         mappers:
+#
+#     Returns:
+#
+#     """
+#     # ensure number of fields and dictionaries is the same
+#     try:
+#         if len(fields) == len(mappers):
+#             for attribute, mapper in zip(fields, mappers):
+#                 # check that bother input types are as expected
+#                 if isinstance(attribute, str) and isinstance(mapper, dict):
+#                     with arcpy.da.UpdateCursor(in_fc, field_names=attribute) as cur:
+#                         for row in cur:
+#                             code = row[0]
+#                             if code is not None:
+#                                 if mapper.get(int(code)) in mapper:
+#                                     row[0] = mapper.get(int(code))
+#                                 else:
+#                                     row[0] = "None"
+#                             cur.updateRow(row)
+#     except ValueError:
+#         logger.log_msg(
+#             "either attributes (String) or mappers (dict) are of the incorrect type"
+#         )
+#         logger.log_error()
+
+# def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
+#                chunk_size=100000, rename={}, **kwargs):
+#     """A simple function to read rows from a skim table (csv file), select
+#         key columns, and save to an ouptut csv file. Keyword arguments can be
+#         given to set column types, etc.
+#     Args:
+#         in_csv (str): Path to skim table csv
+#         o_field (str): field containing origin ids
+#         d_field (str): field containing destination ids
+#         imp_fields (str, list): [String, ...]; impedance fields
+#         out_csv (str): Path to processed table
+#         chunk_size (int): Integer, default=1000000; number of rows to process as a subset
+#         rename (dict): Dict, default={}; A dictionary to rename columns with keys reflecting
+#             existing column names and values new column names.
+#         kwargs: Keyword arguments parsed by the pandas `read_csv` method.
+#     """
+#     # Manage vars
+#     if isinstance(imp_fields, string_types):
+#         imp_fields = [imp_fields]
+#     # Read chunks
+#     mode = "w"
+#     header = True
+#     usecols = [o_field, d_field] + imp_fields
+#     for chunk in pd.read_csv(in_csv, usecols=usecols, chunksize=chunk_size, **kwargs):
+#         if rename:
+#             chunk.rename(columns=rename, inplace=True)
+#         # write output
+#         chunk.to_csv(out_csv, header=header, mode=mode, index=False)
+#         header = False
+#         mode = "a"

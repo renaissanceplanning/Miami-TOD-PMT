@@ -14,6 +14,8 @@ IN_CRS = 4326  # WGS84 latitude/longitude
 OUT_CRS = 6437  # NAD83(2011) / Florida East meters
 
 """ Basic features configuration """
+BASIC_UGB = "UrbanGrowthBoundary"
+UDB_FLAG = "IN_UDB"
 BASIC_STATIONS = "SMARTplanStations"
 STN_NAME_FIELD = "Name"
 STN_STATUS_FIELD = "Status"

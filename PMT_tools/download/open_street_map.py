@@ -29,7 +29,7 @@ from datetime import datetime
 
 import geopandas as gpd
 import osmnx as ox
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 from six import string_types
 
 # globals for scripts
@@ -108,15 +108,16 @@ def validate_bbox(bbox):
 def calc_osm_bbox(gdf):
     """Given a polygon GeoDataFrame, returns an appropriately formatted bbox dict for OSM
     Args:
-        gdf (gpd.GeoDataFrame): GeoDataFrame object
+        gdf (gpd.GeoDataFrame, gpd.Geoseries): GeoDataFrame object
     Returns:
         bbox (dict): dictionary of coordinates representing the bbox for an area of interest,
             formatted to work with osmnx
     """
-    if not isinstance(gdf, Polygon):
-        raise TypeError(
-            f"geometry provided should be of 'Polygon' type,"
-            f"got {type(gdf)}"
+    if not isinstance(gdf, (gpd.GeoDataFrame, gpd.GeoSeries)):
+        if not gdf.geom_type[0] not in (Polygon, MultiPolygon):
+            raise TypeError(
+                f"geometry provided should be of 'Polygon' type,"
+                f"got {gdf.geom_type[0]}"
         )
     bounds = gdf.total_bounds
     return {
@@ -144,7 +145,7 @@ def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
         print("...Reading and formatting provided polygons for OSMnx extraction")
         sa_gdf = gpd.read_file(study_area_poly)
         # buffer aoi
-        sa_proj = sa_gdf.to_crs(epsg=data_crs)
+        sa_proj = sa_gdf.to_crs(epsg=EPSG_WEB_MERC)
         # Buffer AOI ~1 mile (necessary for proper composition of OSMnx networks)
         sa_buff = sa_proj.buffer(distance=1609.34).to_crs(epsg=EPSG_LL)
         return calc_osm_bbox(gdf=sa_buff)
@@ -229,7 +230,7 @@ def download_osm_networks(
     for net_type in net_types:
         print(f"{net_type:}")
         net_folder = f"{net_type}_{suffix}"
-        print(f"OSMnx {net_type} network extraction")
+        print(f"OSMnx '{net_type.upper()}' network extraction")
         print("-- extracting a composed network by bounding box...")
         g = ox.graph_from_bbox(
             north=bounding_box["north"],
@@ -321,7 +322,7 @@ def download_osm_buildings(
 
     # Saving -----------------------------------------------------------------
     print("...Saving...")
-    dt = datetime.now().strftime("%Y%m%d%H%M%S")
+    dt = datetime.now().strftime("%Y%m%d%")
     file_name = "OSM_Buildings_{}.shp".format(dt)
     save_path = makePath(output_dir, file_name)
     buildings_gdf.to_file(save_path)
