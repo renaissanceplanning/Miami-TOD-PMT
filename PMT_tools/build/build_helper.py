@@ -96,7 +96,7 @@ def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
         )
         df["Year"] = year_val
         out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
-        PMT.dfToTable(df, out_table)
+        PMT.df_to_table(df, out_table)
 
 
 def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
@@ -164,7 +164,7 @@ def build_intersections(gdb, enrich_specs):
         full_geometries = intersect["disag_full_geometries"]
         # Run intersect
         print(f"--- Intersecting {summ_name} with {disag_name}")
-        int_fc = PMT.intersectFeatures(
+        int_fc = PMT.intersect_features(
             summary_fc=summ_in,
             disag_fc=disag_in,
             in_temp_dir=True,
@@ -220,7 +220,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
             out_name = spec["out_table"]
             print(f"--- --- to long table {out_name}")
             out_table = PMT.makePath(gdb, out_name)
-            PMT.dfToTable(df=summary_df, out_table=out_table, overwrite=True)
+            PMT.df_to_table(df=summary_df, out_table=out_table, overwrite=True)
         except KeyError:
             # extend input table
             feature_class = PMT.makePath(gdb, fc_fds, fc_name)
@@ -236,7 +236,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
                 arcpy.DeleteField_management(
                     in_table=feature_class, drop_field=drop_fields
                 )
-            PMT.extendTableDf(
+            PMT.extend_table_df(
                 in_table=feature_class,
                 table_match_field=fc_id,
                 df=summary_df,
@@ -479,7 +479,7 @@ def joinAttributes(
 
     # Join cols from df to to_table
     print(f"--- --- {list(df.columns)} to {to_table}")
-    PMT.extendTableDf(
+    PMT.extend_table_df(
         in_table=to_table,
         table_match_field=to_id_field,
         df=df,

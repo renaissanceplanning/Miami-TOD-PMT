@@ -204,7 +204,7 @@ def parcelWalkTimes(parcel_fc, parcel_id_field, ref_fc, ref_name_field,
     print("... extending output table")
     join_df = pd.concat([which_name, min_time, number], axis=1).reset_index()
     join_df.columns = [parcel_id_field, nearest_field, min_time_field, number_field]
-    PMT.extendTableDf(parcel_fc, parcel_id_field, join_df, parcel_id_field)
+    PMT.extend_table_df(parcel_fc, parcel_id_field, join_df, parcel_id_field)
 
     # Classify result
     print("... classifying")

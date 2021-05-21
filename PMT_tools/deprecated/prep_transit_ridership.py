@@ -109,7 +109,7 @@ if __name__ == "__main__":
             arcpy.AddMessage(f"...writing formatted data to {PMT.CLEANED}")
             cleaned_df.to_csv(out_clean_table)
             arcpy.AddMessage(f"...converting coordinates to point feature class")
-            PMT.dfToPoints(
+            PMT.df_to_points(
                 df=cleaned_df,
                 out_fc=out_fc,
                 shape_fields=[LONG, LAT],

@@ -8,6 +8,7 @@ cleaning, analysis, and summarization processes.
 import fnmatch
 import re
 import tempfile
+
 # %% imports
 import uuid
 from collections.abc import Iterable
@@ -22,6 +23,51 @@ from simpledbf import Dbf5
 from six import string_types
 
 from utils import *
+
+__classes__ = [
+    "Column",
+    "DomainColumn",
+    "AggColumn",
+    "CollCollection",
+    "Consolidation",
+    "MeltColumn",
+    "Join",
+    "Comp",
+    "And",
+    "Or",
+    "NetLoader",
+    "ServiceAreaAnalysis",
+]
+__functions__ = [
+    "makePath",
+    "make_inmem_path",
+    "validate_directory",
+    "validate_geodatabase",
+    "validate_feature_dataset",
+    "checkOverwriteOutput",
+    "dbf_to_df",
+    "intersect_features",
+    "json_to_featureclass",
+    "json_to_table",
+    "iter_rows_as_chunks",
+    "copy_features",
+    "col_multi_index_to_names",
+    "extend_table_df",
+    "df_to_table",
+    "table_to_df",
+    "featureclass_to_df",
+    "which_missing",
+    "multipolygon_to_polygon_arc",
+    "is_multipart",
+    "polygons_to_points",
+    "add_unique_id",
+    "count_rows",
+    "gen_sa_lines",
+    "gen_sa_polys",
+    "",
+]
+__all__ = __classes__ + __functions__
+
 
 # %% CONSTANTS - FOLDERS
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
@@ -313,7 +359,7 @@ class ServiceAreaAnalysis:
             print(f"...{overlap}/{merge}")
             # Lines
             lines = makePath(out_ws, f"{self.name}_{overlap}")
-            lines = genSALines(
+            lines = gen_sa_lines(
                 self.facilities,
                 self.name_field,
                 self.network_dataset,
@@ -330,7 +376,7 @@ class ServiceAreaAnalysis:
             )
             # Polygons
             polys = makePath(out_ws, f"{self.name}_{merge}")
-            polys = genSAPolys(
+            polys = gen_sa_polys(
                 self.facilities,
                 self.name_field,
                 self.network_dataset,
@@ -385,6 +431,7 @@ def make_inmem_path(file_name=None):
 
 
 def validate_directory(directory):
+    """helper function to check if a directory exists and create if not"""
     if os.path.isdir(directory):
         return directory
     else:
@@ -396,6 +443,7 @@ def validate_directory(directory):
 
 
 def validate_geodatabase(gdb_path, overwrite=False):
+    """helper function to check if a geodatabase exists, and create if not"""
     exists = False
     desc_gdb = arcpy.Describe(gdb_path)
     if gdb_path.endswith(".gdb"):
@@ -487,7 +535,7 @@ def dbf_to_df(dbf_file):
     return db.to_dataframe()
 
 
-def intersectFeatures(
+def intersect_features(
     summary_fc,
     disag_fc,
     disag_fields="*",
@@ -495,22 +543,21 @@ def intersectFeatures(
     in_temp_dir=False,
     full_geometries=False,
 ):
-    """
-    creates a temporary intersected feature class for disaggregation of data
+    """creates a temporary intersected feature class for disaggregation of data
 
     Args:
-        summary_fc: String; path to path to polygon feature class with data to be disaggregated from
-        disag_fc: String; path to polygon feature class with data to be disaggregated to
-        disag_fields: [String,...]; list of fields to pass over to intersect function
-        as_df: Boolean; if True, returns a data frame (table) of the resulting intersect. Otherwise
+        summary_fc (str): String; path to path to polygon feature class with data to be disaggregated from
+        disag_fc (str): String; path to polygon feature class with data to be disaggregated to
+        disag_fields (list): [String,...]; list of fields to pass over to intersect function
+        as_df (bool): Boolean; if True, returns a data frame (table) of the resulting intersect. Otherwise
             returns the path to a temporary feature class
-        in_temp_dir: Boolean; if True, intersected features are stored in a temp directory, otherwise
+        in_temp_dir (bool): Boolean; if True, intersected features are stored in a temp directory, otherwise
             they are stored in memory
-        full_geometries: Boolean; if True, intersections are run against the complete geometries of
+        full_geometries (bool): Boolean; if True, intersections are run against the complete geometries of
             features in `disag_fc`, otherwise only centroids are used.
 
     Returns:
-        int_fc: String; path to temp intersected feature class
+        int_fc (str): String; path to temp intersected feature class
     """
     desc = arcpy.Describe(value=disag_fc)
     if in_temp_dir:
@@ -536,7 +583,7 @@ def intersectFeatures(
             raise Exception(
                 "disagg features must be polygon to limit intersection to centroids"
             )
-        disag_fc = polygonsToPoints(
+        disag_fc = polygons_to_points(
             in_fc=disag_fc,
             out_fc=points_fc,
             fields=disag_fields,
@@ -555,7 +602,7 @@ def intersectFeatures(
         return out_fc
 
 
-def jsonToFeatureClass(
+def json_to_featureclass(
     json_obj, out_file, new_id_field="ROW_ID", exclude=None, sr=4326, overwrite=False
 ):
     """Creates a feature class or shape file from a json object.
@@ -617,7 +664,7 @@ def jsonToFeatureClass(
     # Extend table
     print([f.name for f in arcpy.ListFields(out_file)])
     print(prop_df.columns)
-    return extendTableDf(
+    return extend_table_df(
         in_table=out_file,
         table_match_field=new_id_field,
         df=prop_df,
@@ -625,16 +672,15 @@ def jsonToFeatureClass(
     )
 
 
-def jsonToTable(json_obj, out_file):
-    """
-        Creates an ArcGIS table from a json object. Assumes potentially a geoJSON object
+def json_to_table(json_obj, out_file):
+    """Creates an ArcGIS table from a json object. Assumes potentially a geoJSON object
 
     Args:
-        json_obj: dict
-        out_file: Path
+        json_obj (dict): dict
+        out_file (str): Path to output table
 
     Returns:
-        out_file: Path
+        out_file (str): Path
 
     SeeAlso:
         jsonToFeatureClass
@@ -645,10 +691,10 @@ def jsonToTable(json_obj, out_file):
         df.drop(columns="geometry", inplace=True)
     else:
         df = pd.DataFrame.from_dict(data=json_obj)
-    return dfToTable(df, out_file)
+    return df_to_table(df, out_file)
 
 
-def iterRowsAsChunks(in_table, chunksize=1000):
+def iter_rows_as_chunks(in_table, chunksize=1000):
     """A generator to iterate over chunks of a table for arcpy processing.
         This method cannot be reliably applied to a table view of feature
         layer with a current selection as it alters selections as part
@@ -676,20 +722,17 @@ def iterRowsAsChunks(in_table, chunksize=1000):
         yield in_table
 
 
-def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
+def copy_features(in_fc, out_fc, drop_columns=[], rename_columns={}):
     """Copy features from a raw directory to a cleaned directory.
         During copying, columns may be dropped or renamed.
     Args:
-        in_fc: Path
-        out_fc: Path
-        drop_columns: [String,...]
-            A list of column names to drop when copying features.
-        rename_columns: {String: String,...}
-            A dictionary with keys that reflect raw column names and
+        in_fc (str): Path to input feature class
+        out_fc (str): Path to output feature class
+        drop_columns (list): [String,...]; A list of column names to drop when copying features.
+        rename_columns (dict): {String: String,...} A dictionary with keys that reflect raw column names and
             values that assign new names to these columns.
     Returns:
-        out_fc: Path
-            Path to the file location for the copied features.
+        out_fc (str): Path to the file location for the copied features.
     """
     _unmapped_types_ = ["Geometry", "OID", "GUID"]
     field_mappings = arcpy.FieldMappings()
@@ -716,15 +759,14 @@ def copyFeatures(in_fc, out_fc, drop_columns=[], rename_columns={}):
     return out_fc
 
 
-def colMultiIndexToNames(columns, separator="_"):
-    """
-        For a collection of columns in a data frame, collapse index levels to
-        flat column names. Index level values are joined using the provided
-        `separator`.
+def col_multi_index_to_names(columns, separator="_"):
+    """For a collection of columns in a data frame, collapse index levels to
+    flat column names. Index level values are joined using the provided
+    `separator`.
 
     Args:
-        columns: pd.Index
-        separator: String
+        columns (pandas.Index): pd.Index
+        separator (str): String
     Returns:
         flat_columns: pd.Index
     """
@@ -733,18 +775,18 @@ def colMultiIndexToNames(columns, separator="_"):
     return columns
 
 
-def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
+def extend_table_df(in_table, table_match_field, df, df_match_field, **kwargs):
     """Use a pandas data frame to extend (add columns to) an existing table based
-        through a join on key columns. Key values in the existing table must be
-        unique.
+    through a join on key columns. Key values in the existing table must be
+    unique.
     Args:
-        in_table: Path, feature layer, or table view
+        in_table (str): Path, feature layer, or table view
             The existing table to be extended
-        table_match_field: String
+        table_match_field (str): String
             The field in `in_table` on which to join values from `df`
-        df: DataFrame
+        df (pandas.DataFrame): DataFrame
             The data frame whose columns will be added to `in_table`
-        df_match_field: String
+        df_match_field (str): String
             The field in `df` on which join values to `in_table`
         kwargs:
             Optional keyword arguments to be passed to `arcpy.da.ExtendTable`.
@@ -763,14 +805,14 @@ def extendTableDf(in_table, table_match_field, df, df_match_field, **kwargs):
     )
 
 
-def dfToTable(df, out_table, overwrite=False):
+def df_to_table(df, out_table, overwrite=False):
     """Use a pandas data frame to export an arcgis table.
     Args:
-        df: DataFrame
-        out_table: Path
-        overwrite: Boolean, default=False
+        df (pandas.DataFrame): DataFrame
+        out_table (str): Path to output table
+        overwrite (bool): Boolean, default=False
     Returns:
-        out_table: Path
+        out_table (str): Path
     """
     if overwrite:
         checkOverwriteOutput(output=out_table, overwrite=overwrite)
@@ -779,21 +821,21 @@ def dfToTable(df, out_table, overwrite=False):
     return out_table
 
 
-def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
+def df_to_points(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
     """Use a pandas data frame to export an arcgis point feature class.
     Args:
-        df: DataFrame
-        out_fc: Path
-        shape_fields: [String,...]
+        df (pandas.DataFrame: DataFrame
+        out_fc (str): Path
+        shape_fields (list): [String,...]
             Columns to be used as shape fields (x, y)
-        from_sr: SpatialReference
+        from_sr (arcpy.SpatialReference): SpatialReference
             The spatial reference definition for the coordinates listed
             in `shape_field`
-        to_sr: SpatialReference
+        to_sr (arcpy.SpatialReference): SpatialReference
             The spatial reference definition for the output features.
-        overwrite: Boolean, default=False
+        overwrite (bool): Boolean, default=False
     Returns:
-        out_fc: Path
+        out_fc (str): Path
     """
     # set paths
     temp_fc = make_inmem_path()
@@ -842,10 +884,10 @@ def dfToPoints(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
 def table_to_df(in_tbl, keep_fields="*", skip_nulls=False, null_val=0):
     """converts a table to a pandas dataframe
     Args:
-        in_tbl:
-        keep_fields:
-        skip_nulls:
-        null_val:
+        in_tbl (str): Path to input table
+        keep_fields (list): default="*", list of fields to keep
+        skip_nulls (bool): Control whether records using nulls are skipped.
+        null_val (int): Replaces null values from the input with a new value.
     Returns:
         df (pd.DataFrame): pandas dataframe of the table
     """
@@ -868,11 +910,11 @@ def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
         only a subset of fields if provided
         - drops all spatial data
     Args:
-        in_fc: String; path to a feature class
-        keep_fields: List or Tuple; field names to return in the dataframe,
+        in_fc (str): String; path to a feature class
+        keep_fields (list): List or Tuple; field names to return in the dataframe,
             "*" is default and will return all fields
-        skip_nulls:
-        null_val: value to be used for nulls found in the data. canbe given as a
+        skip_nulls (bool): Control whether records using nulls are skipped.
+        null_val (int): value to be used for nulls found in the data. can be given as a
             dict of default values by field
     Returns:
         pandas Dataframe
@@ -906,12 +948,10 @@ def which_missing(table, field_list):
 
 
 def multipolygon_to_polygon_arc(file_path):
-    """
-        convert multipolygon geometries in a single row into
-        multiple rows of simple polygon geometries, returns original file if not multipart
+    """convert multipolygon geometries in a single row into
+    multiple rows of simple polygon geometries, returns original file if not multipart
     Args:
-        file_path: String; path to input Poly/MultiPoly feature class
-        temp: Boolean; if
+        file_path (str): String; path to input Poly/MultiPoly feature class
 
     Returns:
         String; path to in_memory Polygon feature class
@@ -926,6 +966,14 @@ def multipolygon_to_polygon_arc(file_path):
 
 
 def is_multipart(polygon_fc):
+    """helper function to determine if polygon FC has multipart features
+
+    Args:
+        polygon_fc (str): path to polygon feature class
+
+    Returns:
+        bool
+    """
     multipart = []
     with arcpy.da.SearchCursor(polygon_fc, ["OID@", "SHAPE@"]) as sc:
         for row in sc:
@@ -938,7 +986,7 @@ def is_multipart(polygon_fc):
         return False
 
 
-def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
+def polygons_to_points(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
     """ Convenience function to dump polygon features to centroids and
         save as a new feature class.
    Args:
@@ -968,10 +1016,10 @@ def polygonsToPoints(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
 def add_unique_id(feature_class, new_id_field=None):
     """adds a unique incrementing integer value to a feature class and returns that name
     Args:
-        feature_class: String; path to a feature class
-        new_id_field: String; name of new id field, if none is provided, ProcessID is used
+        feature_class (str): String; path to a feature class
+        new_id_field (str): String; name of new id field, if none is provided, ProcessID is used
     Returns:
-        new_id_field: String; name of new id field
+        new_id_field (str): String; name of new id field
     """
     # OID = arcpy.Describe(feature_class).OIDFIeldName
     if new_id_field is None:
@@ -999,22 +1047,19 @@ def count_rows(
     null_value=None,
     inplace=True,
 ):
-    """
-    Counts rows in a table.
+    """Counts rows in a table.
 
-    Parameters
-    ----------
-    in_table: fc path, feature layer, table path, table view, DataFrame
-    groupby_field: [String,...]
-    out_field: String, default=None
-    skip_nulls: Boolean
-    null_value: Var or dict
-    inplace: Boolean, default=True
-        Only matters if `out_field` is given.
+    Args:
+        in_table (str): fc path, feature layer, table path, table view, DataFrame
+        groupby_field (list): [String,...]
+        out_field (str): String, default=None
+        skip_nulls (bool): Boolean
+        null_value (dict): Var or dict
+        inplace (bool): Boolean, default=True
+            Only matters if `out_field` is given.
 
-    Returns
-    -------
-    Int, DataFrame, or None
+    Returns:
+        Int, DataFrame, or None
     """
     if isinstance(in_table, pd.DataFrame):
         # Df operations
@@ -1077,7 +1122,7 @@ def count_rows(
             return result
         else:
             result.drop(columns=groupby_field, inplace=True)
-            extendTableDf(in_table, oid_field, result, oid_field)
+            extend_table_df(in_table, oid_field, result, oid_field)
 
 
 # Network analysis helpers
@@ -1218,7 +1263,7 @@ def _solve(net_layer):
     return s
 
 
-def _rowsToCsv(in_table, fields, out_table, chunksize):
+def _rows_to_csv(in_table, fields, out_table, chunksize):
     header = True
     mode = "w"
     rows = []
@@ -1238,7 +1283,7 @@ def _rowsToCsv(in_table, fields, out_table, chunksize):
 
 
 # Network location functions
-def genSALines(
+def gen_sa_lines(
     facilities,
     name_field,
     in_nd,
@@ -1254,52 +1299,49 @@ def genSALines(
     net_location_fields=None,
 ):
     """
+    Args:
+        facilities: Path or feature layer
+            The facilities for which service areas will be generated.
+        name_field: String
+            The field in `facilities` that identifies each location.
+        in_nd: Path
+            Path to the network dataset
+        imped_attr: String
+            The name of the impedance attribute to use when solving the network
+            and generating service area lines
+        cutoff: Numeric, or [Numeric,...]
+            The search radius (in units of `imped_attr`) that defines the limits
+            of the service area. If a list is given, the highest value defines the
+            cutoff and all other values are used as break points, which are used
+            to split output lines.
+        net_loader: NetLoader
+            Location loading preferences
+        from_to: String, default="TRAVEL_FROM"
+            If "TRAVEL_FROM", service areas reflect the reach of the network from
+            `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
+            network to the facilities. If not applying one-way restrictions, the
+            outcomes are effectively equivalent.
+        overlap: String, deault="OVERLAP"
+            If "OVERLAP", ...
+        restrictions: String or [String,...], default=""
+            Specify restriction attributes (oneway, e.g.) to honor when generating
+            service area lines. If the restrictions are paramterized, default
+            parameter values are used in the solve.
+        uturns: String, default="ALLOW_UTURNS"
+            Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
+            "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
+        use_hierarchy: Boolean, default=False
+            If a hierarchy is defined for `in_nd`, it will be applied when solving
+            the network if `use_hierarchy` is True; otherwise a simple,
+            non-hierarchical solve is executed.
+        net_location_fields: [String,...], default=None
+            If provided, list the fields in the `facilities` attribute table that
+            define newtork loading locations. Fields must be provided in the
+            following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
+            SnapY, Distance.
 
-    Parameters
-    ------------
-    facilities: Path or feature layer
-        The facilities for which service areas will be generated.
-    name_field: String
-        The field in `facilities` that identifies each location.
-    in_nd: Path
-        Path to the network dataset
-    imped_attr: String
-        The name of the impedance attribute to use when solving the network
-        and generating service area lines
-    cutoff: Numeric, or [Numeric,...]
-        The search radius (in units of `imped_attr`) that defines the limits
-        of the service area. If a list is given, the highest value defines the
-        cutoff and all other values are used as break points, which are used
-        to split output lines.
-    net_loader: NetLoader
-        Location loading preferences
-    from_to: String, default="TRAVEL_FROM"
-        If "TRAVEL_FROM", service areas reflect the reach of the network from
-        `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
-        network to the facilities. If not applying one-way restrictions, the
-        outcomes are effectively equivalent.
-    overlap: String, deault="OVERLAP"
-        If "OVERLAP", ...
-    restrictions: String or [String,...], default=""
-        Specify restriction attributes (oneway, e.g.) to honor when generating
-        service area lines. If the restrictions are paramterized, default
-        parameter values are used in the solve.
-    uturns: String, default="ALLOW_UTURNS"
-        Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
-        "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
-    use_hierarchy: Boolean, default=False
-        If a hierarchy is defined for `in_nd`, it will be applied when solving
-        the network if `use_hierarchy` is True; otherwise a simple,
-        non-hierarchical solve is executed.
-    net_location_fields: [String,...], default=None
-        If provided, list the fields in the `facilities` attribute table that
-        define newtork loading locations. Fields must be provided in the
-        following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
-        SnapY, Distance.
-
-    See Also
-    -----------
-    NetLoader
+    See Also:
+        NetLoader
     """
     if arcpy.CheckExtension("network") == "Available":
         arcpy.CheckOutExtension("network")
@@ -1354,7 +1396,7 @@ def genSALines(
         arcpy.Delete_management(net_layer)
 
 
-def genSAPolys(
+def gen_sa_polys(
     facilities,
     name_field,
     in_nd,
@@ -1371,56 +1413,38 @@ def genSAPolys(
     net_location_fields=None,
 ):
     """
+    Args:
+        facilities (str): Path or feature layer
+            The facilities for which service areas will be generated.
+        name_field (str): String; The field in `facilities` that identifies each location.
+        in_nd (str): Path; Path to the network dataset
+        imped_attr (str): String; The name of the impedance attribute to use when solving the network
+            and generating service area lines
+        cutoff (numeric): Numeric, or [Numeric,...]; The search radius (in units of `imped_attr`) that
+            defines the limits of the service area. If a list is given, the highest value defines the
+            cutoff and all other values are used as break points, which are used to split output lines.
+        net_loader (NetLoader): NetLoader; Location loading preferences
+        out_fc (str): Path
+        from_to (str): String, default="TRAVEL_FROM"; If "TRAVEL_FROM", service areas reflect the reach
+            of the network from `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
+            network to the facilities. If not applying one-way restrictions, the outcomes are effectively equivalent.
+        restrictions (str/list): String or [String,...], default=None
+            Specify restriction attributes (oneway, e.g.) to honor when generating service area lines. If the
+            restrictions are paramterized, default parameter values are used in the solve.
+        uturns (str): String, default="ALLOW_UTURNS"; Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
+            "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
+        use_hierarchy (bool): Boolean, default=False; If a hierarchy is defined for `in_nd`, it will be
+            applied when solving the network if `use_hierarchy` is True; otherwise a simple, non-hierarchical
+            solve is executed.
+        net_location_fields (list): [String,...], default=None; If provided, list the fields in the `facilities`
+            attribute table that define newtork loading locations. Fields must be provided in the
+            following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX, SnapY, Distance.
 
+    Returns:
+        out_fc (str): Path
 
-    Parameters
-    ------------
-    facilities: Path or feature layer
-        The facilities for which service areas will be generated.
-    name_field: String
-        The field in `facilities` that identifies each location.
-    in_nd: Path
-        Path to the network dataset
-    imped_attr: String
-        The name of the impedance attribute to use when solving the network
-        and generating service area lines
-    cutoff: Numeric, or [Numeric,...]
-        The search radius (in units of `imped_attr`) that defines the limits
-        of the service area. If a list is given, the highest value defines the
-        cutoff and all other values are used as break points, which are used
-        to split output lines.
-    net_loader: NetLoader
-        Location loading preferences
-    out_fc: Path
-    from_to: String, default="TRAVEL_FROM"
-        If "TRAVEL_FROM", service areas reflect the reach of the network from
-        `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
-        network to the facilities. If not applying one-way restrictions, the
-        outcomes are effectively equivalent.
-    restrictions: String or [String,...], default=None
-        Specify restriction attributes (oneway, e.g.) to honor when generating
-        service area lines. If the restrictions are paramterized, default
-        parameter values are used in the solve.
-    uturns: String, default="ALLOW_UTURNS"
-        Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
-        "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
-    use_hierarchy: Boolean, default=False
-        If a hierarchy is defined for `in_nd`, it will be applied when solving
-        the network if `use_hierarchy` is True; otherwise a simple,
-        non-hierarchical solve is executed.
-    net_location_fields: [String,...], default=None
-        If provided, list the fields in the `facilities` attribute table that
-        define newtork loading locations. Fields must be provided in the
-        following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
-        SnapY, Distance.
-
-    Returns
-    --------
-    out_fc: Path
-
-    See Also
-    -----------
-    NetLoader
+    See Also:
+        NetLoader
     """
     if arcpy.CheckExtension("network") == "Available":
         arcpy.CheckOutExtension("network")

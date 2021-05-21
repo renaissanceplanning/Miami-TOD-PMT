@@ -78,7 +78,7 @@ def generalizeLandUseByParcel(parcel_fc, out_table, ref_table,
     # Extend table
     print("...extending table")
     try:
-        PMT.extendTableDf(out_fc, par_code, ref_table, join_code)
+        PMT.extend_table_df(out_fc, par_code, ref_table, join_code)
     except:
         print("... ... error, rolling back")
         arcpy.Delete_management(out_fc)

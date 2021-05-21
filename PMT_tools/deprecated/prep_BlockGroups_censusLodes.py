@@ -100,7 +100,7 @@ def joinBGData(in_fc, in_fc_id, join_tables, on_fields, out_fc, dtype={},
         df = pd.read_csv(join_table, dtype=dtype, **kwargs)
         cols = df.columns.to_list()
         df.columns = [re.sub("[^a-zA-Z0-9_]", "_", c) for c in cols]
-        PMT.extendTableDf(out_fc, in_fc_id, df, on_field, append_only=False)
+        PMT.extend_table_df(out_fc, in_fc_id, df, on_field, append_only=False)
 
     return out_fc
 
@@ -164,7 +164,7 @@ def prepBlockGroups(raw_dir, out_gdb, years, overwrite=False, dtype={}):
             out_fc = joinBGData(bg_features, "GEOID10", join_tables,
                                 on_fields, out_fc, dtype=dtype)
         else:
-            out_fc = PMT.copyFeatures(bg_features, out_fc)
+            out_fc = PMT.copy_features(bg_features, out_fc)
         
         # Add a column to the output feature class to indicate extapolation
         #  requirements

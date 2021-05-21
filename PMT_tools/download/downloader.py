@@ -1,5 +1,7 @@
 """
-downloading raw data to set up raw data folder
+ This module handles downloading raw data to set up raw data folder for future processing
+ Data are organized based on a configuration provided in download_config.py RAW_FOLDERS
+
 """
 # standard modules
 import os
@@ -13,13 +15,13 @@ script = Path(__file__).parent.parent.absolute()
 sys.path.insert(0, script)
 
 # global values configured for downloading
-from PMT_tools.config import download_config as dl_conf
+from ..config import download_config as dl_conf
 
 # PMT globals
-from PMT_tools.utils import RAW, YEARS
+from ..utils import RAW, YEARS
 
 # PMT Functions
-from PMT_tools.utils import validate_directory, makePath
+from ..utils import validate_directory, makePath, check_overwrite_path
 
 # helper functions from other modules
 import census_geo
@@ -29,6 +31,13 @@ import open_street_map
 
 
 def setup_download_folder(dl_folder):
+    """creates a download folder if it doenst already exist and poputlates with
+    necessary folder for remaining download work
+    Args:
+        dl_folder:
+    Returns:
+
+    """
     download_folder = validate_directory(dl_folder)
     for folder in dl_conf.RAW_FOLDERS:
         folder = makePath(download_folder, folder)
@@ -38,9 +47,9 @@ def setup_download_folder(dl_folder):
 
 # ALL RAW DATA that must be acquired as yearly chunks
 ###
-def download_census():
+def download_census_geo(overwrite=True):
     """ download census data
-        - downloads and unzips the census block group shapefile
+        - downloads and unzips the census block and blockgroup shapefiles
         - downloads and writes out to table the ACS race and commute data
         - downloads LODES data to table
     """
@@ -48,6 +57,7 @@ def download_census():
     dl_dir = makePath(RAW, "temp_downloads")
     ext_dir = makePath(RAW, "CENSUS")
     for path in [dl_dir, ext_dir]:
+        check_overwrite_path(output=path, overwrite=overwrite)
         validate_directory(path)
     for geo_type in dl_conf.CENSUS_GEO_TYPES:
         census_geo.get_one_geo_type(
@@ -58,12 +68,14 @@ def download_census():
             year="2019",
         )
     rmtree(dl_dir)
+
+
+def download_race_data(overwrite=True):
     # download census tabular data
-    bg_path = makePath(RAW, "CENSUS")
+    census = validate_directory(RAW, "CENSUS")
     for year in YEARS:
         # setup folders
-        race_out = makePath(bg_path, f"ACS_{year}_race.csv")
-        commute_out = makePath(bg_path, f"ACS_{year}_commute.csv")
+        race_out = makePath(census, f"ACS_{year}_race.csv")
         print(f"...Fetching race data ({race_out})")
         try:
             race = helper.download_race_vars(
@@ -74,10 +86,16 @@ def download_census():
                 table=dl_conf.ACS_RACE_TABLE,
                 columns=dl_conf.ACS_RACE_COLUMNS,
             )
+            check_overwrite_path(output=race_out, overwrite=overwrite)
             race.to_csv(race_out, index=False)
         except:
             print(f"..ERROR DOWNLOADING RACE DATA ({year})")
 
+
+def download_commute_data(overwrite=True):
+    census = validate_directory(RAW, "CENSUS")
+    for year in YEARS:
+        commute_out = makePath(census, f"ACS_{year}_commute.csv")
         print(f"...Fetching commute data ({commute_out})")
         try:
             commute = helper.download_commute_vars(
@@ -85,12 +103,13 @@ def download_census():
                 table=dl_conf.ACS_MODE_TABLE,
                 columns=dl_conf.ACS_MODE_COLUMNS
             )
+            check_overwrite_path(output=commute_out, overwrite=overwrite)
             commute.to_csv(commute_out, index=False)
         except:
             print(f"..ERROR DOWNLOADING COMMUTE DATA ({year})")
 
 
-def download_LODES():
+def download_lodes_data(overwrite=True):
     """ download LODES data for job counts
         - downloads lodes files by year and optionally aggregates to a coarser geographic area
     """
@@ -106,10 +125,11 @@ def download_LODES():
             job_type="JT00",
             year=year,
             agg_geog=["bgrp"],
+            overwrite=overwrite
         )
 
 
-def download_urls(overwrite=False):
+def download_urls(overwrite=True):
     """
     download impervious surface data for 2016 (most recent vintage)
         - downloads just zip file of data, prep script will unzip and subset
@@ -130,16 +150,18 @@ def download_urls(overwrite=False):
         else:
             print("downloader doesnt handle that extension")
         print(f"Downloading {out_file}")
-        helper.download_file_from_url(url=url, save_path=out_file, overwrite=overwrite)
+        check_overwrite_path(output=out_file, overwrite=overwrite)
+        helper.download_file_from_url(url=url, save_path=out_file)
 
 
-def download_osm_data():
+def download_osm_data(overwrite=True):
     """ download osm data - networks and buildings
         - downloads networks as nodes.shp and edges.shp
         - downloads all buildings, subset to poly/multipoly features
         - both functions will create the output folder if not there
     """
     # TODO: incorporate Aarons function to drop tiny sections of network
+    # TODO: incorporate overwrite
     out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
     osm_data_dir = makePath(RAW, "OPEN_STREET_MAP")
     data_crs = 4326
@@ -173,12 +195,13 @@ if __name__ == "__main__":
 
     setup_download_folder(dl_folder=RAW)
     download_urls()
-    # download_osm_data()
-    download_census()
-    # download_LODES()
+    download_osm_data()
+    download_census_geo()
+    download_commute_data()
+    download_race_data()
+    download_lodes_data()
 
 
-# TODO: Add logging and print statements to procedures to better track progress
 # TODO: Currently the download tools all function as expected but are organized poorly. The __main__
 # TODO:function should be converted to an executable and the underlying scripts reorganized once again.
 # TODO:     - download_parcels.py (pull parcel geometry by year and NAL data where available), currently parcel_ftp.py

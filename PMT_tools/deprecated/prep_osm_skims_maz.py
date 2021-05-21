@@ -143,7 +143,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
             o_chunk_size = arcpy.GetCount_management(origin_pts)[0]
         write_mode = "w"
         header = True
-        for o_pts in PMT.iterRowsAsChunks(origin_pts, chunksize=o_chunk_size):
+        for o_pts in PMT.iter_rows_as_chunks(origin_pts, chunksize=o_chunk_size):
             _loadLocations(net_layer_, "Origins", o_pts, origin_name_field,
                            net_loader, o_location_fields)
             s = _solve(net_layer_)

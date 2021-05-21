@@ -29,13 +29,18 @@ def validate_directory(directory):
 def check_overwrite_path(output, overwrite=True):
     if Path.exists(output):
         if overwrite:
-            print(
-                f"--- --- deleting existing file {output}"
-            )
-            Path(output).unlink()
+            if os.path.isfile(output):
+                print(f"--- --- deleting existing file {output}")
+                Path(output).unlink(missing_ok=True)
+            if os.path.isdir(output):
+                print(f"--- --- deleting existing folder {output}")
+                files = os.listdir(output)
+                for f in files:
+                    Path(f).unlink(missing_ok=True)
+                Path(output).rmdir()
         else:
-            raise RuntimeError(
-                f"Output file {output} already exists"
+            print(
+                f"Output file/folder {output} already exists"
             )
 
 

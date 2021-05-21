@@ -503,8 +503,8 @@ def analyze_blockgroup_apply(year,
     # Here we write block group for allocation
     save_path = os.path.join(save_gdb_location,
                              "Modeled_blockgroups")
-    PMT.dfToTable(df = alloc, 
-                  out_table = save_path)
+    PMT.df_to_table(df = alloc,
+                    out_table = save_path)
         
     
     # Done

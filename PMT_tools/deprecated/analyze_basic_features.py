@@ -155,8 +155,8 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     sel_df = long_df[long_df.InCor != 0].copy()
     long_out_fc = PMT.makePath(bf_gdb, long_stn_fc)
     PMT.checkOverwriteOutput(long_out_fc, overwrite)
-    PMT.dfToPoints(sel_df, long_out_fc, ["SHAPE@X", "SHAPE@Y"],
-                   from_sr=sr, to_sr=sr, overwrite=True)
+    PMT.df_to_points(sel_df, long_out_fc, ["SHAPE@X", "SHAPE@Y"],
+                     from_sr=sr, to_sr=sr, overwrite=True)
 
     arcpy.env.workspace = old_ws
 

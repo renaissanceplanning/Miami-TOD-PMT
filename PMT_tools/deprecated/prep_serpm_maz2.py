@@ -161,7 +161,7 @@ if __name__ == "__main__":
     print("Exporting MAZ centroids")
     # save centroids
     pts_fc = PMT.makePath(out_gdb, "maz_centroids")
-    PMT.polygonsToPoints(MAZ_FC, pts_fc, fields=[MAZ_FC_ID, MAZ_TAZ])
+    PMT.polygons_to_points(MAZ_FC, pts_fc, fields=[MAZ_FC_ID, MAZ_TAZ])
 
     for year in PMT.YEARS[-1:]:
         print(year)
@@ -171,8 +171,8 @@ if __name__ == "__main__":
         out_fc = PMT.makePath(out_gdb, f"MAZ_{year}")
         if arcpy.Exists(out_fc):
             arcpy.Delete_management(out_fc)
-        PMT.copyFeatures(MAZ_FC, out_fc, drop_columns=DROP_COLS,
-                     rename_columns={MAZ_FC_ID: "MAZ", MAZ_TAZ: "TAZ"})
+        PMT.copy_features(MAZ_FC, out_fc, drop_columns=DROP_COLS,
+                          rename_columns={MAZ_FC_ID: "MAZ", MAZ_TAZ: "TAZ"})
         
         # Dissolve TAZ features
         print("... dissolving TAZ features")
@@ -222,13 +222,13 @@ if __name__ == "__main__":
         #     maz_data, how="left", left_on="MAZ", right_on=MAZ_SE_ID)
         all_data.fillna(0.0, inplace=True)
         join_data = all_data.drop(columns=["TAZ"])
-        PMT.extendTableDf(out_fc, "MAZ", join_data, "MAZ")
+        PMT.extend_table_df(out_fc, "MAZ", join_data, "MAZ")
 
         # Roll up to TAZ
         print("... extending TAZ attributes")
         all_data.drop(columns=["MAZ"], inplace=True)
         taz_data = all_data.groupby("TAZ").sum().reset_index()
-        PMT.extendTableDf(taz_fc, "TAZ", taz_data, "TAZ")
+        PMT.extend_table_df(taz_fc, "TAZ", taz_data, "TAZ")
 
 
 

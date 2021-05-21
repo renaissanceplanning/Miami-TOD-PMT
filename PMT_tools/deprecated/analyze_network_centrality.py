@@ -163,7 +163,7 @@ def network_centrality(in_nd, in_features, net_loader, out_csv,
     mode = "w"
     # Use origin field maps to expedite loading
     fm = "Name Name #;CurbApproach CurbApproach 0;SourceID SourceID #;SourceOID SourceOID #;PosAlong PosAlong #;SideOfEdge SideOfEdge #"
-    for chunk in PMT.iterRowsAsChunks("OD Cost Matrix\Origins", chunksize=chunksize):
+    for chunk in PMT.iter_rows_as_chunks("OD Cost Matrix\Origins", chunksize=chunksize):
         print(".", end="")
         arcpy.AddLocations_na(
             in_network_analysis_layer="OD Cost Matrix",

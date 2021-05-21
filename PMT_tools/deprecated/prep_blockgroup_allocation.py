@@ -106,8 +106,8 @@ def prep_blockgroup_allocation(parcel_fc, bg_fc, out_gdb, parcels_id="FOLIO",
 
     print("Spatial processing for allocation")
     parcel_fields = [parcels_id, parcel_lu, parcel_liv_area, "Shape_Area"]
-    intersect_fc = PMT.intersectFeatures(summary_fc=bg_fc,
-                                         disag_fc=temp_parcels, disag_fields=parcel_fields)
+    intersect_fc = PMT.intersect_features(summary_fc=bg_fc,
+                                          disag_fc=temp_parcels, disag_fields=parcel_fields)
 
     print("... loading data to dataframe")
     intersect_fields = [process_id] + parcel_fields + BLOCK_GROUP_ATTRS

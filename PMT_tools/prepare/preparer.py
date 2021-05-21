@@ -62,11 +62,11 @@ from ..PMT import (
     makePath,
     make_inmem_path,
     checkOverwriteOutput,
-    dfToTable,
-    polygonsToPoints,
-    extendTableDf,
+    df_to_table,
+    polygons_to_points,
+    extend_table_df,
     table_to_df,
-    intersectFeatures,
+    intersect_features,
     validate_directory,
     validate_geodatabase,
     validate_feature_dataset,
@@ -121,7 +121,7 @@ def process_udb(overwrite=True):
     temp_county_fc = P_HELP.geojson_to_feature_class_arc(
         geojson_path=county_fc, geom_type="POLYGON"
     )
-    P_HELP.udbLineToPolygon(
+    P_HELP.udb_line_to_polygon(
         udb_fc=temp_line_fc, county_fc=temp_county_fc, out_fc=out_fc
     )
     # copy newly created features to PMT_BasicFeatures.gdb
@@ -151,7 +151,7 @@ def process_basic_features(overwrite=True):
     print("MAKING BASIC FEATURES...")
     station_presets = makePath(BASIC_FEATURES, "StationArea_presets")
     corridor_presets = makePath(BASIC_FEATURES, "Corridor_presets")
-    P_HELP.makeBasicFeatures(
+    P_HELP.make_basic_features(
         bf_gdb=BASIC_FEATURES,
         stations_fc=prep_conf.BASIC_STATIONS,
         stn_id_field=prep_conf.STN_ID_FIELD,
@@ -173,7 +173,7 @@ def process_basic_features(overwrite=True):
         overwrite=overwrite,
     )
     print("Making summarization features")
-    P_HELP.makeSummaryFeatures(
+    P_HELP.make_summary_features(
         bf_gdb=BASIC_FEATURES,
         long_stn_fc=prep_conf.BASIC_LONG_STN,
         stn_areas_fc=prep_conf.BASIC_STN_AREAS,
@@ -572,7 +572,7 @@ def enrich_block_groups(overwrite=True):
         )
         # Save enriched data
         print("--- saving enriched blockgroup table")
-        dfToTable(df=bg_df, out_table=out_tbl, overwrite=overwrite)
+        df_to_table(df=bg_df, out_table=out_tbl, overwrite=overwrite)
 
         # Extend BG output with ACS/LODES data
         in_tables = [race_tbl, commute_tbl, lodes_tbl]
@@ -668,7 +668,7 @@ def process_parcel_land_use(overwrite=True):
         )
         # Export result
         checkOverwriteOutput(output=out_table, overwrite=overwrite)
-        dfToTable(df=par_df, out_table=out_table)
+        df_to_table(df=par_df, out_table=out_table)
 
 
 def process_imperviousness(overwrite=True):
@@ -727,8 +727,8 @@ def process_imperviousness(overwrite=True):
 
         zone_name = os.path.split(block_fc)[1].lower()
         imp_table = makePath(year_gdb, f"Imperviousness_{zone_name}")
-        dfToTable(df=impv_df, out_table=imp_table, overwrite=overwrite)
-        extendTableDf(
+        df_to_table(df=impv_df, out_table=imp_table, overwrite=overwrite)
+        extend_table_df(
             in_table=imp_table,
             table_match_field=prep_conf.BLOCK_COMMON_KEY,
             df=lvg_ar_df,
@@ -822,7 +822,7 @@ def process_bg_apply_activity_models(overwrite=True):
             - modeled version of the original enriched data
     """
     print("Modeling Block Group data...")
-    model_coefficients = P_HELP.analyze_blockgroup_model(
+    model_coefficients = P_HELP.model_blockgroup_data(
         data_path=CLEANED,
         bg_enrich_tbl_name="Enrichment_census_blockgroups",
         bg_key="GEOID",
@@ -860,7 +860,7 @@ def process_bg_apply_activity_models(overwrite=True):
         checkOverwriteOutput(
             output=makePath(gdb, "Modeled_blockgroups"), overwrite=overwrite
         )
-        modeled_df = P_HELP.analyze_blockgroup_apply(
+        modeled_df = P_HELP.apply_blockgroup_model(
             year=shr_year,
             bg_enrich_path=bg_enrich,
             bg_geometry_path=bg_geometry,
@@ -869,7 +869,7 @@ def process_bg_apply_activity_models(overwrite=True):
             shares_from=shares,
         )
         save_path = makePath(gdb, "Modeled_blockgroups")
-        PMT.dfToTable(df=modeled_df, out_table=save_path)
+        PMT.df_to_table(df=modeled_df, out_table=save_path)
 
 
 def process_allocate_bg_to_parcels(overwrite=True):
@@ -956,7 +956,7 @@ def process_allocate_bg_to_parcels(overwrite=True):
         print("--- writing table of allocation results")
         out_path = makePath(out_gdb, "EconDemog_parcels")
         checkOverwriteOutput(output=out_path, overwrite=overwrite)
-        PMT.dfToTable(df=alloc_df, out_table=out_path)
+        PMT.df_to_table(df=alloc_df, out_table=out_path)
 
 
 def process_osm_skims():
@@ -980,7 +980,7 @@ def process_osm_skims():
         # Get MAZ features, create temp centroids for network loading
         maz_path = makePath(CLEANED, f"PMT_{year}.gdb", "Polygons", "MAZ")
         maz_fc = make_inmem_path()
-        maz_pts = polygonsToPoints(maz_path, maz_fc, prep_conf.MAZ_COMMON_KEY)
+        maz_pts = polygons_to_points(maz_path, maz_fc, prep_conf.MAZ_COMMON_KEY)
         net_suffix = prep_conf.NET_BY_YEAR[year][0]
         if net_suffix not in solved:
             # TODO: confirm whether separate walk/bike layers are needed
@@ -1003,7 +1003,7 @@ def process_osm_skims():
                     restrictions = None
                 # - Create and load problem
                 # Confirm "Year" column is included in output table
-                P_HELP.genODTable(
+                P_HELP.generate_od_table(
                     origin_pts=layer,
                     origin_name_field=prep_conf.MAZ_COMMON_KEY,
                     dest_pts=maz_pts,
@@ -1087,7 +1087,7 @@ def process_model_se_data(overwrite=True):
         maz_table = makePath(out_gdb, "EconDemog_MAZ")
 
         checkOverwriteOutput(output=maz_table, overwrite=overwrite)
-        dfToTable(maz_data, maz_table)
+        df_to_table(maz_data, maz_table)
 
         # Summarize to TAZ scale
         print("--- summarizing MAZ data to TAZ scale")
@@ -1098,7 +1098,7 @@ def process_model_se_data(overwrite=True):
         taz_table = makePath(out_gdb, "EconDemog_TAZ")
 
         checkOverwriteOutput(output=taz_table, overwrite=overwrite)
-        dfToTable(taz_data, taz_table)
+        df_to_table(taz_data, taz_table)
 
 
 def process_model_skims():
@@ -1371,7 +1371,7 @@ def process_centrality():
                 chunk_size=1000,
             )
             # Extend out_fc
-            extendTableDf(
+            extend_table_df(
                 in_table=out_fc,
                 table_match_field=node_id,
                 df=centrality_df,
@@ -1459,14 +1459,14 @@ def process_walk_times():
             )
             # Dump df to output table
             if _append_:
-                extendTableDf(
+                extend_table_df(
                     in_table=out_table,
                     table_match_field=prep_conf.PARCEL_COMMON_KEY,
                     df=walk_time_df,
                     df_match_field=prep_conf.PARCEL_COMMON_KEY,
                 )
             else:
-                dfToTable(df=walk_time_df, out_table=out_table, overwrite=True)
+                df_to_table(df=walk_time_df, out_table=out_table, overwrite=True)
                 _append_ = True
             # Add time bin field
             print("--- classifying time bins")
@@ -1529,7 +1529,7 @@ def process_ideal_walk_times(overwrite=True):
             dfs,
         )
         # combo_df = dfs[0].merge(right=dfs[1], how="outer", on=prep_conf.PARCEL_COMMON_KEY)
-        dfToTable(df=combo_df, out_table=out_table, overwrite=overwrite)
+        df_to_table(df=combo_df, out_table=out_table, overwrite=overwrite)
         # Add bin fields
         for target in targets:
             min_time_field = f"min_time_{target}"
@@ -1579,7 +1579,7 @@ def process_access():
             zone_data = makePath(gdb, f"EconDemog_{scale}")
 
             # Analyze access
-            atd_df = P_HELP.summarizeAccess(
+            atd_df = P_HELP.summarize_access(
                 skim_table=skim_data,
                 o_field=prep_conf.SKIM_O_FIELD,
                 d_field=prep_conf.SKIM_D_FIELD,
@@ -1593,7 +1593,7 @@ def process_access():
                 dtype=prep_conf.SKIM_DTYPES,
                 chunk_size=100000,
             )
-            afo_df = P_HELP.summarizeAccess(
+            afo_df = P_HELP.summarize_access(
                 skim_table=skim_data,
                 o_field=prep_conf.SKIM_O_FIELD,
                 d_field=prep_conf.SKIM_D_FIELD,
@@ -1614,7 +1614,7 @@ def process_access():
 
             # Export output
             out_table = makePath(gdb, f"Access_{scale}_{mode}")
-            dfToTable(full_table, out_table, overwrite=True)
+            df_to_table(full_table, out_table, overwrite=True)
 
 
 def process_contiguity(overwrite=True):
@@ -1654,10 +1654,10 @@ def process_contiguity(overwrite=True):
             RAW, "OpenStreetMap", "buildings_q1_2021", "OSM_Buildings_20210201074346.shp",
         )
         mask = P_HELP.merge_and_subset(
-            fcs=[buildings, water_bodies, pad_area, parks], subset_fc=county_fc
+            feature_classes=[buildings, water_bodies, pad_area, parks], subset_fc=county_fc
         )
 
-        ctgy_full = P_HELP.contiguity_index(
+        ctgy_full = P_HELP.calculate_contiguity_index(
             quadrats_fc=chunk_fishnet,
             parcels_fc=parcel_fc,
             mask_fc=mask,
@@ -1667,15 +1667,15 @@ def process_contiguity(overwrite=True):
         )
         if prep_conf.CTGY_SAVE_FULL:
             full_path = makePath(gdb, "Contiguity_full_singlepart")
-            dfToTable(df=ctgy_full, out_table=full_path, overwrite=True)
-        ctgy_summarized = P_HELP.contiguity_summary(
+            df_to_table(df=ctgy_full, out_table=full_path, overwrite=True)
+        ctgy_summarized = P_HELP.calculate_contiguity_summary(
             full_results_df=ctgy_full,
             parcels_id_field=prep_conf.PARCEL_COMMON_KEY,
             summary_funcs=prep_conf.CTGY_SUMMARY_FUNCTIONS,
             area_scaling=prep_conf.CTGY_SCALE_AREA,
         )
         summarized_path = makePath(gdb, "Contiguity_parcels")
-        dfToTable(df=ctgy_summarized, out_table=summarized_path, overwrite=overwrite)
+        df_to_table(df=ctgy_summarized, out_table=summarized_path, overwrite=overwrite)
 
 
 def process_bike_miles(overwrite=True):
@@ -1718,7 +1718,7 @@ def process_bike_miles(overwrite=True):
 
         # intersect bike_fac and summary areas
         print("--- intersecting summary areas with bike facilities")
-        fac_int = intersectFeatures(
+        fac_int = intersect_features(
             summary_fc=summ_area_fc, disag_fc=bike_fac_fc, full_geometries=True
         )
         # update Bike_miles based on intersection
@@ -1745,7 +1745,7 @@ def process_bike_miles(overwrite=True):
         pivot.rename(columns=col_rename, inplace=True)
         summ_df.update(other=pivot)
         summ_df.reset_index(inplace=True)
-        dfToTable(df=summ_df, out_table=out_tbl, overwrite=overwrite)
+        df_to_table(df=summ_df, out_table=out_tbl, overwrite=overwrite)
 
 
 def process_lu_diversity(overwrite=True):
@@ -1848,7 +1848,7 @@ def process_lu_diversity(overwrite=True):
 
         # Export results
         print(" - exporting results")
-        dfToTable(div_df, out_fc, overwrite=overwrite)
+        df_to_table(div_df, out_fc, overwrite=overwrite)
 
 
 def process_travel_stats(overwrite=True):
@@ -1883,7 +1883,7 @@ def process_travel_stats(overwrite=True):
             tran_time_field = prep_conf.SKIM_IMP_FIELD + "_TR"
             dist_field = "DIST"
             rates_df = P_HELP.taz_travel_stats(
-                skim_csv,
+                od_table=skim_csv,
                 o_field=prep_conf.SKIM_O_FIELD,
                 d_field=prep_conf.SKIM_D_FIELD,
                 veh_trips_field=trips_field,
@@ -1909,7 +1909,7 @@ def process_travel_stats(overwrite=True):
 
         # Export results
         loaded_df = loaded_df.drop(columns=[hh_field, jobs_field, "__activity__"])
-        dfToTable(df=loaded_df, out_table=out_table, overwrite=overwrite)
+        df_to_table(df=loaded_df, out_table=out_table, overwrite=overwrite)
 
 
 def process_walk_to_transit_skim():
@@ -1939,7 +1939,7 @@ def process_walk_to_transit_skim():
             restrictions = None
             # - Create and load problem
             print(" - Network-based")
-            P_HELP.genODTable(
+            P_HELP.generate_od_table(
                 origin_pts=taz_centroids,
                 origin_name_field=prep_conf.TAZ_COMMON_KEY,
                 dest_pts=tap_nodes,

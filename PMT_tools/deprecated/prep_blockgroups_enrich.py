@@ -126,7 +126,7 @@ def enrich_bg_with_parcels(bg_fc, bg_id_field, parcels_fc, par_id_field, out_tbl
         print("--- joining parcel summaries to block groups")
         bg_df = pd.concat(bg_stack)
         print(f"---  --- {len(bg_df)} block group rows")
-        PMT.dfToTable(df=bg_df, out_table=out_tbl)
+        PMT.df_to_table(df=bg_df, out_table=out_tbl)
     except:
         raise
     finally:
@@ -158,7 +158,7 @@ def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, j
         tbl_df = pd.read_csv(join_tbl, usecols=join_fields, compression='gzip')
     else:
         tbl_df = pd.read_csv(join_tbl, usecols=join_fields)
-    PMT.extendTableDf(in_table=tbl_path, table_match_field=tbl_id_field, df=tbl_df, df_match_field=join_id_field)
+    PMT.extend_table_df(in_table=tbl_path, table_match_field=tbl_id_field, df=tbl_df, df_match_field=join_id_field)
 
 
 # %% MAIN

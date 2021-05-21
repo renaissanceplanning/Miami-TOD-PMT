@@ -81,7 +81,7 @@ def estimateParcelNresEnergy(energy_df, energy_lu_field, energy_sqft_field,
             out_rows.append((par_id, BTU))
     
     df = pd.DataFrame(out_rows, columns=df_cols)
-    PMT.extendTableDf(out_table, out_id_field, df, parcel_id_field)
+    PMT.extend_table_df(out_table, out_id_field, df, parcel_id_field)
     return out_table
 
 
