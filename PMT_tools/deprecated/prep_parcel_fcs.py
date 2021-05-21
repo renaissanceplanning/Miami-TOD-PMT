@@ -234,7 +234,7 @@ def cleanParcels(in_fc, in_csv, out_fc, fc_par_field="PARCELNO",
     # Add columns to dissolved features
     print("...joining attributes to features")
     print(par_df.columns)
-    PMT.extendTableDf(out_fc, fc_par_field, par_df, csv_par_field)
+    PMT.extend_table_df(out_fc, fc_par_field, par_df, csv_par_field)
 
 
 # %% MAIN

@@ -150,7 +150,7 @@ def cleanMAZ(se_table, se_id_field, maz_fc, fc_id_field, out_fc,
 
     # Extend table
     print("... joining columns to output features")
-    PMT.extendTableDf(out_fc, fc_id_field, clean_df, se_id_field)
+    PMT.extend_table_df(out_fc, fc_id_field, clean_df, se_id_field)
 
     return out_fc
 
@@ -207,7 +207,7 @@ def summarizeMAZtoTAZ(se_table, maz_id_field, taz_id_field, out_table,
     # group_by and export
     print("... storing summarized output table")
     sum_df = clean_df.groupby(taz_id_field).sum().reset_index()
-    PMT.dfToTable(sum_df, out_table)
+    PMT.df_to_table(sum_df, out_table)
 
     return out_table
 

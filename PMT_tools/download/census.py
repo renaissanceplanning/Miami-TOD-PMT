@@ -7,9 +7,9 @@ import pandas as pd
 from six import string_types
 
 from helper import download_file_from_url
-from PMT_tools.config.download_config import LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES, \
+from ..config.download_config import LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES, \
     LODES_WORKFORCE_SEGMENTS, LODES_PART, LODES_JOB_TYPES, LODES_AGG_GEOS
-from PMT_tools.utils import makePath, validate_directory
+from ..utils import makePath, validate_directory, check_overwrite_path
 
 current_year = datetime.now().year
 
@@ -189,10 +189,9 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
 
 
 def download_aggregate_lodes(
-    output_directory, file_type, state, segment, part, job_type, year, agg_geog=None
+    output_directory, file_type, state, segment, part, job_type, year, agg_geog=None, overwrite=False
 ):
-    """
-    - validate directory
+    """ validate directory
     - if validate LODES request:
         - download LODES zip
         lodes_path
@@ -220,6 +219,7 @@ def download_aggregate_lodes(
             lodes_out_path = makePath(out_dir, lodes_fname)
             lodes_out_path = lodes_out_path.replace(".csv.gz", "_blk.csv.gz")
             print(f"...downloading {lodes_fname} to {lodes_out_path}")
+            check_overwrite_path(output=lodes_out_path, overwrite=overwrite)
             download_file_from_url(url=lodes_download_url, save_path=lodes_out_path)
         else:
             lodes_out_path = ""
@@ -238,6 +238,7 @@ def download_aggregate_lodes(
                             url=crosswalk_url, save_path=cross_out_path
                         )
                     print(f"...aggregating block group level data to {geog}")
+                    check_overwrite_path(output=cross_out_path, overwrite=overwrite)
                     aggregate_lodes_data(
                         geo_crosswalk_path=cross_out_path,
                         lodes_path=lodes_out_path,

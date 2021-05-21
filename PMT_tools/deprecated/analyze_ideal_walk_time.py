@@ -133,7 +133,7 @@ def idealWalkTime(parcels_fc, parcel_id_field, target_fc, target_name_field,
 
         # Join to parcels
         print("... extending output table")
-        PMT.extendTableDf(
+        PMT.extend_table_df(
             parcels_fc, parcel_id_field, sum_df, parcel_id_field)
         
         # Add bin field

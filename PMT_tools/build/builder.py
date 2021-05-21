@@ -247,7 +247,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             this_table=snap_table, base_table=base_table, idx_cols=idx_cols
         )
         print(f"Creating table {out_name}")
-        PMT.dfToTable(df=diff_df, out_table=out_table, overwrite=True)
+        PMT.df_to_table(df=diff_df, out_table=out_table, overwrite=True)
 
     # Make difference fcs (snapshot - base)
     for base_fc, snap_fc, spec in zip(base_fcs, snap_fcs, diff_features):
@@ -284,7 +284,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         drop_cols = [c for c in diff_df.columns if c in idx_cols and c != fc_id]
         diff_df.drop(columns=drop_cols, inplace=True)
         print("... adding difference columns")
-        PMT.extendTableDf(
+        PMT.extend_table_df(
             in_table=out_table,
             table_match_field=fc_id,
             df=diff_df,

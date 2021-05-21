@@ -196,8 +196,8 @@ def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
     # join to initialized feature class using extend table (and delete the
     # created ID when its all over)
     print("...joining results to save feature class (be patient, this will take a while)")
-    PMT.extendTableDf(in_table=short_term_parcels, table_match_field=process_id_field,
-                      df=final_update, df_match_field="ProcessID")
+    PMT.extend_table_df(in_table=short_term_parcels, table_match_field=process_id_field,
+                        df=final_update, df_match_field="ProcessID")
     arcpy.DeleteField_management(in_table=short_term_parcels, drop_field=process_id_field)
     
     # Then we're done -- return the file path

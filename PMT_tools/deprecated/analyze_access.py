@@ -234,7 +234,7 @@ def summarizeAccess(skim_table, o_field, d_field, imped_field,
     pivot_fields = [gb_field, bin_field] + act_fields
     pivot = pd.pivot_table(
         out_df[pivot_fields], index=gb_field, columns=bin_field)
-    pivot.columns = PMT.colMultiIndexToNames(pivot.columns, separator="")
+    pivot.columns = PMT.col_multi_index_to_names(pivot.columns, separator="")
     # - Summarize
     print("... ... ... average time by activitiy")
     sum_df = out_df[sum_fields].groupby(gb_field).sum()
@@ -302,7 +302,7 @@ if __name__ == "__main__":
             out_table = PMT.makePath(
                 PMT.DATA, f"IDEAL_PMT_{year}.gdb", f"Access_{scale}_{mode}"
             )
-            PMT.dfToTable(full_table, out_table, overwrite=True)
+            PMT.df_to_table(full_table, out_table, overwrite=True)
 
 
     # For each model year, make maz and taz features within

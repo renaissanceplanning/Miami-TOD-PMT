@@ -8,10 +8,10 @@ import pandas as pd
 import requests
 from requests.exceptions import RequestException
 
-from PMT_tools.utils import makePath, check_overwrite_path
+from ..utils import makePath, check_overwrite_path
 
 
-def download_file_from_url(url, save_path, overwrite=False):
+def download_file_from_url(url, save_path):
     """downloads file resources directly from a url endpoint to a folder
     Args:
         url (str): String; path to resource
@@ -23,8 +23,7 @@ def download_file_from_url(url, save_path, overwrite=False):
     if os.path.isdir(save_path):
         filename = get_filename_from_header(url)
         save_path = makePath(save_path, filename)
-    if overwrite:
-        check_overwrite_path(output=save_path, overwrite=overwrite)
+
     print(f"...downloading {save_path} from {url}")
     try:
         request.urlretrieve(url, save_path)
@@ -166,7 +165,7 @@ def download_race_vars(
 
 
 def download_commute_vars(
-    year, acs_dataset="acs5", state="12", county="086", table=None, columns=None
+    year, acs_dataset="acs5", state="12", county="086", table=None, columns=None,
 ):
     """Downloads commute (journey to work) data from available ACS data
         in table B08301.
