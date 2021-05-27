@@ -116,9 +116,8 @@ def download_files_in_list(filename_list, download_dir, force=False):
     return downloaded_filename_list
 
 
-def extract_downloaded_file(filename, extract_dir, remove_on_error=True):
-    zip_dir = os.path.split(filename.replace(".zip", ""))[-1]
-    target_dir = normpath(join(extract_dir, zip_dir))
+def extract_downloaded_file(filename, extract_dir, unzip_dir, remove_on_error=True):
+    target_dir = normpath(join(extract_dir, unzip_dir))
 
     print("Extracting: " + filename + " ...")
     try:
@@ -141,7 +140,7 @@ def get_one_geo_type(geo_type, download_dir, extract_dir, state=None, year="2019
     downloaded_filename_list = download_files_in_list(filename_list, download_dir)
 
     for filename in downloaded_filename_list:
-        extract_downloaded_file(filename, extract_dir)
+        extract_downloaded_file(filename, extract_dir, unzip_dir=geo_type.upper())
 
 
 def get_all_geo_types(state=None, year="2012"):

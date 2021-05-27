@@ -7,9 +7,17 @@ import pandas as pd
 from six import string_types
 
 from helper import download_file_from_url
-from ..config.download_config import LODES_URL, LODES_YEARS, LODES_FILE_TYPES, LODES_STATES, \
-    LODES_WORKFORCE_SEGMENTS, LODES_PART, LODES_JOB_TYPES, LODES_AGG_GEOS
-from ..utils import makePath, validate_directory, check_overwrite_path
+from PMT_tools.config.download_config import (
+    LODES_URL,
+    LODES_YEARS,
+    LODES_FILE_TYPES,
+    LODES_STATES,
+    LODES_WORKFORCE_SEGMENTS,
+    LODES_PART,
+    LODES_JOB_TYPES,
+    LODES_AGG_GEOS,
+)
+from PMT_tools.utils import makePath, validate_directory, check_overwrite_path
 
 current_year = datetime.now().year
 
@@ -117,19 +125,16 @@ def validate_lodes_download(file_type, state, segment, part, job_type, year, agg
 
 
 def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
-    """
-    aggregate LODES data to desired geographic levels, and save the created
+    """aggregate LODES data to desired geographic levels, and save the created
     files [to .csv.gz]
-    Parameters
-    ----------
-    geo_crosswalk_path - String; path to geographic crosswalk CSV
-    lodes_path - String; file path to gzipped lodes data file
-    file_type - String; shorthand for type of jobs summarization
-    agg_geo - String; shorthand for the geographic scale to aggregate data to
+    Args:
+        geo_crosswalk_path - String; path to geographic crosswalk CSV
+        lodes_path - String; file path to gzipped lodes data file
+        file_type - String; shorthand for type of jobs summarization
+        agg_geo - String; shorthand for the geographic scale to aggregate data to
 
-    Returns
-    -------
-    string path to the aggregated data
+    Returns:
+        pd.Dataframe; data aggregated up to provided aggregate geography
     """
     # TODO: add additional function to handle OD joins, this only works for WAC, RAC
     # so there's no message for mixed dtypes
@@ -142,7 +147,6 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
         "cbsa": "str",
         "zcta": "str",
     }
-    save_path = lodes_path.replace("_blk.csv.gz", f"_{agg_geo}.csv.gz")
     try:
         crosswalk = pd.read_csv(
             geo_crosswalk_path,
@@ -182,14 +186,21 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
         # aggregate job
         keep_cols = [agg_geo] + agg_cols
         agged = merge_df[keep_cols].groupby(agg_geo).agg(agg_dict).reset_index()
-        agged.to_csv(save_path, compression="gzip", index=False)
-        return save_path
+        return agged
     except LodesFileTypeError:
         print("This function doesnt currently handle 'od' data")
 
 
 def download_aggregate_lodes(
-    output_directory, file_type, state, segment, part, job_type, year, agg_geog=None, overwrite=False
+    output_directory,
+    file_type,
+    state,
+    segment,
+    part,
+    job_type,
+    year,
+    agg_geog=None,
+    overwrite=False,
 ):
     """ validate directory
     - if validate LODES request:
@@ -216,35 +227,38 @@ def download_aggregate_lodes(
                     f"{st}_{file_type}_{segment}_{job_type}_{str(year)}.csv.gz"
                 )
             lodes_download_url = f"{LODES_URL}/{st}/{file_type}/{lodes_fname}"
-            lodes_out_path = makePath(out_dir, lodes_fname)
-            lodes_out_path = lodes_out_path.replace(".csv.gz", "_blk.csv.gz")
-            print(f"...downloading {lodes_fname} to {lodes_out_path}")
-            check_overwrite_path(output=lodes_out_path, overwrite=overwrite)
-            download_file_from_url(url=lodes_download_url, save_path=lodes_out_path)
+            lodes_out = makePath(out_dir, lodes_fname)
+            lodes_out = lodes_out.replace(".csv.gz", "_blk.csv.gz")
+            print(f"...downloading {lodes_fname} to {lodes_out}")
+            check_overwrite_path(output=lodes_out, overwrite=overwrite)
+            download_file_from_url(url=lodes_download_url, save_path=lodes_out)
         else:
-            lodes_out_path = ""
+            lodes_out = ""
 
-        if agg_geog and lodes_out_path != "":
+        if agg_geog and lodes_out != "":
             if validate_aggregate_geo_inputs(values=agg_geog, valid=LODES_AGG_GEOS):
                 if isinstance(agg_geog, string_types):
                     agg_geog = [agg_geog]
                 for geog in agg_geog:
                     cross_fname = f"{state}_xwalk.csv.gz"
-                    cross_out_path = makePath(out_dir, cross_fname)
+                    cross_out = makePath(out_dir, cross_fname)
+                    agged_out = lodes_out.replace("_blk.csv.gz", f"_{geog}.csv.gz")
                     crosswalk_url = f"{LODES_URL}/{state}/{state}_xwalk.csv.gz"
-                    if not os.path.exists(cross_out_path):
-                        print(f"...downloading {cross_fname} to {cross_out_path}")
+                    if not os.path.exists(cross_out):
+                        print(f"...downloading {cross_fname} to {cross_out}")
                         download_file_from_url(
-                            url=crosswalk_url, save_path=cross_out_path
+                            url=crosswalk_url, save_path=cross_out
                         )
                     print(f"...aggregating block group level data to {geog}")
-                    check_overwrite_path(output=cross_out_path, overwrite=overwrite)
-                    aggregate_lodes_data(
-                        geo_crosswalk_path=cross_out_path,
-                        lodes_path=lodes_out_path,
+                    check_overwrite_path(output=cross_out, overwrite=overwrite)
+                    agged = aggregate_lodes_data(
+                        geo_crosswalk_path=cross_out,
+                        lodes_path=lodes_out,
                         file_type=file_type,
                         agg_geo=geog,
                     )
+                    agged.to_csv(agged_out, compression="gzip", index=False)
+
         else:
             print("No aggregation requested or there is no LODES data for this request")
     except:

@@ -22,7 +22,6 @@ from six import string_types
 from sklearn import linear_model
 
 from .. import PMT as PMT
-from .. import logger as log
 from ..PMT import arcpy, pd, np
 
 # temporary
@@ -100,7 +99,6 @@ __all__ = [
     "transit_skim_joins",
 ]
 
-logger = log.Logger(add_logs_to_arc_messages=True)
 
 
 # TODO: verify functions generally return python objects (dataframes, e.g.) and leave file writes to `preparer.py`
@@ -5239,7 +5237,7 @@ def transit_skim_joins(
 #                                     row[0] = "None"
 #                             cur.updateRow(row)
 #     except ValueError:
-#         logger.log_msg(
+#         print(
 #             "either attributes (String) or mappers (dict) are of the incorrect type"
 #         )
 #
@@ -5284,10 +5282,10 @@ def transit_skim_joins(
 #                                  save_gdb_location=None, units_field_match_dict={}):
 #     # First, we need to initialize a save feature class. The feature class
 #     # will be a copy of the parcels with a unique ID (added by the function)
-#     logger.log_msg("--- initializing a save feature class")
+#     print("--- initializing a save feature class")
 #
 #     # Add a unique ID field to the parcels called "ProcessID"
-#     logger.log_msg("--- --- adding a unique ID field for individual parcels")
+#     print("--- --- adding a unique ID field for individual parcels")
 #     # creating a temporary copy of parcels
 #     temp_parcels = PMT.make_inmem_path()
 #     temp_dir, temp_name = os.path.split(temp_parcels)
@@ -5298,7 +5296,7 @@ def transit_skim_joins(
 #     arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path=temp_dir, out_name=temp_name)
 #     process_id_field = PMT.add_unique_id(feature_class=temp_parcels)
 #
-#     logger.log_msg("--- --- reading/formatting parcels")
+#     print("--- --- reading/formatting parcels")
 #     # read in all of our data
 #     #   - read the parcels (after which we'll remove the added unique ID from the original data).
 #     parcels_fields = [f.name for f in arcpy.ListFields(temp_parcels)
@@ -5309,7 +5307,7 @@ def transit_skim_joins(
 #     parcels_df["PERMIT"] = 0
 #
 #     # create output dataset keeping only process_id and delete temp file
-#     logger.log_msg("--- --- creating save feature class")
+#     print("--- --- creating save feature class")
 #     fmap = arcpy.FieldMappings()
 #     fm = arcpy.FieldMap()
 #     fm.addInputField(temp_parcels, 'ProcessID')
@@ -5320,17 +5318,17 @@ def transit_skim_joins(
 #     # temp_dir.cleanup()
 #
 #     # Now we're ready to process the permits to create the short term parcels data
-#     logger.log_msg("--- creating short term parcels")
+#     print("--- creating short term parcels")
 #
 #     # First we read the permits
-#     logger.log_msg("--- --- reading/formatting permits_df")
+#     print("--- --- reading/formatting permits_df")
 #     permits_fields = [permits_id_field, permits_lu_field, permits_units_field, permits_values_field, permits_cost_field]
 #     permits_df = PMT.featureclass_to_df(in_fc=permits_path, keep_fields=permits_fields, null_val=0.0)
 #     permits_df = permits_df[permits_df[permits_values_field] >= 0]
 #
 #     # Merge the permits_df and permits_df reference
 #     #   - join the two together on the permits_lu_field and permits_units_field
-#     logger.log_msg("--- --- merging permits_df and permits_df reference")
+#     print("--- --- merging permits_df and permits_df reference")
 #     permits_df = pd.merge(left=permits_df, right=permits_ref_df,
 #                           left_on=[permits_lu_field, permits_units_field],
 #                           right_on=[permits_lu_field, permits_units_field], how="left")
@@ -5338,7 +5336,7 @@ def transit_skim_joins(
 #     # Now we add to permits_df the field matches to the parcels (which will be
 #     # helpful come the time of updating parcels from the permits_df)
 #     if units_field_match_dict is not None:
-#         logger.log_msg("--- --- joining units-field matches")
+#         print("--- --- joining units-field matches")
 #         ufm = pd.DataFrame.from_dict(units_field_match_dict, orient="index").reset_index()
 #         ufm.columns = [permits_units_field, "Parcel_Field"]
 #         permits_df = pd.merge(left=permits_df, right=ufm,
@@ -5346,7 +5344,7 @@ def transit_skim_joins(
 #
 #     # calculate the new building square footage for parcel in the permit features
 #     # using the reference table multipliers and overwrites
-#     logger.log_msg("--- --- applying unit multipliers and overwrites")
+#     print("--- --- applying unit multipliers and overwrites")
 #     new_living_area = []
 #     for value, multiplier, overwrite in zip(
 #             permits_df[permits_values_field],
@@ -5359,7 +5357,7 @@ def transit_skim_joins(
 #         else:
 #             new_living_area.append(0)
 #
-#     logger.log_msg("--- --- appending new living area values to permits_df data")
+#     print("--- --- appending new living area values to permits_df data")
 #     permits_df["UpdTLA"] = new_living_area
 #     permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
 #
@@ -5367,7 +5365,7 @@ def transit_skim_joins(
 #     #   - match building permits_df to the parcels using id_match_field,
 #     #   - overwrite parcel LU, building square footage, and anything specified in the match dict
 #     #   - add replacement flag
-#     logger.log_msg("--- --- collecting updated parcel data")
+#     print("--- --- collecting updated parcel data")
 #     pids = np.unique(permits_df[permits_id_field])
 #     permit_update = []
 #     for i in pids:
@@ -5413,7 +5411,7 @@ def transit_skim_joins(
 #
 #     # Finally, we want to update the value field. To do this, we take the
 #     # max of previous value and previous land value + cost of new development
-#     logger.log_msg("--- --- estimating parcel value after permit development")
+#     print("--- --- estimating parcel value after permit development")
 #     pv = parcels_df[parcels_df[parcels_id_field].isin(pids)]
 #     pv = pv.groupby(parcels_id_field)[[parcels_land_value_field, parcels_total_value_field]].sum().reset_index()
 #     permit_update = pd.merge(permit_update, pv, on=parcels_id_field, how="left")
@@ -5423,19 +5421,19 @@ def transit_skim_joins(
 #
 #     # make the replacements. - drop all the rows from the parcels whose IDs are in the permits_df, - add all the rows
 #     # for the data we just collected. and retain the process ID from the parcels we're dropping for the sake of joining
-#     logger.log_msg("--- --- replacing parcel data with updated information")
+#     print("--- --- replacing parcel data with updated information")
 #     parcel_update = parcels_df.set_index("FOLIO")
 #     parcel_update.update(permit_update)
 #     parcel_update.reset_index(inplace=True)
 #
 #     # Now we just write!
-#     logger.log_msg("\nWriting results")
+#     print("\nWriting results")
 #     # join to initialized feature class using extend table (and delete the created ID when its all over)
-#     logger.log_msg("--- --- joining results to save feature class (be patient, this will take a while)")
+#     print("--- --- joining results to save feature class (be patient, this will take a while)")
 #     PMT.extendTableDf(in_table=short_term_parcels, table_match_field=process_id_field,
 #                       df=parcel_update, df_match_field="ProcessID")
 #     arcpy.DeleteField_management(in_table=short_term_parcels, drop_field=process_id_field)
-#     logger.log_msg("\nDone!")
+#     print("\nDone!")
 #     return short_term_parcels
 
 # def build_short_term_parcels_dep(parcels_path, permits_path, permits_ref_df,
@@ -5447,10 +5445,10 @@ def transit_skim_joins(
 #                                  save_gdb_location=None, units_field_match_dict={}):
 #     # First, we need to initialize a save feature class. The feature class
 #     # will be a copy of the parcels with a unique ID (added by the function)
-#     logger.log_msg("--- initializing a save feature class")
+#     print("--- initializing a save feature class")
 
 #     # Add a unique ID field to the parcels called "ProcessID"
-#     logger.log_msg("--- --- adding a unique ID field for individual parcels")
+#     print("--- --- adding a unique ID field for individual parcels")
 #     # creating a temporary copy of parcels
 #     temp_parcels = PMT.make_inmem_path()
 #     temp_dir, temp_name = os.path.split(temp_parcels)
@@ -5461,7 +5459,7 @@ def transit_skim_joins(
 #     arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path=temp_dir, out_name=temp_name)
 #     process_id_field = PMT.add_unique_id(feature_class=temp_parcels)
 
-#     logger.log_msg("--- --- reading/formatting parcels")
+#     print("--- --- reading/formatting parcels")
 #     # read in all of our data
 #     #   - read the parcels (after which we'll remove the added unique ID from the original data).
 #     parcels_fields = [f.name for f in arcpy.ListFields(temp_parcels)
@@ -5472,7 +5470,7 @@ def transit_skim_joins(
 #     parcels_df["PERMIT"] = 0
 
 #     # create output dataset keeping only process_id and delete temp file
-#     logger.log_msg("--- --- creating save feature class")
+#     print("--- --- creating save feature class")
 #     fmap = arcpy.FieldMappings()
 #     fm = arcpy.FieldMap()
 #     fm.addInputField(temp_parcels, 'ProcessID')
@@ -5483,17 +5481,17 @@ def transit_skim_joins(
 #     # temp_dir.cleanup()
 
 #     # Now we're ready to process the permits to create the short term parcels data
-#     logger.log_msg("--- creating short term parcels")
+#     print("--- creating short term parcels")
 
 #     # First we read the permits
-#     logger.log_msg("--- --- reading/formatting permits_df")
+#     print("--- --- reading/formatting permits_df")
 #     permits_fields = [permits_id_field, permits_lu_field, permits_units_field, permits_values_field, permits_cost_field]
 #     permits_df = PMT.featureclass_to_df(in_fc=permits_path, keep_fields=permits_fields, null_val=0.0)
 #     permits_df = permits_df[permits_df[permits_values_field] >= 0]
 
 #     # Merge the permits_df and permits_df reference
 #     #   - join the two together on the permits_lu_field and permits_units_field
-#     logger.log_msg("--- --- merging permits_df and permits_df reference")
+#     print("--- --- merging permits_df and permits_df reference")
 #     permits_df = pd.merge(left=permits_df, right=permits_ref_df,
 #                           left_on=[permits_lu_field, permits_units_field],
 #                           right_on=[permits_lu_field, permits_units_field], how="left")
@@ -5501,7 +5499,7 @@ def transit_skim_joins(
 #     # Now we add to permits_df the field matches to the parcels (which will be
 #     # helpful come the time of updating parcels from the permits_df)
 #     if units_field_match_dict is not None:
-#         logger.log_msg("--- --- joining units-field matches")
+#         print("--- --- joining units-field matches")
 #         ufm = pd.DataFrame.from_dict(units_field_match_dict, orient="index").reset_index()
 #         ufm.columns = [permits_units_field, "Parcel_Field"]
 #         permits_df = pd.merge(left=permits_df, right=ufm,
@@ -5509,7 +5507,7 @@ def transit_skim_joins(
 
 #     # calculate the new building square footage for parcel in the permit features
 #     # using the reference table multipliers and overwrites
-#     logger.log_msg("--- --- applying unit multipliers and overwrites")
+#     print("--- --- applying unit multipliers and overwrites")
 #     new_living_area = []
 #     for value, multiplier, overwrite in zip(
 #             permits_df[permits_values_field],
@@ -5522,7 +5520,7 @@ def transit_skim_joins(
 #         else:
 #             new_living_area.append(0)
 
-#     logger.log_msg("--- --- appending new living area values to permits_df data")
+#     print("--- --- appending new living area values to permits_df data")
 #     permits_df["UpdTLA"] = new_living_area
 #     permits_df.drop(columns=["Multiplier", "Overwrite"], inplace=True)
 
@@ -5530,7 +5528,7 @@ def transit_skim_joins(
 #     #   - match building permits_df to the parcels using id_match_field,
 #     #   - overwrite parcel LU, building square footage, and anything specified in the match dict
 #     #   - add replacement flag
-#     logger.log_msg("--- --- collecting updated parcel data")
+#     print("--- --- collecting updated parcel data")
 #     pids = np.unique(permits_df[permits_id_field])
 #     permit_update = []
 #     for i in pids:
@@ -5576,7 +5574,7 @@ def transit_skim_joins(
 
 #     # Finally, we want to update the value field. To do this, we take the
 #     # max of previous value and previous land value + cost of new development
-#     logger.log_msg("--- --- estimating parcel value after permit development")
+#     print("--- --- estimating parcel value after permit development")
 #     pv = parcels_df[parcels_df[parcels_id_field].isin(pids)]
 #     pv = pv.groupby(parcels_id_field)[[parcels_land_value_field, parcels_total_value_field]].sum().reset_index()
 #     permit_update = pd.merge(permit_update, pv, on=parcels_id_field, how="left")
@@ -5586,19 +5584,19 @@ def transit_skim_joins(
 
 #     # make the replacements. - drop all the rows from the parcels whose IDs are in the permits_df, - add all the rows
 #     # for the data we just collected. and retain the process ID from the parcels we're dropping for the sake of joining
-#     logger.log_msg("--- --- replacing parcel data with updated information")
+#     print("--- --- replacing parcel data with updated information")
 #     parcel_update = parcels_df.set_index("FOLIO")
 #     parcel_update.update(permit_update)
 #     parcel_update.reset_index(inplace=True)
 
 #     # Now we just write!
-#     logger.log_msg("\nWriting results")
+#     print("\nWriting results")
 #     # join to initialized feature class using extend table (and delete the created ID when its all over)
-#     logger.log_msg("--- --- joining results to save feature class (be patient, this will take a while)")
+#     print("--- --- joining results to save feature class (be patient, this will take a while)")
 #     PMT.extendTableDf(in_table=short_term_parcels, table_match_field=process_id_field,
 #                       df=parcel_update, df_match_field="ProcessID")
 #     arcpy.DeleteField_management(in_table=short_term_parcels, drop_field=process_id_field)
-#     logger.log_msg("\nDone!")
+#     print("\nDone!")
 #     return short_term_parcels
 
 # DEPRECATED

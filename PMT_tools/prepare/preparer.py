@@ -89,11 +89,6 @@ from ..PMT import (
 )
 from ..PMT import arcpy, np, pd
 
-from .. import logger as log
-
-logger = log.Logger(
-    add_logs_to_arc_messages=True
-)  # TODO: only initialize logger if running as main?
 
 arcpy.env.overwriteOutput = True
 
@@ -238,7 +233,7 @@ def process_normalized_geometries(overwrite=True):
             out_path = validate_feature_dataset(
                 makePath(CLEANED, f"PMT_{year}.gdb", "Polygons"), sr=SR_FL_SPF
             )
-            logger.log_msg(f"{cleaned} normalized here: {out_path}")
+            print(f"{cleaned} normalized here: {out_path}")
             out_data = makePath(out_path, cleaned)
             P_HELP.prep_feature_class(
                 in_fc=raw,
@@ -259,7 +254,7 @@ def process_normalized_geometries(overwrite=True):
                 )
             if overwrite:
                 checkOverwriteOutput(output=out_data, overwrite=overwrite)
-            logger.log_msg(f"--- writing out geometries and {cols} only")
+            print(f"--- writing out geometries and {cols} only")
             arcpy.CopyFeatures_management(in_features=lyr, out_feature_class=out_data)
 
             calc_year = year
@@ -695,10 +690,10 @@ def process_imperviousness(overwrite=True):
         out_dir=out_dir,
         transform_crs=EPSG_FLSPF,
     )
-    logger.log_msg("--- --- converting raster to point")
+    print("--- --- converting raster to point")
     points = make_inmem_path(file_name="raster_to_point")
     arcpy.RasterToPoint_conversion(in_raster=impv_raster, out_point_features=points)
-    logger.log_msg("--- grabbing impervious raster cell size")
+    print("--- grabbing impervious raster cell size")
     cellx = arcpy.GetRasterProperties_management(
         in_raster=impv_raster, property_type="CELLSIZEX"
     )

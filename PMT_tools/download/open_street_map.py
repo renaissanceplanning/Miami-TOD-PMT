@@ -32,6 +32,9 @@ import osmnx as ox
 from shapely.geometry import Polygon, MultiPolygon
 from six import string_types
 
+from PMT_tools.utils import check_overwrite_path
+import helper as dl_help
+
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]
 EPSG_LL = 4326
@@ -187,6 +190,7 @@ def download_osm_networks(
     net_types=["drive", "walk", "bike"],
     pickle_save=False,
     suffix="",
+    overwrite=False
 ):
     """Download an OpenStreetMap network within the area defined by a polygon
         feature class of a bounding box.
@@ -210,6 +214,7 @@ def download_osm_networks(
                 python `networkx` objects using the `pickle` module. See module notes for usage.
         suffix (str): default=""; Downloaded datasets may optionally be stored in folders with
                 a suffix appended, differentiating networks by date, for example.
+        overwrite (bool): if set to True, delete the existing copy of the network(s)
     Returns:
         G (dict): A dictionary of networkx graph objects. Keys are mode names based on
                 `net_types`; values are graph objects.
@@ -228,7 +233,7 @@ def download_osm_networks(
     # Fetch network features
     mode_nets = {}
     for net_type in net_types:
-        print(f"{net_type:}")
+        print("")
         net_folder = f"{net_type}_{suffix}"
         print(f"OSMnx '{net_type.upper()}' network extraction")
         print("-- extracting a composed network by bounding box...")
@@ -240,7 +245,8 @@ def download_osm_networks(
             network_type=net_type,
             retain_all=True,
         )
-        # TODO: if walk/bike create subgraphs of nodes and drop vesitgal elements
+        if net_type in ["walk", "bike"]:
+            g = dl_help.trim_components(graph=g)
 
         # Pickle if requested
         if pickle_save:
@@ -253,6 +259,7 @@ def download_osm_networks(
         # 2. Saving as shapefile
         print("-- saving network shapefile...")
         out_f = os.path.join(output_dir, net_folder)
+        check_overwrite_path(output=out_f, overwrite=overwrite)
         ox.save_graph_shapefile(G=g, filepath=out_f)
         # need to change this directory
         print("---- saved to: " + out_f)
@@ -269,12 +276,12 @@ def download_osm_buildings(
     data_crs=None,
     keep_fields=["osmid", "building", "name", "geometry"],
     suffix="",
+    overwrite=False
 ):
     """Uses an Overpass query to fetch the OSM building polygons within a
     specified bounding box or the bounding box of a provided shapefile.
     Args:
-        output_dir: Path
-            Path to output directory.
+        output_dir (str): Path to output directory.
         polygon (str): path to a shapefile or geojson object readable by geopandas
         bbox (dict): default=None; A dictionary with keys 'south', 'west', 'north', and 'east' of
             EPSG:4326-style coordinates, defining a bounding box for the area from which to fetch
@@ -322,9 +329,10 @@ def download_osm_buildings(
 
     # Saving -----------------------------------------------------------------
     print("...Saving...")
-    dt = datetime.now().strftime("%Y%m%d%")
+    dt = datetime.now().strftime("%Y%m%d")
     file_name = "OSM_Buildings_{}.shp".format(dt)
     save_path = makePath(output_dir, file_name)
+    check_overwrite_path(output=save_path, overwrite=overwrite)
     buildings_gdf.to_file(save_path)
     print("-- saved to: " + save_path)
 

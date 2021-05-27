@@ -1,6 +1,4 @@
-# DOWNLOAD_DIR = 'downloaded_files'
-# EXTRACT_DIR = 'extracted_files'
-# CSV_DIR = 'generated_csv'
+
 
 GEO_TYPES_DICT = {
     'cd': 'Congressional Districts',

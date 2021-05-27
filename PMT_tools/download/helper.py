@@ -8,7 +8,10 @@ import pandas as pd
 import requests
 from requests.exceptions import RequestException
 
-from ..utils import makePath, check_overwrite_path
+from PMT_tools.utils import makePath
+
+__all__ = ["download_file_from_url", "get_filename_from_header", "census_geoindex_to_columns", "fetch_acs",
+           "download_race_vars", "download_commute_vars", "trim_components"]
 
 
 def download_file_from_url(url, save_path):
@@ -16,7 +19,6 @@ def download_file_from_url(url, save_path):
     Args:
         url (str): String; path to resource
         save_path (str): String; path to output file
-        overwrite: (bool): if True, existing data will be deleted prior to download
     Returns:
         None
     """
@@ -52,9 +54,9 @@ def get_filename_from_header(url):
 
 # ACS tabular data
 def census_geoindex_to_columns(pd_idx, gen_geoid=True, geoid="GEOID10"):
-    """ Given an index of `censusgeo` objects, return a dataframe with
-        columns reflecting the geographical hierarchy and identifying
-        discrete features.
+    """Given an index of `censusgeo` objects, return a dataframe with
+    columns reflecting the geographical hierarchy and identifying
+    discrete features.
     Args:
         pd_idx (idx): Index, A pandas Index of `censusgeo` objects.
         gen_geoid (bool): Boolean, default=True; If True, the geographical hierarchy will be concatenated into a
@@ -113,7 +115,7 @@ def download_race_vars(
     year, acs_dataset="acs5", state="fl", county="086", table=None, columns=None
 ):
     """Downloads population race and ethnicity variables from available ACS data
-        in table B03002.
+    in table B03002.
     Args:
         year (int): year of interest
         acs_dataset (str): String, default="acs5"; Which ACS dataset to download (3-year, 5-year, e.g.)
@@ -168,7 +170,7 @@ def download_commute_vars(
     year, acs_dataset="acs5", state="12", county="086", table=None, columns=None,
 ):
     """Downloads commute (journey to work) data from available ACS data
-        in table B08301.
+    in table B08301.
     Args:
         year: Int
         acs_dataset: String, default="acs5"
@@ -215,18 +217,13 @@ def trim_components(graph, min_edges=2, message=True):
     from a graph
 
     Args:
-        graph : networkx graph
-            the network from which to remove small components
-        min_edges : int, optional
-            the minimum number of edges required for a component to remain in the
-            network; any component with FEWER edges will be removed. The default
-            is 2.
-        message : bool, optional
-            should a message indicating the number of components removed be
+        graph (nx.Graph) : networkx graph; the network from which to remove small components
+        min_edges (int) : int, optional; the minimum number of edges required for a component to remain in the
+            network; any component with FEWER edges will be removed. The default is 2.
+        message (bool): bool, optional; should a message indicating the number of components removed be
             printed? The default is True.
     Returns:
-        G : networkx graph
-            the original graph, with connected components smaller than `min_edges`
+        G (nx.Graph): networkx graph; the original graph, with connected components smaller than `min_edges`
             removed
     """
 
@@ -250,7 +247,7 @@ def trim_components(graph, min_edges=2, message=True):
 
     # If a printout of number of components removed is requested, count and
     # print here.
-    if message == True:
+    if message:
         count_removed = sum([len(x) < min_nodes for x in conn_comps])
         count_message = " ".join(
             [

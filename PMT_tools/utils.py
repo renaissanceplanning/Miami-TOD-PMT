@@ -1,5 +1,38 @@
 import os
 from pathlib import Path
+import shutil
+import time
+
+
+class TimerError(Exception):
+    """A custom exception used to report errors in use of Timer class"""
+
+
+class Timer:
+    def __init__(self):
+        self._start_time = None
+
+    def start(self):
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise TimerError(f"Timer is running. Use .stop() to stop it")
+
+        self._start_time = time.perf_counter()
+        print("Timer has started...")
+
+    def stop(self):
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise TimerError(f"Timer is not running. Use .start() to start it")
+
+        elapsed_time = (time.perf_counter() - self._start_time)
+        if elapsed_time > 60:
+            elapsed_time = elapsed_time/60
+            print(f"Elapsed time: {elapsed_time:0.4f} minutes")
+        if elapsed_time > 3600:
+            elapsed_time /= 3600
+            print(f"Elapsed time: {elapsed_time:0.4f} hours")
+        self._start_time = None
 
 
 def makePath(in_folder, *subnames):
@@ -27,17 +60,15 @@ def validate_directory(directory):
 
 
 def check_overwrite_path(output, overwrite=True):
-    if Path.exists(output):
+    output = Path(output)
+    if output.exists():
         if overwrite:
-            if os.path.isfile(output):
-                print(f"--- --- deleting existing file {output}")
-                Path(output).unlink(missing_ok=True)
-            if os.path.isdir(output):
-                print(f"--- --- deleting existing folder {output}")
-                files = os.listdir(output)
-                for f in files:
-                    Path(f).unlink(missing_ok=True)
-                Path(output).rmdir()
+            if output.is_file():
+                print(f"--- --- deleting existing file {output.name}")
+                output.unlink()
+            if output.is_dir():
+                print(f"--- --- deleting existing folder {output.name}")
+                shutil.rmtree(output)
         else:
             print(
                 f"Output file/folder {output} already exists"
