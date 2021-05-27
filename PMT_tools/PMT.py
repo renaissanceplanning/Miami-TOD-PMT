@@ -39,7 +39,7 @@ __classes__ = [
     "ServiceAreaAnalysis",
 ]
 __functions__ = [
-    "makePath",
+    "make_path",
     "make_inmem_path",
     "validate_directory",
     "validate_geodatabase",
@@ -395,7 +395,7 @@ class ServiceAreaAnalysis:
 
 
 # %% FUNCTIONS
-def makePath(in_folder, *subnames):
+def make_path(in_folder, *subnames):
     """Dynamically set a path (e.g., for iteratively referencing
         year-specific geodatabases)
     Args:
