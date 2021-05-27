@@ -12,8 +12,16 @@ Table of Contents
 
    #. `Conda Envs <#building-python-conda-environment>`_
 
-#. ## Environment Setup
-   ##### Assumptions
+      #. `Download Environment - pmt_download <#env-pmt_download>`_
+      #. `Processing Environment - pmt_tools <#env-pmt_tools>`_
+
+#. `Using the tools <#tool-usage>`_
+
+Environment Setup
+-----------------
+
+Assumptions
+^^^^^^^^^^^
 
 
 * ArcGIS Pro is installed in a standard location
@@ -22,36 +30,42 @@ Table of Contents
 * Familiarity with command line interactions
 
 Building python CONDA environment
-"""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Env: *pmt_download* [used for download procedures only]
-###########################################################
+**Environment:** ``pmt_download``
+"""""""""""""""""""""""""""""""""""""""""
+
+``used for download procedures only``
 
 
 #. Select Windows Start
 #. Navigate to 'Python Command Prompt' under ArcGIS folder --> Open
 #. In the command window run the below commands:
-#. *Create a new environment*
+#. Create a new environment
    .. code-block::
 
        conda create --name %LocalAppData%\ESRI\conda\envs\pmt_download
-   4) *Activate the newly created environment*
+   4) Activate the newly created environment
    .. code-block::
 
        activate pmt_download
-   5) *Install conda packages*
+   5) Install conda packages
    .. code-block::
 
        conda install geopandas pandas numpy scipy rtree=0.9.4
        * enter 'y/yes' and return when asked
-   6) *Install pip packages*
+   6) Install pip packages
    .. code-block::
 
        pip install censusdata osmnx
-   ###### Env: *pmt_tools*
-   repeat steps 1-3 from above
 
-4) *Clone the existing ArcGIS python environment*
+**Environment:** ``pmt_tools``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+...repeat steps 1-3 from above
+
+
+4) Clone the existing ArcGIS python default environment (\ *arcgispro-py3*\ )
 
 .. code-block::
 
@@ -60,7 +74,7 @@ Env: *pmt_download* [used for download procedures only]
    * (this may take some time, so be patient)
    ```
 
-4) *Activate the newly created environment*
+4) Activate the newly created environment
 
 .. code-block::
 
@@ -68,7 +82,7 @@ Env: *pmt_download* [used for download procedures only]
    activate pmt_tools
    ```
 
-5) *Install conda packages using **conda-forge** channel*
+5) Install conda packages using **conda-forge** channel
 
 .. code-block::
 
@@ -78,7 +92,7 @@ Env: *pmt_download* [used for download procedures only]
    * spyder is optional if you want to install a Data Science focused IDE
    ```
 
-6) *Install pip packages*
+6) Install pip packages
 
 .. code-block::
 
@@ -86,9 +100,12 @@ Env: *pmt_download* [used for download procedures only]
    pip install simpledbf
    ```
 
-*WARNING*
-If you have recently updated ArcGIS Pro to a new Major Version, you will need to remove the existing environment and recreate it using
-steps 4-7 again.
+
+*WARNING:*
+^^^^^^^^^^^^^^
+
+*If you have recently updated ArcGIS Pro to a new Major Version, you will need to remove the existing environment and recreate it using
+steps 4-7 again.*
 
 
 * Remove env
@@ -97,3 +114,16 @@ steps 4-7 again.
        conda env remove -n pmt_tools
 
 * Follow the above steps to recreate the environment
+
+Tool Usage
+----------
+
+Download Tools
+^^^^^^^^^^^^^^
+
+1) 
+2) activate pmt_download environment
+
+.. code-block::
+
+   conda activate pmt_download
