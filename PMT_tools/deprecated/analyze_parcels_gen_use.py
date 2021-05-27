@@ -90,11 +90,11 @@ if __name__ == "__main__":
     for year in PMT.YEARS:
         print(year)
         # Parcels
-        parcel_fc = PMT.makePath(PMT.CLEANED, "parcels.gdb", f"Miami_{year}")
+        parcel_fc = PMT.make_path(PMT.CLEANED, "parcels.gdb", f"Miami_{year}")
         # Reference table
-        ref_table = PMT.makePath(PMT.REF, "Land_Use_Recode.csv")
+        ref_table = PMT.make_path(PMT.REF, "Land_Use_Recode.csv")
         # Output
-        out_fc = PMT.makePath(
+        out_fc = PMT.make_path(
             PMT.ROOT, f"PMT_{year}.gdb", "Parcels", "land_use_and_value")
         # Prepare field map
         FM = arcpy.FieldMappings()

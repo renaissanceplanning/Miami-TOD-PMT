@@ -625,7 +625,7 @@ def make_basic_features(
     # - dump to data frame
     fields = stn_diss_fields + stn_corridor_fields + ["SHAPE@X", "SHAPE@Y"]
     sr = arcpy.Describe(stations_fc).spatialReference
-    fc_path = PMT.makePath(bf_gdb, stations_fc)
+    fc_path = PMT.make_path(bf_gdb, stations_fc)
     stn_df = PMT.featureclass_to_df(in_fc=fc_path, keep_fields=fields)
 
     # Rename columns if needed
@@ -647,7 +647,7 @@ def make_basic_features(
         id_vars=id_vars, value_vars=_cor_cols_, var_name="Corridor", value_name="InCor"
     )
     sel_df = long_df[long_df.InCor != 0].copy()
-    long_out_fc = PMT.makePath(bf_gdb, long_stn_fc)
+    long_out_fc = PMT.make_path(bf_gdb, long_stn_fc)
     PMT.checkOverwriteOutput(long_out_fc, overwrite)
     PMT.df_to_points(
         df=sel_df,
@@ -1064,7 +1064,7 @@ def udb_line_to_polygon(udb_fc, county_fc, out_fc):
     )
 
     # Get geometry objects
-    temp_udb = PMT.makePath("in_memory", "UDB_dissolve")
+    temp_udb = PMT.make_path("in_memory", "UDB_dissolve")
     diss_line = arcpy.Dissolve_management(
         in_features=udb_fc, out_feature_class=temp_udb
     )
@@ -1568,7 +1568,7 @@ def get_raster_file(folder):
         for file in os.listdir(folder):
             for extension in raster_formats:
                 if fnmatch.fnmatch(file, f"*{extension}"):
-                    rast_files.append(PMT.makePath(folder, file))
+                    rast_files.append(PMT.make_path(folder, file))
 
         if len(rast_files) == 1:
             return rast_files[0]
@@ -1602,7 +1602,7 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
 
         # define the output file from input file
         rast_name, ext = os.path.splitext(os.path.split(raster_file)[1])
-        clipped_raster = PMT.makePath(temp_unzip_folder, f"clipped{ext}")
+        clipped_raster = PMT.make_path(temp_unzip_folder, f"clipped{ext}")
 
         print("--- checking if a transformation of the clip geometry is necessary")
         # Transform the clip geometry if necessary
@@ -1610,7 +1610,7 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
         clip_sr = arcpy.Describe(clip_path).spatialReference
         if raster_sr != clip_sr:
             print("--- reprojecting clipping geometry to match raster")
-            project_file = PMT.makePath(temp_unzip_folder, "Project.shp")
+            project_file = PMT.make_path(temp_unzip_folder, "Project.shp")
             arcpy.Project_management(
                 in_dataset=clip_path,
                 out_dataset=project_file,
@@ -1632,7 +1632,7 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
         # Transform the clipped raster
         print("--- copying/reprojecting raster out to project CRS")
         transform_crs = arcpy.SpatialReference(transform_crs)
-        out_raster = PMT.makePath(out_dir, f"{rast_name}_clipped{ext}")
+        out_raster = PMT.make_path(out_dir, f"{rast_name}_clipped{ext}")
         if transform_crs != raster_sr:
             arcpy.ProjectRaster_management(
                 in_raster=clipped_raster,
@@ -1757,11 +1757,11 @@ def model_blockgroup_data(
 
     print("--- reading input data (block group)")
     df = []
-    year_gdb = makePath(data_path, "PMT_YEAR.gdb")
+    year_gdb = make_path(data_path, "PMT_YEAR.gdb")
     years = np.unique(np.concatenate([acs_years, lodes_years]))
     for year in years:
         print(" ".join(["----> Loading", str(year)]))
-        load_path = makePath(year_gdb.replace("YEAR", str(year)), bg_enrich_tbl_name)
+        load_path = make_path(year_gdb.replace("YEAR", str(year)), bg_enrich_tbl_name)
         tab = PMT.featureclass_to_df(in_fc=load_path, keep_fields=fields, null_val=0.0)
 
         # Edit
@@ -2937,8 +2937,8 @@ def copy_net_result(source_fds, target_fds, fc_names):
     print(f"- copying results from {source_fds} to {target_fds}")
     for fc_name in fc_names:
         print(f" - - {fc_name}")
-        src_fc = PMT.makePath(source_fds, fc_name)
-        tgt_fc = PMT.makePath(target_fds, fc_name)
+        src_fc = PMT.make_path(source_fds, fc_name)
+        tgt_fc = PMT.make_path(target_fds, fc_name)
         if arcpy.Exists(tgt_fc):
             arcpy.Delete_management(tgt_fc)
         arcpy.FeatureClassToFeatureClass_conversion(src_fc, target_fds, fc_name)
@@ -3742,7 +3742,7 @@ def merge_and_subset(feature_classes, subset_fc):
         print(f"--- projecting and clipping {fc}")
         arcpy.env.outputCoordinateSystem = project_crs
         basename = get_filename(fc)
-        prj_fc = makePath(temp_dir.name, f"{basename}.shp")
+        prj_fc = make_path(temp_dir.name, f"{basename}.shp")
         arcpy.Clip_analysis(
             in_features=fc, clip_features=subset_fc, out_feature_class=prj_fc
         )
@@ -3894,7 +3894,7 @@ def calculate_contiguity_index(
     arcpy.CreateFileGDB_management(
         out_folder_path=temp_dir, out_name="Intermediates.gdb"
     )
-    intmd_gdb = makePath(temp_dir, "Intermediates.gdb")
+    intmd_gdb = make_path(temp_dir, "Intermediates.gdb")
 
     print("--- --- copying the parcels feature class to avoid overwriting")
     fmap = arcpy.FieldMappings()
@@ -3904,7 +3904,7 @@ def calculate_contiguity_index(
         if fld.type not in ("OID", "Geometry") and "shape" not in fname.lower():
             if fname != parcels_id_field:
                 fmap.removeFieldMap(fmap.findFieldMapIndex(fname))
-    parcels_copy = makePath(intmd_gdb, "parcels")
+    parcels_copy = make_path(intmd_gdb, "parcels")
     p_path, p_name = os.path.split(parcels_copy)
     arcpy.FeatureClassToFeatureClass_conversion(
         in_features=parcels_fc, out_path=p_path, out_name=p_name, field_mapping=fmap

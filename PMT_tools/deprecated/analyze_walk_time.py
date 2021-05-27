@@ -230,16 +230,16 @@ if __name__ == "__main__":
 
     for year in PMT.YEARS:
         print(year)
-        clean_parcels = PMT.makePath(PMT.CLEANED, "parcels.gdb", f"Miami_{year}")
-        year_gdb = PMT.makePath(PMT.DATA, f"PMT_{year}.gdb")
-        parcel_fc = PMT.makePath(year_gdb, "Parcels", "walk_time")
+        clean_parcels = PMT.make_path(PMT.CLEANED, "parcels.gdb", f"Miami_{year}")
+        year_gdb = PMT.make_path(PMT.DATA, f"PMT_{year}.gdb")
+        parcel_fc = PMT.make_path(year_gdb, "Parcels", "walk_time")
         # Initialize parcel walk time features
         initParcelWalkTimeFC(clean_parcels, parcel_fc, KEEP_FIELDS,
                              overwrite=True)
         # Iterate over targets and references
-        net_fd = PMT.makePath(year_gdb, "networks")
+        net_fd = PMT.make_path(year_gdb, "networks")
         for tgt_name, ref_fc in zip(target_names, ref_fcs):
             print(f"- {tgt_name}")
-            ref_fc = PMT.makePath(net_fd, ref_fc)
+            ref_fc = PMT.make_path(net_fd, ref_fc)
             parcelWalkTimes(parcel_fc, parcel_id_field, ref_fc,
                             ref_name_field, ref_time_field, tgt_name)

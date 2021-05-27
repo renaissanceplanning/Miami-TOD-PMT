@@ -36,7 +36,7 @@ def _list_table_paths(gdb, criteria="*"):
     for c in criteria:
         tables += arcpy.ListTables(c)
     arcpy.env.workspace = old_ws
-    return [PMT.makePath(gdb, table) for table in tables]
+    return [PMT.make_path(gdb, table) for table in tables]
 
 
 def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
@@ -67,7 +67,7 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     for fd in fds:
         for fc_crit in fc_criteria:
             fcs = arcpy.ListFeatureClasses(feature_dataset=fd, wild_card=fc_crit)
-            paths += [PMT.makePath(gdb, fd, fc) for fc in fcs]
+            paths += [PMT.make_path(gdb, fd, fc) for fc in fcs]
     arcpy.env.workspace = old_ws
     return paths
 
@@ -95,7 +95,7 @@ def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
             mode=mode,
         )
         df["Year"] = year_val
-        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
+        out_table = PMT.make_path(out_gdb, f"ActivityByTime_{mode}")
         PMT.df_to_table(df, out_table)
 
 
@@ -118,11 +118,11 @@ def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
     joined_fcs = []  # --> blocks, parcels, maz, taz, sa, net_nodes
     for fc_spec, table_spec in zip(fc_specs, table_specs):
         fc_name, fc_id, fds = fc_spec
-        fc = PMT.makePath(out_gdb, fds, fc_name)
+        fc = PMT.make_path(out_gdb, fds, fc_name)
 
         for spec in table_spec:
             tbl_name, tbl_id, tbl_fields, tbl_renames = spec
-            tbl = PMT.makePath(in_gdb, tbl_name)
+            tbl = PMT.make_path(in_gdb, tbl_name)
             print(f"--- Joining fields from {tbl_name} to {fc_name}")
             joinAttributes(
                 to_table=fc,
@@ -159,8 +159,8 @@ def build_intersections(gdb, enrich_specs):
         summ, disag = intersect["sources"]
         summ_name, summ_id, summ_fds = summ
         disag_name, disag_id, disag_fds = disag
-        summ_in = PMT.makePath(gdb, summ_fds, summ_name)
-        disag_in = PMT.makePath(gdb, disag_fds, disag_name)
+        summ_in = PMT.make_path(gdb, summ_fds, summ_name)
+        disag_in = PMT.make_path(gdb, disag_fds, disag_name)
         full_geometries = intersect["disag_full_geometries"]
         # Run intersect
         print(f"--- Intersecting {summ_name} with {disag_name}")
@@ -198,7 +198,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
         d_name, d_id, d_fds = disag
         if summ == disag:
             # Simple pivot wide to long
-            fc = PMT.makePath(gdb, fc_fds, fc_name)
+            fc = PMT.make_path(gdb, fc_fds, fc_name)
         else:
             # Pivot from intersection
             fc = fc_dict[summ][disag]
@@ -219,11 +219,11 @@ def build_enriched_tables(gdb, fc_dict, specs):
         try:
             out_name = spec["out_table"]
             print(f"--- --- to long table {out_name}")
-            out_table = PMT.makePath(gdb, out_name)
+            out_table = PMT.make_path(gdb, out_name)
             PMT.df_to_table(df=summary_df, out_table=out_table, overwrite=True)
         except KeyError:
             # extend input table
-            feature_class = PMT.makePath(gdb, fc_fds, fc_name)
+            feature_class = PMT.make_path(gdb, fc_fds, fc_name)
             # if being run again, delete any previous data as da.ExtendTable will fail if a field exists
             summ_cols = [col for col in summary_df.columns.to_list() if col != fc_id]
             drop_fields = [
@@ -258,7 +258,7 @@ def sum_parcel_cols(gdb, par_spec, columns):
         pandas.Dataframe
     """
     par_name, par_id, par_fds = par_spec
-    par_fc = PMT.makePath(gdb, par_fds, par_name)
+    par_fc = PMT.make_path(gdb, par_fds, par_name)
     df = PMT.featureclass_to_df(
         in_fc=par_fc, keep_fields=columns, skip_nulls=False, null_val=0
     )
@@ -328,12 +328,12 @@ def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
     """
     if not out_gdb_name:
         out_gdb_name = f"_{uuid.uuid4().hex}.gdb"
-        out_gdb = PMT.makePath(out_path, out_gdb_name)
+        out_gdb = PMT.make_path(out_path, out_gdb_name)
     elif out_gdb_name and overwrite:
-        out_gdb = PMT.makePath(out_path, out_gdb_name)
+        out_gdb = PMT.make_path(out_path, out_gdb_name)
         PMT.checkOverwriteOutput(output=out_gdb, overwrite=overwrite)
     else:
-        out_gdb = PMT.makePath(out_path, out_gdb_name)
+        out_gdb = PMT.make_path(out_path, out_gdb_name)
     arcpy.CreateFileGDB_management(out_path, out_gdb_name)
     return out_gdb
 
@@ -355,8 +355,8 @@ def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
     # copy in the geometry data containing minimal tabular data
     for fds in ["Networks", "Points", "Polygons"]:
         print(f"--- copying FDS {fds}")
-        source_fd = PMT.makePath(in_gdb, fds)
-        out_fd = PMT.makePath(out_gdb, fds)
+        source_fd = PMT.make_path(in_gdb, fds)
+        out_fd = PMT.make_path(out_gdb, fds)
         arcpy.Copy_management(source_fd, out_fd)
     return out_gdb
 
@@ -658,7 +658,7 @@ def apply_field_calcs(gdb, new_field_specs, recalculate=False):
             print(f"--- Adding field {new_field} to {len(tables)} tables")
             for table in tables:
                 t_name, t_id, t_fds = table
-                in_table = PMT.makePath(gdb, t_fds, t_name)
+                in_table = PMT.make_path(gdb, t_fds, t_name)
                 # update params
                 add_args["in_table"] = in_table
                 calc_args["in_table"] = in_table
@@ -816,9 +816,9 @@ def finalize_output(intermediate_gdb, final_gdb):
         None
     """
     output_folder, _ = os.path.split(intermediate_gdb)
-    temp_folder = PMT.validate_directory(PMT.makePath(output_folder, "TEMP"))
+    temp_folder = PMT.validate_directory(PMT.make_path(output_folder, "TEMP"))
     _, copy_old_gdb = os.path.split(final_gdb)
-    temp_gdb = PMT.makePath(temp_folder, copy_old_gdb)
+    temp_gdb = PMT.make_path(temp_folder, copy_old_gdb)
     try:
         # make copy of existing data if it exists
         if arcpy.Exists(final_gdb):
@@ -898,7 +898,7 @@ def post_process_databases(basic_features_gdb, build_dir):
     # copy BasicFeatures into Build
     print("--- Overwriting basic features in BUILD dir with current version")
     path, basename = os.path.split(basic_features_gdb)
-    out_basic_features = PMT.makePath(build_dir, basename)
+    out_basic_features = PMT.make_path(build_dir, basename)
     PMT.checkOverwriteOutput(output=out_basic_features, overwrite=True)
     arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
 
@@ -919,7 +919,7 @@ def post_process_databases(basic_features_gdb, build_dir):
     # TODO: incorporate a more broad AlterField protocol for Popup configuration
 
     # delete TEMP folder
-    temp = PMT.makePath(build_dir, "TEMP")
+    temp = PMT.make_path(build_dir, "TEMP")
     if arcpy.Exists(temp):
         print("--- deleting TEMP folder from previous build steps")
         arcpy.Delete_management(temp)

@@ -53,9 +53,9 @@ def cleanEnergyConsumption(in_excel, sheet_name, skiprows, columns,
 
 # %% MAIN
 if __name__ == "__main__":
-    nres_cons_f = PMT.makePath(PMT.RAW, "EIA_ComEnergy2015_pba3.xlsx")
+    nres_cons_f = PMT.make_path(PMT.RAW, "EIA_ComEnergy2015_pba3.xlsx")
     in_sheet = "data"
-    out_table = PMT.makePath(
+    out_table = PMT.make_path(
         PMT.CLEANED, "Energy_Consumption", "NRes_Energy_Consumption.csv")
     cleanEnergyConsumption(nres_cons_f, in_sheet, SKIPROWS, COLUMNS,
                            out_table, remove_na_from="NumBldgs",

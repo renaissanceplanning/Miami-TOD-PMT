@@ -14,7 +14,7 @@ else:
     raise arcpy.ExecuteError("Network Analyst Extension license is not available.")
 
 # %% GLOBALS
-OSM_DIR = PMT.makePath(PMT.CLEANED, "OSM_Networks")
+OSM_DIR = PMT.make_path(PMT.CLEANED, "OSM_Networks")
 SEARCH_CRITERIA = "edges SHAPE;osm_ND_Junctions NONE"
 SEARCH_QUERY = "edges #;osm_ND_Junctions #"
 NET_LOADER = NetLoader("1500 meters",
@@ -186,7 +186,7 @@ def genODTable(origin_pts, origin_name_field, dest_pts, dest_name_field,
 # %% MAIN
 print("WALK/BIKE SKIMS")
 # MAZ points
-maz_pts = PMT.makePath(PMT.CLEANED, "SERPM", "maz_centroids.shp")
+maz_pts = PMT.make_path(PMT.CLEANED, "SERPM", "maz_centroids.shp")
 maz_name_field = "MAZ"
 
 # Solve OD
@@ -197,11 +197,11 @@ for year in PMT.YEARS:
         # Walk access
         print("... Walk")
         # - Build skim
-        walk_nd = PMT.makePath(
+        walk_nd = PMT.make_path(
             OSM_DIR, f"walk{net_suffix}.gdb", "osm", "osm_ND")
         walk_imped = "Minutes"
         walk_cutoff = 60
-        walk_skim = PMT.makePath(
+        walk_skim = PMT.make_path(
             PMT.CLEANED, "OSM_Networks", f"Walk_Skim{net_suffix}.csv")
         walk_lyr = arcpy.MakeFeatureLayer_management(maz_pts, "__walk__")
         genODTable(
@@ -225,11 +225,11 @@ for year in PMT.YEARS:
         # Bike access
         print("... Bike")
         # - Build skim
-        bike_nd = PMT.makePath(
+        bike_nd = PMT.make_path(
             OSM_DIR, f"bike{net_suffix}.gdb", "osm", "osm_ND")
         bike_imped = "Minutes"
         bike_cutoff = 60
-        bike_skim = PMT.makePath(
+        bike_skim = PMT.make_path(
             PMT.CLEANED, "OSM_Networks", f"Bike_Skim{net_suffix}.csv")
         bike_restr = ["IsCycleway", "LTS1", "LTS2", "LTS3", "LTS4", "Oneway"]
         # Break into chunks

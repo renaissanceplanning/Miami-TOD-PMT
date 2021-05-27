@@ -29,7 +29,7 @@ import PMT_tools.config.download_config as dl_conf
 from PMT_tools.utils import RAW, YEARS, SNAPSHOT_YEAR
 
 # PMT Functions
-from PMT_tools.utils import Timer, validate_directory, makePath, check_overwrite_path
+from PMT_tools.utils import Timer, validate_directory, make_path, check_overwrite_path
 
 t = Timer()
 
@@ -44,7 +44,7 @@ def setup_download_folder(dl_folder="RAW"):
     """
     download_folder = validate_directory(dl_folder)
     for folder in dl_conf.RAW_FOLDERS:
-        folder = makePath(download_folder, folder)
+        folder = make_path(download_folder, folder)
         if not os.path.exists(folder):
             os.mkdir(folder)
 
@@ -67,8 +67,8 @@ def download_census_geo(overwrite=True):
     """
     print("\nFetching CENSUS Geographies...")
     # download and extract census geographies
-    dl_dir = makePath(RAW, "temp_downloads")
-    ext_dir = makePath(RAW, "CENSUS")
+    dl_dir = make_path(RAW, "temp_downloads")
+    ext_dir = make_path(RAW, "CENSUS")
     for path in [dl_dir, ext_dir]:
         check_overwrite_path(output=path, overwrite=overwrite)
         validate_directory(path)
@@ -91,11 +91,11 @@ def download_race_data(overwrite=True):
         - RAW\\CENSUS\\ACS_{year}_race.csv
     """
     # download census tabular data
-    census = validate_directory(makePath(RAW, "CENSUS"))
+    census = validate_directory(make_path(RAW, "CENSUS"))
     print("RACE:")
     for year in YEARS:
         # setup folders
-        race_out = makePath(census, f"ACS_{year}_race.csv")
+        race_out = make_path(census, f"ACS_{year}_race.csv")
         print(f"...Fetching race data ({race_out})")
         try:
             race = helper.download_race_vars(
@@ -119,10 +119,10 @@ def download_commute_data(overwrite=True):
         Outputs:
         - RAW\\CENSUS\\ACS_{year}_commute.csv
     """
-    census = validate_directory(makePath(RAW, "CENSUS"))
+    census = validate_directory(make_path(RAW, "CENSUS"))
     print("COMMUTE:")
     for year in YEARS:
-        commute_out = makePath(census, f"ACS_{year}_commute.csv")
+        commute_out = make_path(census, f"ACS_{year}_commute.csv")
         print(f"...Fetching commute data ({commute_out})")
         try:
             commute = helper.download_commute_vars(
@@ -149,7 +149,7 @@ def download_lodes_data(overwrite=True):
         - RAW\\LODES\\fl_wac_S000_JT00_{year}_bgrp.csv.gz
         - RAW\\LODES\\fl_xwalk.csv.gz
     """
-    lodes_path = validate_directory(makePath(RAW, "LODES"))
+    lodes_path = validate_directory(make_path(RAW, "LODES"))
     print("LODES:")
     for year in YEARS:
         census.download_aggregate_lodes(
@@ -179,9 +179,9 @@ def download_urls(overwrite=True):
     for file, url in dl_conf.DOWNLOAD_URL_DICT.items():
         _, ext = os.path.splitext(url)
         if ext == ".zip":
-            out_file = makePath(RAW, f"{file}.zip")
+            out_file = make_path(RAW, f"{file}.zip")
         elif ext == ".geojson":
-            out_file = makePath(RAW, f"{file}.geojson")
+            out_file = make_path(RAW, f"{file}.geojson")
         else:
             print("downloader doesnt handle that extension")
         print(f"Downloading {out_file}")
@@ -205,8 +205,8 @@ def download_osm_data(overwrite=True):
         - RAW\\OPEN_STREET_MAP\\walk_{suffix)   [network]
     """
     print("Fetching OSM NETWORK data...")
-    out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
-    osm_data_dir = makePath(RAW, "OPEN_STREET_MAP")
+    out_county = make_path(RAW, "Miami-Dade_County_Boundary.geojson")
+    osm_data_dir = make_path(RAW, "OPEN_STREET_MAP")
     data_crs = 4326
     open_street_map.download_osm_networks(
         output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021", overwrite=overwrite
@@ -217,41 +217,51 @@ def download_osm_data(overwrite=True):
     )
 
 
-def parse_args(args):
+def run(args):
+    if args.setup:
+        setup_download_folder(dl_folder=RAW)
+    if args.urls:
+        download_urls()
+    if args.osm:
+        download_osm_data()
+    if args.census_geo:
+        download_census_geo()
+    if args.commutes:
+        download_commute_data()
+    if args.race:
+        download_race_data()
+    if args.lodes:
+        download_lodes_data()
+
+
+def main():
     # todo: add more utility to this, making the download script executable
     import argparse
-
-    parser = argparse.ArgumentParser(description="Download RAW data...")
-    parser.add_argument("-s", "--setup_dl_folder", default=True)
-    parser.add_argument("-u", "--dl_urls", default=True)
-    parser.add_argument("-o", "--dl_osm_data", default=True)
-    parser.add_argument("-c", "--dl_census", default=True)
-    parser.add_argument("-l", "--dl_commutes", default=True)
-    parser.add_argument("-r", "--dl_race", default=True)
-    parser.add_argument("-j", "--dl_lodes", default=True)
-    args = parser.parse_args(args)
-    return args
+    parser = argparse.ArgumentParser(prog="downloader",
+                                     description="Download RAW data...")
+    parser.add_argument("-s", "--setup", default=True)
+    parser.add_argument("-u", "--urls", default=True)
+    parser.add_argument("-o", "--osm", default=True)
+    parser.add_argument("-g", "--census_geo", default=True)
+    parser.add_argument("-c", "--commutes", default=True)
+    parser.add_argument("-r", "--race", default=True)
+    parser.add_argument("-l", "--lodes", default=True)
+    args = parser.parse_args()
+    args.func(args)
 
 
 if __name__ == "__main__":
     DEBUG = True
     if DEBUG:
         ROOT = r"C:\PMT_TEST_FOLDER"
-        RAW = validate_directory(makePath(ROOT, "RAW"))
-        YEARS = YEARS + ["NearTerm"]
-        SNAPSHOT_YEAR = 2019
+        RAW = validate_directory(make_path(ROOT, "RAW"))
+        YEARS = YEARS
 
     t.start()
-    setup_download_folder(dl_folder=RAW)
-    # download_urls()
-    # download_osm_data()
-    # download_census_geo()
-    # download_commute_data()
-    # download_race_data()
-    download_lodes_data()
+    main()
     t.stop()
+
 # TODO: Currently the download tools all function as expected but are organized poorly. The __main__
-# TODO:function should be converted to an executable and the underlying scripts reorganized once again.
 # TODO:     - download_parcels.py (pull parcel geometry by year and NAL data where available), currently parcel_ftp.py
 
 # DEPRECATED from PMT_tools.config.download_config import (RESIDENTIAL_ENERGY_CONSUMPTION_URL,

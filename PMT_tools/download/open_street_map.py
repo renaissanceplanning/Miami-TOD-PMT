@@ -32,7 +32,7 @@ import osmnx as ox
 from shapely.geometry import Polygon, MultiPolygon
 from six import string_types
 
-from PMT_tools.utils import check_overwrite_path, makePath, validate_directory
+from PMT_tools.utils import check_overwrite_path, make_path, validate_directory
 import helper as dl_help
 
 # globals for scripts
@@ -280,7 +280,7 @@ def download_osm_buildings(
     )
 
     # - Output location
-    output_dir = validate_directory(makePath(output_dir, f"buildings_{suffix}"))
+    output_dir = validate_directory(make_path(output_dir, f"buildings_{suffix}"))
 
     # Data read in and setup -------------------------------------------------
     print("...Pulling building data from Overpass API...")
@@ -304,7 +304,7 @@ def download_osm_buildings(
     print("...Saving...")
     dt = datetime.now().strftime("%Y%m%d")
     file_name = "OSM_Buildings_{}.shp".format(dt)
-    save_path = makePath(output_dir, file_name)
+    save_path = make_path(output_dir, file_name)
     check_overwrite_path(output=save_path, overwrite=overwrite)
     buildings_gdf.to_file(save_path)
     print("-- saved to: " + save_path)

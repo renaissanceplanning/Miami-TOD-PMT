@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 from requests.exceptions import RequestException
 
-from PMT_tools.utils import makePath
+from PMT_tools.utils import make_path
 
 __all__ = ["download_file_from_url", "get_filename_from_header", "census_geoindex_to_columns", "fetch_acs",
            "download_race_vars", "download_commute_vars", "trim_components"]
@@ -24,7 +24,7 @@ def download_file_from_url(url, save_path):
     """
     if os.path.isdir(save_path):
         filename = get_filename_from_header(url)
-        save_path = makePath(save_path, filename)
+        save_path = make_path(save_path, filename)
 
     print(f"...downloading {save_path} from {url}")
     try:

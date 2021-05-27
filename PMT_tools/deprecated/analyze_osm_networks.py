@@ -69,7 +69,7 @@ class NetAnalysis():
         for overlap, merge in zip(self.overlaps, self.merges):
             print(f"...{overlap}/{merge}")
             # Lines
-            lines = PMT.makePath(out_ws, f"{self.name}_{overlap}")
+            lines = PMT.make_path(out_ws, f"{self.name}_{overlap}")
             lines = genSALines(
                 self.facilities,
                 self.name_field,
@@ -86,7 +86,7 @@ class NetAnalysis():
                 net_location_fields=net_location_fields
             )
             # Polygons
-            polys = PMT.makePath(out_ws, f"{self.name}_{merge}")
+            polys = PMT.make_path(out_ws, f"{self.name}_{merge}")
             polys = genSAPolys(
                 self.facilities,
                 self.name_field,
@@ -403,14 +403,14 @@ def genSAPolys(facilities, name_field, in_nd, imped_attr, cutoff, net_loader,
 if __name__ == "__main__":
     # Facilities
     #  - Stations
-    stations = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Stations")
+    stations = PMT.make_path(PMT.BASIC_FEATURES, "SMART_Plan_Stations")
     station_name = "Name"
     # - Parks
-    parks = PMT.makePath(PMT.CLEANED, "Parks", "Facility.shp")
+    parks = PMT.make_path(PMT.CLEANED, "Parks", "Facility.shp")
     parks_name = "NAME"
 
     # Universal network settings
-    nets = PMT.makePath(PMT.CLEANED, "osm_networks")
+    nets = PMT.make_path(PMT.CLEANED, "osm_networks")
     search_criteria = "edges SHAPE;osm_ND_Junctions NONE"
     search_query="edges #;osm_ND_Junctions #"
     net_loader = NetLoader("1500 meters",
@@ -426,12 +426,12 @@ if __name__ == "__main__":
     solved = []
     solved_years = []
     for year in PMT.YEARS:
-        fd = PMT.makePath(PMT.DATA, f"PMT_{year}.gdb", "Networks")
+        fd = PMT.make_path(PMT.DATA, f"PMT_{year}.gdb", "Networks")
         # Networks
         net_suffix = NET_BY_YEAR[year]
         if net_suffix in solved:
             copy_year = _getResultToCopy(NET_BY_YEAR, year, solved_years)
-            copy_fd = PMT.makePath(
+            copy_fd = PMT.make_path(
                 PMT.ROOT, f"PMT_{copy_year}.gdb", "Networks")
             print(f"- copying results from {copy_fd} to {fd}")
             for mode_net in ["walk", "bike"]:
@@ -439,22 +439,22 @@ if __name__ == "__main__":
                     for run in ["MERGE", "NO_MERGE", "OVERLAP", "NON_OVERLAP"]:
                         fc_name = f"{mode_net}_to_{dest_grp}_{run}"
                         print(f" - - {fc_name}")
-                        src_fc = PMT.makePath(copy_fd, fc_name)
-                        if arcpy.Exists(PMT.makePath(fd, fc_name)):
-                            arcpy.Delete_management(PMT.makePath(fd, fc_name))
+                        src_fc = PMT.make_path(copy_fd, fc_name)
+                        if arcpy.Exists(PMT.make_path(fd, fc_name)):
+                            arcpy.Delete_management(PMT.make_path(fd, fc_name))
                         arcpy.FeatureClassToFeatureClass_conversion(
                             src_fc, fd, fc_name)
         else:
             print(f"\n{net_suffix}")
             # - Walk
-            walk_nd = PMT.makePath(
+            walk_nd = PMT.make_path(
                 nets, f"walk{net_suffix}.gdb", "osm", "osm_ND")
             walk_net_s = NetAnalysis("walk_to_stn", walk_nd, stations,
                                      station_name, net_loader)
             walk_net_p = NetAnalysis("walk_to_parks", walk_nd, parks,
                                      parks_name, net_loader)
             # - Bike
-            bike_nd = PMT.makePath(
+            bike_nd = PMT.make_path(
                 nets, f"bike{net_suffix}.gdb", "osm", "osm_ND")
             bike_net_s = NetAnalysis("bike_to_stn", bike_nd, stations,
                                      station_name, net_loader)

@@ -13,10 +13,10 @@ based on parcel data.
 
 # %% IMPORTS
 from PMT_tools.deprecated.year_to_snapshot import *
-from PMT_tools.PMT import makePath, RAW
+from PMT_tools.PMT import make_path, RAW
 
 # %% GLOBALS
-MAZ_FC = makePath(RAW, "SERPM", "V7", "SEFlorida_MAZs_2010.shp")
+MAZ_FC = make_path(RAW, "SERPM", "V7", "SEFlorida_MAZs_2010.shp")
 MAZ_FC_ID = "MAZ2010"
 MAZ_TAZ = "REG_TAZ"
 _KEEP_COLS_ = [MAZ_FC_ID, MAZ_TAZ]
@@ -46,7 +46,7 @@ CONSOLIDATE = [
                               "CNS19"])
 ]
 # Base year SE data
-MAZ_SE = makePath(RAW, "SERPM", "V7", "maz_data.csv")
+MAZ_SE = make_path(RAW, "SERPM", "V7", "maz_data.csv")
 MAZ_SE_ID = "mgra"
 MAZ_SE_TAZ = "TAZ"
 BASE_FIELDS = [MAZ_SE_ID, MAZ_SE_TAZ]
@@ -151,7 +151,7 @@ def estimateMAZFromParcels(par_fc, par_id_field, maz_fc, maz_id_field,
 
 # %% MAIN
 if __name__ == "__main__":
-    out_gdb = PMT.makePath(
+    out_gdb = PMT.make_path(
         PMT.CLEANED, "SERPM", "V7", "ZoneData.gdb"
     )
     if arcpy.Exists(out_gdb):
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     arcpy.CreateFileGDB_management(out_ws, out_name)
     print("Exporting MAZ centroids")
     # save centroids
-    pts_fc = PMT.makePath(out_gdb, "maz_centroids")
+    pts_fc = PMT.make_path(out_gdb, "maz_centroids")
     PMT.polygons_to_points(MAZ_FC, pts_fc, fields=[MAZ_FC_ID, MAZ_TAZ])
 
     for year in PMT.YEARS[-1:]:
@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
         # Create output feature class
         print("... exporting MAZ features")
-        out_fc = PMT.makePath(out_gdb, f"MAZ_{year}")
+        out_fc = PMT.make_path(out_gdb, f"MAZ_{year}")
         if arcpy.Exists(out_fc):
             arcpy.Delete_management(out_fc)
         PMT.copy_features(MAZ_FC, out_fc, drop_columns=DROP_COLS,
@@ -176,7 +176,7 @@ if __name__ == "__main__":
         
         # Dissolve TAZ features
         print("... dissolving TAZ features")
-        taz_fc = PMT.makePath(out_gdb, f"TAZ_{year}")
+        taz_fc = PMT.make_path(out_gdb, f"TAZ_{year}")
         if arcpy.Exists(taz_fc):
             arcpy.Delete_management(taz_fc)
         arcpy.Dissolve_management(
@@ -184,9 +184,9 @@ if __name__ == "__main__":
 
         # Summarize parcel data to MAZ
         print("... summarizing MAZ activities from parcels")
-        gdb = PMT.makePath(PMT.DATA, f"IDEAL_PMT_{year}.gdb")
-        par_fc = PMT.makePath(gdb, "Polygons", "Parcels")
-        se_data = PMT.makePath(gdb, "EconDemog_parcels")
+        gdb = PMT.make_path(PMT.DATA, f"IDEAL_PMT_{year}.gdb")
+        par_fc = PMT.make_path(gdb, "Polygons", "Parcels")
+        se_data = PMT.make_path(gdb, "EconDemog_parcels")
         par_data = estimateMAZFromParcels(par_fc=par_fc, par_id_field=PAR_ID_FIELD,
                                           maz_fc=out_fc, maz_id_field="MAZ",
                                           taz_id_field="TAZ",

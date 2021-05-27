@@ -280,9 +280,9 @@ if __name__ == "__main__":
             folder, base, horizon = NET_BY_YEAR[year][mode]
             scale, id_field = MODE_REF[mode]
             # Look up zone and skim data for each mode
-            zone_data = PMT.makePath(
+            zone_data = PMT.make_path(
                 PMT.CLEANED, "SERPM\\V7", "ZoneData.gdb", f"{scale}_{year}")
-            skim_data = PMT.makePath(
+            skim_data = PMT.make_path(
                 PMT.CLEANED, folder, f"{mode}_Skim_{base}.csv")
             # Analyze access 
             atd_df = summarizeAccess(skim_data, O_FIELD, D_FIELD, IMP_FIELD,
@@ -299,7 +299,7 @@ if __name__ == "__main__":
             full_table = atd_df.merge(afo_df, on=id_field)
 
             # Export output
-            out_table = PMT.makePath(
+            out_table = PMT.make_path(
                 PMT.DATA, f"IDEAL_PMT_{year}.gdb", f"Access_{scale}_{mode}"
             )
             PMT.df_to_table(full_table, out_table, overwrite=True)

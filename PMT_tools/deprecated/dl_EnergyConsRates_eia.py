@@ -35,8 +35,8 @@ if __name__ == "__main__":
     os.chdir('../..')
     os.chdir('../..')
     # Specify output files
-    res_file = PMT.makePath(PMT.RAW, "EIA_ResEnergy2015_ce4_9.xlsx")
-    com_file = PMT.makePath(PMT.RAW, "EIA_ComEnergy2015_pba3.xlsx")
+    res_file = PMT.make_path(PMT.RAW, "EIA_ResEnergy2015_ce4_9.xlsx")
+    com_file = PMT.make_path(PMT.RAW, "EIA_ComEnergy2015_pba3.xlsx")
     # Download and save
     fetchEnergyRates(res_url, res_file)
     fetchEnergyRates(com_url, com_file)

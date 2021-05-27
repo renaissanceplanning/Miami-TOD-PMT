@@ -72,15 +72,15 @@ __all__ = __classes__ + __functions__
 # %% CONSTANTS - FOLDERS
 SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
 ROOT = Path(SCRIPTS).parents[0]
-DATA = makePath(ROOT, "Data")
-RAW = makePath(DATA, "RAW")
-CLEANED = makePath(DATA, "CLEANED")
-REF = makePath(DATA, "Reference")
-BUILD = makePath(DATA, "BUILD")
-BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb", "BasicFeatures")
-YEAR_GDB_FORMAT = makePath(CLEANED, "PMT_{year}.gdb")
-RIF_CAT_CODE_TBL = makePath(REF, "road_impact_fee_cat_codes.csv")
-DOR_LU_CODE_TBL = makePath(REF, "Land_Use_Recode.csv")
+DATA = make_path(ROOT, "Data")
+RAW = make_path(DATA, "RAW")
+CLEANED = make_path(DATA, "CLEANED")
+REF = make_path(DATA, "Reference")
+BUILD = make_path(DATA, "BUILD")
+BASIC_FEATURES = make_path(CLEANED, "PMT_BasicFeatures.gdb", "BasicFeatures")
+YEAR_GDB_FORMAT = make_path(CLEANED, "PMT_{year}.gdb")
+RIF_CAT_CODE_TBL = make_path(REF, "road_impact_fee_cat_codes.csv")
+DOR_LU_CODE_TBL = make_path(REF, "Land_Use_Recode.csv")
 
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
 SNAPSHOT_YEAR = 2019
@@ -358,7 +358,7 @@ class ServiceAreaAnalysis:
         for overlap, merge in zip(self.overlaps, self.merges):
             print(f"...{overlap}/{merge}")
             # Lines
-            lines = makePath(out_ws, f"{self.name}_{overlap}")
+            lines = make_path(out_ws, f"{self.name}_{overlap}")
             lines = gen_sa_lines(
                 self.facilities,
                 self.name_field,
@@ -375,7 +375,7 @@ class ServiceAreaAnalysis:
                 net_location_fields=net_location_fields,
             )
             # Polygons
-            polys = makePath(out_ws, f"{self.name}_{merge}")
+            polys = make_path(out_ws, f"{self.name}_{merge}")
             polys = gen_sa_polys(
                 self.facilities,
                 self.name_field,
@@ -421,7 +421,7 @@ def make_inmem_path(file_name=None):
     else:
         unique_name = f"_{file_name}"
     try:
-        in_mem_path = makePath("in_memory", unique_name)
+        in_mem_path = make_path("in_memory", unique_name)
         if arcpy.Exists(in_mem_path):
             raise ValueError
         else:
@@ -566,13 +566,13 @@ def intersect_features(
         arcpy.CreateFileGDB_management(
             out_folder_path=temp_dir, out_name="Intermediates.gdb"
         )
-        out_gdb = makePath(temp_dir, "Intermediates.gdb")
+        out_gdb = make_path(temp_dir, "Intermediates.gdb")
 
         # Convert disag features to centroids
         disag_full_path = arcpy.Describe(disag_fc).catalogPath
         disag_ws, disag_name = os.path.split(disag_full_path)
-        out_fc = makePath(out_gdb, disag_name)
-        points_fc = makePath(out_gdb, f"{disag_name}_pts")
+        out_fc = make_path(out_gdb, disag_name)
+        points_fc = make_path(out_gdb, f"{disag_name}_pts")
     else:
         out_fc = make_inmem_path()
         points_fc = make_inmem_path()

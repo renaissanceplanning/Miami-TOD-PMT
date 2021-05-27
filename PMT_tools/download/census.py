@@ -17,7 +17,7 @@ from PMT_tools.config.download_config import (
     LODES_JOB_TYPES,
     LODES_AGG_GEOS,
 )
-from PMT_tools.utils import makePath, validate_directory, check_overwrite_path
+from PMT_tools.utils import make_path, validate_directory, check_overwrite_path
 
 current_year = datetime.now().year
 
@@ -249,7 +249,7 @@ def download_aggregate_lodes(output_dir,
                     f"{st}_{file_type}_{segment}_{job_type}_{str(year)}.csv.gz"
                 )
             lodes_download_url = f"{LODES_URL}/{st}/{file_type}/{lodes_fname}"
-            lodes_out = makePath(out_dir, lodes_fname)
+            lodes_out = make_path(out_dir, lodes_fname)
             lodes_out = lodes_out.replace(".csv.gz", "_blk.csv.gz")
             print(f"...downloading {lodes_fname} to {lodes_out}")
             check_overwrite_path(output=lodes_out, overwrite=overwrite)
@@ -263,7 +263,7 @@ def download_aggregate_lodes(output_dir,
                     agg_geog = [agg_geog]
                 for geog in agg_geog:
                     cross_fname = f"{state}_xwalk.csv.gz"
-                    cross_out = makePath(out_dir, cross_fname)
+                    cross_out = make_path(out_dir, cross_fname)
                     agged_out = lodes_out.replace("_blk.csv.gz", f"_{geog}.csv.gz")
                     crosswalk_url = f"{LODES_URL}/{state}/{state}_xwalk.csv.gz"
                     if not os.path.exists(cross_out):

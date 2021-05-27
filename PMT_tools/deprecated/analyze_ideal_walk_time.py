@@ -156,11 +156,11 @@ if __name__ == "__main__":
     parcel_id_field = "PARCELNO"
     for year in PMT.YEARS:
         print(year)
-        year_gdb = PMT.makePath(PMT.DATA, f"PMT_{year}.gdb")
+        year_gdb = PMT.make_path(PMT.DATA, f"PMT_{year}.gdb")
         # Layer references
-        parcels_fc = PMT.makePath(year_gdb, "Parcels", "walk_time")
-        stations_fc = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Stations")
-        parks_fc = PMT.makePath(PMT.CLEANED, "Parks", "Facility.shp")
+        parcels_fc = PMT.make_path(year_gdb, "Parcels", "walk_time")
+        stations_fc = PMT.make_path(PMT.BASIC_FEATURES, "SMART_Plan_Stations")
+        parks_fc = PMT.make_path(PMT.CLEANED, "Parks", "Facility.shp")
         # Analyze stations
         print(" - Stations")
         idealWalkTime(parcels_fc, parcel_id_field, stations_fc,

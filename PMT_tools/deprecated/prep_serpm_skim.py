@@ -59,8 +59,8 @@ if __name__ == "__main__":
         print(year)
         # Auto skims
         print("... auto")
-        auto_csv = PMT.makePath(PMT.RAW, "SERPM", f"GP_Skims_AM_{year}.csv")
-        auto_out = PMT.makePath(
+        auto_csv = PMT.make_path(PMT.RAW, "SERPM", f"GP_Skims_AM_{year}.csv")
+        auto_out = PMT.make_path(
             PMT.CLEANED, "SERPM", f"Auto_Skim_{year}.csv")
         auto_o = "F_TAZ"
         auto_d = "T_TAZ"
@@ -81,9 +81,9 @@ if __name__ == "__main__":
 
         # Transit skims
         print(".. transit")
-        transit_csv = PMT.makePath(
+        transit_csv = PMT.make_path(
             PMT.RAW, "SERPM", f"Tran_Skims_AM_{year}.csv")
-        transit_out = PMT.makePath(
+        transit_out = PMT.make_path(
             PMT.CLEANED, "SERPM", f"Transit_Skim_{year}.csv")
         transit_o = "F_TAZ"
         transit_d = "T_TAZ"

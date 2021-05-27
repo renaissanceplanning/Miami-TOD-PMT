@@ -138,7 +138,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     # - dump to data frame
     fields = stn_diss_fields + stn_corridor_fields
     sr = arcpy.Describe(stations_fc).spatialReference
-    fc_path = PMT.makePath(bf_gdb, stations_fc)
+    fc_path = PMT.make_path(bf_gdb, stations_fc)
     stn_df = pd.DataFrame(
         arcpy.da.FeatureClassToNumPyArray(fc_path, fields + ["SHAPE@X", "SHAPE@Y"])
     )
@@ -153,7 +153,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     long_df = stn_df.melt(id_vars=id_vars, value_vars=_cor_cols_,
                           var_name="Corridor", value_name="InCor")
     sel_df = long_df[long_df.InCor != 0].copy()
-    long_out_fc = PMT.makePath(bf_gdb, long_stn_fc)
+    long_out_fc = PMT.make_path(bf_gdb, long_stn_fc)
     PMT.checkOverwriteOutput(long_out_fc, overwrite)
     PMT.df_to_points(sel_df, long_out_fc, ["SHAPE@X", "SHAPE@Y"],
                      from_sr=sr, to_sr=sr, overwrite=True)
