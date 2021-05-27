@@ -1,67 +1,99 @@
-==============
+
 Miami-TOD-PMT
-==============
+=============
+
 Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
 
-Environment Setup
+Table of Contents
 -----------------
 
-Assumptions
-------------
-- ArcGIS Pro is installed in a standard location
+
+#. `Environment Setup <#environment-setup>`_
+
+   #. `Conda Envs <#building-python-conda-environment>`_
+
+#. ## Environment Setup
+   ##### Assumptions
+
+
+* ArcGIS Pro is installed in a standard location
     ex: C:\Program Files\ArcGIS\Pro
-- Familiarity with command line interactions
+* ArcGIS Pro version > 2.7
+* Familiarity with command line interactions
 
 Building python CONDA environment
-----------------------------------
-1) Select Windows Start 
-2) Navigate to 'Python Command Prompt' under ArcGIS folder --> Open
-3) In the command window run the below commands:
-4) Clone the existing ArcGIS python environment
+"""""""""""""""""""""""""""""""""
 
-..
+Env: *pmt_download* [used for download procedures only]
+###########################################################
 
-    conda create --clone arcgispro-py3 --name %LocalAppData%\ESRI\conda\envs\pmt_tools
 
-    * (this may take some time, so be patient)
+#. Select Windows Start
+#. Navigate to 'Python Command Prompt' under ArcGIS folder --> Open
+#. In the command window run the below commands:
+#. *Create a new environment*
+   .. code-block::
 
-4) Activate the newly created environment
+       conda create --name %LocalAppData%\ESRI\conda\envs\pmt_download
+   4) *Activate the newly created environment*
+   .. code-block::
 
-..
+       activate pmt_download
+   5) *Install conda packages*
+   .. code-block::
 
-    activate pmt_tools
+       conda install geopandas pandas numpy scipy rtree=0.9.4
+       * enter 'y/yes' and return when asked
+   6) *Install pip packages*
+   .. code-block::
 
-5) Update python to ensure its in sync with the arcgis pro need
+       pip install censusdata osmnx
+   ###### Env: *pmt_tools*
+   repeat steps 1-3 from above
 
-..
+4) *Clone the existing ArcGIS python environment*
 
-    conda update python
+.. code-block::
 
-6) Install conda packages using **conda-forge** channel
+   ```
+   conda create --clone arcgispro-py3 --name %LocalAppData%\ESRI\conda\envs\pmt_tools
+   * (this may take some time, so be patient)
+   ```
 
-..
+4) *Activate the newly created environment*
 
-    conda install -c conda-forge momepy osmnx geopandas rasterio spyder sphinx rasterstats fiona 
+.. code-block::
 
-    * enter 'y/yes' and return when asked
-    * spyder is optional if you want to install a Data Science focused IDE
+   ```
+   activate pmt_tools
+   ```
 
-7) Install pip packages
+5) *Install conda packages using **conda-forge** channel*
 
-..
+.. code-block::
 
-    pip install esridump censusdata
+   ```
+   conda install -c conda-forge momepy sphinx dask
+   * enter 'y/yes' and return when asked
+   * spyder is optional if you want to install a Data Science focused IDE
+   ```
 
--------------------------------------------------------------------------------------------------
+6) *Install pip packages*
 
-=======
-WARNING
-=======
-If you have recently updated ArcGIS Pro, you will need to remove the existing environment and recreate it.
-    - Remove env
-        conda env remove -n pmt_tools
+.. code-block::
 
-    - Follow the above steps to recreate the environment
+   ```
+   pip install simpledbf
+   ```
 
-        
-        
+*WARNING*
+If you have recently updated ArcGIS Pro to a new Major Version, you will need to remove the existing environment and recreate it using
+steps 4-7 again.
+
+
+* Remove env
+  .. code-block::
+
+       conda env remove -n pmt_tools
+
+* Follow the above steps to recreate the environment
