@@ -8,7 +8,6 @@ import os
 import sys
 import warnings
 from shutil import rmtree
-from datetime import datetime
 
 warnings.filterwarnings("ignore")
 
@@ -35,13 +34,13 @@ from PMT_tools.utils import Timer, validate_directory, makePath, check_overwrite
 t = Timer()
 
 
-def setup_download_folder(dl_folder):
-    """creates a download folder if it doenst already exist and poputlates with
+def setup_download_folder(dl_folder="RAW"):
+    """creates a download folder if it doesn't already exist and populates with
     necessary folder for remaining download work
     Args:
-        dl_folder:
+        dl_folder (str): path download ROOT folder
     Returns:
-
+        None
     """
     download_folder = validate_directory(dl_folder)
     for folder in dl_conf.RAW_FOLDERS:
@@ -57,6 +56,14 @@ def download_census_geo(overwrite=True):
         - downloads and unzips the census block and blockgroup shapefiles
         - downloads and writes out to table the ACS race and commute data
         - downloads LODES data to table
+        Inputs:
+        - RAW\\temp_downloads   (folder path)
+        - RAW\\CENSUS           (extract path)
+        - CENSUS_GEO_TYPES      (list of geographies)
+
+        Outputs:
+        - RAW\\CENSUS\\BG       (block groups geogrpahies)
+        - RAW\\CENSUS\\TABBLOCK (block geographies)
     """
     print("\nFetching CENSUS Geographies...")
     # download and extract census geographies
@@ -77,6 +84,12 @@ def download_census_geo(overwrite=True):
 
 
 def download_race_data(overwrite=True):
+    """downloads ACS race data of interest
+        Inputs:
+        - RAW\\CENSUS       (root census folder)
+        Outputs:
+        - RAW\\CENSUS\\ACS_{year}_race.csv
+    """
     # download census tabular data
     census = validate_directory(makePath(RAW, "CENSUS"))
     print("RACE:")
@@ -100,6 +113,12 @@ def download_race_data(overwrite=True):
 
 
 def download_commute_data(overwrite=True):
+    """downloads ACS commute data of interest
+        Inputs:
+        - RAW\\CENSUS       (root census folder)
+        Outputs:
+        - RAW\\CENSUS\\ACS_{year}_commute.csv
+    """
     census = validate_directory(makePath(RAW, "CENSUS"))
     print("COMMUTE:")
     for year in YEARS:
@@ -123,12 +142,18 @@ def download_commute_data(overwrite=True):
 def download_lodes_data(overwrite=True):
     """ download LODES data for job counts
         - downloads lodes files by year and optionally aggregates to a coarser geographic area
+        Inputs:
+        - RAW\\LODES       (root lodes folder)
+        Outputs:
+        - RAW\\LODES\\fl_wac_S000_JT00_{year}_blk.csv.gz
+        - RAW\\LODES\\fl_wac_S000_JT00_{year}_bgrp.csv.gz
+        - RAW\\LODES\\fl_xwalk.csv.gz
     """
     lodes_path = validate_directory(makePath(RAW, "LODES"))
     print("LODES:")
     for year in YEARS:
         census.download_aggregate_lodes(
-            output_directory=lodes_path,
+            output_dir=lodes_path,
             file_type="wac",
             state="fl",
             segment="S000",
@@ -141,16 +166,15 @@ def download_lodes_data(overwrite=True):
 
 
 def download_urls(overwrite=True):
-    """
-    download impervious surface data for 2016 (most recent vintage)
-        - downloads just zip file of data, prep script will unzip and subset
-    download urban growth boundary and county boundary
-        - downloads geojson from open data site in raw format
-    download park geometry with tabular data as geojson
-        - downloads geojson for Municipal, County, and State/Fed
-            parks including Facility points
-        - current version downloads and converts to shapefile, this step will be skipped
-            in next iteration of prep script
+    """downloads raw data that are easily accessible via web `request' at a url endpoint
+        Inputs:
+        - DOWNLOAD_URL_DICT         (dictionary of output_name: url found in config.download_config)
+        Outputs:    (11 files)
+            ['Imperviousness',
+            'MD_Urban_Growth_Boundary', 'Miami-Dade_County_Boundary',
+            'Municipal_Parks', 'County_Parks', 'Federal_State_Parks', 'Park_Facilities',
+            'Bike_Lanes', 'Paved_Path',  'Paved_Shoulder', 'Wide_Curb_Lane']
+        - RAW\\{output_name}
     """
     for file, url in dl_conf.DOWNLOAD_URL_DICT.items():
         _, ext = os.path.splitext(url)
@@ -170,6 +194,15 @@ def download_osm_data(overwrite=True):
         - downloads networks as nodes.shp and edges.shp
         - downloads all buildings, subset to poly/multipoly features
         - both functions will create the output folder if not there
+
+        Inputs:
+        - RAW\\Miami-Dade_County_Boundary.geojson       (used as AOI to define area of needed data)
+        - RAW\\OPEN_STREET_MAP
+        Outputs:        (generally suffix will take the form q{1-4}_{year} where q indicates the quarter of the year)
+        - RAW\\OPEN_STREET_MAP\\bike_{suffix)   [network]
+        - RAW\\OPEN_STREET_MAP\\buildings_{suffix)  [builidng footprints]
+        - RAW\\OPEN_STREET_MAP\\drive_{suffix)  [network]
+        - RAW\\OPEN_STREET_MAP\\walk_{suffix)   [network]
     """
     print("Fetching OSM NETWORK data...")
     out_county = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
@@ -185,6 +218,7 @@ def download_osm_data(overwrite=True):
 
 
 def parse_args(args):
+    # todo: add more utility to this, making the download script executable
     import argparse
 
     parser = argparse.ArgumentParser(description="Download RAW data...")
@@ -193,6 +227,8 @@ def parse_args(args):
     parser.add_argument("-o", "--dl_osm_data", default=True)
     parser.add_argument("-c", "--dl_census", default=True)
     parser.add_argument("-l", "--dl_commutes", default=True)
+    parser.add_argument("-r", "--dl_race", default=True)
+    parser.add_argument("-j", "--dl_lodes", default=True)
     args = parser.parse_args(args)
     return args
 
@@ -207,11 +243,11 @@ if __name__ == "__main__":
 
     t.start()
     setup_download_folder(dl_folder=RAW)
-    download_urls()
-    download_osm_data()
-    download_census_geo()
-    download_commute_data()
-    download_race_data()
+    # download_urls()
+    # download_osm_data()
+    # download_census_geo()
+    # download_commute_data()
+    # download_race_data()
     download_lodes_data()
     t.stop()
 # TODO: Currently the download tools all function as expected but are organized poorly. The __main__

@@ -21,6 +21,9 @@ from PMT_tools.utils import makePath, validate_directory, check_overwrite_path
 
 current_year = datetime.now().year
 
+__all__ = ["LodesFileTypeError", "validate_string_inputs", "validate_aggregate_geo_inputs", "validate_year",
+           "validate_year_input", "validate_lodes_download", "aggregate_lodes_data", "download_aggregate_lodes"]
+
 
 class LodesFileTypeError(Exception):
     pass
@@ -28,7 +31,18 @@ class LodesFileTypeError(Exception):
 
 # functions
 def validate_string_inputs(value, valid_inputs):
+    """validate string is a string and in the list of valid inputs"""
     try:
+        if isinstance(value, list):
+            _val_ = []
+            for val in value:
+                if isinstance(val, string_types) and isinstance(valid_inputs, list):
+                    if val.lower() in [x.lower() for x in valid_inputs]:
+                        _val_.append(True)
+                    else:
+                        _val_.append(False)
+                    if all(_val_):
+                        return True
         if isinstance(value, string_types) and isinstance(valid_inputs, list):
             if value.lower() in [x.lower() for x in valid_inputs]:
                 return True
@@ -39,6 +53,7 @@ def validate_string_inputs(value, valid_inputs):
 
 
 def validate_aggregate_geo_inputs(values, valid):
+    """validate given geo is string/list and part of the valid set"""
     try:
         if values:
             # ensure you have a string or list
@@ -60,6 +75,7 @@ def validate_aggregate_geo_inputs(values, valid):
 
 
 def validate_year(year):
+    """confirm year is correct datatype and part of expected years available"""
     if isinstance(year, int):
         if year in LODES_YEARS:
             year = str(year)
@@ -67,6 +83,7 @@ def validate_year(year):
 
 
 def validate_year_input(year, state):
+    """validate the provided year is in the possible set for a given state"""
     try:
         if validate_year(year):
             if any(
@@ -94,17 +111,19 @@ def validate_year_input(year, state):
 
 
 def validate_lodes_download(file_type, state, segment, part, job_type, year, agg_geos):
+    """validates the download inputs to `dl_lodes` combining other validation methods
+        (`file_type`, `state`, `segment`, `part`, `job_type`, and `year`)
+    See Also:
+        download_aggregate_lodes
     """
-    validates the download inputs to `dl_lodes`
-    (`file_type`, `state`, `segment`, `part`, `job_type`, and `year`)
-    """
-    string_list = [file_type, state, segment, part, job_type]
+    string_list = [file_type, state, segment, part, job_type, agg_geos]
     valids_list = [
         LODES_FILE_TYPES,
         LODES_STATES,
         LODES_WORKFORCE_SEGMENTS,
         LODES_PART,
         LODES_JOB_TYPES,
+        LODES_AGG_GEOS
     ]
     st = state.lower()
     try:
@@ -128,10 +147,10 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
     """aggregate LODES data to desired geographic levels, and save the created
     files [to .csv.gz]
     Args:
-        geo_crosswalk_path - String; path to geographic crosswalk CSV
-        lodes_path - String; file path to gzipped lodes data file
-        file_type - String; shorthand for type of jobs summarization
-        agg_geo - String; shorthand for the geographic scale to aggregate data to
+        geo_crosswalk_path (str): path to geographic crosswalk CSV
+        lodes_path (str): file path to gzipped lodes data file
+        file_type (str): shorthand for type of jobs summarization
+        agg_geo (str): shorthand for the geographic scale to aggregate data to
 
     Returns:
         pd.Dataframe; data aggregated up to provided aggregate geography
@@ -191,31 +210,34 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
         print("This function doesnt currently handle 'od' data")
 
 
-def download_aggregate_lodes(
-    output_directory,
-    file_type,
-    state,
-    segment,
-    part,
-    job_type,
-    year,
-    agg_geog=None,
-    overwrite=False,
-):
-    """ validate directory
-    - if validate LODES request:
-        - download LODES zip
-        lodes_path
-    - if aggregate:
-        - if validate_agg_geo:
-            - download LODES crosswalk
-            - aggregate data
+def download_aggregate_lodes(output_dir,
+                             file_type, state, segment, part, job_type, year,
+                             agg_geog=None, overwrite=False, ):
+    """helper function to fetch lodes data and aggregate to another census geography if one is provided
+    Args:
+        output_dir (str): path to location downloaded files should end up
+        file_type (str): one of three LODES groupings ['od', 'rac', 'wac']
+            OD – Origin-Destination data, totals are associated with both a home Census Block and a work Census Block
+            RAC – Residence Area Characteristic data, jobs are totaled by home Census Block
+            WAC – Workplace Area Characteristic data, jobs are totaled by work Census Block
+        state (str): two character code representing the state of interest
+        segment (str): Segment of the workforce, can have the values of
+                [“S000”, “SA01”, “SA02”, “SA03”,  “SE01”, “SE02”, “SE03”, “SI01”, “SI02”, “SI03”, ""]
+        part (str): Part of the state file, can have a value of either “main” or “aux”. Complimentary parts of
+            the state file, the main part includes jobs with both workplace and residence in the state
+            and the aux part includes jobs with the workplace in the state and the residence outside of the state.
+        job_type (str):  Job Type, can have a value of “JT00” for All Jobs, “JT01” for Primary Jobs, “JT02” for
+            All Private Jobs, “JT03” for Private Primary Jobs, “JT04” for All Federal Jobs, or “JT05”
+            for Federal Primary Jobs.
+        year (int): year of jobs data
+        agg_geog (str): census geographies to aggregate lodes data to
+        overwrite (bool): if set to True, delete the existing copy of the LODES data
     Returns:
 
     """
     st = state.lower()
     try:
-        out_dir = validate_directory(directory=output_directory)
+        out_dir = validate_directory(directory=output_dir)
         if validate_lodes_download(
             file_type, state, segment, part, job_type, year, agg_geog
         ):
@@ -250,13 +272,14 @@ def download_aggregate_lodes(
                             url=crosswalk_url, save_path=cross_out
                         )
                     print(f"...aggregating block group level data to {geog}")
-                    check_overwrite_path(output=cross_out, overwrite=overwrite)
+
                     agged = aggregate_lodes_data(
                         geo_crosswalk_path=cross_out,
                         lodes_path=lodes_out,
                         file_type=file_type,
                         agg_geo=geog,
                     )
+                    check_overwrite_path(output=agged_out, overwrite=overwrite)
                     agged.to_csv(agged_out, compression="gzip", index=False)
 
         else:
@@ -264,36 +287,3 @@ def download_aggregate_lodes(
     except:
         print("something failed")
 
-
-if __name__ == "__main__":
-    # Inputs
-    file_type = "wac"
-    state = "fl"
-    part = ""
-    segment = "S000"
-    job_type = "JT00"
-    year = 2017
-    save_directory = (
-        "C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\Temp\LODES"
-    )
-    aggregate_geo = "zcta"
-
-    download_aggregate_lodes(
-        output_directory=save_directory,
-        file_type=file_type,
-        state=state,
-        segment=segment,
-        part=part,
-        job_type=job_type,
-        year=year,
-        agg_geog=aggregate_geo,
-    )
-
-# hold over code for OD data
-# # Next, join the xwalk to the lodes data. If it's OD, we have two join
-# # fields, so it becomes a bit more complicated
-# if file_type == "od":
-#     w_crosswalk = crosswalk.add_prefix(prefix="w_")
-#     h_crosswalk = crosswalk.add_prefix(prefix="h_")
-#     crosswalk = pd.concat([w_crosswalk, h_crosswalk], axis=1)
-#     crosswalk_cols = crosswalk.columns.tolist()

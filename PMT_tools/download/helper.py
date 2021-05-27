@@ -96,7 +96,8 @@ def fetch_acs(year, acs_dataset, state, county, table, columns):
             (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
 
     Returns:
-
+        pandas.DataFrame: Data frame with columns corresponding to designated variables, and row
+        index of censusgeo objects representing Census geographies.
     """
     variables = [f"{table}_{c}" for c in list(columns.keys())]
     # Reconstruct dictionary with explicit ordering
@@ -121,8 +122,9 @@ def download_race_vars(
         acs_dataset (str): String, default="acs5"; Which ACS dataset to download (3-year, 5-year, e.g.)
         state (str): String, default="12"; Which state FIPS code to download data for (`12` is Florida)
         county (str): String, defult="086"; Which county FIPS code to download data for (`086` is Miami-Dade)
-        table:
-        columns:
+        table (str): string code for the Census table of interest ex: "B03002"
+        columns (dict): key, value pairs of Census table columns and rename
+            (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
     Returns:
         race_data (pd.DataFrame): A data frame with columns showing population by race (white, black,
             Asian, 2 or more, or other) and ethnicity (Hispanic, non-Hispanic) for block groups in the
@@ -179,8 +181,9 @@ def download_commute_vars(
             Which state FIPS code to download data for (`12` is Florida)
         county: String, defult="086"
             Which county FIPS code to download data for (`086` is Miami-Dade)
-        table (str):
-        columns (dict):
+        table (str): string code for the Census table of interest ex: "B03002"
+        columns (dict): key, value pairs of Census table columns and rename
+            (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
     Returns:
         commute_data: DataFrame
             A data frame with columns showing ....

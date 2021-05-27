@@ -32,7 +32,7 @@ import osmnx as ox
 from shapely.geometry import Polygon, MultiPolygon
 from six import string_types
 
-from PMT_tools.utils import check_overwrite_path
+from PMT_tools.utils import check_overwrite_path, makePath, validate_directory
 import helper as dl_help
 
 # globals for scripts
@@ -41,36 +41,8 @@ EPSG_LL = 4326
 EPSG_FLSPF = 2881
 EPSG_WEB_MERC = 3857
 
-
-def makePath(in_folder, *subnames):
-    """Dynamically set a path (e.g., for iteratively referencing
-    year-specific geodatabases)
-    Args:
-        in_folder (str): String or Path
-        subnames (list/tuple): A list of arguments to join in making the full path
-            `{in_folder}/{subname_1}/.../{subname_n}
-    Returns:
-        Path
-    """
-    return os.path.join(in_folder, *subnames)
-
-
-def validate_directory(directory):
-    """Checks a provided directory path and returns the path if it exists,
-    if it doesnt exist, will attempt to create and return directory
-    Args:
-        directory (str): path to directory
-    Returns:
-        directory (str): path to the directory
-    """
-    if os.path.isdir(directory):
-        return directory
-    else:
-        try:
-            os.makedirs(directory)
-            return directory
-        except:
-            raise
+__all__ = ["validate_bbox", "calc_osm_bbox", "validate_inputs", "validate_network_types",
+           "download_osm_networks", "download_osm_buildings", ]
 
 
 def validate_bbox(bbox):
@@ -132,11 +104,11 @@ def calc_osm_bbox(gdf):
 
 
 def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
-    """validation method for input downloading osm data via osmnx
+    """validation method for input downloading osm data via osmnx, converts polygon to bbox if provided
     Args:
-        study_area_poly (:
-        bbox:
-        data_crs:
+        study_area_poly (str): path to a valid geospatial data file readable by geopandas
+        bbox (dict): A dictionary with keys 'south', 'west', 'north', and 'east' of EPSG:4326-style coordinates
+        data_crs (int): valid EPSG code in the projected coordinates
     Returns:
         bbox (dict): dictionary of 'north', 'south', 'east', 'west' coordinates
     """
@@ -148,7 +120,7 @@ def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
         print("...Reading and formatting provided polygons for OSMnx extraction")
         sa_gdf = gpd.read_file(study_area_poly)
         # buffer aoi
-        sa_proj = sa_gdf.to_crs(epsg=EPSG_WEB_MERC)
+        sa_proj = sa_gdf.to_crs(epsg=data_crs)
         # Buffer AOI ~1 mile (necessary for proper composition of OSMnx networks)
         sa_buff = sa_proj.buffer(distance=1609.34).to_crs(epsg=EPSG_LL)
         return calc_osm_bbox(gdf=sa_buff)
@@ -290,6 +262,7 @@ def download_osm_buildings(
         data_crs (int): integer value representing an EPSG code
         keep_fields (list): list of fields to keep in output dataset
         suffix (str): string value to be added to the end of the output folder
+        overwrite (bool): if set to True, delete the existing copy of buildings
     Returns:
         buildings_gdf (gpd.GeoDataFrame): A gdf of OSM building features. By default, the CRS of
             the gdf will be EPSG:4326 unless a tranformation is specified using `transfor_epsg` or

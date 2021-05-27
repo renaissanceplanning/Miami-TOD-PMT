@@ -1,4 +1,7 @@
-
+"""
+Configuration for downloading census geographic data from the Census.gov TIGER data FTP site
+"""
+FTP_HOME = r"ftp://ftp2.census.gov/geo/tiger/TIGER2019/"
 
 GEO_TYPES_DICT = {
     'cd': 'Congressional Districts',
