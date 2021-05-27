@@ -100,7 +100,7 @@ conda activate pmt_download
    
    Example Usage:
    
-         python downloader.py -s -u [setup download folder and download url endpoints]
+         python downloader.py -s -u [setup download folder and download url endpoints]****
    ```
 
 ```
