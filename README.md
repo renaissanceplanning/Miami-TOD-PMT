@@ -90,13 +90,14 @@ conda activate pmt_download
       download all automagically available datasources and place them in the RAW folder by data category
    
    If flags are provided, individual download procedures will be run
-      -s: setup_download_folder is run, building the base folder structure (--setup)
-      -u: download_urls is run, grabbing all data available directly from a URL endpoint (--urls)
-      -o: download_osm_data is run, pulling osm_networks and osm_builidng_footprints (--osm)
-      -g: download_census_geo is run, pulling census geography data used in the tool (--census_geo)
-      -c: download_commutes_data is run, pulling commute data for the tool (--commutes)
-      -r: download_race_data is run, pulling race data for the tool (--race)
-      -l: download_lodes_data is run, pulling jobs data for the tool (--lodes)
+      -x: setup flag to overwrite any existing previously downloaded data (overwrite
+      -s: setup_download_folder is run, building the base folder structure (setup)
+      -u: download_urls is run, grabbing all data available directly from a URL endpoint (urls)
+      -o: download_osm_data is run, pulling osm_networks and osm_builidng_footprints (osm)
+      -g: download_census_geo is run, pulling census geography data used in the tool (census_geo)
+      -c: download_commutes_data is run, pulling commute data for the tool (commutes)
+      -r: download_race_data is run, pulling race data for the tool (race)
+      -l: download_lodes_data is run, pulling jobs data for the tool (lodes)
    
    Example Usage:
    

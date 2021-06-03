@@ -218,20 +218,22 @@ def download_osm_data(overwrite=True):
 
 
 def run(args):
+    if args.overwrite:
+        overwrite = True
     if args.setup:
         setup_download_folder(dl_folder=RAW)
     if args.urls:
-        download_urls()
+        download_urls(overwrite=overwrite)
     if args.osm:
-        download_osm_data()
+        download_osm_data(overwrite=overwrite)
     if args.census_geo:
-        download_census_geo()
+        download_census_geo(overwrite=overwrite)
     if args.commutes:
-        download_commute_data()
+        download_commute_data(overwrite=overwrite)
     if args.race:
-        download_race_data()
+        download_race_data(overwrite=overwrite)
     if args.lodes:
-        download_lodes_data()
+        download_lodes_data(overwrite=overwrite)
 
 
 def main():
@@ -239,15 +241,16 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(prog="downloader",
                                      description="Download RAW data...")
-    parser.add_argument("-s", "--setup", default=True)
-    parser.add_argument("-u", "--urls", default=True)
-    parser.add_argument("-o", "--osm", default=True)
-    parser.add_argument("-g", "--census_geo", default=True)
-    parser.add_argument("-c", "--commutes", default=True)
-    parser.add_argument("-r", "--race", default=True)
-    parser.add_argument("-l", "--lodes", default=True)
+    parser.add_argument("-x", "--overwrite", dest="overwrite", action='store_false')
+    parser.add_argument("-s", "--setup", action="store_false", dest="setup", )
+    parser.add_argument("-u", "--urls", action="store_false", dest="urls")
+    parser.add_argument("-o", "--osm", action="store_false", dest="osm")
+    parser.add_argument("-g", "--census_geo", action="store_false", dest="census_geo")
+    parser.add_argument("-c", "--commutes", action="store_false", dest="commutes")
+    parser.add_argument("-r", "--race", action="store_false", dest="race")
+    parser.add_argument("-l", "--lodes", action="store_false", dest="lodes")
     args = parser.parse_args()
-    args.func(args)
+    run(args)
 
 
 if __name__ == "__main__":
