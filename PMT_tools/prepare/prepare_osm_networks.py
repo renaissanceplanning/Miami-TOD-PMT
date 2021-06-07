@@ -29,16 +29,19 @@ BIKABILITY_CLASSES = [  # where clause, expression
 
 # %% FUNCTIONS
 def classifyBikability(bike_edges):
-    """Adds two fields to cleaned bike edge features: "bikability" and
-        "cycleway". The former assigns a "level of traffic stress" (LTS)
-        score to each facility based on its facility type (least comfortable
-        facilties score lowest on a range from 1 to 4). The latter field
-        tags facilities with cycleway facilities on them. These details are
-        used in building and solving the biking network dataset.
+    """
+    Adds two fields to cleaned bike edge features: "bikability" and
+    "cycleway". The former assigns a "level of traffic stress" (LTS)
+    score to each facility based on its facility type (least comfortable
+    facilties score lowest on a range from 1 to 4). The latter field
+    tags facilities with cycleway facilities on them. These details are
+    used in building and solving the biking network dataset.
+
     Args:
-        bike_edges: Path
+        bike_edges (str): Path to bike network edge features.
+    
     Returns:
-        bike_edges: Path
+        bike_edges (str)
     """
     print("...enriching bike network features")
     # Default: moderately comfortable facilities (LTS = 3)
@@ -63,30 +66,25 @@ def classifyBikability(bike_edges):
 
 def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
                    overwrite=False, wc=None, field_mapping=None):
-    """A simple function to facilitate the transfer of osm features in a
-        shapefile to a feature dataset for use in a network dataset.
+    """
+    A simple function to facilitate the transfer of osm features in a
+    shapefile to a feature dataset for use in a network dataset.
+
     Args:
-        osm_fc: Path
-            The path to the osm features to be added to the feature dataset.
-        to_feature_dataset: Path
-            The path to the output feature dataset where network features are
+        osm_fc (str): The path to the osm features to be added to the feature dataset.
+        to_feature_dataset(str): The path to the output feature dataset where network features are
             stored and a network dataset will eventually be constructed.
-        fc_name: String, default=None
-            The name of the output feature class to be created. If None, the
+        fc_name (str, default=None): The name of the output feature class to be created. If None, the
             name will match that if `osm_fc`.
-        overwrite: Boolean, default=False
-            If True, if there is already a feature class in `to_feature_dataset`
-            with the same `fc_name` (as provided or implied by `osm_fc`), it will
-            be deleted and replaced.
-        wc: String, default=None
-            A where clause to only transfer select features from `osm_fc` to
+        overwrite (bool, default=False): If True, if there is already a feature class in `to_feature_dataset`
+            with the same `fc_name` (as provided or implied by `osm_fc`), it will be deleted and replaced.
+        wc: (str, default=None): A where clause to only transfer select features from `osm_fc` to
             the output feature class.
-        field_mapping: FieldMappings
-            An arcpy `FieldMappings` object that handles field naming, merging,
-            etc.
+        field_mapping (arcpy.FieldMappings, default=None): An arcpy `FieldMappings` object that handles field
+             naming, merging, etc.
+    
     Returns:
-        net_source_fc:
-            Saves a new feature class in `to_feature_dataset`, transferring
+        net_source_fc (str): Path to a new feature class in `to_feature_dataset`, transferring
             features from `osm_fc`.
     """
     # Set appropriate output fc name
@@ -103,18 +101,21 @@ def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
 
 
 def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
-    """Make a network dataset from a template xml file. The features in
-        `out_feature_dataset` must be consistent with those used in
-        the network dataset used to creat the xml template.
+    """
+    Make a network dataset from a template xml file. The features in
+    `out_feature_dataset` must be consistent with those used in
+    the network dataset used to creat the xml template.
+
     Args:
-        template_xml: Path
-            Path to a network dataset xml template
-        out_feature_dataset: Path
-        net_name: String, default="osm_ND"
+        template_xml (str): Path to a network dataset xml template
+        out_feature_dataset (str): Path to the feature dataset where network source
+            features are stored and where the network dataset will be created.
+        net_name (str, default="osm_ND"): The name of the network dataset to be created.
+    
     Returns:
-        nd: Network dataset
-            Creates a network dataset in `out_feature_dataset` based on the
+        None: Creates a network dataset in `out_feature_dataset` based on the
             specifications in `template_xml`.
+    
     See Also:
         makeNetworkDatasetTemplate
     """
@@ -136,18 +137,19 @@ def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
 
 
 def makeNetworkDatasetTemplate(from_nd, template_xml):
-    """Make a network dataset template from an existing network dataset. The
-        template can be used to construct new network datasets using the same
-        specifications later.
+    """
+    Make a network dataset template from an existing network dataset. The
+    template can be used to construct new network datasets using the same
+    specifications later.
+
     Args:
-        from_nd: Path
-            Path to the existing network dataset
-        template_xml: Path
-            Path to an output template (xml) file.
+        from_nd (str): Path to the existing network dataset from which the template will be created.
+        template_xml (str): Path to an output template (xml) file.
+    
     Returns:
-        nd_template: xml
-            Creates a network dataset xml template at the path specified by
+        nd_template (xml): Creates a network dataset xml template at the path specified by
             `template_xml`
+    
     See Also:
         makeNetworkDataset
     """

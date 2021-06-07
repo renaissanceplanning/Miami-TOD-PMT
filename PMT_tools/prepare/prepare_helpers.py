@@ -107,12 +107,13 @@ __all__ = [
 # general use functions
 def is_gz_file(filepath):
     """
-    test if a file is zipped
+    Test if a file is zipped
+
     Args:
         filepath (str): path to file of interest
 
     Returns:
-        boolean
+        bool
     """
     with open(filepath, "rb") as test_f:
         return test_f.read(2) == b"\x1f\x8b"
@@ -120,7 +121,8 @@ def is_gz_file(filepath):
 
 def validate_json(json_file, encoding="utf8"):
     """
-    check for valid json file
+    Check for valid json file
+
     Args:
         json_file (str): path to file
         encoding (str): name of the encoding used to decode or encode the file
@@ -136,13 +138,16 @@ def validate_json(json_file, encoding="utf8"):
 
 
 def field_mapper(in_fcs, use_cols, rename_dicts):
-    """create a field mapping for one or more feature classes
+    """
+    Create a field mapping for one or more feature classes
+
     Args:
         in_fcs (list,str): list of feature classes
         use_cols (list, str): list or tuple of lists of column names to keep
         rename_dict (dict): dict or tuple of dicts to map field names
+    
     Returns:
-        arcpy.FieldMappings object
+        arcpy.FieldMappings
     """
     _unmapped_types_ = ["Geometry", "OID", "GUID"]
     # check to see if we have only one use or rename and handle for zip
@@ -176,13 +181,16 @@ def field_mapper(in_fcs, use_cols, rename_dicts):
 def geojson_to_feature_class_arc(
     geojson_path, geom_type, encoding="utf8", unique_id=None
 ):
-    """Converts geojson to feature class in memory and adds unique_id attribute if provided
+    """
+    Converts geojson to feature class in memory and adds unique_id attribute if provided
+
     Args:
         geojson_path (str): path to geojson file
         geom_type (str): The geometry type to convert from GeoJSON to features.
                         OPTIONS: POINT, MULTIPOINT, POLYLINE, POLYGON
         encoding (str): name of the encoding used to decode or encode the file
         unique_id (str): name of unique id column, Default is None
+    
     Returns:
         temp_feature (str): path to temporary feature class
     """
@@ -203,14 +211,17 @@ def geojson_to_feature_class_arc(
 
 
 def csv_to_df(csv_file, use_cols, rename_dict):
-    """helper function to convert CSV file to pandas dataframe, and drop unnecessary columns
+    """
+    Helper function to convert CSV file to pandas dataframe, and drop unnecessary columns
     assumes any strings with comma (,) should have those removed and dtypes infered
+    
     Args:
         csv_file (str): path to csv file
         use_cols (list): list of columns to keep from input csv
         rename_dict (dict): dictionary mapping existing column name to standardized column names
+    
     Returns:
-        Pandas dataframe
+        Pandas.DataFrame
     """
     if isinstance(use_cols, str):
         use_cols = [use_cols]
@@ -221,11 +232,14 @@ def csv_to_df(csv_file, use_cols, rename_dict):
 
 
 def split_date(df, date_field, unix_time=False):
-    """ingest date attribute and splits it out to DAY, MONTH, YEAR
+    """
+    Ingest date attribute and splits it out to DAY, MONTH, YEAR
+
     Args:
         df (pd.DataFrame): DataFrame with a date field
         date_field (str): column name
         unix_time (str): unix time stamp
+    
     Returns:
         df (pd.DataFrame): DataFrame reformatted to include split day, month and year
     """
@@ -243,35 +257,39 @@ def split_date(df, date_field, unix_time=False):
     df["YEAR"] = df[date_field].dt.year
     return df
 
+# TODO: move to deprecated?
+# def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
+#     """
+#     Generate points from polygon centroids inside polygon
+#     *UNUSED IN CURRENT ITERATION*
 
-def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
-    """generate points from polygon centroids inside polygon
-    UNUSED IN CURRENT ITERATION
-    Args:
-        in_fc (str): path to polygon featureclass
-        id_field (str): if not None, the new features created will only have an ID attribute
-        point_loc (str): CENTROID or INSIDE (see documentation of arcpy.FeatureToPoint)
+#     Args:
+#         in_fc (str): path to polygon featureclass
+#         id_field (str): if not None, the new features created will only have an ID attribute
+#         point_loc (str): CENTROID or INSIDE (see documentation of arcpy.FeatureToPoint)
 
-    Returns:
-        temporary feature class
-    """
-    # TODO: replace usages with PMT.polygonsToPoints
-    try:
-        # convert json to temp feature class
-        temp_feature = PMT.make_inmem_path()
-        arcpy.FeatureToPoint_management(
-            in_features=in_fc, out_feature_class=temp_feature, point_location=point_loc
-        )
-        if id_field:
-            clean_and_drop(feature_class=temp_feature, use_cols=[id_field])
-        return temp_feature
-    except:
-        print("something went wrong converting polygon to points")
+#     Returns:
+#         temporary feature class
+#     """
+#     # TODO: replace usages with PMT.polygonsToPoints
+#     try:
+#         # convert json to temp feature class
+#         temp_feature = PMT.make_inmem_path()
+#         arcpy.FeatureToPoint_management(
+#             in_features=in_fc, out_feature_class=temp_feature, point_location=point_loc
+#         )
+#         if id_field:
+#             clean_and_drop(feature_class=temp_feature, use_cols=[id_field])
+#         return temp_feature
+#     except:
+#         print("something went wrong converting polygon to points")
 
 
 def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
-    """calculates x,y coordinates for a given polygon feature class and returns as new
+    """
+    Calculates x,y coordinates for a given polygon feature class and returns as new
     columns of a data
+
     Args:
         poly_fc (str): path to polygon feature class
         poly_key (str): primary key from polygon feature class
@@ -279,7 +297,7 @@ def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
         table_key (str): primary key of table df
 
     Returns:
-        pandas.DataFrame; updated table_df with XY centroid coordinates appended
+        pandas.DataFrame: updated `table_df` with XY centroid coordinates appended
     """
     pts = PMT.polygons_to_points(
         in_fc=poly_fc, out_fc=PMT.make_inmem_path(), fields=poly_key, null_value=0.0
@@ -298,11 +316,14 @@ def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
 
 
 def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
-    """remove and rename fields provided for a feature class to format as desired
+    """
+    Remove and rename fields provided for a feature class to format as desired
+
     Args:
         feature_class (str): path to feature class
         use_cols (list): list of columns to keep
         rename_dict (dict): key, value pairs of columns to keep and new column names
+    
     Returns:
         None
     """
@@ -328,9 +349,10 @@ def clean_and_drop(feature_class, use_cols=None, rename_dict=None):
 
 
 def _merge_df_(x_specs, y_specs, on=None, how="inner", **kwargs):
-    """internal helper function when using dask frames
+    """
+    Internal helper function when using dask frames
+    
     See Also: combine_csv_dask
-
     """
     df_x, suffix_x = x_specs
     df_y, suffix_y = y_specs
@@ -349,31 +371,26 @@ def combine_csv_dask(
     **kwargs,
 ):
     """
-    Merges two or more csv tables into a single table based on key columns. All
+    Merges two or more csv tables into a single table based on key common columns. All
     other columns from the original tables are included in the output csv.
 
     Args:
-        merge_fields (list): [String, ...]
-            One or more columns common to all `tables` on which they will be merged
-        out_table (str): Path
-        tables (list): [Path, ...]
-            Paths to the tables to be combined.
-        suffixes (list): [String, ...], default=None
-            If any tables have common column names (other than `merge_fields`) that
+        merge_fields (list): One or more column names common to all `tables` on which they will be merged
+        out_table (str): Path to the csv file to be created to store combined outputs
+        tables (list): Paths to the tables to be combined.
+        suffixes (list, default=None): If any tables have common column names (other than `merge_fields`) that
             would create naming collisions, the user can specify the suffixes to
             apply to each input table. If None, name collisions may generate
             unexpected colums in the output, so it is recommended to provide specific
             suffixes, especially if collisions are expected. Length of the list must
             match the number of `tables`.
-        col_renames (dict): {String: String, ...}
-            A dictionary for renaming columns in any of the provided `tables`. Keys are
+        col_renames (dict): A dictionary for renaming columns in any of the provided `tables`. Keys are
             old column names, values are new column names.
-        how (str): "inner" or "outer", default="inner"
-            If "inner" combined csv tables will only include rows with common values
-            in `merge_fields` across all `tables`. If "outer", all rows are retained
+        how (str, "inner" or "outer", default="inner"):  If "inner" combined csv tables will only include rows
+            with common values in `merge_fields` across all `tables`. If "outer", all rows are retained
             with `nan` values for unmatched pairs in any table.
         kwargs:
-            Any keyword arguments are passed to the `read_csv` method.
+            Any keyword arguments are passed to the dask dataframes `read_csv` method.
     """
     # Read csvs
     ddfs = [dd.read_csv(t, **kwargs) for t in tables]
@@ -424,30 +441,24 @@ def update_transit_times(
     chunksize=100000,
     **kwargs,
 ):
-    """Opens and updates a csv table containing transit travel time estimates
+    """
+    Opens and updates a csv table containing transit travel time estimates
     between origin-destination pairs.
 
     Args:
-        od_table (str): Path
-            csv of OD data that includes transit travel time estimates
-        out_table (str): Path
-            The location of the new csv table containing updated values
-        competing_cols (list): [String, ...], default=[]
-            The minimum value among competing columns will be written to `out_col`
-        out_col (str): String, default=None
-            A new column to be populated with updated transit travel time
-            estimates based on `competing_cols` comparisons and value replacement
-            indicated by `replace_vals`
-        replace_vals (dict): {from_val: to_val}, default=[]
-            A dict whose keys indicate old values (those to be replaced) and whose
+        od_table (str): path to a csv of OD data that includes transit travel time estimates
+        out_table (str): path to the new output csv table containing updated values
+        competing_cols (list, default=[]): The minimum value among competing columns will be
+            written to `out_col`
+        out_col (str, default=None): A new column to be populated with updated transit travel time
+            estimates based on `competing_cols` comparisons and value replacement indicated by `replace_vals`
+        replace_vals (dict, default={}): A dict whose keys indicate old values (those to be replaced) and whose
             values indicate new values.
-        chunksize (int): Int, default=100000
-        kwargs:
-            Keyword arguments to pass to the pandas read_csv method
+        chunksize (int, default=100000): The number of rows to process at a time (to accomodate large files)
+        kwargs: Keyword arguments to pass to the pandas `read_csv` method
 
     Returns:
-        out_table (str): Path
-            A new csv table with updated transit times is stored at the path specified
+        out_table (str): A new csv table with updated transit times is stored at the path specified
     """
     # Validate
     if not isinstance(replace_vals, dict):
@@ -473,7 +484,9 @@ def update_transit_times(
 
 # basic features functions
 def _listifyInput(input):
-    """helper function to convert string input to list
+    """
+    Helper function to convert string input to list
+    
     Returns:
         list
     """
@@ -484,7 +497,9 @@ def _listifyInput(input):
 
 
 def _stringifyList(input):
-    """helper function to convert input to string
+    """
+    Helper function to convert input to string
+    
     Returns:
         str
     """
@@ -512,13 +527,14 @@ def make_basic_features(
     rename_dict={},
     overwrite=False,
 ):
-    """In a geodatabase with basic features (station points and corridor alignments),
-        create polygon feature classes used for standard mapping and summarization.
-        The output feature classes include:
-         - buffered corridors,
-         - buffered station areas,
-         - and a long file of station points, where each station/corridor combo is represented
-                as a separate feature.
+    """
+    In a geodatabase with basic features (station points and corridor alignments),
+    create polygon feature classes used for standard mapping and summarization.
+    The output feature classes include:
+    - buffered corridors,
+    - buffered station areas,
+    - a long file of station points, where each station/corridor combo is represented
+        as a separate feature.
 
     Args:
         bf_gdb (str): Path to a geodatabase with key basic features, including stations and
@@ -528,35 +544,35 @@ def make_basic_features(
             names and flag whether the station is served by that corridor).
         stn_id_field (str): A field in `stations_fc` that identifies stations (common to a single
             station area)
-        stn_diss_fields (list): [String,...] Field(s) on which to dissolve stations when buffering
+        stn_diss_fields (list): Field(s) on which to dissolve stations when buffering
             station areas. Stations that reflect the same location by different facilities may
             be dissolved by name or ID, e.g. This may occur at intermodal locations.
             For example, where metro rail meets commuter rail - the station points may represent
             the same basic station but have slightly different geolocations.
-        stn_corridor_fields (list): [String,...] The columns in `stations_fc` that flag each
+        stn_corridor_fields (list): The columns in `stations_fc` that flag each
             stations belonging in various corridors.
         alignments_fc (str): Path to a line feature class in `bf_gdb` reflecting corridor alignments
         align_corridor_name (str): A field in `alignments_fc` that identifies the corridor it belongs to.
-        align_diss_fields (list): [String,...] Field(s) on which to dissolve alignments when buffering
+        align_diss_fields (list): Field(s) on which to dissolve alignments when buffering
             corridor areas.
-        stn_buff_dist (str): Linear Unit, [default="2640 Feet"] A linear unit by which to buffer
+        stn_buff_dist (str, default="2640 Feet"): A linear unit by which to buffer
             station points to create station area polygons.
-        align_buff_dist (str): Linear Unit, [default="2640 Feet"] A linear unit by which to buffer
+        align_buff_dist (str, default="2640 Feet"): A linear unit by which to buffer
             alignments to create corridor polygons
-        stn_areas_fc (str): [default="Station_Areas"] The name of the output feature class to
+        stn_areas_fc (str, default="Station_Areas"): The name of the output feature class to
             hold station area polygons
-        corridors_fc (str): [default="Corridors"], The name of the output feature class to hold corridor polygons
-        long_stn_fc (str): [default="Stations_Long"], The name of the output feature class to hold station features,
+        corridors_fc (str, default="Corridors"): The name of the output feature class to hold corridor polygons
+        long_stn_fc (str, default="Stations_Long"): The name of the output feature class to hold station features,
             elongated based on corridor belonging (to support dashboard menus)
-        preset_station_areas (path or feature layer): [default=None], Features that pre-define station areas will
+        preset_station_areas (path or feature layer, default=None): Features that pre-define station areas will
             supplant simple station buffers where `preset_station_id` matches `stn_id_field`
-        preset_station_id (str): [default=None], Key field for `preset_station_areas` to lookup and replace geometries
+        preset_station_id (str, default=None): Key field for `preset_station_areas` to lookup and replace geometries
             in the `stn_areas_fc` output
-        preset_corridors (path or feature layer): [default=None], Features that pre-define corridor areas will
+        preset_corridors (path or feature layer, default=None): Features that pre-define corridor areas will
             supplant simple alignment buffers where `preset_corridor_name` matches `stn_id_field`
-        preset_corridor_name: (str) [default=None], Key field for `preset_corridors` to lookup and replace geometries
+        preset_corridor_name: (str, default=None): Key field for `preset_corridors` to lookup and replace geometries
             in the `corridors_fc` output
-        rename_dict (dict): [default={}], If given, `stn_corridor_fields` can be relabeled before pivoting
+        rename_dict (dict, default={}): If given, `stn_corridor_fields` can be relabeled before pivoting
             to create `long_stn_fc`, so that the values reported in the output "Corridor" column are not
             the column names, but values mapped on to the column names
             (changing "EastWest" column to "East-West", e.g.)
@@ -677,22 +693,24 @@ def make_summary_features(
     stn_cor_field="Corridor",
     overwrite=False,
 ):
-    """Creates a single feature class for data summarization based on station area and corridor geographies.
-        The output feature class includes each station area, all combined station areas, the entire corridor area,
-        and the portion of the corridor that is outside station areas.
+    """
+    Creates a single feature class for data summarization based on station area and corridor geographies.
+    The output feature class includes each station area, all combined station areas, the entire corridor area,
+    and the portion of the corridor that is outside station areas.
+
     Args:
         bf_gdb (str): Path to basic features gdb
-        # long_stn_fc (str): path to long station points feature class  # deprecated in lieu of patched features
+        # long_stn_fc (str): path to long station points feature class  (deprecated in lieu of patched features)
         stn_areas_fc (str): path to station area polygons feature class
         stn_id_field (str): id field linking `stn_areas_fc` and `long_stn_fc`
         corridors_fc (str): path to corridors feature class
         cor_name_field (str): name field for corridor feature class
         out_fc (str): path to output feature class
-        stn_buffer_meters (num): Numeric, default=804.672 (1/2 mile)
-        stn_name_field (str): station name field default="Name"
-        stn_status_field (str): status of station, default="Status"
-        stn_cor_field (str): corridor field, default="Corridor
-        overwrite (bool): overwrite existing copy, default=False
+        stn_buffer_meters (num, default=804.672 [1/2 mile])
+        stn_name_field (str, default="Name"): station name field 
+        stn_status_field (str, default="Status"): status of station
+        stn_cor_field (str, default="Corridor): corridor field
+        overwrite (bool, default=False): flag indicating whether to overwrite existing copy
     """
 
     old_ws = arcpy.env.workspace
@@ -810,24 +828,23 @@ def patch_basic_features(
     preset_corridor_name_field=None,
     existing_corridor_name_field=None,
 ):
-    """Modifies the basic features database to updata station area and/or corridor geometries
+    """
+    Modifies the basic features database to updata station area and/or corridor geometries
     based on provided preset features
 
     Args:
-        station_areas_fc (str): path or feature layer
-        corridors_fc (str): path or feature layer
-        preset_station_areas: path or feature layer, default=None
-            If provided, these geometries will be used to update station area features
-            (`StationAreas` and `SummaryAreas`)
-        preset_station_id_field: String, default=None
-            The field in `preset_station_areas` that corresponds to basic_features/StationAreas.Id.
-            It is used to map new geometries into the `StationAreas` and `SummaryAreas` feature classes.
-        preset_corridors: path or feature_layer, default=None
-            If provided, these geometries will be used to update corridor features
-            (`Corridors` and `SummaryAreas`)
-        preset_corridor_name_field: String, default=None
-            The field in `preset_corridors` that corresponds to basic_features/Corridors.Corridor.
-            It is used to map new geometries into the `Corridors` and `SummaryAreas` feature classes.
+        station_areas_fc (str or feature layer)
+        corridors_fc (str or feature layer)
+        preset_station_areas (str or feature layer, default=None): If provided, these geometries will
+            be used to update station area features (`StationAreas` and `SummaryAreas`)
+        preset_station_id_field (str, default=None): The field in `preset_station_areas` that corresponds to
+            "basic_features/StationAreas.Id." It is used to map new geometries into the `StationAreas` and
+            `SummaryAreas` feature classes.
+        preset_corridors (str or feature layer, default=None): If provided, these geometries will be
+            used to update corridor features (`Corridors` and `SummaryAreas`)
+        preset_corridor_name_field (str, default=None): The field in `preset_corridors` that corresponds to
+            "basic_features/Corridors.Corridor." It is used to map new geometries into the `Corridors` and
+            `SummaryAreas` feature classes.
 
     See Also:
         makeBasicFeatures
@@ -877,15 +894,16 @@ def patch_basic_features(
 def prep_park_polys(
     in_fcs, out_fc, geom="POLYGON", use_cols=None, rename_dicts=None, unique_id=None
 ):
-    """Merges park polygon data into single feature class, creating a unique ID for each polygon and
+    """
+    Merges park polygon data into single feature class, creating a unique ID for each polygon and
     reformatting the table
 
     Args:
-        in_fcs (list): [Path, ...] list of paths to park feature classes
+        in_fcs (list): list of paths to park feature classes
         out_fc (str): path to output dataset
         geom (str): geometry type of input features
-        use_cols (list): [col_name,...] list of column names to keep
-        rename_dicts (list): [{k,v},...] list of dictionaries mapping attributes by feature class
+        use_cols (list): list of column names to keep
+        rename_dicts (list): list of dictionaries mapping attributes by feature class
         unique_id (str): name of new field to add as unique identifier (defined in prepare_config)
 
     Returns:
@@ -918,16 +936,17 @@ def prep_park_polys(
 def prep_feature_class(
     in_fc, geom, out_fc, use_cols=None, rename_dict=None, unique_id=None
 ):
-    """tidies up a provided feature class, removing unnecessary fields and mapping existing
+    """
+    Tidies up a provided feature class, removing unnecessary fields and mapping existing
     fields to prefered values
 
     Args:
-        in_fc (list): [Path, ...] list of paths to park feature classes
+        in_fc (str): path to input feature class
         geom (str): geometry type of input features
-        out_fc (str): path to output dataset
-        use_cols (list): [col_name,...] list of column names to keep
-        rename_dict (list): [{k,v},...] list of dictionaries mapping attributes by feature class
-        unique_id (str): name of new field to add as unique identifier (defined in prepare_config)
+        out_fc (str): path to output feature class
+        use_cols (list): list of column names to keep
+        rename_dict (list): list of dictionaries mapping attributes by feature class
+        unique_id (str): name of new field to add as unique identifier
 
     Returns:
         None
@@ -956,16 +975,19 @@ def clean_permit_data(
     out_file,
     out_crs,
 ):
-    """reformat and clean RER road impact permit data, specific to the PMT
+    """
+    Reformat and clean RER road impact permit data, specific to the TOC tool
+
     Args:
         permit_csv (str): path to permit csv
         parcel_fc (str): path to parcel feature class; should be most recent parcel year
-        permit_key (str): foreign key of permit data that ties to parcels (FOLIO)
-        poly_key (str): primary key of parcel data that ties to permits (FOLIO)
+        permit_key (str): foreign key of permit data that ties to parcels ("FOLIO")
+        poly_key (str): primary key of parcel data that ties to permits ("FOLIO")
         rif_lu_tbl (str): path to road_impact_fee_cat_codes table (maps RIF codes to more standard LU codes)
         dor_lu_tbl (str): path to dor use code table (maps DOR LU codes to more standard and generalized categories)
         out_file (str): path to output permit point feature class
         out_crs (int): EPSG code
+    
     Returns:
         None
     """
@@ -1033,24 +1055,26 @@ def clean_permit_data(
 
 # Urban Growth Boundary
 def udb_line_to_polygon(udb_fc, county_fc, out_fc):
-    """Uses the urban development boundary line to bisect the county boundary
-        and generate two polygon output features.
+    """
+    Uses the urban development boundary line to bisect the county boundary
+    and generate two polygon output features.
 
-        During processing the UDB line features are dissolved into a single
-        feature - this assumes all polylines in the shape file touch one another
-        such that a single cohesive polyline feature results.
+    During processing the UDB line features are dissolved into a single
+    feature - this assumes all polylines in the shape file touch one another
+    such that a single cohesive polyline feature results.
 
-        This function also assumes that the UDB will only define a simple
-        bi-section of the county boundary. If the UDB geometry becomes more
-        complex over time, modifications to this function may be needed.
+    This function also assumes that the UDB will only define a simple
+    bi-section of the county boundary. If the UDB geometry becomes more
+    complex over time, modifications to this function may be needed.
 
     Args:
-        udb_fc (str): Path, The udb line features.
-        county_fc (str): Path, The county boundary polygon. This is expected to only include a
+        udb_fc (str): Path to the udb line features.
+        county_fc (str): Path to the county boundary polygon. This is expected to only include a
             single polygon encompassing the entire county.
-        out_fc (str): Path, The location to store the output feature class.
+        out_fc (str): Path to the output feature class.
+    
     Returns:
-        out_fc (str): Path to output feature class
+        out_fc (str): Path to the output feature class
     """
     sr = arcpy.Describe(udb_fc).spatialReference
     # Prepare ouptut feature class
@@ -1110,17 +1134,23 @@ def udb_line_to_polygon(udb_fc, county_fc, out_fc):
 
 # Transit Ridership
 def read_transit_xls(xls_path, sheet=None, head_row=None, rename_dict=None):
-    """XLS File Desc: Sheet 1 contains header and max rows for a sheet (65536),
-                    data continue on subsequent sheets without header
-        reads in the provided xls file and due to odd formatting concatenates
-        the sheets into a single data frame. The
+    """
+    Reads in the provided xls file and concatenates the sheets into a single data frame
+    to resolve formatting issues and make the file's contents code-readable.
+
+    XLS File Desc: Sheet 1 contains header and max rows for a sheet (65536),
+    data continue on subsequent sheets without header.
+    
     Args:
-        xls_path (str): String path to xls file
-        sheet (str, int, list, or None): default None as we need to read the entire file
-        head_row (int, list of int): default None as wee need to read the entire file
-        rename_dict (dict): dictionary to map existing column names to more readable names
+        xls_path (str): Path to xls file
+        sheet (str, int, or list, default=None): sheet(s) in `xls_path` to concatentate. If `None`,
+            read and concatenate all shees in the workbook.
+        head_row (int or list, default=None): Row(s) in `xls_path` that serve as table headers. Must
+            be the same for all `sheet`(s). If None, all rows are read without specifying a header.
+        rename_dict (dict, default=None): Dictionary to map existing column names to more readable names
+    
     Returns:
-        pd.Dataframe; pandas dataframe of data from xls
+        pd.Dataframe: consolidated dataframe of data from xls
     """
     # TODO: add logic to handle files that dont match existing format
     # TODO:     - example check may be to read all pages and see if row 0
@@ -1142,10 +1172,12 @@ def read_transit_xls(xls_path, sheet=None, head_row=None, rename_dict=None):
 
 
 def read_transit_file_tag(file_path):
-    """extracts a tag from the file path that is used in the naming of "ON" and "OFF"
+    """
+    Extracts a tag from the file path that is used in the naming of "ON" and "OFF"
     counts per stop
+
     Args:
-        file_path (str): Path; string path of transit ridership file
+        file_path (str): Path to transit ridership file
 
     Returns:
         tag: String
@@ -1158,12 +1190,15 @@ def read_transit_file_tag(file_path):
 
 
 def update_dict(d, values, tag):
-    """adds new key:value pairs to dictionary given a set of values and
-        tags in the keys --- only valuable in the Transit ridership context
+    """
+    Adds new key:value pairs to dictionary given a set of values and
+        tags in the keys. Only valuable in support of the transit ridership analaysis
+
     Args:
         d (dict): existing dictionary
-        values (list): [String,...]; output value names
-        tag (str): String; unique tag found in a column
+        values (list): output value names
+        tag (str): unique tag found in a column
+    
     Returns:
         d (dict): updated with new key value pairs
     """
@@ -1175,15 +1210,18 @@ def update_dict(d, values, tag):
 def prep_transit_ridership(
     in_table, rename_dict, unique_id, shape_fields, from_sr, to_sr, out_fc
 ):
-    """converts transit ridership data to a feature class and reformats attributes
+    """
+    Converts transit ridership data to a feature class and reformats attributes.
+
     Args:
         in_table (str): xls file path
         rename_dict (dict): dictionary of {existing: new attribute} names
         unique_id (str): name of id field added
-        shape_fields (list): [String,...] columns to be used as shape field (x,y)
+        shape_fields (list): columns to be used as shape field (x,y coords)
         from_sr (SpatialReference): the spatial reference definition for coordinates listed in 'shape_fields'
         to_sr (SpatialReference): the spatial reference definition for output features
         out_fc (str): path to the output feature class
+    
     Returns:
         out_fc: Path
     """
