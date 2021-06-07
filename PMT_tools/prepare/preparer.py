@@ -33,7 +33,6 @@ Functions:
     process_travel_stats()
     process_walk_to_transit_skim()
     process_serpm_transit()
-    full_skim() TODO: evaluate if this needs to go into helper.py
 
 """
 import csv
@@ -99,7 +98,7 @@ arcpy.env.overwriteOutput = True
 
 
 def process_udb(overwrite=True):
-    """ Converts Urban Development Boundary line feature class to
+    """Converts Urban Development Boundary line feature class to
     a polygon.
 
         Inputs:
@@ -132,7 +131,7 @@ def process_udb(overwrite=True):
 
 
 def process_basic_features(overwrite=True):
-    """utilizing the basic features, StationAreas, Corridors are genrated and used to generate
+    """Utilizing the basic features, StationAreas, Corridors are genrated and used to generate
     SummaryAreas for the project
         Inputs:
         :: BASIC_FEATURES = makePath(CLEANED, "PMT_BasicFeatures.gdb", "BasicFeatures") ::
@@ -189,7 +188,7 @@ def process_basic_features(overwrite=True):
 
 
 def process_normalized_geometries(overwrite=True):
-    """YEAR BY YEAR
+    """YEAR BY YEAR:
           - Sets up Year GDB, and 'Polygons' feature dataset
           - Adds MAZ, TAZ, Census_Blocks, Census_BlockGroups, SummaryAreas
           - for each geometry type, the year is added as an attribute
@@ -279,17 +278,17 @@ def process_normalized_geometries(overwrite=True):
 
 def process_parks(overwrite=True):
     """
-    parks - merges park polygons into one and formats both poly and point park data.
-    YEAR over YEARS
+    Parks - merges park polygons into one and formats both poly and point park data.
+    YEAR by YEAR:
       - sets up Points FDS and year GDB (unless they exist already)
       - copies Park_Points in to each year gdb under the Points FDS
       - treat NEAR_TERM like any other year
 
       Inputs:
-      - RAW\\Municipal_Parks.geojson        ---|
-      - RAW\\Federal_State_Parks.geojson       |  (POLYS)
-      - RAW\\County_Parks.geojson           ---|
-      - RAW\\Park_Facilities.geojson (POINTS)
+      - RAW\\Municipal_Parks.geojson (polygons)
+      - RAW\\Federal_State_Parks.geojson (polygons)
+      - RAW\\County_Parks.geojson (polygons)
+      - RAW\\Park_Facilities.geojson (points)
 
       Outputs:
       - CLEANED\\Park_points.shp; Park_Polys.shp
@@ -339,9 +338,9 @@ def process_parks(overwrite=True):
 
 
 def process_transit(overwrite=True):
-    """ Transit Ridership
-        - converts a list of ridership files to points with attributes cleaned
-        YEAR over YEARS
+    """Converts a list of transit ridership files to points with attributes cleaned.
+
+        YEAR by YEAR:
             - cleans and consolidates transit data into Year POINTS FDS
             - if YEAR == NearTerm:
             -     most recent year is copied over
@@ -392,7 +391,8 @@ def process_transit(overwrite=True):
 
 
 def process_parcels(overwrite=True):
-    """YEAR over YEARS
+    """
+    YEAR by YEAR
       - cleans geometry, joins parcels from DOR to NAL table keeping appropriate columns
       - if year == NearTerm:
           previous year parcels are copied in to NearTerm gdb
@@ -527,8 +527,9 @@ def process_permits(overwrite=True):
 
 
 def enrich_block_groups(overwrite=True):
-    """YEAR over YEARS, enrich block group with parcel data and race/commute/jobs data as table
-    if Year == NearTerm, process as normal (parcel data have been updated to include permit updates)
+    """YEAR by YEAR
+        - enrich block group with parcel data and race/commute/jobs data as table
+        - if Year == "NearTerm", process as normal (parcel data have been updated to include permit updates)
 
         Inputs:
         - CLEANED\\PMT_{year}.gdb\\Polygons\\Parcels
@@ -630,7 +631,7 @@ def enrich_block_groups(overwrite=True):
 
 
 def process_parcel_land_use(overwrite=True):
-    """generates a table mapping parcels to a human readable land use category (multiple)
+    """Generates a table mapping parcels to a human readable land use category (multiple)
     using the DOR_UC attribute
 
         Inputs:
@@ -672,7 +673,7 @@ def process_parcel_land_use(overwrite=True):
 
 
 def process_imperviousness(overwrite=True):
-    """calculates impervious percentage by Census Block, and generates area estimates for
+    """Calculates impervious percentage by Census Block, and generates area estimates for
     NonDev, DevOS, DevLow, DevMed, and DevHigh intensity classes
 
         Inputs:
@@ -2097,7 +2098,7 @@ def process_serpm_transit():
                 #                           origin_zones=taz_nodes, total_cutoff=cutoff)
                 # Make tap to tap network
                 print(" - - building TAP to TAP graph")
-                full_skim(
+                P_HELP.full_skim(
                     tap_to_tap_clean,
                     taz_to_tap,
                     cutoff,
@@ -2109,58 +2110,7 @@ def process_serpm_transit():
                 solved.append(model_year)
 
 
-def full_skim(
-        tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs
-):
-    """TODO: add desc and IO
 
-    Inputs:
-    -
-    Outputs:
-    -
-    """
-    serpm_clean = makePath(CLEANED, "SERPM")
-    G = P_HELP.skim_to_graph(
-        tap_to_tap_clean,
-        source="OName",
-        target="DName",
-        attrs="Minutes",
-        create_using=nx.DiGraph,
-    )
-    # Make tap to taz network (as base graph, converted to digraph)
-    print(" - - building TAZ to TAP graph")
-    H = P_HELP.skim_to_graph(
-        taz_to_tap,
-        source="OName",
-        target="DName",
-        attrs="Minutes",
-        create_using=nx.Graph,
-        renames={},
-    ).to_directed()
-    # Combine networks and solve taz to taz
-    print(" - - combining graphs")
-    FULL = nx.compose(G, H)
-    print(
-        f" - - solving TAZ to TAZ for {len(taz_nodes)} origins (of {len(all_tazs)} taz's)"
-    )
-    taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
-
-    with open(taz_to_taz, "w") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(
-            [prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD]
-        )
-        for i in taz_nodes:
-            if FULL.has_node(i):
-                i_dict = nx.single_source_dijkstra_path_length(
-                    G=FULL, source=i, cutoff=cutoff, weight="Minutes"
-                )
-                out_rows = []
-                for j, time in i_dict.items():
-                    if j in all_tazs:
-                        out_row = (i, j, time)
-                        out_rows.append(out_row)
-                writer.writerows(out_rows)
 
 
 if __name__ == "__main__":

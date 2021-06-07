@@ -5802,6 +5802,60 @@ def transit_skim_joins(
         chunksize=100000,
     )
 
+
+def full_skim(
+        tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs
+):
+    """TODO: add desc and IO
+
+    Inputs:
+    -
+    Outputs:
+    -
+    """
+    serpm_clean = makePath(CLEANED, "SERPM")
+    G = P_HELP.skim_to_graph(
+        tap_to_tap_clean,
+        source="OName",
+        target="DName",
+        attrs="Minutes",
+        create_using=nx.DiGraph,
+    )
+    # Make tap to taz network (as base graph, converted to digraph)
+    print(" - - building TAZ to TAP graph")
+    H = P_HELP.skim_to_graph(
+        taz_to_tap,
+        source="OName",
+        target="DName",
+        attrs="Minutes",
+        create_using=nx.Graph,
+        renames={},
+    ).to_directed()
+    # Combine networks and solve taz to taz
+    print(" - - combining graphs")
+    FULL = nx.compose(G, H)
+    print(
+        f" - - solving TAZ to TAZ for {len(taz_nodes)} origins (of {len(all_tazs)} taz's)"
+    )
+    taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
+
+    with open(taz_to_taz, "w") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(
+            [prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD]
+        )
+        for i in taz_nodes:
+            if FULL.has_node(i):
+                i_dict = nx.single_source_dijkstra_path_length(
+                    G=FULL, source=i, cutoff=cutoff, weight="Minutes"
+                )
+                out_rows = []
+                for j, time in i_dict.items():
+                    if j in all_tazs:
+                        out_row = (i, j, time)
+                        out_rows.append(out_row)
+                writer.writerows(out_rows)
+
 # DEPRECATED
 # def geojson_to_gdf(geojson, crs, use_cols=None, rename_dict=None):
 #     """
