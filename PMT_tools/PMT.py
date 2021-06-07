@@ -1,9 +1,8 @@
 """
-Created: October 2020
-@Author: Alex Bell
-
-A collection of helper functions used throughout the PMT data acquisition,
-cleaning, analysis, and summarization processes.
+The `PMT` module provides a centralized repository of commonly used classes and functions
+supporting the development of the TOC toolkit. Many of these focus on file management
+and mundane but critical procedural support. It also sets constant variables for relative
+file locations and analysis parameters such as the years of data to be analyzed and reported.
 """
 import fnmatch
 import re
