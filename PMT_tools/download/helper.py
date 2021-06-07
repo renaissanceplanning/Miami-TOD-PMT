@@ -20,10 +20,13 @@ __all__ = ["download_file_from_url", "get_filename_from_header", "census_geoinde
 
 
 def download_file_from_url(url, save_path):
-    """downloads file resources directly from a url endpoint to a folder
+    """
+    Downloads file resources directly from a url endpoint to a folder
+
     Args:
         url (str): String; path to resource
         save_path (str): String; path to output file
+    
     Returns:
         None
     """
@@ -41,9 +44,12 @@ def download_file_from_url(url, save_path):
 
 
 def get_filename_from_header(url):
-    """grabs a filename provided in the url object header
+    """
+    Grabs a filename provided in the url object header
+
     Args:
         url (str): string, url path to file on server
+    
     Returns:
         filename (str): filename as string
     """
@@ -59,16 +65,19 @@ def get_filename_from_header(url):
 
 # ACS tabular data
 def census_geoindex_to_columns(pd_idx, gen_geoid=True, geoid="GEOID10"):
-    """Given an index of `censusgeo` objects, return a dataframe with
+    """
+    Given an index of `censusgeo` objects, return a dataframe with
     columns reflecting the geographical hierarchy and identifying
     discrete features.
+
     Args:
         pd_idx (idx): Index, A pandas Index of `censusgeo` objects.
         gen_geoid (bool): Boolean, default=True; If True, the geographical hierarchy will be concatenated into a
             geoid field. If False, only the geographicl hierarchy fields are returned.
         geoid (str): String, default="GEOID10"; The name to assign the geoid column if `gen_geoid` is True.
+    
     Returns:
-        geo_cols (pd.DataFrame): DataFrame; A data frame with columns reflecting the geographical hierachy of
+        geo_cols (pandas.DataFrame): DataFrame; A data frame with columns reflecting the geographical hierachy of
             `index`, identifying discrete geographic features. This data frame has `index` as its index.
     """
     idx_stack = []
@@ -88,8 +97,10 @@ def census_geoindex_to_columns(pd_idx, gen_geoid=True, geoid="GEOID10"):
 
 
 def fetch_acs(year, acs_dataset, state, county, table, columns):
-    """internal function to hit the CENSUS api and extract a pandas DataFrame for
+    """
+    Internal function to hit the CENSUS api and extract a pandas DataFrame for
     the requested Table, State, County
+
     Args:
         year (int): year of interest
         acs_dataset (str): Census data source: 'acs1' for ACS 1-year estimates, 'acs5' for ACS 5-year estimates,
@@ -102,7 +113,7 @@ def fetch_acs(year, acs_dataset, state, county, table, columns):
 
     Returns:
         pandas.DataFrame: Data frame with columns corresponding to designated variables, and row
-        index of censusgeo objects representing Census geographies.
+            index of censusgeo objects representing Census geographies.
     """
     variables = [f"{table}_{c}" for c in list(columns.keys())]
     # Reconstruct dictionary with explicit ordering
@@ -120,8 +131,10 @@ def fetch_acs(year, acs_dataset, state, county, table, columns):
 def download_race_vars(
     year, acs_dataset="acs5", state="fl", county="086", table=None, columns=None
 ):
-    """Downloads population race and ethnicity variables from available ACS data
+    """
+    Downloads population race and ethnicity variables from available ACS data
     in table B03002.
+    
     Args:
         year (int): year of interest
         acs_dataset (str): String, default="acs5"; Which ACS dataset to download (3-year, 5-year, e.g.)
@@ -130,10 +143,12 @@ def download_race_vars(
         table (str): string code for the Census table of interest ex: "B03002"
         columns (dict): key, value pairs of Census table columns and rename
             (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
+    
     Returns:
-        race_data (pd.DataFrame): A data frame with columns showing population by race (white, black,
+        race_data (pandas.DataFrame): A data frame with columns showing population by race (white, black,
             Asian, 2 or more, or other) and ethnicity (Hispanic, non-Hispanic) for block groups in the
             specified state-county.
+    
     Raises:
         ValueError
             If the table is not found (i.e. the requested year's data are not available)
@@ -176,22 +191,26 @@ def download_race_vars(
 def download_commute_vars(
     year, acs_dataset="acs5", state="12", county="086", table=None, columns=None,
 ):
-    """Downloads commute (journey to work) data from available ACS data
+    """
+    Downloads commute (journey to work) data from available ACS data
     in table B08301.
+    
     Args:
         year: Int
-        acs_dataset: String, default="acs5"
+        acs_dataset (str, default="acs5"):
             Which ACS dataset to download (3-year, 5-year, e.g.)
-        state: String, default="12"
-            Which state FIPS code to download data for (`12` is Florida)
-        county: String, defult="086"
-            Which county FIPS code to download data for (`086` is Miami-Dade)
+        state (str, default="12"):
+            Which state FIPS code to download data for ("12" is Florida)
+        county: (str, defult="086"):
+            Which county FIPS code to download data for ("086" is Miami-Dade)
         table (str): string code for the Census table of interest ex: "B03002"
         columns (dict): key, value pairs of Census table columns and rename
-            (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
+            (ex: `{"001E": "Total_Commutes", "003E": "Drove_alone"}`)
+    
     Returns:
-        commute_data: DataFrame
-            A data frame with columns showing ....
+        commute_data (pandas.DataFrame)
+            A data frame with columns showing commute statistics by mode
+    
     Raises:
         ValueError
             If the table is not found (i.e. the requested year's data are not available)
@@ -221,17 +240,18 @@ def download_commute_vars(
 
 
 def trim_components(graph, min_edges=2, message=True):
-    """remove connected components less than a certain size (in number of edges)
-    from a graph
+    """
+    Remove connected components less than a certain size (in number of edges) from a graph.
 
     Args:
-        graph (nx.Graph) : networkx graph; the network from which to remove small components
-        min_edges (int) : int, optional; the minimum number of edges required for a component to remain in the
-            network; any component with FEWER edges will be removed. The default is 2.
-        message (bool): bool, optional; should a message indicating the number of components removed be
-            printed? The default is True.
+        graph (nx.Graph): the networkx graph from which to remove small components
+        min_edges (int, optional, default=2): the minimum number of edges required for a component to remain in the
+            network; any component with FEWER edges will be removed.
+        message (bool, optional, default=True): if True, prints a message indicating the number of components removed 
+            from `graph`
+
     Returns:
-        G (nx.Graph): networkx graph; the original graph, with connected components smaller than `min_edges`
+        G (nx.Graph): a modified copy of the original graph with connected components smaller than `min_edges`
             removed
     """
 

@@ -59,10 +59,13 @@ __all__ = ["get_filename_list_from_ftp", "get_content_length",
 
 
 def get_filename_list_from_ftp(target, state):
-    """helper function to extract a list of files available from the provided FTP folder (target) by state
+    """
+    Helper function to extract a list of files available from the provided FTP folder (target) by state
+
     Args:
         target (str): path to FTP site
         state (str): two character state abbreviation
+    
     Returns:
         filename_list (list): list of filenames matching state
     """
@@ -85,12 +88,14 @@ def get_filename_list_from_ftp(target, state):
 
 
 def get_content_length(url):
-    """helper function to determine how large the item to be downloaded is
+    """
+    Helper function to determine how large the item to be downloaded is
+    
     Args:
         url (str): url path
 
     Returns:
-        integer value of the content size
+        int: integer value of the content size
     """
     # u is returned by urllib2.urlopen
     if sys.version_info[0] == 2:
@@ -100,14 +105,16 @@ def get_content_length(url):
 
 
 def download_files_in_list(filename_list, download_dir, force=False):
-    """helper function to download list of files
+    """
+    Helper function to download list of files
+
     Args:
         filename_list (list): list of files
         download_dir (str): path to download directory
         force (bool): flag to force download of files in list
 
     Returns:
-        list; list of files downloaded
+        list: list of files downloaded
     """
     downloaded_filename_list = []
     for file_location in filename_list:
@@ -143,7 +150,8 @@ def download_files_in_list(filename_list, download_dir, force=False):
 
 
 def extract_downloaded_file(filename, extract_dir, unzip_dir, remove_on_error=True):
-    """helper function to extract file from zip to a new directory
+    """
+    Helper function to extract file from zip to a new directory
 
     Args:
         filename (str): path to zipped file
@@ -170,7 +178,9 @@ def extract_downloaded_file(filename, extract_dir, unzip_dir, remove_on_error=Tr
 
 
 def get_one_geo_type(geo_type, download_dir=None, extract_dir=None, state=None, year="2019"):
-    """helper function to fetch a single geographic dataset
+    """
+    Helper function to fetch a single geographic dataset
+
     Args:
         geo_type (str): one of the valid census geographies (see GEO_TYPES_DICT keys in __init__)
         download_dir (str): path to download directory
@@ -196,7 +206,8 @@ def get_one_geo_type(geo_type, download_dir=None, extract_dir=None, state=None, 
 
 
 def get_all_geo_types(state=None, year="2019"):
-    """helper function to fetch all valid census geographies
+    """
+    Helper function to fetch all valid census geographies
 
     Args:
         state (str): two character state abbreviation, if none provided data will be pulled for entire US

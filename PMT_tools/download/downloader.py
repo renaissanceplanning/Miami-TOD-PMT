@@ -37,10 +37,13 @@ t = Timer()
 
 
 def setup_download_folder(dl_folder="RAW"):
-    """creates a download folder if it doesn't already exist and populates with
-    necessary folder for remaining download work
+    """
+    Creates a download folder if it doesn't already exist and populates with
+    necessary subfolders for remaining download work
+
     Args:
         dl_folder (str): path download ROOT folder
+    
     Returns:
         None
     """
@@ -54,17 +57,19 @@ def setup_download_folder(dl_folder="RAW"):
 # ALL RAW DATA that must be acquired as yearly chunks
 ###
 def download_census_geo(overwrite=True):
-    """ download census data
+    """
+    Download census data
         - downloads and unzips the census block and blockgroup shapefiles
         - downloads and writes out to table the ACS race and commute data
         - downloads LODES data to table
+        
         Inputs:
-        - RAW\\temp_downloads   (folder path)
-        - RAW\\CENSUS           (extract path)
-        - CENSUS_GEO_TYPES      (list of geographies)
+        - RAW\\temp_downloads (folder path)
+        - RAW\\CENSUS (extract path)
+        - CENSUS_GEO_TYPES (list of geographies)
 
         Outputs:
-        - RAW\\CENSUS\\BG       (block groups geogrpahies)
+        - RAW\\CENSUS\\BG (block groups geogrpahies)
         - RAW\\CENSUS\\TABBLOCK (block geographies)
     """
     print("\nFetching CENSUS Geographies...")
@@ -86,9 +91,12 @@ def download_census_geo(overwrite=True):
 
 
 def download_race_data(overwrite=True):
-    """downloads ACS race data of interest
+    """
+    Downloads ACS race data of interest
+        
         Inputs:
-        - RAW\\CENSUS       (root census folder)
+        - RAW\\CENSUS (root census folder)
+        
         Outputs:
         - RAW\\CENSUS\\ACS_{year}_race.csv
     """
@@ -115,9 +123,12 @@ def download_race_data(overwrite=True):
 
 
 def download_commute_data(overwrite=True):
-    """downloads ACS commute data of interest
+    """
+    Downloads ACS commute data of interest
+        
         Inputs:
-        - RAW\\CENSUS       (root census folder)
+        - RAW\\CENSUS (root census folder)
+        
         Outputs:
         - RAW\\CENSUS\\ACS_{year}_commute.csv
     """
@@ -142,10 +153,13 @@ def download_commute_data(overwrite=True):
 
 
 def download_lodes_data(overwrite=True):
-    """ download LODES data for job counts
+    """
+    Download LODES data for job counts
         - downloads lodes files by year and optionally aggregates to a coarser geographic area
+        
         Inputs:
-        - RAW\\LODES       (root lodes folder)
+        - RAW\\LODES (root lodes folder)
+        
         Outputs:
         - RAW\\LODES\\fl_wac_S000_JT00_{year}_blk.csv.gz
         - RAW\\LODES\\fl_wac_S000_JT00_{year}_bgrp.csv.gz
@@ -168,10 +182,13 @@ def download_lodes_data(overwrite=True):
 
 
 def download_urls(overwrite=True):
-    """downloads raw data that are easily accessible via web `request' at a url endpoint
+    """
+    Downloads raw data that are easily accessible via web `request' at a url endpoint
+        
         Inputs:
-        - DOWNLOAD_URL_DICT         (dictionary of output_name: url found in config.download_config)
-        Outputs:    (11 files)
+        - DOWNLOAD_URL_DICT (dictionary of output_name: url found in config.download_config)
+        
+        Outputs: (11 files)
             ['Imperviousness',
             'MD_Urban_Growth_Boundary', 'Miami-Dade_County_Boundary',
             'Municipal_Parks', 'County_Parks', 'Federal_State_Parks', 'Park_Facilities',
@@ -192,19 +209,21 @@ def download_urls(overwrite=True):
 
 
 def download_osm_data(overwrite=True):
-    """ download osm data - networks and buildings
+    """
+    Download osm data - networks and buildings
         - downloads networks as nodes.shp and edges.shp
         - downloads all buildings, subset to poly/multipoly features
         - both functions will create the output folder if not there
 
         Inputs:
-        - RAW\\Miami-Dade_County_Boundary.geojson       (used as AOI to define area of needed data)
+        - RAW\\Miami-Dade_County_Boundary.geojson (used as AOI to define area of needed data)
         - RAW\\OPEN_STREET_MAP
-        Outputs:        (generally suffix will take the form q{1-4}_{year} where q indicates the quarter of the year)
-        - RAW\\OPEN_STREET_MAP\\bike_{suffix)   [network]
-        - RAW\\OPEN_STREET_MAP\\buildings_{suffix)  [builidng footprints]
-        - RAW\\OPEN_STREET_MAP\\drive_{suffix)  [network]
-        - RAW\\OPEN_STREET_MAP\\walk_{suffix)   [network]
+        
+        Outputs: (generally suffix will take the form q{1-4}_{year} where q indicates the quarter of the year)
+        - RAW\\OPEN_STREET_MAP\\bike_{suffix) [network]
+        - RAW\\OPEN_STREET_MAP\\buildings_{suffix)[builidng footprints]
+        - RAW\\OPEN_STREET_MAP\\drive_{suffix) [network]
+        - RAW\\OPEN_STREET_MAP\\walk_{suffix) [network]
     """
     print("Fetching OSM NETWORK data...")
     out_county = make_path(RAW, "Miami-Dade_County_Boundary.geojson")

@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-Created on Mon Jan 11 12:59:09 2021
-
-@author: Aaron Weinstock
+The `parcel_ftp` module provides generalized methods to acquire Florida
+Department of Revenue parcel data (GIS features and NAL tables).
+It depends on the `ftplib` and `re` modules to download and save consistent
+versions of parcel data for specified counties and years.
 """
 
 # %% Imports
@@ -19,23 +19,19 @@ import pandas as pd
 # https://stackoverflow.com/questions/1854572/traversing-ftp-listing
 def traverse(ftp, depth=None):
     """
-    produce a recursive listing of an ftp server contents (starting from the
+    Produce a recursive listing of an ftp server contents (starting from the
     current directory)
 
-    Parameters
-    ----------
-    ftp : ftplib.FTP object
-        FTP connection
-    depth : NoneType
-        controls depth to which searching is completed; ignored if provided
-        by user, searching always begins at the folder connection of the FTP
-        object
+    Args:
+        ftp (ftplib.FTP object): FTP connection
+        depth (None): controls depth to which searching is completed; ignored if provided
+            by user, searching always begins at the folder connection of the FTP object but
+            required to support recursive searches of ftp nodes.
         
         
-    Returns
-    -------
-    recursive dictionary, where each key contains the contents of the 
-    subdirectory or None if it corresponds to a file
+    Returns:
+        level (dict): recursive dictionary, where each key contains the contents of the
+            subdirectory or None if it corresponds to a file
     """
 
     # Initialize
@@ -60,22 +56,17 @@ def traverse(ftp, depth=None):
 # https://stackoverflow.com/questions/6027558/flatten-nested-dictionaries-compressing-keys
 def flatten(d, parent_key="", sep="/"):
     """
-    flatten nested dictionaries into a single dictionary with combined keys
+    Flatten nested dictionaries into a single dictionary with combined keys
 
-    Parameters
-    ----------
-    d : dict
-        dictionary to flatten
-    parent_key : str, optional
-        string to paste to the front of every key. The default is '', keys
-        get no prefix
-    sep : str, optional
-        string used to separate nested keys. The default is '/' [for usage
-        with directories/urls]
+    Args:
+        d (dict): dictionary to flatten
+        parent_key (str, optional): string to paste to the front of every key. The default is '', keys
+            get no prefix
+        sep (str, optional): string used to separate nested keys. The default is '/' [for usage
+            with directories/urls]
 
-    Returns
-    -------
-    a flattened dictionary, with nested keys joined by `sep`
+    Returns:
+        dict: a flattened dictionary, with nested keys joined by `sep`
     """
 
     # Initialize
@@ -98,21 +89,16 @@ def flatten(d, parent_key="", sep="/"):
 # Written by Aaron
 def get_ftp_files(folder_connection, ftp_site="sdrftp03.dor.state.fl.us"):
     """
-    get file paths to all files within an FTP folder 
+    Get file paths to all files within an FTP folder 
 
-    Parameters
-    ----------
-    folder_connection : str
-        folder name in an FTP directory. If the folder is not at the level
-        of the main FTP site, it must be specified using pathing, e.g.
-        folder/subfolder/subsubfolder
-    ftp_site : str, optional
-        FTP main site. The default is "sdrftp03.dor.state.fl.us", which is the
-        FDOR FTP main site
+    Args:
+        folder_connection (str): Folder name in an FTP directory. If the folder is not at the level
+            of the main FTP site, it must be specified using pathing, e.g. folder/subfolder/subsubfolder
+        ftp_site (str, optional): FTP main site. The default is "sdrftp03.dor.state.fl.us", which is the
+            FDOR FTP main site
 
-    Returns
-    -------
-    list of file paths to FTP files
+    Returns:
+        list: file paths to FTP files
     """
 
     # Log into the FTP and connect to the folder
@@ -137,19 +123,16 @@ def get_ftp_files(folder_connection, ftp_site="sdrftp03.dor.state.fl.us"):
 # Written by Aaron
 def format_florida_counties(county):
     """
-    produce all possible representations of a county name for the state of
+    Produce all possible representations of a county name for the state of
     Florida (representations are case insensitive)
 
-    Parameters
-    ----------
-    county : str
-        county name
+    Args:
+        county (str): county name
 
-    Returns
-    -------
-    list of options for representing county names. in particular, spaces
-    will be condensed to "_" or "", and the word "saint" will be tried as
-    "saint", "st", and "st."
+    Returns:
+        list: options for representing county names. in particular, spaces
+            will be condensed to "_" or "", and the word "saint" will be tried as
+            "saint", "st", and "st."
     """
 
     # First, FDOR refers to Miami-Dade as "Dade" only -- so if the name has
@@ -185,16 +168,15 @@ def format_florida_counties(county):
 # Written by Aaron
 def florida_counties():
     """
-    produce a dataframe of Florida counties and all of their possible
+    Produce a dataframe of Florida counties and all of their possible
     representations
 
-    Returns
-    -------
-    pandas DataFrame with 4 columns:
-        county: county name
-        co_no: Florida DOR county number
-        fips: 3-digit county FIPS code
-        format: a possible representation of the county name (case insensitive)
+    Returns:
+        pandas.DataFrame: with 4 columns:
+            - county: county name
+            - co_no: Florida DOR county number
+            - fips: 3-digit county FIPS code
+            - format: a possible representation of the county name (case insensitive)
     """
 
     # Florida counties
@@ -304,20 +286,18 @@ def florida_counties():
 # Written by Aaron
 def extract_year(url, regex="[0-9]{4}"):
     """
-    extract a year from a url string
+    Extract a year from a url string
 
-    Parameters
-    ----------
-    url : str
-        url to a data file
-    regex : str
-        regular expression to find a year. The default is `[0-9]{4}`, or 4
-        numbers in a row (which works for the Florida DOR FTP site)
+    Args:
+        url (str):
+            url to a data file
+        regex (str)"
+            regular expression to find a year. The default is `[0-9]{4}`, or 4
+            numbers in a row (which works for the Florida DOR FTP site)
 
-    Returns
-    -------
-    The FIRST year found; if the regex might find more than 1 unique year,
-    consider a different regex
+    Returns:
+        int: The FIRST year found; if the regex might find more than 1 unique year,
+            consider a different regex
     """
 
     # If you find a year, return it as an integer. If there isn't one, return
@@ -335,19 +315,15 @@ def extract_year(url, regex="[0-9]{4}"):
 # Written by Aaron
 def extract_county_name(url, regex):
     """
-    extract a florida county name from a url string
+    Extract a Florida county name from a url string
 
-    Parameters
-    ----------
-    url : str
-        url to a data file
-    regex : str
-        regular expression to find a county
+    Args:
+        url (str): url to a data file
+        regex (str): regular expression to find a county
 
-    Returns
-    -------
-    The FIRST county found; if the regex might find more than 1 unique county,
-    consider a different regex
+    Returns:
+        str: The FIRST county found; if the regex might find more than 1 unique county,
+            consider a different regex
     """
 
     # If you find a county, return it as an string. If there isn't one, return
@@ -364,17 +340,14 @@ def extract_county_name(url, regex):
 
 def extract_county_number(url):
     """
-    extract a Florida DOR county from a url string
+    Extract a Florida DOR county number from a url string
 
-    Parameters
-    ----------
-    url : str
-        url to a data file
+    Args:
+        url (str): url to a data file
 
-    Returns
-    -------
-    The FIRST county number found; if the regex might find more than 1 unique 
-    county, consider a different regex
+    Returns:
+        str: The FIRST county number found; if the regex might find more than 1 unique
+            county, consider a different regex
     """
 
     # If you find a number, return it as an string. If there isn't one, return
@@ -399,22 +372,19 @@ def extract_county_number(url):
 # Written by Aaron
 def fdor_gis_and_tax(save_path=None):
     """
-    parse the download link for all GIS and Tax Roll data available on the
-    FDOR FTP site
+    Parse (and optionally save) the download link for all GIS and Tax Roll data available on the
+    FDOR FTP site.
 
-    Parameters
-    ----------
-    save_path : str
-        path to which to save the results. The Default is `None`, no save
-        completed
+    Args:
+        save_path (str): Path to which to save the results. If `None`, urls
+            are not committed to disk and only a pandas dataframe of urls is returned.
 
-    Returns
-    -------
-    pandas DataFrame of format with 4 columns:
-        file: either "GIS" for GIS data, or "TaxRoll" for tax roll data
-        year: the year associated with the data (or 9999 if there is none)
-        county: the county associated with the data (or '' if there is none)
-        url: link to the data
+    Returns:
+        pandas.DataFrame with 4 columns:
+            - file: either "GIS" for GIS data, or "TaxRoll" for tax roll data
+            - year: the year associated with the data (or 9999 if there is none)
+            - county: the county associated with the data (or '' if there is none)
+            - url: link to the data
     """
 
     # GIS
@@ -521,38 +491,31 @@ def fdor_gis_and_tax(save_path=None):
 # Written by Aaron
 def fdor_availability(df, year=None, county=None):
     """
-    filter all available FDOR GIS and Tax Roll data according to desired
+    Filter all available FDOR GIS and Tax Roll data according to desired
     specifications
 
-    Parameters
-    ----------
-    df : pandas DataFrame
-        output of `fdor_gis_and_tax()` (a dataframe of available data)
-    year : int, or list of int, optional
-        year(s) for which data is desired. The default is None, no filtering
-        will be completed on year
-    county : str, or list of str, optional
-        county(ies) for which data is desired. The default is None, no
-        filtering will be completed on county
+    Args:
+        df (pandas.DataFrame): output of `fdor_gis_and_tax()` (a dataframe of available data)
+        year (int or list, optional): year(s) for which data is desired. The default is None, no filtering
+            will be completed on year
+        county (str or list, optional): county(ies) for which data is desired. The default is None, no
+            filtering will be completed on county
 
-    Notes
-    -----
-    For searching by county, note the following spelling specifications:
-        1. DeSoto [not Desoto]
-        2. Miami-Dade [not Dade or Miami Dade]
-        3. St. Johns [not St Johns or Saint Johns]
-        4. St. Lucie [not St Lucie or Saint Lucie]
-    If the spelling of a county does not the `fdor_gis_and_tax` results, this
-    function will return no data, so please be careful with spelling!
+    Notes:
+        For searching by county, note the following spelling specifications:
+            1. DeSoto [not Desoto]
+            2. Miami-Dade [not Dade or Miami Dade]
+            3. St. Johns [not St Johns or Saint Johns]
+            4. St. Lucie [not St Lucie or Saint Lucie]
+        If the spelling of a county does not the `fdor_gis_and_tax` results, this
+        function will return no data, so please be careful with spelling!
 
-    Returns
-    -------
-    pandas DataFrame of available data according to the provided specs
+    Returns:
+        pandas.DataFrame: dataframe of available data according to the provided specs
     
-    Raises
-    ------
-    ValueError:
-        if the specs result in no available data
+    Raises:
+        ValueError:
+            if the specs result in no available data
     """
 
     # Initialize
@@ -590,15 +553,15 @@ def fdor_availability(df, year=None, county=None):
 
 
 # %% Run
-if __name__ == "__main__":
-    # Inputs
-    save_path = r"C:\github\Miami-TOD-PMT\PMT_tools\download\parcel_ftp_011121.csv"
-    # save_path = None
+# if __name__ == "__main__":
+#     # Inputs
+#     save_path = r"C:\github\Miami-TOD-PMT\PMT_tools\download\parcel_ftp_011121.csv"
+#     # save_path = None
 
-    # Run
-    df = fdor_gis_and_tax()
+#     # Run
+#     df = fdor_gis_and_tax()
 
-    md_current = fdor_availability(df=df,
-                                   year=2020,
-                                   county="Miami-Dade")
-    md_current.url.tolist()
+#     md_current = fdor_availability(df=df,
+#                                    year=2020,
+#                                    county="Miami-Dade")
+#     md_current.url.tolist()

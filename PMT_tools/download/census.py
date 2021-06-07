@@ -35,7 +35,18 @@ class LodesFileTypeError(Exception):
 
 # functions
 def validate_string_inputs(value, valid_inputs):
-    """validate string is a string and in the list of valid inputs"""
+    """
+    Helper function to validate that a given value is a string
+    and is found in the list of valid inputs
+    
+    Args:
+        value (var): a value to validate. If not a string type, raises `ValueError`
+        valid_inputs (list or str): one or more valid string values. If `value`
+            is not found among the valid values, raises `ValueError`
+    
+    Returns:
+        bool: flag indicating if `value` is valid
+    """
     try:
         if isinstance(value, list):
             _val_ = []
@@ -51,13 +62,25 @@ def validate_string_inputs(value, valid_inputs):
             if value.lower() in [x.lower() for x in valid_inputs]:
                 return True
         else:
-            raise ValueError
+            raise ValueError #TODO: TypeError?
     except ValueError:
         print("either the value supplied is not a string or valid_input was not a list")
 
 
 def validate_aggregate_geo_inputs(values, valid):
-    """validate given geo is string/list and part of the valid set"""
+    """
+    Helper functions to validate that a given geo is a string or list and is found
+    among a set of valid values.
+    
+    Args:
+        values (str or list): one or more (string) values to validate. If not a string type 
+            or members are not string types, raises `ValueError`
+        valid (list): a list valid string values. If `value` or any member of `value`
+            is not found among the valid values, raises `ValueError`
+    
+    Returns:
+        bool: flag indicating if `values` is valid
+    """
     try:
         if values:
             # ensure you have a string or list
@@ -66,12 +89,12 @@ def validate_aggregate_geo_inputs(values, valid):
             elif isinstance(values, list):
                 values = values
             else:
-                raise ValueError
+                raise ValueError #TODO: TypeError?
             # check values are part of valids
             if isinstance(valid, list):
                 return all(value in valid for value in values)
             else:
-                raise ValueError
+                raise ValueError #TODO: TypeError?
         else:
             return False
     except ValueError:
@@ -79,7 +102,7 @@ def validate_aggregate_geo_inputs(values, valid):
 
 
 def validate_year(year):
-    """confirm year is correct datatype and part of expected years available"""
+    """Confirm year is correct datatype and part of expected years available"""
     if isinstance(year, int):
         if year in LODES_YEARS:
             year = str(year)
@@ -87,7 +110,7 @@ def validate_year(year):
 
 
 def validate_year_input(year, state):
-    """validate the provided year is in the possible set for a given state"""
+    """Validate the provided year is in the possible set for a given state"""
     try:
         if validate_year(year):
             if any(
@@ -115,8 +138,27 @@ def validate_year_input(year, state):
 
 
 def validate_lodes_download(file_type, state, segment, part, job_type, year, agg_geos):
-    """validates the download inputs to `dl_lodes` combining other validation methods
-        (`file_type`, `state`, `segment`, `part`, `job_type`, and `year`)
+    """
+    Validates the download inputs to the `dl_lodes` method, combining other validation methods
+    (`file_type`, `state`, `segment`, `part`, `job_type`, and `year`)
+
+    Args:
+        file_type (str): The LODES file type to download ("OD", "RAC", or "WAC")
+        state (str): The two-character postal abbreviation for the state
+        segment (str): Segment of the workforce, can have the values of
+            [“S000”, “SA01”, “SA02”, “SA03”,  “SE01”, “SE02”, “SE03”, “SI01”, “SI02”, “SI03”, ""]
+        part (str): Part of the state file, can have a value of either “main” or “aux”. Complimentary parts of
+            the state file, the main part includes jobs with both workplace and residence in the state
+            and the aux part includes jobs with the workplace in the state and the residence outside of the state.
+        job_type (str): LODES job types (“JT00” for All Jobs, “JT01” for Primary Jobs, “JT02” for
+            All Private Jobs, “JT03” for Private Primary Jobs, “JT04” for All Federal Jobs, or “JT05”
+            for Federal Primary Jobs).
+        year (str): year of LODES data to download
+        agg_geos (str): census geographies to aggregate lodes data to
+
+    Returns:
+        bool: flag indicating if parameters are valid
+
     See Also:
         download_aggregate_lodes
     """
@@ -148,8 +190,10 @@ def validate_lodes_download(file_type, state, segment, part, job_type, year, agg
 
 
 def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
-    """aggregate LODES data to desired geographic levels, and save the created
+    """
+    Aggregate LODES data to desired geographic levels, and save the created
     files [to .csv.gz]
+
     Args:
         geo_crosswalk_path (str): path to geographic crosswalk CSV
         lodes_path (str): file path to gzipped lodes data file
@@ -217,27 +261,34 @@ def aggregate_lodes_data(geo_crosswalk_path, lodes_path, file_type, agg_geo):
 def download_aggregate_lodes(output_dir,
                              file_type, state, segment, part, job_type, year,
                              agg_geog=None, overwrite=False, ):
-    """helper function to fetch lodes data and aggregate to another census geography if one is provided
+    """
+    Helper function to fetch lodes data and aggregate to another census geography if one is provided
+
     Args:
         output_dir (str): path to location downloaded files should end up
         file_type (str): one of three LODES groupings ['od', 'rac', 'wac']
-            OD – Origin-Destination data, totals are associated with both a home Census Block and a work Census Block
-            RAC – Residence Area Characteristic data, jobs are totaled by home Census Block
-            WAC – Workplace Area Characteristic data, jobs are totaled by work Census Block
-        state (str): two character code representing the state of interest
+
+            - OD: Origin-Destination data, totals are associated with both a home Census Block and a work Census Block
+
+            - RAC: Residence Area Characteristic data, jobs are totaled by home Census Block
+
+            - WAC: Workplace Area Characteristic data, jobs are totaled by work Census Block
+
+        state (str): The two-character postal abbreviation for the state
         segment (str): Segment of the workforce, can have the values of
-                [“S000”, “SA01”, “SA02”, “SA03”,  “SE01”, “SE02”, “SE03”, “SI01”, “SI02”, “SI03”, ""]
+            [“S000”, “SA01”, “SA02”, “SA03”,  “SE01”, “SE02”, “SE03”, “SI01”, “SI02”, “SI03”, ""]
         part (str): Part of the state file, can have a value of either “main” or “aux”. Complimentary parts of
             the state file, the main part includes jobs with both workplace and residence in the state
             and the aux part includes jobs with the workplace in the state and the residence outside of the state.
-        job_type (str):  Job Type, can have a value of “JT00” for All Jobs, “JT01” for Primary Jobs, “JT02” for
+        job_type (str): LODES job types (“JT00” for All Jobs, “JT01” for Primary Jobs, “JT02” for
             All Private Jobs, “JT03” for Private Primary Jobs, “JT04” for All Federal Jobs, or “JT05”
-            for Federal Primary Jobs.
-        year (int): year of jobs data
+            for Federal Primary Jobs).
+        year (int): year of LODES data to download
         agg_geog (str): census geographies to aggregate lodes data to
         overwrite (bool): if set to True, delete the existing copy of the LODES data
+    
     Returns:
-
+        None: writes csv tables of aggregated lodes data in `output_dir`
     """
     st = state.lower()
     try:

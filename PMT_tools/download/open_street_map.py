@@ -26,7 +26,8 @@ __all__ = ["validate_bbox", "calc_osm_bbox", "validate_inputs", "validate_networ
 
 
 def validate_bbox(bbox):
-    """Given a dictionary defining a bounding box, confirm its values are
+    """
+    Given a dictionary defining a bounding box, confirm its values are
     valid. North/south values must be between -90 and 90 (latitude);
     east/west values must be between -180 and 180 (longitude).
 
@@ -35,6 +36,7 @@ def validate_bbox(bbox):
 
     Returns:
         None, This function simply raises exceptions if an invalid bounding box is provided
+    
     Raises:
         ValueError
             - If required keys are not found
@@ -61,9 +63,12 @@ def validate_bbox(bbox):
 
 
 def calc_osm_bbox(gdf):
-    """Given a polygon GeoDataFrame, returns an appropriately formatted bbox dict for OSM
+    """
+    Given a polygon GeoDataFrame, returns an appropriately formatted bbox dict for OSM
+    
     Args:
         gdf (gpd.GeoDataFrame, gpd.Geoseries): GeoDataFrame object
+   
     Returns:
         bbox (dict): dictionary of coordinates representing the bbox for an area of interest,
             formatted to work with osmnx
@@ -84,11 +89,14 @@ def calc_osm_bbox(gdf):
 
 
 def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
-    """validation method for input downloading osm data via osmnx, converts polygon to bbox if provided
+    """
+    Validation method for input downloading osm data via osmnx, converts polygon to bbox if provided
+
     Args:
         study_area_poly (str): path to a valid geospatial data file readable by geopandas
         bbox (dict): A dictionary with keys 'south', 'west', 'north', and 'east' of EPSG:4326-style coordinates
         data_crs (int): valid EPSG code in the projected coordinates
+    
     Returns:
         bbox (dict): dictionary of 'north', 'south', 'east', 'west' coordinates
     """
@@ -114,11 +122,15 @@ def validate_inputs(study_area_poly=None, bbox=None, data_crs=EPSG_WEB_MERC):
 
 
 def validate_network_types(network_types):
-    """validation method to confirm whether provided network string matches osmnx types
+    """
+    Validation method to confirm whether provided network string matches osmnx types
+    
     Args:
         network_types (str or list): string or list of strings
+    
     Returns:
         network_types (list): return list of network types
+    
     Raises:
         ValueError
             - if no item is in valid types
@@ -144,8 +156,10 @@ def download_osm_networks(
     suffix="",
     overwrite=False
 ):
-    """Download an OpenStreetMap network within the area defined by a polygon
-        feature class or a bounding box.
+    """
+    Download an OpenStreetMap network within the area defined by a polygon
+    feature class or a bounding box.
+
     Args:
         output_dir (str): Path, Path to output directory. Each modal network (specified by `net_types`)
                 is saved to this directory within an epoynmous folder  as a shape file.
@@ -167,6 +181,7 @@ def download_osm_networks(
         suffix (str): default=""; Downloaded datasets may optionally be stored in folders with
                 a suffix appended, differentiating networks by date, for example.
         overwrite (bool): if set to True, delete the existing copy of the network(s)
+    
     Returns:
         G (dict): A dictionary of networkx graph objects. Keys are mode names based on
                 `net_types`; values are graph objects.
@@ -230,8 +245,10 @@ def download_osm_buildings(
     suffix="",
     overwrite=False
 ):
-    """Uses an Overpass query to fetch the OSM building polygons within a
+    """
+    Uses an Overpass query to fetch the OSM building polygons within a
     specified bounding box or the bounding box of a provided shapefile.
+    
     Args:
         output_dir (str): Path to output directory.
         polygon (str): path to a shapefile or geojson object readable by geopandas
@@ -243,12 +260,14 @@ def download_osm_buildings(
         keep_fields (list): list of fields to keep in output dataset
         suffix (str): string value to be added to the end of the output folder
         overwrite (bool): if set to True, delete the existing copy of buildings
+    
     Returns:
         buildings_gdf (gpd.GeoDataFrame): A gdf of OSM building features. By default, the CRS of
             the gdf will be EPSG:4326 unless a tranformation is specified using `transfor_epsg` or
             a shape file with a differnt CRS is provided as `study_area_polygon_path`.
+    
     Notes:
-        1. OSM building polygons features will automatically be saved in the `output_dir`s
+        OSM building polygons features will automatically be saved in the `output_dir`s
         `OSM_Buildings_{YYYYMMDDHHMMSS}.shp` where `YYYYMMDDHHMMSS` is the date and time at which
         the Overpass query was pushed. This is done for record keeping purposes.
     """
