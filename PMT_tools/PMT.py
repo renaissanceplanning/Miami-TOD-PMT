@@ -22,7 +22,7 @@ import pandas as pd
 from simpledbf import Dbf5
 from six import string_types
 
-from utils import *
+from PMT_tools.utils import *
 
 __classes__ = [
     "Column",

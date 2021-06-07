@@ -25,6 +25,8 @@ import sys
 
 from six import string_types
 
+import PMT_tools.utils
+
 sys.path.insert(0, os.getcwd())
 # build helper functions
 from ..build import build_helper as B_HELP
@@ -206,8 +208,8 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         )
         # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
-        year_tables = B_HELP._list_table_paths(gdb=in_gdb, criteria=table_criteria)
-        year_fcs = B_HELP._list_fc_paths(
+        year_tables = PMT_tools.utils._list_table_paths(gdb=in_gdb, criteria=table_criteria)
+        year_fcs = PMT_tools.utils._list_fc_paths(
             gdb=in_gdb, fds_criteria="*", fc_criteria=long_criteria
         )
         elongate = year_tables + year_fcs
@@ -229,12 +231,12 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         # Get snapshot and base year params
         if process_year == base_year:
             base_tables = year_tables[:]
-            base_fcs = B_HELP._list_fc_paths(
+            base_fcs = PMT_tools.utils._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
         elif process_year == snapshot_year:
             snap_tables = year_tables[:]
-            snap_fcs = B_HELP._list_fc_paths(
+            snap_fcs = PMT_tools.utils._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
 
@@ -243,7 +245,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         out_name = os.path.split(base_table)[1] + "_diff"
         out_table = PMT.make_path(out_gdb, out_name)
         idx_cols = specs["index_cols"]
-        diff_df = B_HELP.table_difference(
+        diff_df = PMT_tools.utils.table_difference(
             this_table=snap_table, base_table=base_table, idx_cols=idx_cols
         )
         print(f"Creating table {out_name}")
@@ -277,7 +279,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             field_mapping=field_mappings,
         )
         # Get table difference
-        diff_df = B_HELP.table_difference(
+        diff_df = PMT_tools.utils.table_difference(
             this_table=snap_fc, base_table=base_fc, idx_cols=idx_cols
         )
         # Extend attribute table

@@ -21,13 +21,13 @@ import xlrd
 from six import string_types
 from sklearn import linear_model
 
-from .. import PMT as PMT
-from ..PMT import arcpy, pd, np
+from PMT_tools import PMT as PMT
+from PMT_tools.PMT import arcpy, pd, np
 
 # temporary
-from ..build import build_helper as B_HELP
-from ..config import prepare_config as P_CONF
-from ..utils import *
+from PMT_tools.build import build_helper as B_HELP
+from PMT_tools.config import prepare_config as P_CONF
+from PMT_tools.utils import *
 
 __all__ = [
     "is_gz_file",
