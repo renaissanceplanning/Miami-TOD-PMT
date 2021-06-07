@@ -1,5 +1,7 @@
 """
-helper functions for the prepare procedures, the heavy lifting for the projects happen here
+The `prepare_helpers` module defines a host of functions that support `preparer` procedures.
+Much of the heavy lifting for TOC analysis occurs here by methods that are more abstract
+and parameterized than the purpose-built methods in `preparer`.
 """
 
 import fnmatch

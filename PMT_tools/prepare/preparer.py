@@ -1,10 +1,13 @@
 """
-The prepare module standardizes and formats all raw datasets into a common storage pattern, normalizing or
+The `preparer` module standardizes and formats all raw datasets into a common storage pattern, normalizing or
 separating geospatial data from tabular data where possible to decrease overall file sizes. The standardized
 databases include PMT_BasicFeatures and PMT_YYYY (where YYYY = the relevant year of data). Standardization includes
 removing unnecessary attributes, renaming attributes for readability, merging data where needed, and placing outputs
 in a common geodatabase structure. In addition to standardization, much of the analytical processing is performed via
 this module.
+
+Functions defined in this module are purpose-build for TOC anlaysis in Miami-Dade County's TOC Toolkit. They lean
+on more abstract functions and classes defined in `prepare_helpers`, `PMT` and other supporting modules.
 
 Functions:
     process_normalized_geometries()

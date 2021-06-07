@@ -1,3 +1,9 @@
+"""
+The `prepare_config` module establishes settings, field references, analysis constants, etc.
+to facilitate data cleaning and analysis via the `preparer` module. No methods or functions
+are defined, but some settings are assigned as custom classes defined in `PMT`.
+"""
+
 from collections import OrderedDict
 
 from PMT_tools.PMT import (
