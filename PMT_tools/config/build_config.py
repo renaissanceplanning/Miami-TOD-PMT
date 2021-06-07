@@ -1,7 +1,8 @@
-from ..PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
-from ..config import prepare_config as pconfig
-from ..build.build_helper import _makeAccessColSpecs
 import numpy as np
+
+from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
+from PMT_tools.utils import _make_access_col_specs
+from PMT_tools.config import prepare_config as pconfig
 
 # GLOBALS
 # SNAPSHOT_YEAR = PMT.YEARS[-1] # TODO: not a config item? always take a snapshot of each year in PMT.YEARS?
@@ -54,16 +55,16 @@ FC_SPECS = [
 ]
 
 # fields and rename fields for MAZ/TAZ
-MAZ_WALK_FIELDS, MAZ_WALK_RENAMES = _makeAccessColSpecs(
+MAZ_WALK_FIELDS, MAZ_WALK_RENAMES = _make_access_col_specs(
     activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Walk"
 )
-MAZ_BIKE_FIELDS, MAZ_BIKE_RENAMES = _makeAccessColSpecs(
+MAZ_BIKE_FIELDS, MAZ_BIKE_RENAMES = _make_access_col_specs(
     activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Bike"
 )
-TAZ_AUTO_FIELDS, TAZ_AUTO_RENAMES = _makeAccessColSpecs(
+TAZ_AUTO_FIELDS, TAZ_AUTO_RENAMES = _make_access_col_specs(
     activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Auto"
 )
-TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES = _makeAccessColSpecs(
+TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES = _make_access_col_specs(
     activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Transit"
 )
 

@@ -246,8 +246,8 @@ def fetchOsmNetworks(output_dir, study_area_polygons_path=None, bbox=None,
 if __name__ == "__main__":
     # Fetch current OSM walk and bike networks for Miami-Dade County
     RAW = r'C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\PROCESSING_TEST\RAW'
-    output_dir = makePath(RAW, "OSM_data")
-    sa_polys = makePath(RAW, "Miami-Dade_County_Boundary.geojson")
+    output_dir = make_path(RAW, "OSM_data")
+    sa_polys = make_path(RAW, "Miami-Dade_County_Boundary.geojson")
     fetchOsmNetworks(output_dir, study_area_polygons_path=sa_polys, bbox=None,
                      net_types=["walk", "bike"], pickle_save=False)
 

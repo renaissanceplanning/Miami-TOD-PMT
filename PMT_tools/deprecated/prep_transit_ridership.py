@@ -86,19 +86,19 @@ if __name__ == "__main__":
     GITHUB = False
     if GITHUB:
         DATA = r"C:\Users\V_RPG\OneDrive - Renaissance Planning Group\SHARE\PMT_PROJECT\Data"
-        RAW = PMT.makePath(DATA, "Raw")
-        CLEANED = PMT.makePath(DATA, "Cleaned")
-    data_path = PMT.makePath(RAW, "Transit", "TransitRidership_byStop")
+        RAW = PMT.make_path(DATA, "Raw")
+        CLEANED = PMT.make_path(DATA, "Cleaned")
+    data_path = PMT.make_path(RAW, "Transit", "TransitRidership_byStop")
     for year in PMT.YEARS:
         print(year)
         # setup loop vars
-        out_clean_table = PMT.makePath(
+        out_clean_table = PMT.make_path(
             PMT.CLEANED, "Transp", f"transit_ridership_{year}.csv"
         )
-        out_fc = PMT.makePath(
+        out_fc = PMT.make_path(
             PMT.DATA, f"PMT_{year}.gdb", "Transport", "transit_ridership"
         )
-        xls_file = PMT.makePath(data_path, TABLES[year])
+        xls_file = PMT.make_path(data_path, TABLES[year])
         # define on/off attribute per file
         file_tag = "_".join(TABLES[year].split("_")[7:10])
         FIELDS_DICT[f"ON_{file_tag}"] = "ON"
@@ -109,7 +109,7 @@ if __name__ == "__main__":
             arcpy.AddMessage(f"...writing formatted data to {PMT.CLEANED}")
             cleaned_df.to_csv(out_clean_table)
             arcpy.AddMessage(f"...converting coordinates to point feature class")
-            PMT.dfToPoints(
+            PMT.df_to_points(
                 df=cleaned_df,
                 out_fc=out_fc,
                 shape_fields=[LONG, LAT],

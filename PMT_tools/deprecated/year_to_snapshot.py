@@ -58,7 +58,7 @@ def joinAttributes(to_table, to_id_field, from_table, from_id_field,
     )
     if renames:
         df.rename(columns=renames, inplace=True)
-    PMT.extendTableDf(to_table, to_id_field, df, from_id_field)
+    PMT.extend_table_df(to_table, to_id_field, df, from_id_field)
 
 
 def summarizeAttributes(in_fc, group_fields, agg_cols,
@@ -192,19 +192,19 @@ if __name__ == "__main__":
 
     # GDB's
     print("Creating snapshot GDB")
-    in_gdb = PMT.makePath(PMT.DATA, f"IDEAL_PMT_{SNAPSHOT_YEAR}.gdb")
+    in_gdb = PMT.make_path(PMT.DATA, f"IDEAL_PMT_{SNAPSHOT_YEAR}.gdb")
     out_gdb_name = f"{uuid.uuid4().hex}.gdb"
     arcpy.CreateFileGDB_management(PMT.DATA, out_gdb_name)
     # out_gdb_name = "47ba6fd992f6463393c873c0b7a33fe8.gdb"
-    out_gdb = PMT.makePath(PMT.DATA, out_gdb_name)
+    out_gdb = PMT.make_path(PMT.DATA, out_gdb_name)
 
     # Copy spatial shells
     # ---------------------------
     # Networks, Points, and Polygons Feature Datasets
     for fds in ["Networks", "Points", "Polygons"]:
         print(f"... copying FDS {fds}")
-        source_fd = PMT.makePath(in_gdb, fds)
-        out_fd = PMT.makePath(out_gdb, fds)
+        source_fd = PMT.make_path(in_gdb, fds)
+        out_fd = PMT.make_path(out_gdb, fds)
         arcpy.Copy_management(source_fd, out_fd)
 
     # Join attributes from tables to features
@@ -212,62 +212,62 @@ if __name__ == "__main__":
     print("Joining tables")
     # Feature class specs
     # - blocks
-    blocks = PMT.makePath(out_gdb, "Polygons", "Blocks")
+    blocks = PMT.make_path(out_gdb, "Polygons", "Blocks")
     block_id = "GEOID10"
     # - parcels
-    parcels = PMT.makePath(out_gdb, "Polygons", "Parcels")
+    parcels = PMT.make_path(out_gdb, "Polygons", "Parcels")
     parcel_id = "FOLIO"
     # - MAZ
-    mazs = PMT.makePath(out_gdb, "Polygons", "MAZ")
+    mazs = PMT.make_path(out_gdb, "Polygons", "MAZ")
     maz_id = "MAZ"
     # - TAZ
-    tazs = PMT.makePath(out_gdb, "Polygons", "TAZ")
+    tazs = PMT.make_path(out_gdb, "Polygons", "TAZ")
     taz_id = "TAZ"
     # - OSM nodes
-    osm_nodes = PMT.makePath(out_gdb, "Networks", "nodes_bike")
+    osm_nodes = PMT.make_path(out_gdb, "Networks", "nodes_bike")
     osm_id = "NODEID"
     # - Summary areas
-    sum_areas = PMT.makePath(out_gdb, "Polygons", "SummaryAreas")
+    sum_areas = PMT.make_path(out_gdb, "Polygons", "SummaryAreas")
     sum_areas_id = "RowID"
 
     # Table specs
     # - block
-    imperviousness = PMT.makePath(in_gdb, "Imperviousness_blocks")
+    imperviousness = PMT.make_path(in_gdb, "Imperviousness_blocks")
     imperviousness_id = "GEOID10"
     # - parcel
-    econdem = PMT.makePath(in_gdb, "EconDemog_parcels")
+    econdem = PMT.make_path(in_gdb, "EconDemog_parcels")
     econdem_id = "FOLIO"
-    energycons = PMT.makePath(in_gdb, "EnergyCons_parcels")
+    energycons = PMT.make_path(in_gdb, "EnergyCons_parcels")
     energycons_id = "FOLIO"
-    lucodes = PMT.makePath(in_gdb, "LandUseCodes_parcels")
+    lucodes = PMT.make_path(in_gdb, "LandUseCodes_parcels")
     lucodes_id = "FOLIO"
-    walktime = PMT.makePath(in_gdb, "WalkTime_parcels")
+    walktime = PMT.make_path(in_gdb, "WalkTime_parcels")
     walktime_id = "FOLIO"
-    contig = PMT.makePath(in_gdb, "Contiguity_parcels")
+    contig = PMT.make_path(in_gdb, "Contiguity_parcels")
     contig_id = "FOLIO"
     # - MAZ
-    maz_access_w = PMT.makePath(in_gdb, "access_maz_Walk")
-    maz_access_b = PMT.makePath(in_gdb, "access_maz_Bike")
+    maz_access_w = PMT.make_path(in_gdb, "access_maz_Walk")
+    maz_access_b = PMT.make_path(in_gdb, "access_maz_Bike")
     maz_access_id = "MAZ"
     maz_walk_cols, maz_walk_renames = _makeAccessColSpecs(
         ACTIVITIES, TIME_BREAKS, "Walk")
     maz_bike_cols, maz_bike_renames = _makeAccessColSpecs(
         ACTIVITIES, TIME_BREAKS, "Bike")
     # - TAZ
-    taz_access_a = PMT.makePath(in_gdb, "access_taz_Auto")
-    taz_access_t = PMT.makePath(in_gdb, "access_taz_Transit")
+    taz_access_a = PMT.make_path(in_gdb, "access_taz_Auto")
+    taz_access_t = PMT.make_path(in_gdb, "access_taz_Transit")
     taz_access_id = "TAZ"
     taz_auto_cols, taz_auto_renames = _makeAccessColSpecs(
         ACTIVITIES, TIME_BREAKS, "Auto")
     taz_tran_cols, taz_tran_renames = _makeAccessColSpecs(
         ACTIVITIES, TIME_BREAKS, "Transit")
-    taz_trip = PMT.makePath(in_gdb, "TripStats_TAZ")
+    taz_trip = PMT.make_path(in_gdb, "TripStats_TAZ")
     taz_trip_id = "TAZ"
     # - OSM Nodes
-    centrality = PMT.makePath(in_gdb, "NetworkCentrality_nodes_bike")
+    centrality = PMT.make_path(in_gdb, "NetworkCentrality_nodes_bike")
     centrality_id = "Node"
     # - Summary areas
-    diversity = PMT.makePath(in_gdb, "Diversity_summaryareas")
+    diversity = PMT.make_path(in_gdb, "Diversity_summaryareas")
     diversity_id = "RowID_"
 
     # ****************************************************
@@ -305,20 +305,20 @@ if __name__ == "__main__":
     # Blocks || parcels
     print("Running intersections")
     print("... blocks and parcels")
-    blocks = PMT.makePath(out_gdb, "Polygons", "Blocks")
-    int_bp = PMT.intersectFeatures(blocks, parcels)
+    blocks = PMT.make_path(out_gdb, "Polygons", "Blocks")
+    int_bp = PMT.intersect_features(blocks, parcels)
     # Summary areas || parcels
     print("... summary areas and parcels")
-    int_sp = PMT.intersectFeatures(sum_areas, parcels)
+    int_sp = PMT.intersect_features(sum_areas, parcels)
     # Summary areas || Blocks
     print("... summary areas and Blocks")
-    int_sb = PMT.intersectFeatures(sum_areas, blocks)
+    int_sb = PMT.intersect_features(sum_areas, blocks)
     # Summary areas || MAZs
     print("... summary areas and MAZs")
-    int_sm = PMT.intersectFeatures(sum_areas, mazs)
+    int_sm = PMT.intersect_features(sum_areas, mazs)
     # Summary areas || TAZs
     print("... summary areas and TAZs")
-    int_st = PMT.intersectFeatures(sum_areas, tazs)
+    int_st = PMT.intersect_features(sum_areas, tazs)
 
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Enrich features through summarization
@@ -360,7 +360,7 @@ if __name__ == "__main__":
     ]
     df = summarizeAttributes(in_fc=int_bp, group_fields=Column(block_id),
                              consolidations=consolidate, melt_col=agg_cols,)
-    PMT.extendTableDf(blocks, block_id, df, block_id)
+    PMT.extend_table_df(blocks, block_id, df, block_id)
 
     # Summary areas from parcels
     print("... summary areas with parcel sums")
@@ -405,7 +405,7 @@ if __name__ == "__main__":
     ]
     df = summarizeAttributes(int_sp, Column(sum_areas_id), agg_cols,
                              consolidations=consolidate)
-    PMT.extendTableDf(sum_areas, sum_areas_id, df, sum_areas_id)
+    PMT.extend_table_df(sum_areas, sum_areas_id, df, sum_areas_id)
 
     # Summary areas from MAZs
     print("... summary areas with MAZ averages")
@@ -414,7 +414,7 @@ if __name__ == "__main__":
     agg_cols += [AggColumn(maz_col, agg_method="mean") for
                  maz_col in maz_bike_renames.values()]
     df = summarizeAttributes(int_sm, Column(sum_areas_id), agg_cols)
-    PMT.extendTableDf(sum_areas, sum_areas_id, df, sum_areas_id)
+    PMT.extend_table_df(sum_areas, sum_areas_id, df, sum_areas_id)
 
     # Summary areas from TAZs
     print("... summary areas with TAZ averages")
@@ -433,7 +433,7 @@ if __name__ == "__main__":
         AggColumn("AVG_DIST_TR", agg_method="mean"),
     ]
     df = summarizeAttributes(int_st, Column(sum_areas_id), agg_cols)
-    PMT.extendTableDf(sum_areas, sum_areas_id, df, sum_areas_id)
+    PMT.extend_table_df(sum_areas, sum_areas_id, df, sum_areas_id)
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     # Elongate tables
@@ -441,7 +441,7 @@ if __name__ == "__main__":
     print("Building long tables")
     # Long on Land use
     print("... Summary area stats by land use")
-    out_table = PMT.makePath(out_gdb, "AttrByLandUse")
+    out_table = PMT.make_path(out_gdb, "AttrByLandUse")
     _sa_group_cols_ = [Column(sum_areas_id), Column("Name"), Column("Corridor")]
     group_cols = _sa_group_cols_ + [Column("GN_VA_LU", default="Unknown")]
     agg_cols = [
@@ -455,11 +455,11 @@ if __name__ == "__main__":
         AggColumn("NRES_BTU")
     ]
     df = summarizeAttributes(int_sp, group_cols, agg_cols)
-    PMT.dfToTable(df, out_table)
+    PMT.df_to_table(df, out_table)
 
     # Long on commutes
     print("... Summary area commutes by mode")
-    out_table = PMT.makePath(out_gdb, "CommutesByMode")
+    out_table = PMT.make_path(out_gdb, "CommutesByMode")
     agg_cols = [
         YEAR_COL,
         AggColumn("Total_Commutes")
@@ -471,11 +471,11 @@ if __name__ == "__main__":
                     "NonMotor", "Work_From_Home", "AllOther"]
     )
     df = summarizeAttributes(int_sp, _sa_group_cols_, agg_cols, melt_col=commutes)
-    PMT.dfToTable(df, out_table)
+    PMT.df_to_table(df, out_table)
 
     # Long on job type
     print("... Summary area jobs by sector")
-    out_table = PMT.makePath(out_gdb, "JobsBySector")
+    out_table = PMT.make_path(out_gdb, "JobsBySector")
     # - First consolidate parcel-level employment columns
     agg_cols = [
         AggColumn("CNS16", rename="HCJobs"),
@@ -492,7 +492,7 @@ if __name__ == "__main__":
     ]
     df = summarizeAttributes(
         int_sp, Column(parcel_id), agg_cols, consolidations=consolidate)
-    PMT.extendTableDf(int_sp, parcel_id, df, parcel_id)
+    PMT.extend_table_df(int_sp, parcel_id, df, parcel_id)
     # - Then summarize jobs by sector
     agg_cols = [
         YEAR_COL,
@@ -505,11 +505,11 @@ if __name__ == "__main__":
                     "EdJobs", "HCJobs", "OthJobs"]
     )
     df = summarizeAttributes(int_sp, _sa_group_cols_, agg_cols, melt_col=sectors)
-    PMT.dfToTable(df, out_table)
+    PMT.df_to_table(df, out_table)
 
     # Long on walk time to stations
     print("... Summary area by walk time to stations")
-    out_table = PMT.makePath(out_gdb, "WalkTimeToStations")
+    out_table = PMT.make_path(out_gdb, "WalkTimeToStations")
     group_cols = _sa_group_cols_ + [
         Column("GN_VA_LU", default="Unknown"), Column("BinStn_walk")]
     agg_cols = [
@@ -519,11 +519,11 @@ if __name__ == "__main__":
         AggColumn("FOLIO", agg_method="size", rename="NParcels")
     ]
     df = summarizeAttributes(int_sp, group_cols, agg_cols)
-    PMT.dfToTable(df, out_table)
+    PMT.df_to_table(df, out_table)
 
     # Long on walk time to parks
     print("... Summary area by walk time to parks")
-    out_table = PMT.makePath(out_gdb, "WalkTimeToParks")
+    out_table = PMT.make_path(out_gdb, "WalkTimeToParks")
     group_cols = _sa_group_cols_ + [Column("BinStn_walk")]
     agg_cols = [
         YEAR_COL,
@@ -532,11 +532,11 @@ if __name__ == "__main__":
         AggColumn("FOLIO", agg_method="size", rename="NParcels")
     ]
     df = summarizeAttributes(int_sp, group_cols, agg_cols)
-    PMT.dfToTable(df, out_table)
+    PMT.df_to_table(df, out_table)
 
     # Long on dev status
     print("... Summary area land area by dev status")
-    out_table = PMT.makePath(out_gdb, "AreaByDevStatus")
+    out_table = PMT.make_path(out_gdb, "AreaByDevStatus")
     agg_cols = [
         YEAR_COL,
         AggColumn("TotalArea")
@@ -548,7 +548,7 @@ if __name__ == "__main__":
                     "DevMedArea", "DevHighArea"]
     )
     df = summarizeAttributes(int_sb, _sa_group_cols_, agg_cols, melt_col=dev_status)
-    PMT.dfToTable(df, out_table)
+    PMT.df_to_table(df, out_table)
 
     # Long on access mode
     print("... Access scores by activity and time bin")
@@ -557,8 +557,8 @@ if __name__ == "__main__":
         print(f"... ... {mode}")
         df = _createLongAccess(
             sum_areas, id_fields, ACTIVITIES, TIME_BREAKS, mode)
-        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
-        PMT.dfToTable(df, out_table)
+        out_table = PMT.make_path(out_gdb, f"ActivityByTime_{mode}")
+        PMT.df_to_table(df, out_table)
 
     # Rename output
     # arcpy.Rename_management(out_gdb, )

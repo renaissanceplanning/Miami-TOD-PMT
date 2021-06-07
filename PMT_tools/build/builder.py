@@ -25,6 +25,8 @@ import sys
 
 from six import string_types
 
+import PMT_tools.utils
+
 sys.path.insert(0, os.getcwd())
 # build helper functions
 from ..build import build_helper as B_HELP
@@ -71,7 +73,7 @@ def process_year_to_snapshot(year):
     print("Validating all data have a year attribute...")
     out_path = PMT.validate_directory(directory=BUILD)
     in_gdb = PMT.validate_geodatabase(
-        gdb_path=PMT.makePath(CLEANED, f"PMT_{year}.gdb"), overwrite=False
+        gdb_path=PMT.make_path(CLEANED, f"PMT_{year}.gdb"), overwrite=False
     )
     B_HELP.add_year_columns(in_gdb=in_gdb, year=calc_year)
     print("Making Snapshot Template...")
@@ -119,7 +121,7 @@ def process_year_to_snapshot(year):
     # build access by mode tables
     print("Access scores by activity and time bin")
     sa_fc, sa_id, sa_fds = B_CONF.SUM_AREA_FC_SPECS
-    sum_areas_fc = PMT.makePath(out_gdb, sa_fds, sa_fc)
+    sum_areas_fc = PMT.make_path(out_gdb, sa_fds, sa_fc)
     id_fields = [
         P_CONF.SUMMARY_AREAS_COMMON_KEY,
         P_CONF.STN_NAME_FIELD,
@@ -159,7 +161,7 @@ def process_year_to_snapshot(year):
     print("--- --- Finalizing the snapshot")
     if year == PMT.SNAPSHOT_YEAR:
         year = "Current"
-    year_out_gdb = PMT.makePath(BUILD, f"Snapshot_{year}.gdb")
+    year_out_gdb = PMT.make_path(BUILD, f"Snapshot_{year}.gdb")
     B_HELP.finalize_output(intermediate_gdb=out_gdb, final_gdb=year_out_gdb)
 
 
@@ -201,13 +203,13 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             else:
                 process_year = snapshot_year = "Current"
         in_gdb = PMT.validate_geodatabase(
-            gdb_path=PMT.makePath(BUILD, f"Snapshot_{process_year}.gdb"),
+            gdb_path=PMT.make_path(BUILD, f"Snapshot_{process_year}.gdb"),
             overwrite=False,
         )
         # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
-        year_tables = B_HELP._list_table_paths(gdb=in_gdb, criteria=table_criteria)
-        year_fcs = B_HELP._list_fc_paths(
+        year_tables = PMT_tools.utils._list_table_paths(gdb=in_gdb, criteria=table_criteria)
+        year_fcs = PMT_tools.utils._list_fc_paths(
             gdb=in_gdb, fds_criteria="*", fc_criteria=long_criteria
         )
         elongate = year_tables + year_fcs
@@ -222,32 +224,32 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             else:
                 # Append to the output table
                 print(f"Appending to long table {elong_out_name} ({process_year})")
-                out_table = PMT.makePath(out_gdb, elong_out_name)
+                out_table = PMT.make_path(out_gdb, elong_out_name)
                 arcpy.Append_management(
                     inputs=elong_table, target=out_table, schema_type="NO_TEST"
                 )
         # Get snapshot and base year params
         if process_year == base_year:
             base_tables = year_tables[:]
-            base_fcs = B_HELP._list_fc_paths(
+            base_fcs = PMT_tools.utils._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
         elif process_year == snapshot_year:
             snap_tables = year_tables[:]
-            snap_fcs = B_HELP._list_fc_paths(
+            snap_fcs = PMT_tools.utils._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
 
     # Make difference tables (snapshot - base)
     for base_table, snap_table, specs in zip(base_tables, snap_tables, tables):
         out_name = os.path.split(base_table)[1] + "_diff"
-        out_table = PMT.makePath(out_gdb, out_name)
+        out_table = PMT.make_path(out_gdb, out_name)
         idx_cols = specs["index_cols"]
-        diff_df = B_HELP.table_difference(
+        diff_df = PMT_tools.utils.table_difference(
             this_table=snap_table, base_table=base_table, idx_cols=idx_cols
         )
         print(f"Creating table {out_name}")
-        PMT.dfToTable(df=diff_df, out_table=out_table, overwrite=True)
+        PMT.df_to_table(df=diff_df, out_table=out_table, overwrite=True)
 
     # Make difference fcs (snapshot - base)
     for base_fc, snap_fc, spec in zip(base_fcs, snap_fcs, diff_features):
@@ -259,9 +261,9 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             idx_cols = [idx_cols]
         if fc_id not in idx_cols:
             idx_cols.append(fc_id)
-        out_fds = PMT.makePath(out_gdb, fc_fds)
+        out_fds = PMT.make_path(out_gdb, fc_fds)
         out_name = fc_name + "_diff"
-        out_table = PMT.makePath(out_fds, out_name)
+        out_table = PMT.make_path(out_fds, out_name)
         # Field mappings
         field_mappings = arcpy.FieldMappings()
         for idx_col in idx_cols:
@@ -277,14 +279,14 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             field_mapping=field_mappings,
         )
         # Get table difference
-        diff_df = B_HELP.table_difference(
+        diff_df = PMT_tools.utils.table_difference(
             this_table=snap_fc, base_table=base_fc, idx_cols=idx_cols
         )
         # Extend attribute table
         drop_cols = [c for c in diff_df.columns if c in idx_cols and c != fc_id]
         diff_df.drop(columns=drop_cols, inplace=True)
         print("... adding difference columns")
-        PMT.extendTableDf(
+        PMT.extend_table_df(
             in_table=out_table,
             table_match_field=fc_id,
             df=diff_df,
@@ -294,7 +296,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
     # TODO: calculate percent change in value over base for summary areas
 
     print("Finalizing the trend")
-    final_gdb = PMT.makePath(BUILD, f"{out_gdb_name}.gdb")
+    final_gdb = PMT.make_path(BUILD, f"{out_gdb_name}.gdb")
     B_HELP.finalize_output(intermediate_gdb=out_gdb, final_gdb=final_gdb)
 
 
@@ -309,15 +311,15 @@ if __name__ == "__main__":
         ROOT = (
             r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT_link\Data"
         )
-        CLEANED = PMT.validate_directory(directory=PMT.makePath(ROOT, "CLEANED"))
+        CLEANED = PMT.validate_directory(directory=PMT.make_path(ROOT, "CLEANED"))
         # BUILD = PMT.validate_directory(directory=PMT.makePath(r"C:\PMT_TEST_FOLDER", "BUILD"))
-        BUILD = PMT.validate_directory(directory=PMT.makePath(ROOT, "BUILD"))
+        BUILD = PMT.validate_directory(directory=PMT.make_path(ROOT, "BUILD"))
         DATA = ROOT
-        BASIC_FEATURES = PMT.makePath(CLEANED, "PMT_BasicFeatures.gdb")
-        REF = PMT.makePath(ROOT, "Reference")
-        RIF_CAT_CODE_TBL = PMT.makePath(REF, "road_impact_fee_cat_codes.csv")
-        DOR_LU_CODE_TBL = PMT.makePath(REF, "Land_Use_Recode.csv")
-        YEAR_GDB_FORMAT = PMT.makePath(CLEANED, "PMT_YEAR.gdb")
+        BASIC_FEATURES = PMT.make_path(CLEANED, "PMT_BasicFeatures.gdb")
+        REF = PMT.make_path(ROOT, "Reference")
+        RIF_CAT_CODE_TBL = PMT.make_path(REF, "road_impact_fee_cat_codes.csv")
+        DOR_LU_CODE_TBL = PMT.make_path(REF, "Land_Use_Recode.csv")
+        YEAR_GDB_FORMAT = PMT.make_path(CLEANED, "PMT_YEAR.gdb")
         YEARS = ["NearTerm"]
 
     # # parse arguments to allow these to be run as scripts
@@ -349,5 +351,5 @@ if __name__ == "__main__":
         out_gdb_name="NearTerm",
     )
     B_HELP.post_process_databases(
-        basic_features_gdb=BASIC_FEATURES, build_dir=PMT.makePath(BUILD, "TEMP")
+        basic_features_gdb=BASIC_FEATURES, build_dir=PMT.make_path(BUILD, "TEMP")
     )

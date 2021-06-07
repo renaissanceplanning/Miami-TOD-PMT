@@ -29,11 +29,11 @@ import arcpy
 
 # %% MAIN
 if __name__ == "__main__":
-    station_areas = PMT.makePath(
+    station_areas = PMT.make_path(
         PMT.BASIC_FEATURES, "SMART_Plan_Station_Areas")
     for year in PMT.YEARS:
         print(year)
-        out_fc = PMT.makePath(
+        out_fc = PMT.make_path(
             PMT.ROOT, f"PMT_{year}.gdb", "station_areas", "park_acreage")
         
 

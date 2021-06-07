@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from ..PMT import (
+from PMT_tools.PMT import (
     Comp,
     And,
     Column,

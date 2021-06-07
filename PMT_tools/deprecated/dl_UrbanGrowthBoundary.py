@@ -16,7 +16,7 @@ import traceback
 if __name__ == "__main__":
     try:
         url = r"https://opendata.arcgis.com/datasets/a468dc11c02f4467ade836947627554b_0.geojson"
-        out_file = PMT.makePath(PMT.RAW, "UrbanDevelopmentBoundary4.shp")
+        out_file = PMT.make_path(PMT.RAW, "UrbanDevelopmentBoundary4.shp")
         ugb_gdf = PMT.fetchJsonUrl(url, out_file, is_spatial=True, overwrite=True)
         print("Download successful")
     except:

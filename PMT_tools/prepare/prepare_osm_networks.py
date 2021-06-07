@@ -151,7 +151,7 @@ def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
     if fc_name is None:
         fc_name, ext = os.path.splitext(os.path.split(osm_fc)[1])
     # Check if output already exists
-    out_path = PMT.makePath(str(to_feature_dataset), fc_name)
+    out_path = PMT.make_path(str(to_feature_dataset), fc_name)
     PMT.checkOverwriteOutput(output=out_path, overwrite=overwrite)
 
     # Transfer data
@@ -180,7 +180,7 @@ def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
     arcpy.na.CreateNetworkDatasetFromTemplate(network_dataset_template=template_xml,
                                               output_feature_dataset=out_feature_dataset)
     print(f"...building network dataset: {net_name}")
-    nd = PMT.makePath(out_feature_dataset, net_name)
+    nd = PMT.make_path(out_feature_dataset, net_name)
     arcpy.na.BuildNetwork(in_network_dataset=nd)
 
     # save build errors

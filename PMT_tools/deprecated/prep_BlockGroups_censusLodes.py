@@ -100,7 +100,7 @@ def joinBGData(in_fc, in_fc_id, join_tables, on_fields, out_fc, dtype={},
         df = pd.read_csv(join_table, dtype=dtype, **kwargs)
         cols = df.columns.to_list()
         df.columns = [re.sub("[^a-zA-Z0-9_]", "_", c) for c in cols]
-        PMT.extendTableDf(out_fc, in_fc_id, df, on_field, append_only=False)
+        PMT.extend_table_df(out_fc, in_fc_id, df, on_field, append_only=False)
 
     return out_fc
 
@@ -131,14 +131,14 @@ def prepBlockGroups(raw_dir, out_gdb, years, overwrite=False, dtype={}):
     arcpy.CreateFileGDB_management(out_folder, out_name)
     
     # Push data for each year
-    bg_path = PMT.makePath(raw_dir, "BlockGroups")
+    bg_path = PMT.make_path(raw_dir, "BlockGroups")
     
     for year in years:
         print(year)
-        bg_features = PMT.makePath(bg_path, "CensusBG.shp")
-        LODES_table = PMT.makePath(bg_path, f"LODES_{year}_jobs.csv")
-        race_table = PMT.makePath(bg_path, f"ACS_{year}_race.csv")
-        mode_table = PMT.makePath(bg_path, f"ACS_{year}_commute.csv")
+        bg_features = PMT.make_path(bg_path, "CensusBG.shp")
+        LODES_table = PMT.make_path(bg_path, f"LODES_{year}_jobs.csv")
+        race_table = PMT.make_path(bg_path, f"ACS_{year}_race.csv")
+        mode_table = PMT.make_path(bg_path, f"ACS_{year}_commute.csv")
     
         # Check to see if the year has available jobs and demographic data
         #  if data are unavailable, these columns will be developed through
@@ -159,12 +159,12 @@ def prepBlockGroups(raw_dir, out_gdb, years, overwrite=False, dtype={}):
             on_fields += ["GEOID10", "GEOID10"]
             dem_source = '"ACS"'
         # If any join data are found, run the joinBGData function
-        out_fc = PMT.makePath(out_gdb, f"BlockGroups_{year}")
+        out_fc = PMT.make_path(out_gdb, f"BlockGroups_{year}")
         if join_tables:
             out_fc = joinBGData(bg_features, "GEOID10", join_tables,
                                 on_fields, out_fc, dtype=dtype)
         else:
-            out_fc = PMT.copyFeatures(bg_features, out_fc)
+            out_fc = PMT.copy_features(bg_features, out_fc)
         
         # Add a column to the output feature class to indicate extapolation
         #  requirements
@@ -177,6 +177,6 @@ def prepBlockGroups(raw_dir, out_gdb, years, overwrite=False, dtype={}):
 # %% MAIN
 if __name__ == "__main__":
     # GDB 
-    out_gdb = PMT.makePath(PMT.CLEANED, "BlockGroups.gdb")
+    out_gdb = PMT.make_path(PMT.CLEANED, "BlockGroups.gdb")
     prepBlockGroups(PMT.RAW, out_gdb, PMT.YEARS, overwrite=True, dtype=DTYPE)
 

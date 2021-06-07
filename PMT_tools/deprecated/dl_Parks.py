@@ -31,11 +31,11 @@ def dl_parks(parks_url, out_path, out_name):
        A shape file of parks features is saved at `{out_path}/{out_name}`
     """
     parks = gpd.read_file(parks_url)
-    out_file = PMT.makePath(out_path, out_name)
+    out_file = PMT.make_path(out_path, out_name)
     parks.to_file(out_file)
 
 if __name__ == "__main__":
-    out_path = PMT.makePath(PMT.RAW, "Parks")
+    out_path = PMT.make_path(PMT.RAW, "Parks")
     # URLs
     muni_url = "https://opendata.arcgis.com/datasets/16fe02a1defa45b28bf14a29fb5f0428_0.geojson"
     county_url = "https://opendata.arcgis.com/datasets/aca1e6ff0f634be282d50cc2d534a832_0.geojson"

@@ -8,23 +8,24 @@ import pandas as pd
 import requests
 from requests.exceptions import RequestException
 
-from PMT_tools.utils import makePath, check_overwrite_path
+from PMT_tools.utils import make_path
+
+__all__ = ["download_file_from_url", "get_filename_from_header", "census_geoindex_to_columns", "fetch_acs",
+           "download_race_vars", "download_commute_vars", "trim_components"]
 
 
-def download_file_from_url(url, save_path, overwrite=False):
+def download_file_from_url(url, save_path):
     """downloads file resources directly from a url endpoint to a folder
     Args:
         url (str): String; path to resource
         save_path (str): String; path to output file
-        overwrite: (bool): if True, existing data will be deleted prior to download
     Returns:
         None
     """
     if os.path.isdir(save_path):
         filename = get_filename_from_header(url)
-        save_path = makePath(save_path, filename)
-    if overwrite:
-        check_overwrite_path(output=save_path, overwrite=overwrite)
+        save_path = make_path(save_path, filename)
+
     print(f"...downloading {save_path} from {url}")
     try:
         request.urlretrieve(url, save_path)
@@ -53,9 +54,9 @@ def get_filename_from_header(url):
 
 # ACS tabular data
 def census_geoindex_to_columns(pd_idx, gen_geoid=True, geoid="GEOID10"):
-    """ Given an index of `censusgeo` objects, return a dataframe with
-        columns reflecting the geographical hierarchy and identifying
-        discrete features.
+    """Given an index of `censusgeo` objects, return a dataframe with
+    columns reflecting the geographical hierarchy and identifying
+    discrete features.
     Args:
         pd_idx (idx): Index, A pandas Index of `censusgeo` objects.
         gen_geoid (bool): Boolean, default=True; If True, the geographical hierarchy will be concatenated into a
@@ -95,7 +96,8 @@ def fetch_acs(year, acs_dataset, state, county, table, columns):
             (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
 
     Returns:
-
+        pandas.DataFrame: Data frame with columns corresponding to designated variables, and row
+        index of censusgeo objects representing Census geographies.
     """
     variables = [f"{table}_{c}" for c in list(columns.keys())]
     # Reconstruct dictionary with explicit ordering
@@ -114,14 +116,15 @@ def download_race_vars(
     year, acs_dataset="acs5", state="fl", county="086", table=None, columns=None
 ):
     """Downloads population race and ethnicity variables from available ACS data
-        in table B03002.
+    in table B03002.
     Args:
         year (int): year of interest
         acs_dataset (str): String, default="acs5"; Which ACS dataset to download (3-year, 5-year, e.g.)
         state (str): String, default="12"; Which state FIPS code to download data for (`12` is Florida)
         county (str): String, defult="086"; Which county FIPS code to download data for (`086` is Miami-Dade)
-        table:
-        columns:
+        table (str): string code for the Census table of interest ex: "B03002"
+        columns (dict): key, value pairs of Census table columns and rename
+            (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
     Returns:
         race_data (pd.DataFrame): A data frame with columns showing population by race (white, black,
             Asian, 2 or more, or other) and ethnicity (Hispanic, non-Hispanic) for block groups in the
@@ -166,10 +169,10 @@ def download_race_vars(
 
 
 def download_commute_vars(
-    year, acs_dataset="acs5", state="12", county="086", table=None, columns=None
+    year, acs_dataset="acs5", state="12", county="086", table=None, columns=None,
 ):
     """Downloads commute (journey to work) data from available ACS data
-        in table B08301.
+    in table B08301.
     Args:
         year: Int
         acs_dataset: String, default="acs5"
@@ -178,8 +181,9 @@ def download_commute_vars(
             Which state FIPS code to download data for (`12` is Florida)
         county: String, defult="086"
             Which county FIPS code to download data for (`086` is Miami-Dade)
-        table (str):
-        columns (dict):
+        table (str): string code for the Census table of interest ex: "B03002"
+        columns (dict): key, value pairs of Census table columns and rename
+            (ex: {"002E": "Total_Non_Hisp", "012E": "Total_Hispanic")
     Returns:
         commute_data: DataFrame
             A data frame with columns showing ....
@@ -216,18 +220,13 @@ def trim_components(graph, min_edges=2, message=True):
     from a graph
 
     Args:
-        graph : networkx graph
-            the network from which to remove small components
-        min_edges : int, optional
-            the minimum number of edges required for a component to remain in the
-            network; any component with FEWER edges will be removed. The default
-            is 2.
-        message : bool, optional
-            should a message indicating the number of components removed be
+        graph (nx.Graph) : networkx graph; the network from which to remove small components
+        min_edges (int) : int, optional; the minimum number of edges required for a component to remain in the
+            network; any component with FEWER edges will be removed. The default is 2.
+        message (bool): bool, optional; should a message indicating the number of components removed be
             printed? The default is True.
     Returns:
-        G : networkx graph
-            the original graph, with connected components smaller than `min_edges`
+        G (nx.Graph): networkx graph; the original graph, with connected components smaller than `min_edges`
             removed
     """
 
@@ -251,7 +250,7 @@ def trim_components(graph, min_edges=2, message=True):
 
     # If a printout of number of components removed is requested, count and
     # print here.
-    if message == True:
+    if message:
         count_removed = sum([len(x) < min_nodes for x in conn_comps])
         count_message = " ".join(
             [

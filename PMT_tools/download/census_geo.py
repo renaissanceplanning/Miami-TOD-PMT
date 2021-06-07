@@ -50,12 +50,22 @@ from __init__ import (
     GEO_TYPES_LIST,
     DISABLE_AUTO_DOWNLOADS,
     get_fips_code_for_state,
+    FTP_HOME
 )
 
-FTP_HOME = r"ftp://ftp2.census.gov/geo/tiger/TIGER2019/"
+__all__ = ["get_filename_list_from_ftp", "get_content_length",
+           "download_files_in_list", "extract_downloaded_file",
+           "get_one_geo_type", "get_all_geo_types"]
 
 
 def get_filename_list_from_ftp(target, state):
+    """helper function to extract a list of files available from the provided FTP folder (target) by state
+    Args:
+        target (str): path to FTP site
+        state (str): two character state abbreviation
+    Returns:
+        filename_list (list): list of filenames matching state
+    """
     target_files = urllib2.urlopen(target).read().splitlines()
     filename_list = []
 
@@ -74,15 +84,31 @@ def get_filename_list_from_ftp(target, state):
     return filename_list
 
 
-def get_content_length(u):
+def get_content_length(url):
+    """helper function to determine how large the item to be downloaded is
+    Args:
+        url (str): url path
+
+    Returns:
+        integer value of the content size
+    """
     # u is returned by urllib2.urlopen
     if sys.version_info[0] == 2:
-        return int(u.info().getheader("Content-Length"))
+        return int(url.info().getheader("Content-Length"))
     else:
-        return int(u.headers["Content-Length"])
+        return int(url.headers["Content-Length"])
 
 
 def download_files_in_list(filename_list, download_dir, force=False):
+    """helper function to download list of files
+    Args:
+        filename_list (list): list of files
+        download_dir (str): path to download directory
+        force (bool): flag to force download of files in list
+
+    Returns:
+        list; list of files downloaded
+    """
     downloaded_filename_list = []
     for file_location in filename_list:
         filename = os.path.join(download_dir, file_location.split("/")[-1])
@@ -116,9 +142,19 @@ def download_files_in_list(filename_list, download_dir, force=False):
     return downloaded_filename_list
 
 
-def extract_downloaded_file(filename, extract_dir, remove_on_error=True):
-    zip_dir = os.path.split(filename.replace(".zip", ""))[-1]
-    target_dir = normpath(join(extract_dir, zip_dir))
+def extract_downloaded_file(filename, extract_dir, unzip_dir, remove_on_error=True):
+    """helper function to extract file from zip to a new directory
+
+    Args:
+        filename (str): path to zipped file
+        extract_dir (str): path to directory where zipped file will be written out when extracted
+        unzip_dir (str): name of the directory files are unzipped to
+        remove_on_error (bool): flag to delete failed unzipped files
+
+    Returns:
+        None
+    """
+    target_dir = normpath(join(extract_dir, unzip_dir))
 
     print("Extracting: " + filename + " ...")
     try:
@@ -133,7 +169,22 @@ def extract_downloaded_file(filename, extract_dir, remove_on_error=True):
     zipped.close()
 
 
-def get_one_geo_type(geo_type, download_dir, extract_dir, state=None, year="2019"):
+def get_one_geo_type(geo_type, download_dir=None, extract_dir=None, state=None, year="2019"):
+    """helper function to fetch a single geographic dataset
+    Args:
+        geo_type (str): one of the valid census geographies (see GEO_TYPES_DICT keys in __init__)
+        download_dir (str): path to download directory
+        extract_dir (str): path to directory geographic data are extracted to
+        state (str): two character state abbreviation
+        year (str): base year for TIGER geography, default is 2019 (latest appropriate year for ACS and LODES)
+
+    Returns:
+        None
+    """
+    if download_dir is None:
+        download_dir = "download"
+    if extract_dir is None:
+        extract_dir = "extract"
     target = f"{FTP_HOME.replace('2019', year)}{geo_type.upper()}"
 
     print("Finding files in: " + target + " ...")
@@ -141,81 +192,21 @@ def get_one_geo_type(geo_type, download_dir, extract_dir, state=None, year="2019
     downloaded_filename_list = download_files_in_list(filename_list, download_dir)
 
     for filename in downloaded_filename_list:
-        extract_downloaded_file(filename, extract_dir)
+        extract_downloaded_file(filename, extract_dir, unzip_dir=geo_type.upper())
 
 
-def get_all_geo_types(state=None, year="2012"):
+def get_all_geo_types(state=None, year="2019"):
+    """helper function to fetch all valid census geographies
+
+    Args:
+        state (str): two character state abbreviation, if none provided data will be pulled for entire US
+        year (str): year of census geography, defaults is 2019
+
+    Returns:
+        None
+    """
     AUTO_DOWNLOADS = filter(
         lambda geo_type: geo_type not in DISABLE_AUTO_DOWNLOADS, GEO_TYPES_LIST
     )
     for geo_type in AUTO_DOWNLOADS:
         get_one_geo_type(geo_type, state, year)
-
-
-def process_options(arglist=None):
-    global options, args
-    parser = optparse.OptionParser()
-    parser.add_option(
-        "-d",
-        "--download",
-        dest="download_dir",
-        help="folder path where files are downloaded, if nothing provided a dir will be created in the current "
-        "working directory",
-        default="downloaded_files",
-    )
-    parser.add_option(
-        "-e",
-        "--extract",
-        dest="extract_dir",
-        help="folder path where files are extracted to, if nothing provided a dir will be created in the current "
-        "working directory",
-        default="extracted_files",
-    )
-    parser.add_option(
-        "-s",
-        "--state",
-        dest="state",
-        help="specific state to download",
-        choices=STATE_ABBREV_LIST,
-        default=None,
-    )
-    parser.add_option(
-        "-g",
-        "--geo",
-        "--geo_type",
-        dest="geo_type",
-        help="specific geographic type to download",
-        choices=GEO_TYPES_LIST,
-        default=None,
-    )
-    parser.add_option(
-        "-y", "--year", dest="year", help="specific year to download", default="2019"
-    )
-
-    options, args = parser.parse_args(arglist)
-    return options, args
-
-
-def main(args=None):
-    """
-    """
-    if args is None:
-        args = sys.argv[1:]
-    options, args = process_options(args)
-
-    # make sure we have the expected directories
-    for path in [options.download, options.extract]:
-        if not isdir(path):
-            os.makedirs(path)
-
-    # get one geo_type or all geo_types
-    if options.geo_type:
-        get_one_geo_type(
-            geo_type=options.geo_type, state=options.state, year=options.year
-        )
-    else:
-        get_all_geo_types(state=options.state, year=options.year)
-
-
-if __name__ == "__main__":
-    main()

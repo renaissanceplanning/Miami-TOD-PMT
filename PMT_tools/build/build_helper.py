@@ -5,71 +5,13 @@ import itertools
 
 import arcpy
 import numpy as np
-import pandas as pd
 from six import string_types
 
-from .. import PMT
-from ..PMT import Column, AggColumn, Consolidation, MeltColumn
-from ..config import prepare_config as p_conf
-from ..config import build_config as b_conf
-
-
-def _list_table_paths(gdb, criteria="*"):
-    """
-    internal function, returns a list of all tables within a geodatabase
-    Args:
-        gdb (str/path): string path to a geodatabase
-        criteria (list): wildcards to limit the results returned from ListTables;
-            list of table names generated from trend table parameter dictionaries,
-            table name serves as a wildcard for the ListTables method, however if no criteria is given
-            all table names in the gdb will be returned
-
-    Returns (list):
-        list of full paths to tables in geodatabase
-    """
-    old_ws = arcpy.env.workspace
-    arcpy.env.workspace = gdb
-    if isinstance(criteria, string_types):
-        criteria = [criteria]
-    # Get tables
-    tables = []
-    for c in criteria:
-        tables += arcpy.ListTables(c)
-    arcpy.env.workspace = old_ws
-    return [PMT.makePath(gdb, table) for table in tables]
-
-
-def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
-    """
-    internal function, returns a list of all feature classes within a geodatabase
-    Args:
-        gdb (str/path): string path to a geodatabase
-        fds_criteria (str/list): wildcards to limit results returned. List of
-            feature datasets
-        fc_criteria (str/list): wildcard to limit results returned. List of
-            feature class names.
-
-    Returns (list):
-        list of full paths to feature classes in geodatabase
-    """
-    old_ws = arcpy.env.workspace
-    arcpy.env.workspace = gdb
-    paths = []
-    if isinstance(fds_criteria, string_types):
-        fds_criteria = [fds_criteria]
-    if isinstance(fc_criteria, string_types):
-        fc_criteria = [fc_criteria]
-    # Get feature datasets
-    fds = []
-    for fdc in fds_criteria:
-        fds += arcpy.ListDatasets(fdc)
-    # Get feature classes
-    for fd in fds:
-        for fc_crit in fc_criteria:
-            fcs = arcpy.ListFeatureClasses(feature_dataset=fd, wild_card=fc_crit)
-            paths += [PMT.makePath(gdb, fd, fc) for fc in fcs]
-    arcpy.env.workspace = old_ws
-    return paths
+from PMT_tools import PMT
+from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
+from PMT_tools.config import prepare_config as p_conf
+from PMT_tools.config import build_config as b_conf
+from PMT_tools.utils import _list_table_paths, _list_fc_paths, _createLongAccess
 
 
 def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
@@ -95,8 +37,8 @@ def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
             mode=mode,
         )
         df["Year"] = year_val
-        out_table = PMT.makePath(out_gdb, f"ActivityByTime_{mode}")
-        PMT.dfToTable(df, out_table)
+        out_table = PMT.make_path(out_gdb, f"ActivityByTime_{mode}")
+        PMT.df_to_table(df, out_table)
 
 
 def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
@@ -118,11 +60,11 @@ def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
     joined_fcs = []  # --> blocks, parcels, maz, taz, sa, net_nodes
     for fc_spec, table_spec in zip(fc_specs, table_specs):
         fc_name, fc_id, fds = fc_spec
-        fc = PMT.makePath(out_gdb, fds, fc_name)
+        fc = PMT.make_path(out_gdb, fds, fc_name)
 
         for spec in table_spec:
             tbl_name, tbl_id, tbl_fields, tbl_renames = spec
-            tbl = PMT.makePath(in_gdb, tbl_name)
+            tbl = PMT.make_path(in_gdb, tbl_name)
             print(f"--- Joining fields from {tbl_name} to {fc_name}")
             joinAttributes(
                 to_table=fc,
@@ -159,12 +101,12 @@ def build_intersections(gdb, enrich_specs):
         summ, disag = intersect["sources"]
         summ_name, summ_id, summ_fds = summ
         disag_name, disag_id, disag_fds = disag
-        summ_in = PMT.makePath(gdb, summ_fds, summ_name)
-        disag_in = PMT.makePath(gdb, disag_fds, disag_name)
+        summ_in = PMT.make_path(gdb, summ_fds, summ_name)
+        disag_in = PMT.make_path(gdb, disag_fds, disag_name)
         full_geometries = intersect["disag_full_geometries"]
         # Run intersect
         print(f"--- Intersecting {summ_name} with {disag_name}")
-        int_fc = PMT.intersectFeatures(
+        int_fc = PMT.intersect_features(
             summary_fc=summ_in,
             disag_fc=disag_in,
             in_temp_dir=True,
@@ -198,7 +140,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
         d_name, d_id, d_fds = disag
         if summ == disag:
             # Simple pivot wide to long
-            fc = PMT.makePath(gdb, fc_fds, fc_name)
+            fc = PMT.make_path(gdb, fc_fds, fc_name)
         else:
             # Pivot from intersection
             fc = fc_dict[summ][disag]
@@ -219,11 +161,11 @@ def build_enriched_tables(gdb, fc_dict, specs):
         try:
             out_name = spec["out_table"]
             print(f"--- --- to long table {out_name}")
-            out_table = PMT.makePath(gdb, out_name)
-            PMT.dfToTable(df=summary_df, out_table=out_table, overwrite=True)
+            out_table = PMT.make_path(gdb, out_name)
+            PMT.df_to_table(df=summary_df, out_table=out_table, overwrite=True)
         except KeyError:
             # extend input table
-            feature_class = PMT.makePath(gdb, fc_fds, fc_name)
+            feature_class = PMT.make_path(gdb, fc_fds, fc_name)
             # if being run again, delete any previous data as da.ExtendTable will fail if a field exists
             summ_cols = [col for col in summary_df.columns.to_list() if col != fc_id]
             drop_fields = [
@@ -236,7 +178,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
                 arcpy.DeleteField_management(
                     in_table=feature_class, drop_field=drop_fields
                 )
-            PMT.extendTableDf(
+            PMT.extend_table_df(
                 in_table=feature_class,
                 table_match_field=fc_id,
                 df=summary_df,
@@ -258,7 +200,7 @@ def sum_parcel_cols(gdb, par_spec, columns):
         pandas.Dataframe
     """
     par_name, par_id, par_fds = par_spec
-    par_fc = PMT.makePath(gdb, par_fds, par_name)
+    par_fc = PMT.make_path(gdb, par_fds, par_name)
     df = PMT.featureclass_to_df(
         in_fc=par_fc, keep_fields=columns, skip_nulls=False, null_val=0
     )
@@ -328,12 +270,12 @@ def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
     """
     if not out_gdb_name:
         out_gdb_name = f"_{uuid.uuid4().hex}.gdb"
-        out_gdb = PMT.makePath(out_path, out_gdb_name)
+        out_gdb = PMT.make_path(out_path, out_gdb_name)
     elif out_gdb_name and overwrite:
-        out_gdb = PMT.makePath(out_path, out_gdb_name)
+        out_gdb = PMT.make_path(out_path, out_gdb_name)
         PMT.checkOverwriteOutput(output=out_gdb, overwrite=overwrite)
     else:
-        out_gdb = PMT.makePath(out_path, out_gdb_name)
+        out_gdb = PMT.make_path(out_path, out_gdb_name)
     arcpy.CreateFileGDB_management(out_path, out_gdb_name)
     return out_gdb
 
@@ -355,8 +297,8 @@ def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
     # copy in the geometry data containing minimal tabular data
     for fds in ["Networks", "Points", "Polygons"]:
         print(f"--- copying FDS {fds}")
-        source_fd = PMT.makePath(in_gdb, fds)
-        out_fd = PMT.makePath(out_gdb, fds)
+        source_fd = PMT.make_path(in_gdb, fds)
+        out_fd = PMT.make_path(out_gdb, fds)
         arcpy.Copy_management(source_fd, out_fd)
     return out_gdb
 
@@ -479,7 +421,7 @@ def joinAttributes(
 
     # Join cols from df to to_table
     print(f"--- --- {list(df.columns)} to {to_table}")
-    PMT.extendTableDf(
+    PMT.extend_table_df(
         in_table=to_table,
         table_match_field=to_id_field,
         df=df,
@@ -658,7 +600,7 @@ def apply_field_calcs(gdb, new_field_specs, recalculate=False):
             print(f"--- Adding field {new_field} to {len(tables)} tables")
             for table in tables:
                 t_name, t_id, t_fds = table
-                in_table = PMT.makePath(gdb, t_fds, t_name)
+                in_table = PMT.make_path(gdb, t_fds, t_name)
                 # update params
                 add_args["in_table"] = in_table
                 calc_args["in_table"] = in_table
@@ -680,130 +622,6 @@ def apply_field_calcs(gdb, new_field_specs, recalculate=False):
                 arcpy.CalculateField_management(**calc_args)
 
 
-def _makeAccessColSpecs(activities, time_breaks, mode, include_average=True):
-    """
-    helper function to generate access column specs
-    Args:
-        activities (list): list of job sectors
-        time_breaks (list): integer list of time bins
-        mode (list): string list of transportation modes
-        include_average (bool): flag to create a long column of average minutes to access
-            a given mode
-
-    Returns:
-        cols (list), renames (dict); list of columns created, dict of old/new name pairs
-    """
-    cols = []
-    new_names = []
-    for a in activities:
-        for tb in time_breaks:
-            col = f"{a}{tb}Min"
-            cols.append(col)
-            new_names.append(f"{col}{mode[0]}")
-        if include_average:
-            col = f"AvgMin{a}"
-            cols.append(col)
-            new_names.append(f"{col}{mode[0]}")
-    renames = dict(zip(cols, new_names))
-    return cols, renames
-
-
-def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=None):
-    """
-
-    Args:
-        int_fc:
-        id_field:
-        activities:
-        time_breaks:
-        mode:
-        domain:
-
-    Returns:
-
-    """
-    # result is long on id_field, activity, time_break
-    # TODO: update to use Column objects? (null handling, e.g.)
-    # --------------
-    # Dump int fc to data frame
-    acc_fields, renames = _makeAccessColSpecs(
-        activities, time_breaks, mode, include_average=False
-    )
-    if isinstance(id_field, string_types):
-        id_field = [id_field]  # elif isinstance(Column)?
-
-    all_fields = id_field + list(renames.values())
-    df = PMT.featureclass_to_df(in_fc=int_fc, keep_fields=all_fields, null_val=0.0)
-    # Set id field(s) as index
-    df.set_index(id_field, inplace=True)
-
-    # Make tidy hierarchical columns
-    levels = []
-    order = []
-    for tb in time_breaks:
-        for a in activities:
-            col = f"{a}{tb}Min{mode[0]}"
-            idx = df.columns.tolist().index(col)
-            levels.append((a, tb))
-            order.append(idx)
-    header = pd.DataFrame(
-        np.array(levels)[np.argsort(order)], columns=["Activity", "TimeBin"]
-    )
-    mi = pd.MultiIndex.from_frame(header)
-    df.columns = mi
-    df.reset_index(inplace=True)
-    # Melt
-    melt_df = df.melt(id_vars=id_field)
-    melt_df["from_time"] = melt_df["TimeBin"].apply(
-        lambda time_break: _get_time_previous_time_break_(time_breaks, time_break)
-    )
-    return melt_df
-
-
-def _get_time_previous_time_break_(time_breaks, tb):
-    if isinstance(tb, string_types):
-        tb = int(tb)
-    idx = time_breaks.index(tb)
-    if idx == 0:
-        return 0
-    else:
-        return time_breaks[idx - 1]
-
-
-def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
-    """
-    helper function to calculate the difference between this_table and base_table
-        ie... this_table minus base_table
-    Args:
-        this_table (str): path to a snapshot table
-        base_table (str): path to a previous years snapshot table
-        idx_cols (list): column names used to generate a common index
-        fields (list): if provided, a list of fields to calculate the difference on;
-            Default: "*" indicates all fields
-        **kwargs: keyword arguments for featureclass_to_df
-
-    Returns:
-        pandas.Dataframe; df of difference values
-    """
-    # Fetch data frames
-    this_df = PMT.featureclass_to_df(in_fc=this_table, keep_fields=fields, **kwargs)
-    base_df = PMT.featureclass_to_df(in_fc=base_table, keep_fields=fields, **kwargs)
-    # Set index columns
-    base_df.set_index(idx_cols, inplace=True)
-    this_df.set_index(idx_cols, inplace=True)
-    this_df = this_df.reindex(base_df.index, fill_value=0)  # is this necessary?
-    # Drop all remaining non-numeric columns
-    base_df_n = base_df.select_dtypes(["number"])
-    this_df_n = this_df.select_dtypes(["number"])
-
-    # Take difference
-    diff_df = this_df_n - base_df_n
-    # Restore index columns
-    diff_df.reset_index(inplace=True)
-
-    return diff_df
-
-
 def finalize_output(intermediate_gdb, final_gdb):
     """
     Takes an intermediate GDB path and the final GDB path for that data and
@@ -816,9 +634,9 @@ def finalize_output(intermediate_gdb, final_gdb):
         None
     """
     output_folder, _ = os.path.split(intermediate_gdb)
-    temp_folder = PMT.validate_directory(PMT.makePath(output_folder, "TEMP"))
+    temp_folder = PMT.validate_directory(PMT.make_path(output_folder, "TEMP"))
     _, copy_old_gdb = os.path.split(final_gdb)
-    temp_gdb = PMT.makePath(temp_folder, copy_old_gdb)
+    temp_gdb = PMT.make_path(temp_folder, copy_old_gdb)
     try:
         # make copy of existing data if it exists
         if arcpy.Exists(final_gdb):
@@ -898,7 +716,7 @@ def post_process_databases(basic_features_gdb, build_dir):
     # copy BasicFeatures into Build
     print("--- Overwriting basic features in BUILD dir with current version")
     path, basename = os.path.split(basic_features_gdb)
-    out_basic_features = PMT.makePath(build_dir, basename)
+    out_basic_features = PMT.make_path(build_dir, basename)
     PMT.checkOverwriteOutput(output=out_basic_features, overwrite=True)
     arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
 
@@ -919,7 +737,7 @@ def post_process_databases(basic_features_gdb, build_dir):
     # TODO: incorporate a more broad AlterField protocol for Popup configuration
 
     # delete TEMP folder
-    temp = PMT.makePath(build_dir, "TEMP")
+    temp = PMT.make_path(build_dir, "TEMP")
     if arcpy.Exists(temp):
         print("--- deleting TEMP folder from previous build steps")
         arcpy.Delete_management(temp)

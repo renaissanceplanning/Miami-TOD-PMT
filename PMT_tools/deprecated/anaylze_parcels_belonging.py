@@ -85,11 +85,11 @@ def tagInBoundary(boundary_fc, workspace, in_string, not_in_string,
 
 # %% MAIN
 if __name__ == "__main__":
-    boundary_fc = PMT.makePath(PMT.CLEANED, "UrbanDevelopmentBoundary.shp")
-    station_areas = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Station_Areas")
-    corridors = PMT.makePath(PMT.BASIC_FEATURES, "SMART_Plan_Corridors")
+    boundary_fc = PMT.make_path(PMT.CLEANED, "UrbanDevelopmentBoundary.shp")
+    station_areas = PMT.make_path(PMT.BASIC_FEATURES, "SMART_Plan_Station_Areas")
+    corridors = PMT.make_path(PMT.BASIC_FEATURES, "SMART_Plan_Corridors")
     for year in PMT.YEARS:
-        fds = PMT.makePath(PMT.ROOT, f"PMT_{year}.gdb", "parcels")
+        fds = PMT.make_path(PMT.ROOT, f"PMT_{year}.gdb", "parcels")
         print(fds)
         tagInBoundary(boundary_fc, fds,
                       in_string="UDB", not_in_string="NUDB",

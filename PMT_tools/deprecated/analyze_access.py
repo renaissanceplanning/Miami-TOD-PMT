@@ -234,7 +234,7 @@ def summarizeAccess(skim_table, o_field, d_field, imped_field,
     pivot_fields = [gb_field, bin_field] + act_fields
     pivot = pd.pivot_table(
         out_df[pivot_fields], index=gb_field, columns=bin_field)
-    pivot.columns = PMT.colMultiIndexToNames(pivot.columns, separator="")
+    pivot.columns = PMT.col_multi_index_to_names(pivot.columns, separator="")
     # - Summarize
     print("... ... ... average time by activitiy")
     sum_df = out_df[sum_fields].groupby(gb_field).sum()
@@ -280,9 +280,9 @@ if __name__ == "__main__":
             folder, base, horizon = NET_BY_YEAR[year][mode]
             scale, id_field = MODE_REF[mode]
             # Look up zone and skim data for each mode
-            zone_data = PMT.makePath(
+            zone_data = PMT.make_path(
                 PMT.CLEANED, "SERPM\\V7", "ZoneData.gdb", f"{scale}_{year}")
-            skim_data = PMT.makePath(
+            skim_data = PMT.make_path(
                 PMT.CLEANED, folder, f"{mode}_Skim_{base}.csv")
             # Analyze access 
             atd_df = summarizeAccess(skim_data, O_FIELD, D_FIELD, IMP_FIELD,
@@ -299,10 +299,10 @@ if __name__ == "__main__":
             full_table = atd_df.merge(afo_df, on=id_field)
 
             # Export output
-            out_table = PMT.makePath(
+            out_table = PMT.make_path(
                 PMT.DATA, f"IDEAL_PMT_{year}.gdb", f"Access_{scale}_{mode}"
             )
-            PMT.dfToTable(full_table, out_table, overwrite=True)
+            PMT.df_to_table(full_table, out_table, overwrite=True)
 
 
     # For each model year, make maz and taz features within

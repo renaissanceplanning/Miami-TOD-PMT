@@ -126,7 +126,7 @@ def enrich_bg_with_parcels(bg_fc, bg_id_field, parcels_fc, par_id_field, out_tbl
         print("--- joining parcel summaries to block groups")
         bg_df = pd.concat(bg_stack)
         print(f"---  --- {len(bg_df)} block group rows")
-        PMT.dfToTable(df=bg_df, out_table=out_tbl)
+        PMT.df_to_table(df=bg_df, out_table=out_tbl)
     except:
         raise
     finally:
@@ -158,7 +158,7 @@ def enrich_bg_with_econ_demog(tbl_path, tbl_id_field, join_tbl, join_id_field, j
         tbl_df = pd.read_csv(join_tbl, usecols=join_fields, compression='gzip')
     else:
         tbl_df = pd.read_csv(join_tbl, usecols=join_fields)
-    PMT.extendTableDf(in_table=tbl_path, table_match_field=tbl_id_field, df=tbl_df, df_match_field=join_id_field)
+    PMT.extend_table_df(in_table=tbl_path, table_match_field=tbl_id_field, df=tbl_df, df_match_field=join_id_field)
 
 
 # %% MAIN
@@ -168,8 +168,8 @@ if __name__ == "__main__":
         import uuid
 
         ROOT = r"C:\OneDrive_RP\OneDrive - Renaissance Planning Group\SHARE\PMT\Data\PROCESSING_TEST"
-        RAW = PMT.makePath(ROOT, "RAW")
-        CLEANED = PMT.makePath(ROOT, "CLEANED")
+        RAW = PMT.make_path(ROOT, "RAW")
+        CLEANED = PMT.make_path(ROOT, "CLEANED")
 
     # Define analysis specs
     bg_id_field = "GEOID10"
@@ -181,15 +181,15 @@ if __name__ == "__main__":
     for year in PMT.YEARS:
         print(year)
         # Define inputs/outputs
-        gdb = PMT.makePath(CLEANED, f"PMT_{year}.gdb")
-        fds = PMT.makePath(gdb, "Polygons")
-        parcels_fc = PMT.makePath(fds, "Parcels")
-        bg_fc = PMT.makePath(fds, "Census_BlockGroups")
-        out_tbl = PMT.makePath(gdb, "Enrichment_blockgroups")
+        gdb = PMT.make_path(CLEANED, f"PMT_{year}.gdb")
+        fds = PMT.make_path(gdb, "Polygons")
+        parcels_fc = PMT.make_path(fds, "Parcels")
+        bg_fc = PMT.make_path(fds, "Census_BlockGroups")
+        out_tbl = PMT.make_path(gdb, "Enrichment_blockgroups")
         # define table vars
-        race_tbl = PMT.makePath(RAW, "CENSUS", f"ACS_{year}_race.csv")
-        commute_tbl = PMT.makePath(RAW, "CENSUS", f"ACS_{year}_commute.csv")
-        lodes_tbl = PMT.makePath(RAW, "LODES", f"fl_wac_S000_JT00_{year}_bgrp.csv.gz")
+        race_tbl = PMT.make_path(RAW, "CENSUS", f"ACS_{year}_race.csv")
+        commute_tbl = PMT.make_path(RAW, "CENSUS", f"ACS_{year}_commute.csv")
+        lodes_tbl = PMT.make_path(RAW, "LODES", f"fl_wac_S000_JT00_{year}_bgrp.csv.gz")
         race_fields = [ACS_ID] + \
                       ['Total_Non_Hisp', 'Total_Hispanic', 'White_Non_Hisp', 'Black_Non_Hisp', 'Asian_Non_Hisp',
                        'Multi_Non_Hisp', 'White_Hispanic', 'Black_Hispanic', 'Asian_Hispanic', 'Multi_Hispanic',
@@ -208,7 +208,7 @@ if __name__ == "__main__":
                         'CFA01', 'CFA02', 'CFA03', 'CFA04', 'CFA05', 'CFS01', 'CFS02', 'CFS03', 'CFS04', 'CFS05']
         # # Enrich BGs with parcel data
         unique_name = uuid.uuid4().hex
-        temp_bg = PMT.makePath("in_memory", f"__blockgroups_{str(unique_name)}__")
+        temp_bg = PMT.make_path("in_memory", f"__blockgroups_{str(unique_name)}__")
         t_path, t_name = os.path.split(temp_bg)
         arcpy.FeatureClassToFeatureClass_conversion(in_features=bg_fc, out_path=t_path, out_name=t_name)
         enrich_bg_with_parcels(bg_fc=temp_bg, bg_id_field=BLOCKGROUP_ID, parcels_fc=parcels_fc, par_id_field=PARCELD_ID,

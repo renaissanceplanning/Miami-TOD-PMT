@@ -81,20 +81,20 @@ def estimateParcelNresEnergy(energy_df, energy_lu_field, energy_sqft_field,
             out_rows.append((par_id, BTU))
     
     df = pd.DataFrame(out_rows, columns=df_cols)
-    PMT.extendTableDf(out_table, out_id_field, df, parcel_id_field)
+    PMT.extend_table_df(out_table, out_id_field, df, parcel_id_field)
     return out_table
 
 
 # %% MAIN
 if __name__ == "__main__":
     # Read in csv table of btu rates
-    energy_table = PMT.makePath(
+    energy_table = PMT.make_path(
         PMT.CLEANED, "Energy_Consumption", "Nres_Energy_Consumption.csv")
     energy_lu_field = "BldgType"
     energy_sqft_field = "BTUperSqFt_Thous"
 
     # Read in table of land use categories
-    lu_table = PMT.makePath(PMT.REF, "Land_Use_Recode.csv")
+    lu_table = PMT.make_path(PMT.REF, "Land_Use_Recode.csv")
     lu_dor_field = "DOR_UC"
     lu_nres_field = "NRES_ENERGY"
 
@@ -113,14 +113,14 @@ if __name__ == "__main__":
     for year in PMT.YEARS:
         print(year)
         # In parcels
-        par_fc = PMT.makePath(
+        par_fc = PMT.make_path(
             PMT.DATA, f"IDEAL_PMT_{year}.gdb", "Polygons", "Parcels")
         par_id_field = "FOLIO"
         par_lu_field = "DOR_UC"
         par_sqft_field = "TOT_LVG_AREA"
 
         # Out table
-        econs_table = PMT.makePath(
+        econs_table = PMT.make_path(
             PMT.DATA, f"IDEAL_PMT_{year}.gdb", "EnergyCons_parcels")
         econs_id = "FOLIO"
 

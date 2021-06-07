@@ -20,7 +20,7 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July",
 # %% FUNCTIONS
 def findFiles(folder, *substrings):
     f_lists = [
-        glob.glob(PMT.makePath(folder, s)) for s in substrings
+        glob.glob(PMT.make_path(folder, s)) for s in substrings
     ]
     return set.intersection(*map(set, f_lists))
 
@@ -30,11 +30,11 @@ def cleanTransactionTable(workbook, sheet_name=0, header=9):
 
 # %% MAIN
 if __name__ == "__main__":
-    cb_path = PMT.makePath(PMT.RAW, "SharedMobility", "Citi Bike Data")
+    cb_path = PMT.make_path(PMT.RAW, "SharedMobility", "Citi Bike Data")
     for year in PMT.YEARS:
         print (year)
         for month in MONTHS:
-            folder = PMT.makePath(cb_path, f"{month} {year}")
+            folder = PMT.make_path(cb_path, f"{month} {year}")
             print(folder)
             if arcpy.Exists(folder):
                 # Open and summarize sheets

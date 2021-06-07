@@ -171,7 +171,7 @@ def makeParcelGDB(folder, gdb_name="parcels", overwrite=False):
     if gdb_name[-4:] != ".gdb":
         gdb_name = gdb_name + ".gdb"
     # check if it exists
-    out_gdb = PMT.makePath(folder, gdb_name)
+    out_gdb = PMT.make_path(folder, gdb_name)
     if arcpy.Exists(out_gdb):
         if overwrite:
             print(f"Deleting existing data {out_gdb}")
@@ -234,7 +234,7 @@ def cleanParcels(in_fc, in_csv, out_fc, fc_par_field="PARCELNO",
     # Add columns to dissolved features
     print("...joining attributes to features")
     print(par_df.columns)
-    PMT.extendTableDf(out_fc, fc_par_field, par_df, csv_par_field)
+    PMT.extend_table_df(out_fc, fc_par_field, par_df, csv_par_field)
 
 
 # %% MAIN
@@ -249,11 +249,11 @@ if __name__ == "__main__":
         #     PMT.DATA, f"IDEAL_PMT_{year}.gdb", "Polygons"
         # )
         out_gdb = makeParcelGDB(PMT.DATA, gdb_name=f"parcels_{year}", overwrite=True)
-        in_fc = PMT.makePath(
+        in_fc = PMT.make_path(
             PMT.RAW, "Parcels", "Miami_{}.shp".format(year))
-        in_csv = PMT.makePath(
+        in_csv = PMT.make_path(
             PMT.RAW, "Parcels", "NAL_{}_23Dade_F.csv".format(year))
-        out_fc = PMT.makePath(out_gdb, "Parcels")
+        out_fc = PMT.make_path(out_gdb, "Parcels")
         renames = COLS.get(year, {})
         usecols = USE_COLS.get(year, USE_COLS["DEFAULT"])
         csv_kwargs = {"dtype": {"PARCEL_ID": str, "CENSUS_BK": str},

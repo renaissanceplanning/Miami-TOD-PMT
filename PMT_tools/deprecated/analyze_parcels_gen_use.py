@@ -78,7 +78,7 @@ def generalizeLandUseByParcel(parcel_fc, out_table, ref_table,
     # Extend table
     print("...extending table")
     try:
-        PMT.extendTableDf(out_fc, par_code, ref_table, join_code)
+        PMT.extend_table_df(out_fc, par_code, ref_table, join_code)
     except:
         print("... ... error, rolling back")
         arcpy.Delete_management(out_fc)
@@ -90,11 +90,11 @@ if __name__ == "__main__":
     for year in PMT.YEARS:
         print(year)
         # Parcels
-        parcel_fc = PMT.makePath(PMT.CLEANED, "parcels.gdb", f"Miami_{year}")
+        parcel_fc = PMT.make_path(PMT.CLEANED, "parcels.gdb", f"Miami_{year}")
         # Reference table
-        ref_table = PMT.makePath(PMT.REF, "Land_Use_Recode.csv")
+        ref_table = PMT.make_path(PMT.REF, "Land_Use_Recode.csv")
         # Output
-        out_fc = PMT.makePath(
+        out_fc = PMT.make_path(
             PMT.ROOT, f"PMT_{year}.gdb", "Parcels", "land_use_and_value")
         # Prepare field map
         FM = arcpy.FieldMappings()

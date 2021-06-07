@@ -150,7 +150,7 @@ def cleanMAZ(se_table, se_id_field, maz_fc, fc_id_field, out_fc,
 
     # Extend table
     print("... joining columns to output features")
-    PMT.extendTableDf(out_fc, fc_id_field, clean_df, se_id_field)
+    PMT.extend_table_df(out_fc, fc_id_field, clean_df, se_id_field)
 
     return out_fc
 
@@ -207,7 +207,7 @@ def summarizeMAZtoTAZ(se_table, maz_id_field, taz_id_field, out_table,
     # group_by and export
     print("... storing summarized output table")
     sum_df = clean_df.groupby(taz_id_field).sum().reset_index()
-    PMT.dfToTable(sum_df, out_table)
+    PMT.df_to_table(sum_df, out_table)
 
     return out_table
 
@@ -252,27 +252,27 @@ def mazToCentroid(maz_fc, fields, out_fc, overwrite=False):
 
 # %% MAIN
 if __name__ == "__main__":
-    maz_fc = PMT.makePath(PMT.RAW, "SERPM", "SERPM8MAZ_NAD83_170502.shp")
+    maz_fc = PMT.make_path(PMT.RAW, "SERPM", "SERPM8MAZ_NAD83_170502.shp")
     fc_id_field = "MAZ"
     for year in MODEL_YEARS:
         print(year)
-        se_table = PMT.makePath(PMT.RAW, "SERPM", f"maz_data_{year}.csv")
+        se_table = PMT.make_path(PMT.RAW, "SERPM", f"maz_data_{year}.csv")
         se_id_field = "mgra"
         # Export MAZ shapes with attributes
         print("-- to shape")
-        out_fc = PMT.makePath(PMT.CLEANED, "SERPM", f"maz_{year}.shp")
+        out_fc = PMT.make_path(PMT.CLEANED, "SERPM", f"maz_{year}.shp")
         base_fields = ["TAZ"]
         cleanMAZ(se_table, se_id_field, maz_fc, fc_id_field, out_fc,
                  base_fields=BASE_FIELDS, consolidate_cols=CONSOLIDATE_COLS,
                  overwrite=True)
         # Summarize MAZs to TAZs with attributes
         print("-- TAZ summary table")
-        out_table = PMT.makePath(PMT.CLEANED, "SERPM", f"taz_{year}.dbf")
+        out_table = PMT.make_path(PMT.CLEANED, "SERPM", f"taz_{year}.dbf")
         summarizeMAZtoTAZ(se_table, se_id_field, "TAZ", out_table,
                           base_fields=BASE_FIELDS,
                           consolidate_cols=CONSOLIDATE_COLS,
                           overwrite=True)
     # Dump MAZ shapes to centroids
     maz_c_fc = out_fc[:]
-    out_fc = PMT.makePath(PMT.CLEANED, "SERPM", "maz_centroids.shp")
+    out_fc = PMT.make_path(PMT.CLEANED, "SERPM", "maz_centroids.shp")
     mazToCentroid(maz_c_fc, [fc_id_field], out_fc, overwrite=True)

@@ -210,11 +210,11 @@ def dlCommuteVars(year, acs_dataset="acs5", state="12", county="086"):
 
 # %%
 if __name__ == "__main__":
-    bg_path = PMT.makePath(PMT.RAW, "BlockGroups")
+    bg_path = PMT.make_path(PMT.RAW, "BlockGroups")
     for year in PMT.YEARS:
         # setup folders
-        race_out = PMT.makePath(bg_path, f"ACS_{year}_race.csv")
-        commute_out = PMT.makePath(bg_path, f"ACS_{year}_commute.csv")
+        race_out = PMT.make_path(bg_path, f"ACS_{year}_race.csv")
+        commute_out = PMT.make_path(bg_path, f"ACS_{year}_commute.csv")
         print(f"Fetching race data ({race_out})")
         try:
             race = dlRaceVars(year, acs_dataset="acs5", state="12",

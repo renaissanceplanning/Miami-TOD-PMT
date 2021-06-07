@@ -36,7 +36,7 @@ def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
     # Add a unique ID field to the parcels called "ProcessID"
     print("...adding a unique ID field for individual parcels")
     # creating a temporary copy of parcels
-    temp_parcels = PMT.makePath("in_memory", "temp_parcels")
+    temp_parcels = PMT.make_path("in_memory", "temp_parcels")
     arcpy.FeatureClassToFeatureClass_conversion(in_features=parcels_path, out_path="in_memory", out_name="temp_parcels")
     process_id_field = PMT.add_unique_id(feature_class=temp_parcels)
 
@@ -196,8 +196,8 @@ def build_short_term_parcels(parcels_path, permits_path, permits_reference_path,
     # join to initialized feature class using extend table (and delete the
     # created ID when its all over)
     print("...joining results to save feature class (be patient, this will take a while)")
-    PMT.extendTableDf(in_table=short_term_parcels, table_match_field=process_id_field,
-                      df=final_update, df_match_field="ProcessID")
+    PMT.extend_table_df(in_table=short_term_parcels, table_match_field=process_id_field,
+                        df=final_update, df_match_field="ProcessID")
     arcpy.DeleteField_management(in_table=short_term_parcels, drop_field=process_id_field)
     
     # Then we're done -- return the file path

@@ -1,13 +1,7 @@
 from collections import OrderedDict
-""" FOLDER LIST """
-RAW_FOLDERS = ["BUILDING_PERMITS", "CENSUS", "LODES", "OPEN_STREET_MAP", "PARCELS", "TRANSIT", "ENVIRONMENTAL_FEATURES",
-               "IMPERVIOUS",]
-
-'''Crash Configuration'''
-# download configuration
-CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/'
-PED_BIKE_QUERY = {"where": "COUNTY_TXT = 'MIAMI-DADE' AND PEDESTRIAN_BICYCLIST_IND = 'Y'"}
-
+''' FOLDER LIST '''
+RAW_FOLDERS = ["BUILDING_PERMITS", "CENSUS", "LODES", "OPEN_STREET_MAP",
+               "PARCELS", "TRANSIT", "ENVIRONMENTAL_FEATURES", "IMPERVIOUS",]
 
 ''' Census Configuration'''
 CENSUS_FTP_HOME = 'ftp://ftp2.census.gov/geo/tiger/TIGER2012/'
@@ -41,8 +35,22 @@ ACS_MODE_COLUMNS = {
     "020E": "Other",
     "021E": "Work_From_Home"
 }
+
 ''' LODES CONFIGURATION '''
 LODES_FILE_TYPE = "wac"
+LODES_URL = "https://lehd.ces.census.gov/data/lodes/LODES7"
+LODES_YEARS = [2014, 2015, 2016, 2017, 2018]
+LODES_FILE_TYPES = ["od", "rac", "wac"]
+LODES_STATES = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl",
+                "ga", "hi", "id", "il", "in", "ia", "ks", "ky", "la",
+                "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne",
+                "nv", "nh", "nj", "nm", "ny", "nc", "nd", "oh", "ok",
+                "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt",
+                "va", "wa", "wv", "wi", "wy", "dc"]
+LODES_WORKFORCE_SEGMENTS = ["S000", "SA01", "SA02", "SA03", "SE01", "SE02", "SE03", "SI01", "SI02", "SI03", ""]
+LODES_PART = ["main", "aux", ""]
+LODES_JOB_TYPES = ["JT00", "JT01", "JT02", "JT03", "JT04", "JT05"]
+LODES_AGG_GEOS = ["st", "cty", "trct", "bgrp", "cbsa", "zcta", ""]
 
 ''' All downloadable URLs 
     - Impervious Surface data NLCD
@@ -64,21 +72,13 @@ DOWNLOAD_URL_DICT = {
     "Wide_Curb_Lane": r"https://opendata.arcgis.com/datasets/b0b330209d244850ae5f89768edc3271_0.geojson"
 }
 
-''' Energy Consumption Table Download '''
+'''Crash Configuration  DEPRECATED'''
+# download configuration
+CRASHES_SERVICE = r'https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/'
+PED_BIKE_QUERY = {"where": "COUNTY_TXT = 'MIAMI-DADE' AND PEDESTRIAN_BICYCLIST_IND = 'Y'"}
+
+''' Energy Consumption Table Download   DEPRECATED'''
 RESIDENTIAL_ENERGY_CONSUMPTION_URL = r"https://www.eia.gov/consumption/residential/data/2015/c&e/ce4.9.xlsx"
 COMMERCIAL_ENERGY_CONSUMPTION_URL = r"https://www.eia.gov/consumption/commercial/data/2012/c&e/xls/pba3.xlsx"
 
-''' LODES Download '''
-LODES_URL = "https://lehd.ces.census.gov/data/lodes/LODES7"
-LODES_YEARS = [2014, 2015, 2016, 2017, 2018]
-LODES_FILE_TYPES = ["od", "rac", "wac"]
-LODES_STATES = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl",
-                "ga", "hi", "id", "il", "in", "ia", "ks", "ky", "la",
-                "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne",
-                "nv", "nh", "nj", "nm", "ny", "nc", "nd", "oh", "ok",
-                "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt",
-                "va", "wa", "wv", "wi", "wy", "dc"]
-LODES_WORKFORCE_SEGMENTS = ["S000", "SA01", "SA02", "SA03", "SE01", "SE02", "SE03", "SI01", "SI02", "SI03", ""]
-LODES_PART = ["main", "aux", ""]
-LODES_JOB_TYPES = ["JT00", "JT01", "JT02", "JT03", "JT04", "JT05"]
-LODES_AGG_GEOS = ["st", "cty", "trct", "bgrp", "cbsa", "zcta"]
+

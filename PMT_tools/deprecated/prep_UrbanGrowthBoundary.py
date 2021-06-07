@@ -15,7 +15,7 @@ county into two polygons, which are stored in the "cleaned" directory.
 # %% IMPORTS
 import arcpy
 import numpy as np
-from PMT_tools.PMT import makePath, RAW, CLEANED
+from PMT_tools.PMT import make_path, RAW, CLEANED
 
 
 # %% FUNCTION
@@ -96,6 +96,6 @@ def udbLineToPolygon(udb_fc, county_fc, out_fc):
 
 # %% MAIN
 if __name__ == "__main__":
-    udb_fc = makePath(RAW, "UrbanDevelopmentBoundary.shp")
-    county_fc = makePath(RAW, "CensusGeo", "MiamiDadeBoundary.shp")
-    out_fc = makePath(CLEANED, "UrbanDevelopmentBoundary.shp")
+    udb_fc = make_path(RAW, "UrbanDevelopmentBoundary.shp")
+    county_fc = make_path(RAW, "CensusGeo", "MiamiDadeBoundary.shp")
+    out_fc = make_path(CLEANED, "UrbanDevelopmentBoundary.shp")
