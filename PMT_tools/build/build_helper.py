@@ -1,3 +1,11 @@
+"""
+The `build_helper` module provides a handful of functions to facilitate consistent applications of
+geoprocessing methods and table operations to combine feature classes, consolidate columns, calculate
+derivative values, elongate tables to support serial reporting, compare similar tables across time
+periods and calculate differences, etc. It directly supports the `builder` module, and many of the
+arguments taken by functions defined here assume properly-formatted objects as specified in the
+`build_config` module.
+"""
 import os
 import uuid
 from collections.abc import Iterable

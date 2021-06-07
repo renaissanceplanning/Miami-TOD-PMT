@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
-""" builder.py will serve as the final processing tool
+"""
+The 'builder' module serves as the final processing tool in developing the TOC toolkit databases.
 
-This module will do the heavy lifting to build out the PMT time step geodatabases for ingestion to AGOL for the tool.
-The build module generates the final time series geodatabases used in the Experience Builder site.
+This module performs the heavy lifting to build out the PMT geodatabases by timeframe for ingestion
+by AGOL for mapping and reporting in the Experience Builder website.
 
-For each PMT_XXX geodatabase, a Snapshot summary is generated, creating wide tables and calculating new attributes by
+For each PMT_YYYY geodatabase, a Snapshot summary is generated, creating wide tables and calculating new attributes by
 aggregating data up from lower spatial scales. Tables long on categorical information are created as well. Trend and
-NearTerm (trend) geodatabases are created as well, both utilizing the same procedure and creating tables long on year
+NearTerm geodatabases from the yearly geodatabases, utilizing the similar procedures and creating tables long on year
 and calculating difference values for start and end time frames (Trend: start = 2014, end=current year; NearTerm:
-start = current year, end = forecasted near term from permits) These pre-canned calculations and transformations
-allow for more robust and speedy indicators and widgets in the site.
+start = current year, end = forecasted near term from permits) These procedures generate all metrics reported in the
+TOC tool website as a prior calculations and transformations, supporting more performant mapping and reporting within
+the site.
+
+This module depends on the `build_helper` and `build_config` modules primarily.
 
 Functions:
     year_to_snapshot:

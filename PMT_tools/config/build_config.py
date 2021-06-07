@@ -1,3 +1,12 @@
+"""
+The `build_config` module defines how feature classes are overlaid, summarized, and reported
+in the TOC tool. All analysis and reporting executed by `builder` is driven by the settings
+defined here. Most variables defined in this module focus on one of the following objectives:
+    
+    - Providing table or feature class specifications (path, key fields, etc.)
+    - Defining feature intersection and summarization parameters using supporting classes defined in `PMT`
+    - Defining field calculation formulas and code blocks.
+"""
 import numpy as np
 
 from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
