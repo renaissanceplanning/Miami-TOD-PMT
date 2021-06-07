@@ -5,7 +5,7 @@ defined here. Most variables defined in this module focus on one of the followin
     
     - Providing table or feature class specifications (path, key fields, etc.)
     - Defining feature intersection and summarization parameters using supporting classes defined in `PMT`
-    - Defining field calculation formulas and code blocks.
+    - Defining field calculation formulas and code blocks
 """
 import numpy as np
 
@@ -31,7 +31,7 @@ PAR_SUM_FIELDS = [
 ]
 
 
-""" 
+"""
 #######################
 Specifications for feature classes
 Feature Class Name | Unique ID attribute | Feature Dataset Name
@@ -77,7 +77,7 @@ TAZ_TRANSIT_FIELDS, TAZ_TRANSIT_RENAMES = _make_access_col_specs(
     activities=ACTIVITIES, time_breaks=TIME_BREAKS, mode="Transit"
 )
 
-""" 
+"""
 #######################
 Specifications for tables
 Table Name | Unique ID attribute | Fields Used | Rename Mapping
@@ -101,7 +101,7 @@ TABLE_SPECS = [
     ("WalkTimeIdeal_parcels", pconfig.PARCEL_COMMON_KEY, "*", {}),
 ]
 
-""" 
+"""
 #######################
 enrichment var dicts
 - Assumes all table results have been joined to corresponding feature classes
@@ -376,7 +376,7 @@ ENRICH_INTS = [
     SA_PARKS_ENRICH,
 ]
 
-""" 
+"""
 #######################
 ELONGATE var dicts 
 sources: Summary geometry and disaggregation geometry pair ordered Summ, Disag
@@ -640,7 +640,7 @@ ELONGATE_SPECS = [
     SA_BIKE_LONG,
 ]
 
-""" 
+"""
 #######################
 CALC FIELD SPECS 
 - some data are calculated for dashboards due to limitations in the ArcGIS dashboard application not 

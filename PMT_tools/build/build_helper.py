@@ -24,7 +24,8 @@ from PMT_tools.utils import _list_table_paths, _list_fc_paths, _createLongAccess
 
 def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
     """
-    helper function to generate access tables by mode
+    Helper function to generate access tables by mode.
+    
     Args:
         sum_area_fc (str): path to summary area feature class
         modes (list): modes of travel
@@ -50,11 +51,26 @@ def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
 
 
 def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
-    """Joins feature classes to associated tabular data from year set and appends to FC in output gdb
-        in_gdb: String; path to g
+    """
+    Joins feature classes to associated tabular data from year set and appends to FC in output
+    gdb, making single feature classes with wide attribute tables for each geographic unit of
+    analysis.
+
+    Args:
+        in_gdb (str): path to geodatabase containing input feature classes and tables
+        out_gdb (str): path to geodatabase that will hold output feature classes
+        fc_specs (list): list of tuples defining the feature classes from `in_gdb` to retain
+            in `out_gdb`. Each tuple consists of the feature class name, unique ID attribute,
+            and the feature dataset (within `in_gdb`) where it is located.
+        table_specs (list): list of tuples defining the tables from `in_gdb` to join to
+            feature classes in `out_gdb`. Each tuple consists of table name, unique ID attribute,
+            fields to retain ("*" = all fields), and a dictionary of field renaming specs ({}
+            must be given if no renaming is desired). Columns from each table are joined to
+            the FC associated with the table name (based on the presence of the FC name in the
+            table name)
+    
     Returns:
-        [String,...]; list of paths to joined feature classes ordered as
-            Blocks, Parcels, MAZ, TAZ, SummaryAreas, NetworkNodes
+        list: List of paths to joined feature classes ordered as Blocks, Parcels, MAZ, TAZ, SummaryAreas, NetworkNodes
     """
 
     #   tables need to be ordered the same as FCs
@@ -90,13 +106,15 @@ def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
 # TODO: add debug flag/debug_folder to allow intersections to be written to know location
 def build_intersections(gdb, enrich_specs):
     """
-    helper function that performs a batch intersection of polygon feature classes
+    Helper function that performs a batch intersection of polygon feature classes
+
     Args:
+        gdb (str): path to geodatabase that contains the source data
         enrich_specs (list): list of dictionaries specifying source data, groupings, aggregations,
             consolidations, melt/elongation, and boolean for full geometry or centroid use in intersection
-        gdb (str): path to geodatabase that contains the source data
-    Returns (dict):
-        dictionary of the format {summ fc: {
+    
+    Returns:
+        dict: Dictionary of the format {summ fc: {
                                     disag_fc: path/to/intersection
                                     }
                                 }
@@ -130,7 +148,10 @@ def build_intersections(gdb, enrich_specs):
 
 def build_enriched_tables(gdb, fc_dict, specs):
     """
-    helper function used to enrich and/or elongate data for a summarization area
+    Helper function used to enrich and/or elongate data for a summarization area. Enrichment
+    is based on intersection of disaggregate features with summarization area features. Elongation
+    melts tables for serial reporting (square footage by land use per summarization area, e.g.)
+    
     Args:
         gdb (str): path to geodatabase where outputs are written
         fc_dict (dict): dictionary returned from build_intersections
@@ -197,8 +218,9 @@ def build_enriched_tables(gdb, fc_dict, specs):
 
 def sum_parcel_cols(gdb, par_spec, columns):
     """
-    helper function to summarize a provided list of columns for the parcel layer, creating
+    Helper function to summarize a provided list of columns for the parcel layer, creating
     region wide statistics
+
     Args:
         gdb (str): path to geodatabase that parcel layer exists in
         par_spec (tuple): tuple of format (fc name, unique id column, feature dataset location)
@@ -217,7 +239,8 @@ def sum_parcel_cols(gdb, par_spec, columns):
 
 def unique_values(table, field):
     """
-    helper function to return all unique values for a provided field/column
+    Helper function to return all unique values for a provided field/column
+    
     Args:
         table (str): path to table of interest
         field (str): field name of interest
@@ -231,7 +254,8 @@ def unique_values(table, field):
 
 def add_year_columns(in_gdb, year):
     """
-    helper function ensuring the year attribute is present in all layers/tables
+    Helper function ensuring the year attribute is present in all layers/tables
+    
     Args:
         in_gdb (str): path to geodatabase
         year (int): value to be calculated as year
@@ -267,7 +291,8 @@ def add_year_columns(in_gdb, year):
 
 def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
     """
-    helper function to create a temporary geodatabase to hold data as its procesed
+    Helper function to create a temporary geodatabase to hold data as its procesed
+    
     Args:
         out_path (str): path to folder
         out_gdb_name (str): name of geodatabase, Default is None, resulting in a unique name
@@ -290,8 +315,9 @@ def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
 
 def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False):
     """
-    helper function to copy yearly feature classes into a reporting geodatabase;
+    Helper function to copy yearly feature classes into a reporting geodatabase;
     copies all feature datasets from corresponding clean data workspace
+    
     Args:
         in_gdb (str): path to clean data workspace
         out_path (str): path where snapshot template gdb is written
@@ -313,8 +339,9 @@ def make_snapshot_template(in_gdb, out_path, out_gdb_name=None, overwrite=False)
 
 def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
     """
-    helper function to generate a blank output workspace with necessary feature
+    Helper function to generate a blank output workspace with necessary feature
     dataset categories
+
     Args:
         out_path (str): path where trend template gdb is written
         out_gdb_name (str): optional name of output gdb
@@ -333,7 +360,8 @@ def make_trend_template(out_path, out_gdb_name=None, overwrite=False):
 
 def _validateAggSpecs(var, expected_type):
     """
-    helper function to validate a set of aggregation/grouping specs match the necessary object type
+    Helper function to validate a set of aggregation/grouping specs match the necessary object type
+    
     Args:
         var (list/str): list of grouping/aggregation specs
         expected_type (str): object type
@@ -374,7 +402,8 @@ def joinAttributes(
     drop_dup_cols=False,
 ):
     """
-    helper function to join attributes of one table to another
+    Helper function to join attributes of one table to another
+
     Args:
         to_table (str): path to table being extended
         to_id_field (str): primary key
@@ -441,8 +470,9 @@ def summarizeAttributes(
     in_fc, group_fields, agg_cols, consolidations=None, melt_col=None
 ):
     """
-    helper function to perform summarizations of input feature class defined by the
+    Helper function to perform summarizations of input feature class defined by the
     group, agg, consolidate, and melt columns/objects provided
+
     Args:
         in_fc (str): path to feature class, typically this will be the result of an
             intersection of a summary fc and disaggregated fc
@@ -547,27 +577,29 @@ def summarizeAttributes(
 
 def apply_field_calcs(gdb, new_field_specs, recalculate=False):
     """
-    helper function that applies field calculations, adding a new field to a table
+    Helper function that applies field calculations, adding a new field to a table
+
     Args:
         gdb (str): path to geodatabase containing table to have new calc added
         new_field_specs (list): list of dictionaries specifying table(s), new_field, field_type,
             expr, code_block
-            Example:
-                {"tables": [PAR_FC_SPECS], "new_field": "RES_AREA", "field_type": "FLOAT",
-                "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
-                "code_block": '''
-                def calc_area(sq_ft, activity):
-                if activity is None:
-                    return 0
-                elif activity <= 0:
-                    return 0
-                else:
-                    return sq_ft
-                ''',
-            }
-
         recalculate (bool): flag to rerun a calculation if the field already exsits in the table;
             currently unused
+
+    Example:
+        new_field_specs:
+            {"tables": [PAR_FC_SPECS], "new_field": "RES_AREA", "field_type": "FLOAT",
+            "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
+            "code_block": '''
+            def calc_area(sq_ft, activity):
+            if activity is None:
+                return 0
+            elif activity <= 0:
+                return 0
+            else:
+                return sq_ft
+            ''',
+            }
 
     Returns:
         None
@@ -633,11 +665,13 @@ def apply_field_calcs(gdb, new_field_specs, recalculate=False):
 def finalize_output(intermediate_gdb, final_gdb):
     """
     Takes an intermediate GDB path and the final GDB path for that data and
-        replaces the existing GDB if it exists, otherwise it makes a copy
-        of the intermediate GDB and deletes the original
+    replaces the existing GDB if it exists, otherwise it makes a copy
+    of the intermediate GDB and deletes the original
+    
     Args:
         intermediate_gdb (str): path to file geodatabase
         final_gdb (str): path to file geodatabase, cannot be the same as intermediate
+    
     Returns:
         None
     """
@@ -662,8 +696,9 @@ def finalize_output(intermediate_gdb, final_gdb):
 
 def list_fcs_in_gdb():
     """
-    helper function to grab all feature classes ina geodatabase, assumes you
+    Generator to iterate over all feature classes ina geodatabase. Assumes you
     set your arcpy.env.workspace to a gdb before calling
+
     Yields:
         path to feature class
     """
@@ -674,8 +709,9 @@ def list_fcs_in_gdb():
 
 def alter_fields(table_list, field, new_field_name):
     """
-    helper function to rename a field found in multiple tables
-        created to handle RowID used for summary features
+    Helper function to rename a field found in multiple tables
+    created to handle RowID used for summary features
+
     Args:
         table_list (list): list of paths to tables containing the field of interest
         field (str): current field name
@@ -697,12 +733,14 @@ def alter_fields(table_list, field, new_field_name):
 
 def tag_filename(filename, tag):
     """
-    helper method to add a suffix to the end of a filename
+    Helper method to add a suffix to the end of a filename
+
     Args:
         filename (str): path to file or filename string
         tag (str): string suffix to append to end of filename
+    
     Returns:
-        str; updated filepath or filename string with suffix appended
+        str: updated filepath or filename string with suffix appended
     """
     name, ext = os.path.splitext(filename)
     return "{name}_{tag}_{ext}".format(name=name, tag=tag, ext=ext)
@@ -710,12 +748,14 @@ def tag_filename(filename, tag):
 
 def post_process_databases(basic_features_gdb, build_dir):
     """
-    copies in basic features gdb to build dir and cleans up FCs and Tables
-        with SummID to RowID. Finally deletes the TEMP folder generated in the
-        build process
+    Copies in basic features gdb to build dir and cleans up FCs and Tables
+    with SummID to RowID. Finally deletes the TEMP folder generated in the
+    build process
+
     Args:
         basic_features_gdb (str): path to the basic features geodatabase
         build_dir (str): path to the build directory
+    
     Returns:
         None
     """

@@ -48,7 +48,7 @@ import arcpy
 
 
 def process_year_to_snapshot(year):
-    """process cleaned yearly data to a Snapshot database
+    """Process cleaned yearly data to a Snapshot database
     1) copies feature datasets into a temporary geodatabase
     2) performs a series of permenant joins of tabular data onto feature classes making wide tables
     3) Calculates a series of new fields in the existing feature classes
@@ -177,8 +177,8 @@ def process_years_to_trend(years, tables, long_features, diff_features,
     3) generated difference tables for all tabular data summary features
         (Summary Areas, Census Blocks, MAZ, and TAZ)
     4) upon completion, replace existing copy of Trend/NearTerm gdb with newly processed version.
-    TODO: add a try/except to delete any intermediate data created
     """
+    # TODO: add a try/except to delete any intermediate data created
     # Validation
     if base_year is None:
         base_year = years[0]
@@ -210,7 +210,6 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             gdb_path=PMT.make_path(BUILD, f"Snapshot_{process_year}.gdb"),
             overwrite=False,
         )
-        # bh.add_year_columns(in_gdb, year) **************************************************************************
         # Make every table extra long on year
         year_tables = PMT_tools.utils._list_table_paths(gdb=in_gdb, criteria=table_criteria)
         year_fcs = PMT_tools.utils._list_fc_paths(
