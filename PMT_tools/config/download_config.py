@@ -1,3 +1,10 @@
+"""
+The `download_config` module specifies data endpoints for automated download of
+TOC tool supporting data. Some variables defined by the module also specified key
+fields to retain and renaming dictionaries to make downloaded data more intuitive
+and legible.
+"""
+
 from collections import OrderedDict
 ''' FOLDER LIST '''
 RAW_FOLDERS = ["BUILDING_PERMITS", "CENSUS", "LODES", "OPEN_STREET_MAP",

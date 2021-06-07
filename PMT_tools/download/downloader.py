@@ -1,7 +1,9 @@
 """
- This module handles downloading raw data to set up raw data folder for future processing
- Data are organized based on a configuration provided in download_config.py RAW_FOLDERS
-
+The `downloader` module handles downloading source data to the "Raw" data folder for
+downstream processing and analysis. Data are organized into subfolders defined by the
+`RAW_FOLDERS` variable in the `download_config` module. Purpose-specific download
+functions are defined here that utilize methods defined more abstractly in supporting
+modules, including `census_geo`, `census`, `helper`, and `open_street_map`.
 """
 # standard modules
 import os

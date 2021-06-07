@@ -1,27 +1,7 @@
 """
-    Notes:
-    ----------
-    1. Experientially, osmnx network pulls tend to run rather slowly for areas
-    larger than a typical US county. If the study area is larger than a county,
-    it is recommended to provide a "study_area_polygons_path", to a shapefile
-    with the study area broken down into smaller patches (e.g. component
-    counties or tracts). A network will then be composed from individual
-    extractions of the component geometries in the shapefile, which will likely
-    be more performant than a singular network query. If your study area
-    is roughly the size of a county or less, it is recommended to use "bbox",
-    or provide a "study_area_polygons_path" with just one polygon, as this will
-    likely be more performant than the multiple extractions/composition method.
-
-    2. If pickle_save is True, the following will be saved:
-        - A networkx graph object of each modal network for the entire coverage
-        area specified by function inputs.
-        - If a polygon feature class with multiple polygons is used to define
-        the processing extents, a pickled dictionary for each mode, containing
-        polygon object ID's as keys and localized graph objects as values.
-
-    'pickle'-saved objects can be read back into python as python objects,
-    which may be convenient if you'd like to do future processing on these
-    networks in python. The networks are pickled as networkx graphs.
+The `open_street_map` module provides generalized methods to acquire network data
+and building footprint polygons from Open Street Map. It depends on the `osmnx`
+module to download and clean mode-specific networks.
 """
 import os
 import pickle
@@ -165,7 +145,7 @@ def download_osm_networks(
     overwrite=False
 ):
     """Download an OpenStreetMap network within the area defined by a polygon
-        feature class of a bounding box.
+        feature class or a bounding box.
     Args:
         output_dir (str): Path, Path to output directory. Each modal network (specified by `net_types`)
                 is saved to this directory within an epoynmous folder  as a shape file.

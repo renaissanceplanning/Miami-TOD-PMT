@@ -1,3 +1,7 @@
+"""
+The `census` modules provides several helper methods to acquire and aggregate LODES data
+for use in the TOC tool.
+"""
 import os
 import re
 from datetime import datetime
