@@ -122,13 +122,13 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
     # Buffer features
     #  - stations (station areas, unique)
     print("... buffering station areas")
-    PMT.checkOverwriteOutput(stn_areas_fc, overwrite)
+    PMT.check_overwrite_output(stn_areas_fc, overwrite)
     _diss_flds_ = _stringifyList(stn_diss_fields)
     arcpy.Buffer_analysis(stations_fc, stn_areas_fc, stn_buff_dist,
                           dissolve_option="LIST", dissolve_field=_diss_flds_)
     #  - alignments (corridors, unique)
     print("... buffering corridor areas")
-    PMT.checkOverwriteOutput(corridors_fc, overwrite)
+    PMT.check_overwrite_output(corridors_fc, overwrite)
     _diss_flds_ = _stringifyList(align_diss_fields)
     arcpy.Buffer_analysis(alignments_fc, corridors_fc, align_buff_dist,
                           dissolve_option="LIST", dissolve_field=_diss_flds_)
@@ -154,7 +154,7 @@ def makeBasicFeatures(bf_gdb, stations_fc, stn_diss_fields, stn_corridor_fields,
                           var_name="Corridor", value_name="InCor")
     sel_df = long_df[long_df.InCor != 0].copy()
     long_out_fc = PMT.make_path(bf_gdb, long_stn_fc)
-    PMT.checkOverwriteOutput(long_out_fc, overwrite)
+    PMT.check_overwrite_output(long_out_fc, overwrite)
     PMT.df_to_points(sel_df, long_out_fc, ["SHAPE@X", "SHAPE@Y"],
                      from_sr=sr, to_sr=sr, overwrite=True)
 
@@ -193,7 +193,7 @@ def makeSummaryFeatures(bf_gdb, long_stn_fc, corridors_fc, cor_name_field,
 
     # Make output container - polygon with fields for Name, Corridor
     print(f"... creating output feature class {out_fc}")
-    PMT.checkOverwriteOutput(out_fc, overwrite)
+    PMT.check_overwrite_output(out_fc, overwrite)
     out_path, out_name = os.path.split(out_fc)
     arcpy.CreateFeatureclass_management(
         out_path, out_name, "POLYGON", spatial_reference=sr)

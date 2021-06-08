@@ -5,25 +5,43 @@ and mundane but critical procedural support. It also sets constant variables for
 file locations and analysis parameters such as the years of data to be analyzed and reported.
 """
 import fnmatch
+import importlib
+import os
 import re
+import shutil
 import tempfile
 
 # %% imports
+import time
 import uuid
 from collections.abc import Iterable
 from pathlib import Path
 
+EPSG_LL = 4326
+EPSG_FLSPF = 2881
+EPSG_WEB_MERC = 3857
 # import arcpy last as arc messes with global states on import likely changing globals in a way that doesnt allow
 # other libraries to locate their expected resources
-import arcpy
+# see if arcpy available to accommodate non-windows environments
+if importlib.util.find_spec('arcpy') is not None:
+    import arcpy
+    has_arcpy = True
+
+    SR_WGS_84 = arcpy.SpatialReference(EPSG_LL)
+    SR_FL_SPF = arcpy.SpatialReference(EPSG_FLSPF)  # Florida_East_FIPS_0901_Feet
+    SR_WEB_MERCATOR = arcpy.SpatialReference(EPSG_WEB_MERC)
+else:
+    has_arcpy = False
+
 import numpy as np
 import pandas as pd
 from simpledbf import Dbf5
 from six import string_types
 
-from PMT_tools.utils import *
 
 __classes__ = [
+    "TimeError",
+    "Timer",
     "Column",
     "DomainColumn",
     "AggColumn",
@@ -63,36 +81,84 @@ __functions__ = [
     "count_rows",
     "gen_sa_lines",
     "gen_sa_polys",
+    "table_difference"
     "",
 ]
 __all__ = __classes__ + __functions__
 
 
+def make_path(in_folder, *subnames):
+    """Dynamically set a path (e.g., for iteratively referencing
+        year-specific geodatabases)
+
+    Args:
+        in_folder (str): String or Path
+        subnames (list/tuple): A list of arguments to join in making the full path
+            `{in_folder}/{subname_1}/.../{subname_n}
+    Returns:
+        str: String path
+    """
+    return os.path.join(in_folder, *subnames)
+
+
 # %% CONSTANTS - FOLDERS
-SCRIPTS = Path(r"K:\Projects\MiamiDade\PMT\code")
-ROOT = Path(SCRIPTS).parents[0]
-DATA = make_path(ROOT, "Data")
-RAW = make_path(DATA, "RAW")
-CLEANED = make_path(DATA, "CLEANED")
-REF = make_path(DATA, "Reference")
-BUILD = make_path(DATA, "BUILD")
-BASIC_FEATURES = make_path(CLEANED, "PMT_BasicFeatures.gdb", "BasicFeatures")
-YEAR_GDB_FORMAT = make_path(CLEANED, "PMT_{year}.gdb")
+DATA_ROOT = ""      # needs to be set prior to using any tools
+
+# commonly used reference data
+SCRIPTS = Path(__file__).parent
+REF = make_path(SCRIPTS, "ref")
 RIF_CAT_CODE_TBL = make_path(REF, "road_impact_fee_cat_codes.csv")
 DOR_LU_CODE_TBL = make_path(REF, "Land_Use_Recode.csv")
 
-YEARS = [2014, 2015, 2016, 2017, 2018, 2019]
+# standardized data paths
+DATA = make_path(DATA_ROOT, "Data")
+RAW = make_path(DATA, "RAW")
+CLEANED = make_path(DATA, "CLEANED")
+BUILD = make_path(DATA, "BUILD")
+BASIC_FEATURES = make_path(DATA, "PMT_BasicFeatures.gdb", "BasicFeatures")
+YEAR_GDB_FORMAT = make_path(DATA, "PMT_YEAR.gdb")
+
+# year sets utilized for processing,
+#   on update these should be updated to include the newest year(s) of data
+YEARS = [2014, 2015, 2016, 2017, 2018, 2019, "NearTerm"]
 SNAPSHOT_YEAR = 2019
 
-EPSG_LL = 4326
-EPSG_FLSPF = 2881
-EPSG_WEB_MERC = 3857
-SR_WGS_84 = arcpy.SpatialReference(EPSG_LL)
-SR_FL_SPF = arcpy.SpatialReference(EPSG_FLSPF)  # Florida_East_FIPS_0901_Feet
-SR_WEB_MERCATOR = arcpy.SpatialReference(EPSG_WEB_MERC)
+
 
 
 # %% UTILITY CLASSES
+
+# timer classes
+class TimerError(Exception):
+    """A custom exception used to report errors in use of Timer class"""
+
+
+class Timer:
+    def __init__(self):
+        self._start_time = None
+
+    def start(self):
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise TimerError(f"Timer is running. Use .stop() to stop it")
+
+        self._start_time = time.perf_counter()
+        print("Timer has started...")
+
+    def stop(self):
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise TimerError(f"Timer is not running. Use .start() to start it")
+
+        elapsed_time = (time.perf_counter() - self._start_time)
+        if elapsed_time > 60:
+            elapsed_time = elapsed_time/60
+            print(f"Elapsed time: {elapsed_time:0.4f} minutes")
+        if elapsed_time > 3600:
+            elapsed_time /= 3600
+            print(f"Elapsed time: {elapsed_time:0.4f} hours")
+        self._start_time = None
+
 
 # column and aggregation classes
 class Column:
@@ -164,7 +230,7 @@ class CollCollection(AggColumn):
 
     def defaultsDict(self):
         if isinstance(self.default, Iterable) and not isinstance(
-            self.default, string_types
+                self.default, string_types
         ):
             return dict(zip(self.input_cols, self.default))
         else:
@@ -179,7 +245,7 @@ class Consolidation(CollCollection):
 
 class MeltColumn(CollCollection):
     def __init__(
-        self, label_col, val_col, input_cols, agg_method=sum, default=0.0, domain=None
+            self, label_col, val_col, input_cols, agg_method=sum, default=0.0, domain=None
     ):
         CollCollection.__init__(self, val_col, input_cols, agg_method, default)
         self.label_col = label_col
@@ -285,15 +351,15 @@ class NetLoader:
     """
 
     def __init__(
-        self,
-        search_tolerance,
-        search_criteria,
-        match_type="MATCH_TO_CLOSEST",
-        append="APPEND",
-        snap="NO_SNAP",
-        offset="5 Meters",
-        exclude_restricted="EXCLUDE",
-        search_query=None,
+            self,
+            search_tolerance,
+            search_criteria,
+            match_type="MATCH_TO_CLOSEST",
+            append="APPEND",
+            snap="NO_SNAP",
+            offset="5 Meters",
+            exclude_restricted="EXCLUDE",
+            search_query=None,
     ):
         self.search_tolerance = search_tolerance
         self.search_criteria = search_criteria
@@ -328,13 +394,13 @@ class ServiceAreaAnalysis:
         self.merges = ["NO_MERGE", "MERGE"]
 
     def solve(
-        self,
-        imped_attr,
-        cutoff,
-        out_ws,
-        restrictions="",
-        use_hierarchy=False,
-        net_location_fields="",
+            self,
+            imped_attr,
+            cutoff,
+            out_ws,
+            restrictions="",
+            use_hierarchy=False,
+            net_location_fields="",
     ):
         """Create service area lines and polygons for this object's `facilities`.
 
@@ -449,7 +515,7 @@ def validate_geodatabase(gdb_path, overwrite=False):
         if arcpy.Exists(gdb_path) and desc_gdb.dataType == "Workspace":
             exists = True
             if overwrite:
-                checkOverwriteOutput(gdb_path, overwrite=overwrite)
+                check_overwrite_output(gdb_path, overwrite=overwrite)
                 exists = False
     else:
         raise Exception("path provided does not contain a geodatabase")
@@ -481,11 +547,11 @@ def validate_feature_dataset(fds_path, sr, overwrite=False):
         # verify the path is through a geodatabase
         if fnmatch.fnmatch(name=fds_path, pat="*.gdb*"):
             if (
-                arcpy.Exists(fds_path)
-                and arcpy.Describe(fds_path).spatialReference == sr
+                    arcpy.Exists(fds_path)
+                    and arcpy.Describe(fds_path).spatialReference == sr
             ):
                 if overwrite:
-                    checkOverwriteOutput(fds_path, overwrite=overwrite)
+                    check_overwrite_output(fds_path, overwrite=overwrite)
                 else:
                     return fds_path
             # Snippet below only runs if not exists/overwrite and can be created.
@@ -502,7 +568,7 @@ def validate_feature_dataset(fds_path, sr, overwrite=False):
         print("...no geodatabase at that location, cannot create feature dataset")
 
 
-def checkOverwriteOutput(output, overwrite=False):
+def check_overwrite_output(output, overwrite=False):
     """A helper function that checks if an output file exists and
         deletes the file if an overwrite is expected.
     Args:
@@ -523,6 +589,23 @@ def checkOverwriteOutput(output, overwrite=False):
             raise RuntimeError(f"Output file {output} already exists")
 
 
+def check_overwrite_path(output, overwrite=True):
+    """ non-arcpy version of check_overwrite_output """
+    output = Path(output)
+    if output.exists():
+        if overwrite:
+            if output.is_file():
+                print(f"--- --- deleting existing file {output.name}")
+                output.unlink()
+            if output.is_dir():
+                print(f"--- --- deleting existing folder {output.name}")
+                shutil.rmtree(output)
+        else:
+            print(
+                f"Output file/folder {output} already exists"
+            )
+
+
 def dbf_to_df(dbf_file):
     """Reads in dbf file and returns Pandas DataFrame object
     Args:
@@ -535,12 +618,12 @@ def dbf_to_df(dbf_file):
 
 
 def intersect_features(
-    summary_fc,
-    disag_fc,
-    disag_fields="*",
-    as_df=False,
-    in_temp_dir=False,
-    full_geometries=False,
+        summary_fc,
+        disag_fc,
+        disag_fields="*",
+        as_df=False,
+        in_temp_dir=False,
+        full_geometries=False,
 ):
     """creates a temporary intersected feature class for disaggregation of data
 
@@ -602,7 +685,7 @@ def intersect_features(
 
 
 def json_to_featureclass(
-    json_obj, out_file, new_id_field="ROW_ID", exclude=None, sr=4326, overwrite=False
+        json_obj, out_file, new_id_field="ROW_ID", exclude=None, sr=4326, overwrite=False
 ):
     """Creates a feature class or shape file from a json object.
     Args:
@@ -636,7 +719,7 @@ def json_to_featureclass(
     sr = arcpy.SpatialReference(sr)
     geom_type = geom_stack[0].type.upper()
     if overwrite:
-        checkOverwriteOutput(output=out_file, overwrite=overwrite)
+        check_overwrite_output(output=out_file, overwrite=overwrite)
     out_path, out_name = os.path.split(out_file)
     arcpy.CreateFeatureclass_management(
         out_path=out_path,
@@ -814,7 +897,7 @@ def df_to_table(df, out_table, overwrite=False):
         out_table (str): Path
     """
     if overwrite:
-        checkOverwriteOutput(output=out_table, overwrite=overwrite)
+        check_overwrite_output(output=out_table, overwrite=overwrite)
     in_array = np.array(np.rec.fromrecords(df.values, names=df.dtypes.index.tolist()))
     arcpy.da.NumPyArrayToTable(in_array, out_table)
     return out_table
@@ -871,7 +954,7 @@ def df_to_points(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
     else:
         out_path, out_fc = os.path.split(out_fc)
         if overwrite:
-            checkOverwriteOutput(output=out_fc, overwrite=overwrite)
+            check_overwrite_output(output=out_fc, overwrite=overwrite)
         arcpy.FeatureClassToFeatureClass_conversion(
             in_features=temp_fc, out_path=out_path, out_name=out_fc
         )
@@ -1039,12 +1122,12 @@ def add_unique_id(feature_class, new_id_field=None):
 
 
 def count_rows(
-    in_table,
-    groupby_field=None,
-    out_field=None,
-    skip_nulls=False,
-    null_value=None,
-    inplace=True,
+        in_table,
+        groupby_field=None,
+        out_field=None,
+        skip_nulls=False,
+        null_value=None,
+        inplace=True,
 ):
     """Counts rows in a table.
 
@@ -1138,7 +1221,7 @@ def _listAccumulationAttributes(network, impedance_attribute):
 
 
 def _loadFacilitiesAndSolve(
-    net_layer, facilities, name_field, net_loader, net_location_fields
+        net_layer, facilities, name_field, net_loader, net_location_fields
 ):
     # Field mappings
     fmap_fields = ["Name"]
@@ -1214,7 +1297,7 @@ def _extendFromSublayer(out_fc, key_field, net_layer, sublayer, fields):
 
 
 def _loadLocations(
-    net_layer, sublayer, points, name_field, net_loader, net_location_fields
+        net_layer, sublayer, points, name_field, net_loader, net_location_fields
 ):
     # Field mappings
     fmap_fields = ["Name"]
@@ -1283,19 +1366,19 @@ def _rows_to_csv(in_table, fields, out_table, chunksize):
 
 # Network location functions
 def gen_sa_lines(
-    facilities,
-    name_field,
-    in_nd,
-    imped_attr,
-    cutoff,
-    net_loader,
-    out_fc,
-    from_to="TRAVEL_FROM",
-    overlap="OVERLAP",
-    restrictions="",
-    use_hierarchy=False,
-    uturns="ALLOW_UTURNS",
-    net_location_fields=None,
+        facilities,
+        name_field,
+        in_nd,
+        imped_attr,
+        cutoff,
+        net_loader,
+        out_fc,
+        from_to="TRAVEL_FROM",
+        overlap="OVERLAP",
+        restrictions="",
+        use_hierarchy=False,
+        uturns="ALLOW_UTURNS",
+        net_location_fields=None,
 ):
     """
     Args:
@@ -1396,20 +1479,20 @@ def gen_sa_lines(
 
 
 def gen_sa_polys(
-    facilities,
-    name_field,
-    in_nd,
-    imped_attr,
-    cutoff,
-    net_loader,
-    out_fc,
-    from_to="TRAVEL_FROM",
-    merge="NO_MERGE",
-    nesting="RINGS",
-    restrictions=None,
-    use_hierarchy=False,
-    uturns="ALLOW_UTURNS",
-    net_location_fields=None,
+        facilities,
+        name_field,
+        in_nd,
+        imped_attr,
+        cutoff,
+        net_loader,
+        out_fc,
+        from_to="TRAVEL_FROM",
+        merge="NO_MERGE",
+        nesting="RINGS",
+        restrictions=None,
+        use_hierarchy=False,
+        uturns="ALLOW_UTURNS",
+        net_location_fields=None,
 ):
     """
     Args:
@@ -1494,11 +1577,11 @@ def gen_sa_polys(
 
 
 def _sanitize_column_names(
-    geo,
-    remove_special_char=True,
-    rename_duplicates=True,
-    inplace=False,
-    use_snake_case=True,
+        geo,
+        remove_special_char=True,
+        rename_duplicates=True,
+        inplace=False,
+        use_snake_case=True,
 ):
     """
     Implementation for pd.DataFrame.spatial.sanitize_column_names()
@@ -1568,6 +1651,188 @@ def _sanitize_column_names(
         df.columns = new_col_names
         return df
     return True
+
+
+def _list_table_paths(gdb, criteria="*"):
+    """
+    internal function, returns a list of all tables within a geodatabase
+    Args:
+        gdb (str/path): string path to a geodatabase
+        criteria (list): wildcards to limit the results returned from ListTables;
+            list of table names generated from trend table parameter dictionaries,
+            table name serves as a wildcard for the ListTables method, however if no criteria is given
+            all table names in the gdb will be returned
+
+    Returns (list):
+        list of full paths to tables in geodatabase
+    """
+    old_ws = arcpy.env.workspace
+    arcpy.env.workspace = gdb
+    if isinstance(criteria, string_types):
+        criteria = [criteria]
+    # Get tables
+    tables = []
+    for c in criteria:
+        tables += arcpy.ListTables(c)
+    arcpy.env.workspace = old_ws
+    return [make_path(gdb, table) for table in tables]
+
+
+def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
+    """
+    internal function, returns a list of all feature classes within a geodatabase
+    Args:
+        gdb (str/path): string path to a geodatabase
+        fds_criteria (str/list): wildcards to limit results returned. List of
+            feature datasets
+        fc_criteria (str/list): wildcard to limit results returned. List of
+            feature class names.
+
+    Returns (list):
+        list of full paths to feature classes in geodatabase
+    """
+    old_ws = arcpy.env.workspace
+    arcpy.env.workspace = gdb
+    paths = []
+    if isinstance(fds_criteria, string_types):
+        fds_criteria = [fds_criteria]
+    if isinstance(fc_criteria, string_types):
+        fc_criteria = [fc_criteria]
+    # Get feature datasets
+    fds = []
+    for fdc in fds_criteria:
+        fds += arcpy.ListDatasets(fdc)
+    # Get feature classes
+    for fd in fds:
+        for fc_crit in fc_criteria:
+            fcs = arcpy.ListFeatureClasses(feature_dataset=fd, wild_card=fc_crit)
+            paths += [make_path(gdb, fd, fc) for fc in fcs]
+    arcpy.env.workspace = old_ws
+    return paths
+
+
+def _make_access_col_specs(activities, time_breaks, mode, include_average=True):
+    """
+    helper function to generate access column specs
+    Args:
+        activities (list): list of job sectors
+        time_breaks (list): integer list of time bins
+        mode (list): string list of transportation modes
+        include_average (bool): flag to create a long column of average minutes to access
+            a given mode
+
+    Returns:
+        cols (list), renames (dict); list of columns created, dict of old/new name pairs
+    """
+    cols = []
+    new_names = []
+    for a in activities:
+        for tb in time_breaks:
+            col = f"{a}{tb}Min"
+            cols.append(col)
+            new_names.append(f"{col}{mode[0]}")
+        if include_average:
+            col = f"AvgMin{a}"
+            cols.append(col)
+            new_names.append(f"{col}{mode[0]}")
+    renames = dict(zip(cols, new_names))
+    return cols, renames
+
+
+def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=None):
+    """
+
+    Args:
+        int_fc:
+        id_field:
+        activities:
+        time_breaks:
+        mode:
+        domain:
+
+    Returns:
+
+    """
+    # result is long on id_field, activity, time_break
+    # TODO: update to use Column objects? (null handling, e.g.)
+    # --------------
+    # Dump int fc to data frame
+    acc_fields, renames = _make_access_col_specs(
+        activities, time_breaks, mode, include_average=False
+    )
+    if isinstance(id_field, string_types):
+        id_field = [id_field]  # elif isinstance(Column)?
+
+    all_fields = id_field + list(renames.values())
+    df = featureclass_to_df(in_fc=int_fc, keep_fields=all_fields, null_val=0.0)
+    # Set id field(s) as index
+    df.set_index(id_field, inplace=True)
+
+    # Make tidy hierarchical columns
+    levels = []
+    order = []
+    for tb in time_breaks:
+        for a in activities:
+            col = f"{a}{tb}Min{mode[0]}"
+            idx = df.columns.tolist().index(col)
+            levels.append((a, tb))
+            order.append(idx)
+    header = pd.DataFrame(
+        np.array(levels)[np.argsort(order)], columns=["Activity", "TimeBin"]
+    )
+    mi = pd.MultiIndex.from_frame(header)
+    df.columns = mi
+    df.reset_index(inplace=True)
+    # Melt
+    melt_df = df.melt(id_vars=id_field)
+    melt_df["from_time"] = melt_df["TimeBin"].apply(
+        lambda time_break: _get_time_previous_time_break_(time_breaks, time_break)
+    )
+    return melt_df
+
+
+def _get_time_previous_time_break_(time_breaks, tb):
+    if isinstance(tb, string_types):
+        tb = int(tb)
+    idx = time_breaks.index(tb)
+    if idx == 0:
+        return 0
+    else:
+        return time_breaks[idx - 1]
+
+
+def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
+    """
+    helper function to calculate the difference between this_table and base_table
+        ie... this_table minus base_table
+    Args:
+        this_table (str): path to a snapshot table
+        base_table (str): path to a previous years snapshot table
+        idx_cols (list): column names used to generate a common index
+        fields (list): if provided, a list of fields to calculate the difference on;
+            Default: "*" indicates all fields
+        **kwargs: keyword arguments for featureclass_to_df
+
+    Returns:
+        pandas.Dataframe; df of difference values
+    """
+    # Fetch data frames
+    this_df = featureclass_to_df(in_fc=this_table, keep_fields=fields, **kwargs)
+    base_df = featureclass_to_df(in_fc=base_table, keep_fields=fields, **kwargs)
+    # Set index columns
+    base_df.set_index(idx_cols, inplace=True)
+    this_df.set_index(idx_cols, inplace=True)
+    this_df = this_df.reindex(base_df.index, fill_value=0)  # is this necessary?
+    # Drop all remaining non-numeric columns
+    base_df_n = base_df.select_dtypes(["number"])
+    this_df_n = this_df.select_dtypes(["number"])
+
+    # Take difference
+    diff_df = this_df_n - base_df_n
+    # Restore index columns
+    diff_df.reset_index(inplace=True)
+
+    return diff_df
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from PMT_tools import PMT
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
 from PMT_tools.config import prepare_config as p_conf
 from PMT_tools.config import build_config as b_conf
-from PMT_tools.utils import _list_table_paths, _list_fc_paths, _createLongAccess
+from PMT_tools.PMT import _list_table_paths, _list_fc_paths, _createLongAccess
 
 
 def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
@@ -306,7 +306,7 @@ def make_reporting_gdb(out_path, out_gdb_name=None, overwrite=False):
         out_gdb = PMT.make_path(out_path, out_gdb_name)
     elif out_gdb_name and overwrite:
         out_gdb = PMT.make_path(out_path, out_gdb_name)
-        PMT.checkOverwriteOutput(output=out_gdb, overwrite=overwrite)
+        PMT.check_overwrite_output(output=out_gdb, overwrite=overwrite)
     else:
         out_gdb = PMT.make_path(out_path, out_gdb_name)
     arcpy.CreateFileGDB_management(out_path, out_gdb_name)
@@ -765,7 +765,7 @@ def post_process_databases(basic_features_gdb, build_dir):
     print("--- Overwriting basic features in BUILD dir with current version")
     path, basename = os.path.split(basic_features_gdb)
     out_basic_features = PMT.make_path(build_dir, basename)
-    PMT.checkOverwriteOutput(output=out_basic_features, overwrite=True)
+    PMT.check_overwrite_output(output=out_basic_features, overwrite=True)
     arcpy.Copy_management(in_data=basic_features_gdb, out_data=out_basic_features)
 
     # reset SummID to RowID

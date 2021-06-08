@@ -21,7 +21,7 @@ from PMT_tools.config.download_config import (
     LODES_JOB_TYPES,
     LODES_AGG_GEOS,
 )
-from PMT_tools.utils import make_path, validate_directory, check_overwrite_path
+from PMT_tools.PMT import make_path, validate_directory, check_overwrite_path
 
 current_year = datetime.now().year
 

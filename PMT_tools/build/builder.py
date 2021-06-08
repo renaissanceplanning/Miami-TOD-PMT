@@ -29,8 +29,6 @@ import sys
 
 from six import string_types
 
-import PMT_tools.utils
-
 sys.path.insert(0, os.getcwd())
 # build helper functions
 from ..build import build_helper as B_HELP
@@ -43,7 +41,6 @@ from ..config import prepare_config as P_CONF
 from .. import PMT
 from ..PMT import CLEANED, BUILD, BASIC_FEATURES
 
-import argparse
 import arcpy
 
 
@@ -211,8 +208,8 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             overwrite=False,
         )
         # Make every table extra long on year
-        year_tables = PMT_tools.utils._list_table_paths(gdb=in_gdb, criteria=table_criteria)
-        year_fcs = PMT_tools.utils._list_fc_paths(
+        year_tables = PMT._list_table_paths(gdb=in_gdb, criteria=table_criteria)
+        year_fcs = PMT._list_fc_paths(
             gdb=in_gdb, fds_criteria="*", fc_criteria=long_criteria
         )
         elongate = year_tables + year_fcs
@@ -234,12 +231,12 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         # Get snapshot and base year params
         if process_year == base_year:
             base_tables = year_tables[:]
-            base_fcs = PMT_tools.utils._list_fc_paths(
+            base_fcs = PMT._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
         elif process_year == snapshot_year:
             snap_tables = year_tables[:]
-            snap_fcs = PMT_tools.utils._list_fc_paths(
+            snap_fcs = PMT._list_fc_paths(
                 gdb=in_gdb, fds_criteria="*", fc_criteria=diff_criteria
             )
 
@@ -248,7 +245,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
         out_name = os.path.split(base_table)[1] + "_diff"
         out_table = PMT.make_path(out_gdb, out_name)
         idx_cols = specs["index_cols"]
-        diff_df = PMT_tools.utils.table_difference(
+        diff_df = PMT.table_difference(
             this_table=snap_table, base_table=base_table, idx_cols=idx_cols
         )
         print(f"Creating table {out_name}")
@@ -282,7 +279,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
             field_mapping=field_mappings,
         )
         # Get table difference
-        diff_df = PMT_tools.utils.table_difference(
+        diff_df = PMT.table_difference(
             this_table=snap_fc, base_table=base_fc, idx_cols=idx_cols
         )
         # Extend attribute table
@@ -322,7 +319,7 @@ if __name__ == "__main__":
         REF = PMT.make_path(ROOT, "Reference")
         RIF_CAT_CODE_TBL = PMT.make_path(REF, "road_impact_fee_cat_codes.csv")
         DOR_LU_CODE_TBL = PMT.make_path(REF, "Land_Use_Recode.csv")
-        YEAR_GDB_FORMAT = PMT.make_path(CLEANED, "PMT_YEAR.gdb")
+        YEAR_GDB_FORMAT = PMT.YEAR_GDB_FORMAT
         YEARS = ["NearTerm"]
 
     # # parse arguments to allow these to be run as scripts

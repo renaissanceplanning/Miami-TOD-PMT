@@ -76,7 +76,7 @@ def enrich_bg_with_parcels(bg_fc, bg_id_field, parcels_fc, par_id_field, out_tbl
     # Prep output
     if sum_crit is None:
         sum_crit = {}
-    PMT.checkOverwriteOutput(output=out_tbl, overwrite=overwrite)
+    PMT.check_overwrite_output(output=out_tbl, overwrite=overwrite)
 
     sr = arcpy.Describe(parcels_fc).spatialReference
 

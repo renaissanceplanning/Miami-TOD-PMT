@@ -69,7 +69,7 @@ def generalizeLandUseByParcel(parcel_fc, out_table, ref_table,
     ref_table = pd.read_csv(ref_table, dtype=dtype, **kwargs)
 
     # Copy parcel_fc to out_fc
-    PMT.checkOverwriteOutput(out_table, overwrite=overwrite)
+    PMT.check_overwrite_output(out_table, overwrite=overwrite)
     print("...copying parcels to analysis gdb")
     out_ws, out_name = os.path.split(out_table)
     arcpy.TableToTable_conversion(parcel_fc, out_ws, out_name,

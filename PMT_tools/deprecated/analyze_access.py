@@ -129,7 +129,7 @@ def createZoneFc(source_fc, out_fc, keep_fields=[], overwrite=False):
         except:
             print(f"-- no input field {kf}")
     # Copy features
-    PMT.checkOverwriteOutput(out_fc, overwrite=overwrite)
+    PMT.check_overwrite_output(out_fc, overwrite=overwrite)
     out_path, out_name = os.path.split(out_fc)
     if keep_fields:
         arcpy.FeatureClassToFeatureClass_conversion(

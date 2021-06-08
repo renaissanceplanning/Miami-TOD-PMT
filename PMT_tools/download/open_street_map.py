@@ -12,7 +12,7 @@ import osmnx as ox
 from shapely.geometry import Polygon, MultiPolygon
 from six import string_types
 
-from PMT_tools.utils import check_overwrite_path, make_path, validate_directory
+from PMT_tools.PMT import check_overwrite_path, make_path, validate_directory
 import helper as dl_help
 
 # globals for scripts

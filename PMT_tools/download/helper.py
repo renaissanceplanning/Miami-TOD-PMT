@@ -13,7 +13,7 @@ import pandas as pd
 import requests
 from requests.exceptions import RequestException
 
-from PMT_tools.utils import make_path
+from PMT_tools.PMT import make_path
 
 __all__ = ["download_file_from_url", "get_filename_from_header", "census_geoindex_to_columns", "fetch_acs",
            "download_race_vars", "download_commute_vars", "trim_components"]

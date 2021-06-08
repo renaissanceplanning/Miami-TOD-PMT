@@ -92,7 +92,7 @@ def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
         fc_name, ext = os.path.splitext(os.path.split(osm_fc)[1])
     # Check if output already exists
     out_path = PMT.make_path(str(to_feature_dataset), fc_name)
-    PMT.checkOverwriteOutput(output=out_path, overwrite=overwrite)
+    PMT.check_overwrite_output(output=out_path, overwrite=overwrite)
 
     # Transfer data
     print(f"...copying features {osm_fc} to {to_feature_dataset}")

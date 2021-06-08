@@ -56,7 +56,7 @@ from PMT_tools.config import prepare_config as prep_conf
 # prep/clean helper functions
 from PMT_tools.prepare import prepare_helpers as P_HELP
 from PMT_tools.prepare import prepare_osm_networks as OSM_HELP
-from PMT_tools.utils import table_difference
+from PMT_tools.PMT import table_difference
 
 # PMT functions
 from PMT_tools import PMT

@@ -28,10 +28,10 @@ import open_street_map
 import PMT_tools.config.download_config as dl_conf
 
 # PMT globals
-from PMT_tools.utils import RAW, YEARS, SNAPSHOT_YEAR
+from PMT_tools.PMT import RAW, YEARS, SNAPSHOT_YEAR
 
 # PMT Functions
-from PMT_tools.utils import Timer, validate_directory, make_path, check_overwrite_path
+from PMT_tools.PMT import Timer, validate_directory, make_path, check_overwrite_path
 
 t = Timer()
 
@@ -226,15 +226,15 @@ def download_osm_data(overwrite=True):
         - RAW\\OPEN_STREET_MAP\\walk_{suffix) [network]
     """
     print("Fetching OSM NETWORK data...")
-    out_county = make_path(RAW, "Miami-Dade_County_Boundary.geojson")
+    area_of_interest = make_path(RAW, "Miami-Dade_County_Boundary.geojson")
     osm_data_dir = make_path(RAW, "OPEN_STREET_MAP")
     data_crs = 4326
     open_street_map.download_osm_networks(
-        output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021", overwrite=overwrite
+        output_dir=osm_data_dir, polygon=area_of_interest, data_crs=data_crs, suffix="q1_2021", overwrite=overwrite
     )
     print("\nFetching OSM BUILDING data...")
     open_street_map.download_osm_buildings(
-        output_dir=osm_data_dir, polygon=out_county, data_crs=data_crs, suffix="q1_2021", overwrite=overwrite
+        output_dir=osm_data_dir, polygon=area_of_interest, data_crs=data_crs, suffix="q1_2021", overwrite=overwrite
     )
 
 

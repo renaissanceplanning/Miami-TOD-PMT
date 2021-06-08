@@ -10,7 +10,7 @@ defined here. Most variables defined in this module focus on one of the followin
 import numpy as np
 
 from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
-from PMT_tools.utils import _make_access_col_specs
+from PMT_tools.PMT import _make_access_col_specs
 from PMT_tools.config import prepare_config as pconfig
 
 # GLOBALS
