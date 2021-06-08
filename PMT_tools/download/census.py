@@ -267,13 +267,9 @@ def download_aggregate_lodes(output_dir,
     Args:
         output_dir (str): path to location downloaded files should end up
         file_type (str): one of three LODES groupings ['od', 'rac', 'wac']
-
             - OD: Origin-Destination data, totals are associated with both a home Census Block and a work Census Block
-
             - RAC: Residence Area Characteristic data, jobs are totaled by home Census Block
-
             - WAC: Workplace Area Characteristic data, jobs are totaled by work Census Block
-
         state (str): The two-character postal abbreviation for the state
         segment (str): Segment of the workforce, can have the values of
             [“S000”, “SA01”, “SA02”, “SA03”,  “SE01”, “SE02”, “SE03”, “SI01”, “SI02”, “SI03”, ""]

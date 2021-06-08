@@ -51,8 +51,6 @@ def traverse(ftp, depth=None):
     return level
 
 
-# ----------------------------------------------------------------------------
-
 # https://stackoverflow.com/questions/6027558/flatten-nested-dictionaries-compressing-keys
 def flatten(d, parent_key="", sep="/"):
     """
@@ -83,8 +81,6 @@ def flatten(d, parent_key="", sep="/"):
     # Done
     return dict(items)
 
-
-# ----------------------------------------------------------------------------
 
 # Written by Aaron
 def get_ftp_files(folder_connection, ftp_site="sdrftp03.dor.state.fl.us"):
@@ -117,8 +113,6 @@ def get_ftp_files(folder_connection, ftp_site="sdrftp03.dor.state.fl.us"):
     # Done
     return urls
 
-
-# ----------------------------------------------------------------------------
 
 # Written by Aaron
 def format_florida_counties(county):
@@ -162,8 +156,6 @@ def format_florida_counties(county):
     fo = np.unique(spaced).tolist()
     return fo
 
-
-# ----------------------------------------------------------------------------
 
 # Written by Aaron
 def florida_counties():
@@ -281,8 +273,6 @@ def florida_counties():
     return df
 
 
-# ----------------------------------------------------------------------------
-
 # Written by Aaron
 def extract_year(url, regex="[0-9]{4}"):
     """
@@ -310,8 +300,6 @@ def extract_year(url, regex="[0-9]{4}"):
     return year
 
 
-# ----------------------------------------------------------------------------
-
 # Written by Aaron
 def extract_county_name(url, regex):
     """
@@ -333,9 +321,6 @@ def extract_county_name(url, regex):
     except:
         county = ""
     return county
-
-
-# ----------------------------------------------------------------------------
 
 
 def extract_county_number(url):
@@ -366,8 +351,6 @@ def extract_county_number(url):
         county = ""
     return county
 
-
-# ----------------------------------------------------------------------------
 
 # Written by Aaron
 def fdor_gis_and_tax(save_path=None):
@@ -485,8 +468,6 @@ def fdor_gis_and_tax(save_path=None):
     print("")
     return df
 
-
-# ----------------------------------------------------------------------------
 
 # Written by Aaron
 def fdor_availability(df, year=None, county=None):

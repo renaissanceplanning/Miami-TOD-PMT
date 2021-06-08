@@ -37,7 +37,6 @@ __all__ = [
     "geojson_to_feature_class_arc",
     "csv_to_df",
     "split_date",
-    "polygon_to_points_arc",
     "add_xy_from_poly",
     "clean_and_drop",
     "combine_csv_dask",
@@ -184,7 +183,7 @@ def geojson_to_feature_class_arc(
     Args:
         geojson_path (str): path to geojson file
         geom_type (str): The geometry type to convert from GeoJSON to features.
-                        OPTIONS: POINT, MULTIPOINT, POLYLINE, POLYGON
+            OPTIONS: POINT, MULTIPOINT, POLYLINE, POLYGON
         encoding (str): name of the encoding used to decode or encode the file
         unique_id (str): name of unique id column, Default is None
     
@@ -253,33 +252,6 @@ def split_date(df, date_field, unix_time=False):
     df["MONTH"] = df[date_field].dt.month
     df["YEAR"] = df[date_field].dt.year
     return df
-
-# TODO: move to deprecated?
-# def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
-#     """
-#     Generate points from polygon centroids inside polygon
-#     *UNUSED IN CURRENT ITERATION*
-
-#     Args:
-#         in_fc (str): path to polygon featureclass
-#         id_field (str): if not None, the new features created will only have an ID attribute
-#         point_loc (str): CENTROID or INSIDE (see documentation of arcpy.FeatureToPoint)
-
-#     Returns:
-#         temporary feature class
-#     """
-#     # TODO: replace usages with PMT.polygonsToPoints
-#     try:
-#         # convert json to temp feature class
-#         temp_feature = PMT.make_inmem_path()
-#         arcpy.FeatureToPoint_management(
-#             in_features=in_fc, out_feature_class=temp_feature, point_location=point_loc
-#         )
-#         if id_field:
-#             clean_and_drop(feature_class=temp_feature, use_cols=[id_field])
-#         return temp_feature
-#     except:
-#         print("something went wrong converting polygon to points")
 
 
 def add_xy_from_poly(poly_fc, poly_key, table_df, table_key):
@@ -503,6 +475,11 @@ def _stringifyList(input):
     return ";".join(input)
 
 
+def _validate_field(table, field):
+    fields = [f.name for f in arcpy.ListFields(table)]
+    return bool(field in fields)
+
+
 def make_basic_features(
         bf_gdb,
         stations_fc,
@@ -528,10 +505,9 @@ def make_basic_features(
     In a geodatabase with basic features (station points and corridor alignments),
     create polygon feature classes used for standard mapping and summarization.
     The output feature classes include:
-    - buffered corridors,
-    - buffered station areas,
-    - a long file of station points, where each station/corridor combo is represented
-        as a separate feature.
+        - buffered corridors,
+        - buffered station areas,
+        - a long file of station points, where each station/corridor combo is represented as a separate feature.
 
     Args:
         bf_gdb (str): Path to a geodatabase with key basic features, including stations and
@@ -678,7 +654,7 @@ def make_basic_features(
 
 def make_summary_features(
         bf_gdb,
-        # long_stn_fc,  # deprecated in lieu of patched features
+        long_stn_fc,  # deprecated in lieu of patched features
         stn_areas_fc,
         stn_id_field,
         corridors_fc,
@@ -697,7 +673,7 @@ def make_summary_features(
 
     Args:
         bf_gdb (str): Path to basic features gdb
-        # long_stn_fc (str): path to long station points feature class  (deprecated in lieu of patched features)
+        long_stn_fc (str): path to long station points feature class  (deprecated in lieu of patched features)
         stn_areas_fc (str): path to station area polygons feature class
         stn_id_field (str): id field linking `stn_areas_fc` and `long_stn_fc`
         corridors_fc (str): path to corridors feature class
@@ -767,7 +743,7 @@ def make_summary_features(
         stn_status_field,
         stn_cor_field,
     ]
-    missing = PMT.which_missing(table=long_stn_fc, field_list=stn_fields)
+    # missing = PMT.which_missing(table=long_stn_fc, field_list=stn_fields)
     cor_stn_polys = {}
     with arcpy.da.InsertCursor(out_fc, out_fields) as ic:
         with arcpy.da.SearchCursor(long_stn_fc, stn_fields) as sc:
@@ -6081,3 +6057,28 @@ def full_skim(
 #         chunk.to_csv(out_csv, header=header, mode=mode, index=False)
 #         header = False
 #         mode = "a"
+#
+# def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
+#     """
+#     Generate points from polygon centroids inside polygon
+#     *UNUSED IN CURRENT ITERATION*
+
+#     Args:
+#         in_fc (str): path to polygon featureclass
+#         id_field (str): if not None, the new features created will only have an ID attribute
+#         point_loc (str): CENTROID or INSIDE (see documentation of arcpy.FeatureToPoint)
+
+#     Returns:
+#         temporary feature class
+#     """
+#     try:
+#         # convert json to temp feature class
+#         temp_feature = PMT.make_inmem_path()
+#         arcpy.FeatureToPoint_management(
+#             in_features=in_fc, out_feature_class=temp_feature, point_location=point_loc
+#         )
+#         if id_field:
+#             clean_and_drop(feature_class=temp_feature, use_cols=[id_field])
+#         return temp_feature
+#     except:
+#         print("something went wrong converting polygon to points")

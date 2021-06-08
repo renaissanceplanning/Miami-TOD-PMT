@@ -28,7 +28,7 @@ BIKABILITY_CLASSES = [  # where clause, expression
 
 
 # %% FUNCTIONS
-def classifyBikability(bike_edges):
+def classify_bikability(bike_edges):
     """
     Adds two fields to cleaned bike edge features: "bikability" and
     "cycleway". The former assigns a "level of traffic stress" (LTS)
@@ -64,8 +64,8 @@ def classifyBikability(bike_edges):
     return bike_edges
 
 
-def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
-                   overwrite=False, wc=None, field_mapping=None):
+def import_OSM_shape(osm_fc, to_feature_dataset, fc_name=None,
+                     overwrite=False, wc=None, field_mapping=None):
     """
     A simple function to facilitate the transfer of osm features in a
     shapefile to a feature dataset for use in a network dataset.
@@ -100,7 +100,7 @@ def importOSMShape(osm_fc, to_feature_dataset, fc_name=None,
                                                        fc_name, wc, field_mapping)
 
 
-def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
+def make_network_dataset(template_xml, out_feature_dataset, net_name="osm_ND"):
     """
     Make a network dataset from a template xml file. The features in
     `out_feature_dataset` must be consistent with those used in
@@ -136,7 +136,7 @@ def makeNetworkDataset(template_xml, out_feature_dataset, net_name="osm_ND"):
                         os.path.join(out_dir, f"BuildErrors_{out_name}.txt"))
 
 
-def makeNetworkDatasetTemplate(from_nd, template_xml):
+def make_network_dataset_template(from_nd, template_xml):
     """
     Make a network dataset template from an existing network dataset. The
     template can be used to construct new network datasets using the same
