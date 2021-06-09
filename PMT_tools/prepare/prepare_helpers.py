@@ -1237,12 +1237,15 @@ def prep_transit_ridership(
 
 # Parcel data
 def clean_parcel_geometry(in_features, fc_key_field, new_fc_key, out_features=None):
-    """cleans parcel geometry and sets common key to user supplied new_fc_key
+    """
+    Cleans parcel geometry and sets common key to user supplied new_fc_key
+
     Args:
         in_features (str): path to raw parcel shapefile
         fc_key_field (str): primary key of raw shapefile data
         new_fc_key (str): new primary key name used throughout processing
         out_features (str): path to output parcel feature class
+
     Returns:
         None
     """
@@ -1293,7 +1296,9 @@ def prep_parcel_land_use_tbl(
         dtype_map=None,
         **kwargs,
 ):
-    """Join parcels with land use classifications based on DOR use codes.
+    """
+    Join parcels with land use classifications based on DOR use codes.
+
     Args:
         parcels_fc (str): path to parcel feature class
         parcel_lu_field (str): String; The column in `parcels_fc` with each parcel's DOR use code.
@@ -1340,9 +1345,11 @@ def enrich_bg_with_parcels(
         par_bld_area=None,
         par_sum_fields=None,
 ):
-    """Relates parcels to block groups based on centroid location and summarizes
+    """
+    Relates parcels to block groups based on centroid location and summarizes
         key parcel fields to the block group level, including building floor area
         by potential activity type (residential, jobs by type, e.g.).
+
     Args:
         bg_fc (str): path to block group feature class
         parcels_fc (str): path to parcel feature class
@@ -1446,7 +1453,9 @@ def enrich_bg_with_parcels(
 
 
 def get_field_dtype(in_table, field):
-    """helper function to get map type from arcgis type to pandas type
+    """
+    Helper function to get map type from arcgis type to pandas type
+
     Args:
         in_table (str): path to table
         field (str): field of interest
@@ -1462,7 +1471,9 @@ def get_field_dtype(in_table, field):
 def enrich_bg_with_econ_demog(
         tbl_path, tbl_id_field, join_tbl, join_id_field, join_fields
 ):
-    """Adds data from another raw table as new columns based on the fields provided.
+    """
+    Adds data from another raw table as new columns based on the fields provided.
+
     Args:
         tbl_path (str): path table being updated
         tbl_id_field (str): table primary key
@@ -1502,23 +1513,20 @@ def prep_parcels(
         tbl_renames=None,
         **kwargs,
 ):
-    """Starting with raw parcel features and raw parcel attributes in a table,
+    """
+    Starting with raw parcel features and raw parcel attributes in a table,
         clean features by repairing invalid geometries, deleting null geometries,
         and dissolving common parcel ID's. Then join attribute data based on
         the parcel ID field, managing column names in the process.
     Args:
         in_fc (str): Path or feature layer; A collection of raw parcel features (shapes)
         in_tbl (str): String; path to a table of raw parcel attributes.
-        out_fc (str): Path
-            The path to the output feature class that will contain clean parcel
+        out_fc (str): The path to the output feature class that will contain clean parcel
             geometries with attribute columns joined.
-        fc_key_field (str): String; default="PARCELNO"
-            The field in `in_fc` that identifies each parcel feature.
+        fc_key_field (str): String; default="PARCELNO" The field in `in_fc` that identifies each parcel feature.
         new_fc_key_field (str): String; parcel common key used throughout downstream processing
-        tbl_key_field: String; default="PARCEL_ID"
-            The field in `in_csv` that identifies each parcel feature.
-        tbl_renames (dict): dict; default={}
-            Dictionary for renaming columns from `in_csv`. Keys are current column
+        tbl_key_field: String; default="PARCEL_ID" The field in `in_csv` that identifies each parcel feature.
+        tbl_renames (dict): dict; default={} Dictionary for renaming columns from `in_csv`. Keys are current column
             names; values are new column names.
         kwargs:
             Keyword arguments for reading csv data into pandas (dtypes, e.g.)
@@ -1570,10 +1578,12 @@ def prep_parcels(
 
 # impervious surface
 def get_raster_file(folder):
-    """Get the name of the raster from within the zip (the .img file), there should be only one
+    """
+    Get the name of the raster from within the zip (the .img file), there should be only one
 
     Args:
         folder (str): path to folder containing raster data
+
     Returns:
         path to raster file
     """
@@ -1596,8 +1606,10 @@ def get_raster_file(folder):
 
 
 def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
-    """Clean a USGS impervious surface raster by Clipping to the bounding box of a study area
+    """
+    Clean a USGS impervious surface raster by Clipping to the bounding box of a study area
         and transforming the clipped raster to a desired CRS
+
     Args:
         zip_path (str): Path; .zip folder of downloaded imperviousness raster (see the
             `dl_imperviousness` function)
@@ -1607,9 +1619,10 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
         transform_crs: Anything accepted by arcpy.SpatialReference(), optional
             Identifier of spatial reference to which to transform the clipped
             raster; can be any form accepted by arcpy.SpatialReference()
+
     Returns:
-        File will be clipped, transformed, and saved to the save directory; the
-        save path will be returned upon completion
+        None: File will be clipped, transformed, and saved to the save directory; the
+            save path will be returned upon completion
     """
     with tempfile.TemporaryDirectory() as temp_unzip_folder:
         print("--- unzipping imperviousness raster in temp directory")
@@ -1665,7 +1678,9 @@ def prep_imperviousness(zip_path, clip_path, out_dir, transform_crs=None):
 
 
 def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field):
-    """Summarize percent impervious surface cover in each of a collection of zones
+    """
+    Summarize percent impervious surface cover in each of a collection of zones
+
     Args:
         raster_points (str): Path; path to clipped/transformed imperviousness raster as points (see the
             `prep_imperviousness` function)
@@ -1707,7 +1722,9 @@ def analyze_imperviousness(raster_points, rast_cell_area, zone_fc, zone_id_field
 
 
 def agg_to_zone(parcel_fc, agg_field, zone_fc, zone_id):
-    """aggregate parcel data up to a zone feature class, limited to one field for aggregation
+    """
+    Aggregate parcel data up to a zone feature class, limited to one field for aggregation
+
     Args:
         parcel_fc (str): parcel feature class path
         agg_field (str): field to be aggregated
@@ -1750,7 +1767,8 @@ def agg_to_zone(parcel_fc, agg_field, zone_fc, zone_id):
 def model_blockgroup_data(
         data_path, bg_enrich_tbl_name, bg_key, fields="*", acs_years=None, lodes_years=None,
 ):
-    """fit linear models to block group-level total employment, population, and
+    """
+    Fit linear models to block group-level total employment, population, and
         commutes at the block group level, and save the model coefficients for
         future prediction
     Args:
@@ -1938,7 +1956,8 @@ def apply_blockgroup_model(
         model_coefficients,
         shares_from=None,
 ):
-    """predict block group-level total employment, population, and commutes using
+    """
+    Predict block group-level total employment, population, and commutes using
         pre-fit linear models, and apply a shares-based approach to subdivide
         totals into relevant subgroups
     Args:
@@ -2243,14 +2262,16 @@ def allocate_bg_to_parcels(
         parcel_lu=None,
         parcel_liv_area=None,
 ):
-    """Allocate block group data to parcels using relative abundances of parcel building square footage
+    """
+    Allocate block group data to parcels using relative abundances of parcel building square footage
+
     Args:
-        parcel_fc (str): Path; path to shape of parcel polygons, containing at a minimum a unique ID
-            field, land use field, and total living area field (Florida DOR)
         bg_modeled_df (pd.DataFrame): pandas DataFrame of modeled block group job, population, and commute
             data for allocation
         bg_geom (str): Path; path to feature class of block group polygons
         bg_id_field (str): block group key
+        parcel_fc (str): Path; path to shape of parcel polygons, containing at a minimum a unique ID
+            field, land use field, and total living area field (Florida DOR)
         parcels_id (str): str, unique ID field in the parcels shape
             Default is "PARCELNO" for Florida parcels
         parcel_wc (str): where clause to select out parcels and limit allocation to only the selected parcels
@@ -2823,8 +2844,8 @@ def estimate_maz_from_parcels(
         agg_cols,
         consolidations,
 ):
-    """Estimate jobs, housing, etc. at the MAZ level based on underlying parcel
-        data.
+    """
+    Estimate jobs, housing, etc. at the MAZ level based on underlying parcel data.
     Args:
         par_fc (str): Path to Parcel features
         par_id_field (str): Field identifying each parcel feature
@@ -2857,7 +2878,7 @@ def estimate_maz_from_parcels(
     #                    join_fields="*")
     # Summarize
     gb_cols = [PMT.Column(maz_id_field), PMT.Column(taz_id_field)]
-    df = b_help.summarizeAttributes(
+    df = b_help.summarize_attributes(
         in_fc=int_fc,
         group_fields=gb_cols,
         agg_cols=agg_cols,
@@ -2870,10 +2891,11 @@ def estimate_maz_from_parcels(
 # Consolidate MAZ data (for use in areas outside the study area)
 # TODO: This could become a more generalized method
 def consolidate_cols(df, base_fields, consolidations):
-    """ Use the `PMT.Consolidation` class to combine columns and
+    """
+    Use the `PMT.Consolidation` class to combine columns and
         return a clean data frame.
     Args:
-        df (pd.DataFrame):
+        df (pd.DataFrame): pandas Dataframe
         base_fields (list): [String, ...]; Field(s) in `df` that are not subject to consolidation but which
             are to be retained in the returned data frame.
         consolidations (iterable): [Consolidation, ...]; Specifications for output columns that consolidate columns
@@ -2900,7 +2922,8 @@ def consolidate_cols(df, base_fields, consolidations):
 
 
 def patch_local_regional_maz(maz_par_df, maz_par_key, maz_df, maz_key):
-    """Create a region wide MAZ socioeconomic/demographic data frame based
+    """
+    Create a region wide MAZ socioeconomic/demographic data frame based
         on parcel-level and MAZ-level data. Where MAZ features do not overlap
         with parcels, use MAZ-level data.
     Args:
@@ -2931,10 +2954,11 @@ def patch_local_regional_maz(maz_par_df, maz_par_key, maz_df, maz_key):
 
 def copy_net_result(source_fds, target_fds, fc_names):
     # TODO: Generalize function name and docstring, as this now just copies one or more fcs across fds's
-    """Since some PMT years use the same OSM network, a solved network analysis
+    """
+    Since some PMT years use the same OSM network, a solved network analysis
         can be copied from one year to another to avoid redundant processing.
 
-        This function is a helper function called by PMT wrapper functions. It
+    This function is a helper function called by PMT wrapper functions. It
         is not intended to be run independently.
     Args:
         source_fds (str): Path to source FeatureDataset
@@ -2969,7 +2993,8 @@ def copy_net_result(source_fds, target_fds, fc_names):
 
 
 def lines_to_centrality(line_features, impedance_attribute):
-    """Using the "lines" layer output from an OD matrix problem, calculate
+    """
+    Using the "lines" layer output from an OD matrix problem, calculate
         node centrality statistics and store results in a csv table.
     Args:
         line_features (str): ODMatrix/Lines feature layer
@@ -3004,10 +3029,11 @@ def network_centrality(
         restrictions="",
         chunk_size=1000,
 ):
-    """Uses Network Analyst to create and iteratively solve an OD matrix problem
+    """
+    Uses Network Analyst to create and iteratively solve an OD matrix problem
         to assess connectivity among point features.
 
-        The evaluation analyses how many features can reach a given feature and
+    The evaluation analyses how many features can reach a given feature and
         what the total and average travel impedances are. Results are reported
         for traveling TO each feature (i.e. features as destinations), which may
         be significant if oneway or similar restrictions are honored.
@@ -3103,7 +3129,8 @@ def network_centrality(
 
 
 def parcel_walk_time_bin(in_table, bin_field, time_field, code_block):
-    """Adds a field to create travel time categories in a new `bin_field`
+    """
+    Adds a field to create travel time categories in a new `bin_field`
         based on the walk times recorded in a `time_field` and an extended
         if/else `code_block` that defines a simple function `assignBin()`.
     Args:
@@ -3135,7 +3162,8 @@ def parcel_walk_times(
         preselect_fc,
         target_name,
 ):
-    """For features in a parcel feature class, summarize walk times reported
+    """
+    For features in a parcel feature class, summarize walk times reported
         in a reference features class of service area lines. Generates fields
         recording the nearest reference feature, walk time to the nearest
         reference feature, number of reference features within the service
@@ -3233,28 +3261,22 @@ def parcel_ideal_walk_time(
         sr=None,
         assumed_mph=3,
 ):
-    """Estimate walk time between parcels and target features (stations, parks,
+    """
+    Estimate walk time between parcels and target features (stations, parks,
         e.g.) based on a straight-line distance estimate and an assumed walking
         speed.
     Args:
-        parcels_fc (str): Path
-        parcel_id_field (str): String
-            A field that uniquely identifies features in `parcels_fc`
-        target_fc (str): Path
-        target_name_field (str): String
-            A field that uniquely identifies features in `target_fc`
-        radius (str): String
-            A "linear unit" string for spatial selection ('5280 Feet', e.g.)
-        target_name (str): String
-            A string suffix included in output field names.
-        overlap_type (str): String, default="HAVE_THEIR_CENTER_IN"
-            A string specifying selection type (see ArcGIS )
-        sr (arcpy.SpatialReference): SpatialReference, default=None
-            A spatial reference code, string, or object to ensure parcel and
+        parcels_fc (str): Path to parcel feature class
+        parcel_id_field (str): A field that uniquely identifies features in `parcels_fc`
+        target_fc (str): Path to a feature class used to estimate straight line distance from parcels
+        target_name_field (str): A field that uniquely identifies features in `target_fc`
+        radius (str): A "linear unit" string for spatial selection ('5280 Feet', e.g.)
+        target_name (str): A string suffix included in output field names.
+        overlap_type (str, default="HAVE_THEIR_CENTER_IN"):A string specifying selection type (see ArcGIS )
+        sr (arcpy.SpatialReference): A spatial reference code, string, or object to ensure parcel and
             target features are projected consistently. If `None`, the spatial
             reference from `parcels_fc` is used.
-        assumed_mph (int/float): numeric, default=3
-            The assumed average walk speed expressed in miles per hour.
+        assumed_mph (int/float): default=3; The assumed average walk speed expressed in miles per hour.
     Returns:
         walk_time_fc: DataFrame
             A data frame with columns storing ideal walk time data:
@@ -3341,8 +3363,9 @@ def summarize_access(
         chunk_size=100000,
         **kwargs,
 ):
-    """ Reads an origin-destination skim table, joins activity data,
-    and summarizes activities by impedance bins.
+    """
+    Reads an origin-destination skim table, joins activity data,
+        and summarizes activities by impedance bins.
 
     Args:
         skim_table (str): Path to SKIM table
@@ -3453,7 +3476,8 @@ def generate_od_table(
         d_location_fields=None,
         o_chunk_size=None,
 ):
-    """Creates and solves an OD Matrix problem for a collection of origin and
+    """
+    Creates and solves an OD Matrix problem for a collection of origin and
         destination points using a specified network dataset. Results are
         exported as a csv file.
     Args:
@@ -3569,8 +3593,9 @@ def taz_travel_stats(
         chunksize=100000,
         **kwargs,
 ):
-    """Calculate rates of vehicle trip generation, vehicle miles of travel, and
-    average trip length.
+    """
+    Calculate rates of vehicle trip generation, vehicle miles of travel, and
+        average trip length.
 
     Args:
         od_table (str): Path; A csv table containing origin-destination information, including
@@ -3652,7 +3677,8 @@ def taz_travel_stats(
 
 
 def generate_chunking_fishnet(template_fc, out_fishnet_name, chunks=20):
-    """ generates a fishnet feature class that minimizes the rows and columns based on
+    """
+    Generates a fishnet feature class that minimizes the rows and columns based on
         number of chunks and template_fc proportions
     Args:
         template_fc (str): path to template feature class
@@ -3700,7 +3726,8 @@ def generate_chunking_fishnet(template_fc, out_fishnet_name, chunks=20):
 
 def symmetric_difference(target_fc, update_fc, out_fc_name):
     # TODO: add capability to define output location instead of in_memory space
-    """if Advanced arcpy license not available this will calculate the
+    """
+    If Advanced arcpy license not available this will calculate the
         symmetrical difference of two sets of polygons
     Args:
         target_fc (str): path to input feature class
@@ -3730,7 +3757,8 @@ def symmetric_difference(target_fc, update_fc, out_fc_name):
 
 
 def merge_and_subset(feature_classes, subset_fc):
-    """helper function to merge a list of feature classes and subset them base on a
+    """
+    Helper function to merge a list of feature classes and subset them base on a
     provided area of interest subset feature class
 
     Args:
@@ -4316,10 +4344,11 @@ def simpson_diversity(
         count_lu=None,
         **kwargs,
 ):
-    """Simpson index: mathematically, the probability that a random draw of
-    one unit of land use A would be followed by a random draw of one unit
-    of land use B. Ranges from 0 (only one land use present)
-    to 1 (all land uses present in equal abundance)
+    """
+    Simpson index: mathematically, the probability that a random draw of
+        one unit of land use A would be followed by a random draw of one unit
+        of land use B. Ranges from 0 (only one land use present)
+        to 1 (all land uses present in equal abundance)
     """
 
     temp_df = in_df.assign(SIN=in_df[weight_col] * (in_df[weight_col] - 1))
@@ -4463,7 +4492,8 @@ def enp_diversity(
 def assign_features_to_agg_area(
         in_features, agg_features=None, buffer=None, in_fields="*", as_df=False
 ):
-    """Generates a feature class or table that relates disaggregate features to
+    """
+    Generates a feature class or table that relates disaggregate features to
     those in an aggregate area. Optionally, the aggregate areas can be generated
     from the disaggregate features using a buffer, creating a "floating zone"
     around each.
@@ -4522,10 +4552,23 @@ def lu_diversity(
         regional_comp=False,
 ):
     """
-    if `weight_field` is none, a field called "COUNT" containing row counts by
-    `groupby_field` values is created and used for weighting.
+    Wrapper function to run one of the 4 land use diversity methods [Simpson, Shannon, Berger-Parker, or ENP]
 
+    Args:
+        in_df (pandas.DataFrame): Dataframe containing the data to be analyzed
+        groupby_field (str): The field in in_df used to group the data
+        lu_field (str): The field in in_df containing the land use categorical values
+        div_funcs (list): List of the functions to generate diversity indices
+        weight_field (str): The field used to generate weights
+        count_lu (int): Count of relevant land use classes
+        regional_comp (bool): Boolean indicating whether to perform a region-wide comparison
 
+    Returns:
+        panadas.DataFrame
+
+    Notes:
+        If `weight_field` is none, a field called "COUNT" containing row counts by
+            `groupby_field` values is created and used for weighting.
     """
     # Prep
     if isinstance(groupby_field, string_types):
@@ -4589,7 +4632,8 @@ def lu_diversity(
 
 
 def match_units_fields(d):
-    """helper function to match units to a field
+    """
+    Helper function to match units to a field
 
     Args:
         d (dict): a dictionary of the format `{unit_name: parcel_field, ...}`, where the
@@ -4631,7 +4675,8 @@ def create_permits_units_reference(
         permits_units_name="sq. ft.",
         units_match_dict=None,
 ):
-    """creates a reference table by which to convert various units provided in
+    """
+    Creates a reference table by which to convert various units provided in
         the Florida permits_df data to building square footage
 
     Args:
@@ -4765,24 +4810,25 @@ def build_short_term_parcels(
         permits_cost_field,
         units_field_match_dict={},
 ):
-    """using current parcel data and current permits, generate a nearterm estimate of
+    """
+    Using current parcel data and current permits, generate a nearterm estimate of
     parcel changes as a temp feature class.
 
     Args:
-        parcel_fc (str): path to current parcel feature class
-        parcels_id_field (str): primary key for parcel data
-        parcels_lu_field (str): land use code attribute
-        parcels_living_area_field (str): building floor area field
-        parcels_land_value_field (str): parcel land value field
-        parcels_total_value_field (str): combined building and land value field
-        parcels_buildings_field (str): count of buildings per parcel field
-        permit_fc (str): path to permitted development that has been spatialized
-        permits_ref_df (pandas.DataFrame): table of reference units to map values from permits to parcel
-        permits_id_field (str): foreign key in permits layer tying parcels and permits
-        permits_lu_field (str): permits land use field
-        permits_units_field (str): permits unit type field (ex: sq.ft)
-        permits_values_field (str): permit unit value field (ex: 2526 --> reference to permits_units_field)
-        permits_cost_field (str): combined administrative and construction cost field in permit data
+        parcel_fc (str): Path to current parcel feature class
+        parcels_id_field (str): Primary key for parcel data
+        parcels_lu_field (str): Land use code attribute
+        parcels_living_area_field (str): Building floor area field
+        parcels_land_value_field (str): Parcel land value field
+        parcels_total_value_field (str): Combined building and land value field
+        parcels_buildings_field (str): Count of buildings per parcel field
+        permit_fc (str): Path to permitted development that has been spatialized
+        permits_ref_df (pandas.DataFrame): Table of reference units to map values from permits to parcel
+        permits_id_field (str): Foreign key in permits layer tying parcels and permits
+        permits_lu_field (str): Permits land use field
+        permits_units_field (str): Permits unit type field (ex: sq.ft)
+        permits_values_field (str): Permit unit value field (ex: 2526 --> reference to permits_units_field)
+        permits_cost_field (str): Combined administrative and construction cost field in permit data
         units_field_match_dict (dict): k,v pair of parcel field and the unit list in permit_units_field that match
 
     Returns:
@@ -5023,7 +5069,8 @@ def clean_skim_csv(
 
 
 def _df_to_graph_(df, source, target, attrs, create_using, renames, where=None):
-    """helper function to convert a pandas.Dataframe to a networkx Graph object
+    """
+     Helper function to convert a pandas.Dataframe to a networkx Graph object
 
     Args:
         df (pandas.DataFrame): pandas dataframe of formatted SKIM
@@ -5088,7 +5135,8 @@ def transit_skim_joins(
         total_cutoff=np.inf,
         *kwargs,
 ):
-    """TODO: Alex please embellish this
+    """
+    TODO: Alex please embellish this
         ... assumes taz_to_tap and tap_to_tap have identical column headings for key fields
 
     Args:
@@ -5718,32 +5766,24 @@ def clean_skim_csv(
     by applying (adding) an offset to the original values. Saves a new csv containing key columns 
     (`node_fields` and `imp_field`)
 
-    Parameters
-    -----------
-    in_file: Path
-    out_file: Path
-    imp_field: String 
-        The name of the field containing impedance (time, distance, cost) values between OD pairs.
-        If this field is renamed using `renames`, the new name should be provided here.
-    drop_val: Numeric, default=0
-        Rows where `imp_field` is equal to `drop_val` are dropped from the skim
-    renames: dict
-        Keys are column names in `in_file`, values are new names for those columns in`out_file`
-    node_offset: int, default=0
-        If origin and destiantion nodes need to be renumbered, this value will be added to
-        the original values in `node_fields`. (This is used when the multiple skims are being used to
-        create a network and node number collisions need to be handled.)
-    node_fields: [String,...]
-        List of fields containing node values. At a minimum, there should be two fields listed: the
-        origin and destiantion fields. All fields listed will have the `node_offset` (if given) applied.
-        If columns are renamed used `renames`, give the new column names, not the old ones.
-    chunksize: Int
-    kwargs:
-        Keywords to use when loading `in_file` with `pd.read_csv`.
+    Args:
+        in_file (str): Path to OD table
+        out_file (str): Path to cleaned OD table
+        imp_field (str): The name of the field containing impedance (time, distance, cost) values between OD pairs.
+            If this field is renamed using `renames`, the new name should be provided here.
+        drop_val (int, default=0): Numeric, Rows where `imp_field` is equal to `drop_val` are dropped from the skim
+        renames (dict): Keys are column names in `in_file`, values are new names for those columns in`out_file`
+        node_offset (int, default=0): If origin and destiantion nodes need to be renumbered, this value will be added to
+            the original values in `node_fields`. (This is used when the multiple skims are being used to
+            create a network and node number collisions need to be handled.)
+        node_fields (list): [String,...]; List of fields containing node values. At a minimum, there should be two
+            fields listed: the origin and destiantion fields. All fields listed will have the `node_offset`
+            (if given) applied. If columns are renamed used `renames`, give the new column names, not the old ones.
+        chunksize (int): number of rows to process on each iteration
+        kwargs: Keywords to use when loading `in_file` with `pd.read_csv`.
 
-    Returns
-    --------
-    out_file: path
+    Returns:
+        out_file (str): Path to the cleaned output file
     """
     # TODO: support multiple imped_fields
     # TODO: support multiple drop values
@@ -5762,117 +5802,6 @@ def clean_skim_csv(
         mode = "a"
 
     return out_file
-
-
-def _df_to_graph_(df, source, target, attrs, create_using, renames, where=None):
-    if renames:
-        df.rename(columns=renames, inplace=True)
-    return nx.from_pandas_edgelist(
-        df, source=source, target=target, edge_attr=attrs, create_using=create_using
-    )
-
-
-def skim_to_graph(
-        in_csv, source, target, attrs, create_using=nx.DiGraph, renames={}, **kwargs
-):
-    """
-    Converts a long OD table from a csv into a networkx graph, such that each
-    OD row becomes an edge in the graph, with its origin and destination added as nodes.
-
-    Parameters
-    -----------
-    in_csv: Path
-    source: String
-        The origin field. If fields are renamed used `renames`, give the new name.
-    target: String
-        The destination field. If fields are renamed used `renames`, give the new name.
-    attrs: [String,...]
-        Column names containing values to include as edge attributes
-    create_using: networx graph constructor, default=nx.DiGraph
-        The type of graph to build from the csv.
-    renames: dict
-        Keys are column names in `in_file`, values are new names for those columns
-        to appear as edge attributes.
-    kwargs:
-        Keywords to use when loading `in_file` with `pd.read_csv`.
-    """
-    if "chunksize" in kwargs:
-        graph_list = []
-        for chunk in pd.read_csv(in_csv, **kwargs):
-            graph_list.append(
-                _df_to_graph_(chunk, source, target, attrs, create_using, renames)
-            )
-        return reduce(nx.compose, graph_list)
-    else:
-        df = pd.read_csv(in_csv, **kwargs)
-        return _df_to_graph_(df, source, target, attrs, create_using, renames)
-
-
-def transit_skim_joins(
-        taz_to_tap,
-        tap_to_tap,
-        out_skim,
-        o_col="OName",
-        d_col="DName",
-        imp_col="Minutes",
-        origin_zones=None,
-        destination_zones=None,
-        total_cutoff=np.inf,
-        *kwargs,
-):
-    """
-    # TODO: add docstring
-    ... assumes taz_to_tap and tap_to_tap have identical column headings for key fields
-    """
-    # TODO: enrich to set limits on access time, egress time, IVT
-    # TODO: handle column output names
-    # Read tables
-    z2p_dd = dd.read_csv(taz_to_tap)
-    p2p_dd = dd.read_csv(tap_to_tap)
-
-    # Prep tables to handle column collisions
-    z2p_dd = z2p_dd.rename(
-        columns={o_col: "OName", d_col: "Boarding_stop", imp_col: "access_time"}
-    )
-    p2p_dd = p2p_dd.rename(
-        columns={o_col: "Boarding_stop", d_col: "Alighting_stop", imp_col: "IVT"},
-    )
-
-    # Merge to get alighting stops reachable from origin TAZ via boarding stop
-    o_merge = z2p_dd.merge(p2p_dd, how="inner", on="Boarding_stop")
-
-    # Rename access skim columns to reflect egress times
-    z2p_dd = z2p_dd.rename(
-        columns={
-            "Boarding_stop": "Alighting_stop",
-            "OName": "DName",
-            "access_time": "egress_time",
-        },
-    )
-
-    # Merge to get destination zones reachable via alighting stop
-    d_merge = o_merge.merge(z2p_dd, how="inner", on="Alighting_stop")
-
-    # Calculate total time
-    d_merge["Minutes"] = d_merge[["access_time", "IVT", "egress_time"]].sum(axis=1)
-
-    # Filter
-    result = d_merge[d_merge["Minutes"] <= total_cutoff]
-    if origin_zones:
-        result = result[result["OName"].isin(origin_zones)]
-    if destination_zones:
-        result = result[result["DName"].isin(destination_zones)]
-
-    # Export result
-    out_cols = ["OName", "DName", "Minutes"]
-    result = result[out_cols].groupby(out_cols[:2]).min()
-    result.to_csv(
-        out_skim,
-        single_file=True,
-        index=True,
-        header_first_partition_only=True,
-        chunksize=100000,
-    )
 
 
 def full_skim(

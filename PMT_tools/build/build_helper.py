@@ -103,7 +103,6 @@ def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
     return joined_fcs
 
 
-# TODO: add debug flag/debug_folder to allow intersections to be written to know location
 def build_intersections(gdb, enrich_specs):
     """
     Helper function that performs a batch intersection of polygon feature classes
@@ -180,7 +179,7 @@ def build_enriched_tables(gdb, fc_dict, specs):
         agg = spec["agg_cols"]
         consolidate = spec["consolidate"]
         melts = spec["melt_cols"]
-        summary_df = summarizeAttributes(
+        summary_df = summarize_attributes(
             in_fc=fc,
             group_fields=group,
             agg_cols=agg,
@@ -245,7 +244,7 @@ def unique_values(table, field):
         table (str): path to table of interest
         field (str): field name of interest
 
-    Returns (ndarray):
+    Returns:
         sorted unique values from the field
     """
     data = arcpy.da.TableToNumPyArray(in_table=table, field_names=[field], null_value=0)
@@ -466,7 +465,7 @@ def joinAttributes(
     )
 
 
-def summarizeAttributes(
+def summarize_attributes(
     in_fc, group_fields, agg_cols, consolidations=None, melt_col=None
 ):
     """

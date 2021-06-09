@@ -45,21 +45,24 @@ import arcpy
 
 
 def process_year_to_snapshot(year):
-    """Process cleaned yearly data to a Snapshot database
-    1) copies feature datasets into a temporary geodatabase
-    2) performs a series of permenant joins of tabular data onto feature classes making wide tables
-    3) Calculates a series of new fields in the existing feature classes
-    4) calculated a dataframe of region wide parcel level statistics
-    5) Intersects a series of geometries together, allowing us to aggregate and summarize data from higher to lower
-        spatial scales
-    6) Enrichment of existing feature class tables with the information from higher spatial resolution, in effect
-        widening the tables (ex: roll parcel level data up to blocks, or parcel level data up to Station Areas)
-    7) Generate new tables that are long on categorical information derived from the intersections
-        (ex: pivot TOT_LVG_AREA on Land Use, taking the sum of living area by land use)
-    8) Create separate access by mode tables (bike, walk, transit, auto)
-    9) Calculate new attributes based on region wide summaries
-    10) Calculate additional attributes for dashboards that require all previous steps to be run
-    11) If successful, replace existing copy of Snapshot with newly processed version.
+    """
+    Process cleaned yearly data to a Snapshot database
+
+    Procedure:
+        1) copies feature datasets into a temporary geodatabase
+        2) performs a series of permenant joins of tabular data onto feature classes making wide tables
+        3) Calculates a series of new fields in the existing feature classes
+        4) calculated a dataframe of region wide parcel level statistics
+        5) Intersects a series of geometries together, allowing us to aggregate and summarize data from higher to lower
+            spatial scales
+        6) Enrichment of existing feature class tables with the information from higher spatial resolution, in effect
+            widening the tables (ex: roll parcel level data up to blocks, or parcel level data up to Station Areas)
+        7) Generate new tables that are long on categorical information derived from the intersections
+            (ex: pivot TOT_LVG_AREA on Land Use, taking the sum of living area by land use)
+        8) Create separate access by mode tables (bike, walk, transit, auto)
+        9) Calculate new attributes based on region wide summaries
+        10) Calculate additional attributes for dashboards that require all previous steps to be run
+        11) If successful, replace existing copy of Snapshot with newly processed version.
 
     Returns:
         None
@@ -168,12 +171,15 @@ def process_year_to_snapshot(year):
 
 def process_years_to_trend(years, tables, long_features, diff_features,
                            base_year=None, snapshot_year=None, out_gdb_name=None, ):
-    """Utilizing a base and snapshot year, trend data are generated for the associated time period.
-    1) creates a a blank output workspace with necessary feature dataset categories uniquely named
-    2) generates tables long on year for all tabular data and summary areas
-    3) generated difference tables for all tabular data summary features
-        (Summary Areas, Census Blocks, MAZ, and TAZ)
-    4) upon completion, replace existing copy of Trend/NearTerm gdb with newly processed version.
+    """
+    Utilizing a base and snapshot year, trend data are generated for the associated time period.
+
+    Procedure:
+        1) creates a a blank output workspace with necessary feature dataset categories uniquely named
+        2) generates tables long on year for all tabular data and summary areas
+        3) generated difference tables for all tabular data summary features
+            (Summary Areas, Census Blocks, MAZ, and TAZ)
+        4) upon completion, replace existing copy of Trend/NearTerm gdb with newly processed version.
     """
     # TODO: add a try/except to delete any intermediate data created
     # Validation
@@ -300,9 +306,21 @@ def process_years_to_trend(years, tables, long_features, diff_features,
     B_HELP.finalize_output(intermediate_gdb=out_gdb, final_gdb=final_gdb)
 
 
+def process_all_snapshots(years):
+    """
+    Helper function to iterate all years and generate snapshot databases for list of
+        years provided
+    """
+    # Snapshot data
+    print("Building snapshot databases...")
+    for year in years:
+        print(f"- Snapshot for {year}")
+        process_year_to_snapshot(year)
+
+
 # MAIN
 if __name__ == "__main__":
-    DEBUG = True
+    DEBUG = False
     if DEBUG:
         """
         if DEBUG is True, you can change the path of the root directory and test any
@@ -322,15 +340,11 @@ if __name__ == "__main__":
         YEAR_GDB_FORMAT = PMT.YEAR_GDB_FORMAT
         YEARS = ["NearTerm"]
 
-    # # parse arguments to allow these to be run as scripts
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument()
-
     # Snapshot data
     print("Building snapshot databases...")
-    # for year in YEARS:
-    #     print(f"- Snapshot for {year}")
-    #     process_year_to_snapshot(year)
+    process_all_snapshots(years=YEARS)
+
+    # Generate Trend Database
     print("Building Trend database...")
     process_years_to_trend(
         years=PMT.YEARS,
@@ -339,7 +353,8 @@ if __name__ == "__main__":
         diff_features=B_CONF.DIFF_FEATURES,
         out_gdb_name="Trend",
     )
-    # Process near term "trend"
+
+    # Generate near term "trend" database
     print("Building Near term 'Trend' database...")
     process_years_to_trend(
         years=["Current", "NearTerm"],
@@ -350,6 +365,8 @@ if __name__ == "__main__":
         snapshot_year="NearTerm",
         out_gdb_name="NearTerm",
     )
+
+    # tidy up BUILD folder
     B_HELP.post_process_databases(
         basic_features_gdb=BASIC_FEATURES, build_dir=PMT.make_path(BUILD, "TEMP")
     )
