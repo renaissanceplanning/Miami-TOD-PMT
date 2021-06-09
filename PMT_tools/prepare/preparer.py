@@ -63,7 +63,7 @@ from PMT_tools import PMT
 from PMT_tools.PMT import (
     make_path,
     make_inmem_path,
-    checkOverwriteOutput,
+    check_overwrite_output,
     df_to_table,
     polygons_to_points,
     extend_table_df,
@@ -110,7 +110,7 @@ def process_udb(overwrite=True):
     udb_fc = make_path(RAW, "MD_Urban_Growth_Boundary.geojson")
     county_fc = make_path(RAW, "Miami-Dade_County_Boundary.geojson")
     out_fc = make_path(CLEANED, "UrbanDevelopmentBoundary.shp")
-    checkOverwriteOutput(output=out_fc, overwrite=overwrite)
+    check_overwrite_output(output=out_fc, overwrite=overwrite)
 
     temp_line_fc = p_help.geojson_to_feature_class_arc(
         geojson_path=udb_fc, geom_type="POLYLINE"
@@ -263,7 +263,7 @@ def process_normalized_geometries(overwrite=True):
                     select_features=county_bounds,
                 )
             if overwrite:
-                checkOverwriteOutput(output=out_data, overwrite=overwrite)
+                check_overwrite_output(output=out_data, overwrite=overwrite)
             print(f"--- writing out geometries and {cols} only")
             arcpy.CopyFeatures_management(in_features=lyr, out_feature_class=out_data)
 
@@ -292,10 +292,10 @@ def process_parks(overwrite=True):
         - treat NEAR_TERM like any other year
 
     Inputs:
-      - RAW//Municipal_Parks.geojson (polygons)
-      - RAW//Federal_State_Parks.geojson (polygons)
-      - RAW//County_Parks.geojson (polygons)
-      - RAW//Park_Facilities.geojson (points)
+        - RAW//Municipal_Parks.geojson (polygons)
+        - RAW//Federal_State_Parks.geojson (polygons)
+        - RAW//County_Parks.geojson (polygons)
+        - RAW//Park_Facilities.geojson (points)
 
     Outputs:
       - CLEANED//Park_points.shp; Park_Polys.shp
@@ -314,7 +314,7 @@ def process_parks(overwrite=True):
     out_park_points = make_path(CLEANED, "Park_Points.shp")
 
     for output in [out_park_points, out_park_polys]:
-        checkOverwriteOutput(output=output, overwrite=overwrite)
+        check_overwrite_output(output=output, overwrite=overwrite)
     print("--- cleaning park points and polys")
     p_help.prep_park_polys(
         in_fcs=park_polys,
@@ -383,7 +383,7 @@ def process_transit(overwrite=True):
             transit_xls_file = make_path(
                 transit_folder, prep_conf.TRANSIT_RIDERSHIP_TABLES[year]
             )
-            checkOverwriteOutput(output=transit_out_path, overwrite=overwrite)
+            check_overwrite_output(output=transit_out_path, overwrite=overwrite)
             p_help.prep_transit_ridership(
                 in_table=transit_xls_file,
                 rename_dict=prep_conf.TRANSIT_FIELDS_DICT,
@@ -436,7 +436,7 @@ def process_parcels(overwrite=True):
         )
         csv_kwargs = {"dtype": {"PARCEL_ID": str, "CENSUS_BK": str}, "usecols": usecols}
 
-        checkOverwriteOutput(output=out_fc, overwrite=overwrite)
+        check_overwrite_output(output=out_fc, overwrite=overwrite)
         p_help.prep_parcels(
             in_fc=in_fc,
             in_tbl=in_csv,
@@ -487,7 +487,7 @@ def process_permits(overwrite=True):
         out_parcels = make_path(near_gdb, "Polygons", "Parcels")
 
         print("--- processing permit cleaning/formatting...")
-        checkOverwriteOutput(output=out_permits, overwrite=overwrite)
+        check_overwrite_output(output=out_permits, overwrite=overwrite)
         p_help.clean_permit_data(
             permit_csv=permit_csv,
             parcel_fc=snap_parcels,
@@ -526,7 +526,7 @@ def process_permits(overwrite=True):
             units_field_match_dict=prep_conf.SHORT_TERM_PARCELS_UNITS_MATCH,
         )
 
-        checkOverwriteOutput(output=out_parcels, overwrite=overwrite)
+        check_overwrite_output(output=out_parcels, overwrite=overwrite)
         print("--- --- writing out updated parcels with new permit data")
         out_fds = make_path(near_gdb, "Polygons")
         arcpy.FeatureClassToFeatureClass_conversion(
@@ -679,7 +679,7 @@ def process_parcel_land_use(overwrite=True):
             null_value=default_vals,
         )
         # Export result
-        checkOverwriteOutput(output=out_table, overwrite=overwrite)
+        check_overwrite_output(output=out_table, overwrite=overwrite)
         df_to_table(df=par_df, out_table=out_table)
 
 
@@ -872,7 +872,7 @@ def process_bg_apply_activity_models(overwrite=True):
             shares = None
 
         # Apply the models
-        checkOverwriteOutput(
+        check_overwrite_output(
             output=make_path(gdb, "Modeled_blockgroups"), overwrite=overwrite
         )
         modeled_df = p_help.apply_blockgroup_model(
@@ -970,7 +970,7 @@ def process_allocate_bg_to_parcels(overwrite=True):
         # initialized during spatial processing
         print("--- writing table of allocation results")
         out_path = make_path(out_gdb, "EconDemog_parcels")
-        checkOverwriteOutput(output=out_path, overwrite=overwrite)
+        check_overwrite_output(output=out_path, overwrite=overwrite)
         PMT.df_to_table(df=alloc_df, out_table=out_path)
 
 
@@ -1104,7 +1104,7 @@ def process_model_se_data(overwrite=True):
         print("--- exporting MAZ socioeconomic/demographic data")
         maz_table = make_path(out_gdb, "EconDemog_MAZ")
 
-        checkOverwriteOutput(output=maz_table, overwrite=overwrite)
+        check_overwrite_output(output=maz_table, overwrite=overwrite)
         df_to_table(maz_data, maz_table)
 
         # Summarize to TAZ scale
@@ -1115,7 +1115,7 @@ def process_model_se_data(overwrite=True):
         print("--- exporting TAZ socioeconomic/demographic data")
         taz_table = make_path(out_gdb, "EconDemog_TAZ")
 
-        checkOverwriteOutput(output=taz_table, overwrite=overwrite)
+        check_overwrite_output(output=taz_table, overwrite=overwrite)
         df_to_table(taz_data, taz_table)
 
 
@@ -1328,7 +1328,7 @@ def process_centrality():
         out_fc_name = "nodes_bike"
         out_fc = make_path(out_fds, out_fc_name)
         parcel_fc = make_path(out_gdb, "Polygons", "Parcels")
-        checkOverwriteOutput(out_fc, overwrite=True)
+        check_overwrite_output(out_fc, overwrite=True)
         if net_suffix in solved:
             # Copy from other year if already solved
             # TODO: make source year setting a function
@@ -1760,7 +1760,7 @@ def process_bike_facilities(overwrite=True):
             new_field_alias=prep_conf.BIKE_MILES_COL,
         )
         mem_fcs.append(fac_fc)
-    checkOverwriteOutput(output=raw_bike_facilities, overwrite=overwrite)
+    check_overwrite_output(output=raw_bike_facilities, overwrite=overwrite)
     arcpy.Merge_management(inputs=mem_fcs, output=raw_bike_facilities)
 
     # tidy up
@@ -1780,7 +1780,7 @@ def process_bike_facilities(overwrite=True):
     )
     for year in YEARS:
         out_path = make_path(YEAR_GDB_FORMAT.replace("YEAR", str(year)), "Networks")
-        checkOverwriteOutput(output=make_path(out_path, "bike_facilities"), overwrite=overwrite)
+        check_overwrite_output(output=make_path(out_path, "bike_facilities"), overwrite=overwrite)
         arcpy.FeatureClassToFeatureClass_conversion(
             in_features=raw_bike_facilities,
             out_path=out_path,
@@ -2217,13 +2217,14 @@ def process_serpm_transit():
                 # Make tap to tap network
                 print(" - - building TAP to TAP graph")
                 p_help.full_skim(
-                    tap_to_tap_clean,
-                    taz_to_tap,
-                    cutoff,
-                    model_year,
-                    skim_version,
-                    taz_nodes,
-                    all_tazs,
+                    clean_serpm_dir=make_path(CLEANED, "SERPM"),
+                    tap_to_tap_clean=tap_to_tap_clean,
+                    taz_to_tap=taz_to_tap,
+                    cutoff=cutoff,
+                    model_year=model_year,
+                    skim_version=skim_version,
+                    taz_nodes=taz_nodes,
+                    all_tazs=all_tazs,
                 )
                 solved.append(model_year)
 

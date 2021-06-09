@@ -3,7 +3,7 @@ The `prepare_helpers` module defines a host of functions that support `preparer`
 Much of the heavy lifting for TOC analysis occurs here by methods that are more abstract
 and parameterized than the purpose-built methods in `preparer`.
 """
-
+import csv
 import fnmatch
 import json
 import re
@@ -475,9 +475,8 @@ def _stringifyList(input):
     return ";".join(input)
 
 
-def _validate_field(table, field):
-    fields = [f.name for f in arcpy.ListFields(table)]
-    return bool(field in fields)
+def _validate_field(items, item):
+    return bool(item in items)
 
 
 def make_basic_features(
@@ -554,7 +553,12 @@ def make_basic_features(
     stn_diss_fields = _listifyInput(stn_diss_fields)
     stn_corridor_fields = _listifyInput(stn_corridor_fields)
     align_diss_fields = _listifyInput(align_diss_fields)
-    # TODO: validate stn_id_field and align_corridor_name are in stn_diss and align_diss respectively
+
+    if not _validate_field(items=stn_diss_fields, item=stn_id_field):
+        raise Exception("'stn_id_field' not included in 'stn_diss_fields'")
+    if not _validate_field(items=align_diss_fields, item=align_corridor_name):
+        raise Exception("'stn_id_field' not included in 'stn_diss_fields'")
+
     old_ws = arcpy.env.workspace
     arcpy.env.workspace = bf_gdb
 
@@ -654,7 +658,7 @@ def make_basic_features(
 
 def make_summary_features(
         bf_gdb,
-        long_stn_fc,  # deprecated in lieu of patched features
+        long_stn_fc,
         stn_areas_fc,
         stn_id_field,
         corridors_fc,
@@ -704,9 +708,7 @@ def make_summary_features(
     arcpy.AddField_management(out_fc, "STN_ID", "LONG")
     arcpy.AddField_management(out_fc, p_conf.STN_NAME_FIELD, "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, p_conf.STN_STATUS_FIELD, "TEXT", field_length=80)
-    arcpy.AddField_management(
-        out_fc, p_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80
-    )
+    arcpy.AddField_management(out_fc, p_conf.CORRIDOR_NAME_FIELD, "TEXT", field_length=80)
     arcpy.AddField_management(out_fc, p_conf.SUMMARY_AREAS_COMMON_KEY, "LONG")
 
     # POPULATE SUMMAREAS with CORRIDORS including ENTIRE CORRIDOR
@@ -813,11 +815,13 @@ def patch_basic_features(
         preset_station_id_field (str, default=None): The field in `preset_station_areas` that corresponds to
             "basic_features/StationAreas.Id." It is used to map new geometries into the `StationAreas` and
             `SummaryAreas` feature classes.
+        existing_station_id_field (str, default=None): The field in station_areas_fc represnting the primary key
         preset_corridors (str or feature layer, default=None): If provided, these geometries will be
             used to update corridor features (`Corridors` and `SummaryAreas`)
         preset_corridor_name_field (str, default=None): The field in `preset_corridors` that corresponds to
             "basic_features/Corridors.Corridor." It is used to map new geometries into the `Corridors` and
             `SummaryAreas` feature classes.
+        existing_corridor_name_field (str, default=None): The field in corridors_fc representing the primary key
 
     See Also:
         makeBasicFeatures
@@ -5817,7 +5821,7 @@ def transit_skim_joins(
         *kwargs,
 ):
     """
-
+    # TODO: add docstring
     ... assumes taz_to_tap and tap_to_tap have identical column headings for key fields
     """
     # TODO: enrich to set limits on access time, egress time, IVT
@@ -5872,18 +5876,18 @@ def transit_skim_joins(
 
 
 def full_skim(
-        tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs
+        clean_serpm_dir, tap_to_tap_clean, taz_to_tap, cutoff, model_year, skim_version, taz_nodes, all_tazs
 ):
-    """TODO: add desc and IO
+    """
+    TODO: add desc and IO
 
     Inputs:
-    -
+        -
     Outputs:
-    -
+        -
     """
-    serpm_clean = makePath(CLEANED, "SERPM")
-    G = P_HELP.skim_to_graph(
-        tap_to_tap_clean,
+    G = skim_to_graph(
+        in_csv=tap_to_tap_clean,
         source="OName",
         target="DName",
         attrs="Minutes",
@@ -5891,8 +5895,8 @@ def full_skim(
     )
     # Make tap to taz network (as base graph, converted to digraph)
     print(" - - building TAZ to TAP graph")
-    H = P_HELP.skim_to_graph(
-        taz_to_tap,
+    H = skim_to_graph(
+        in_csv=taz_to_tap,
         source="OName",
         target="DName",
         attrs="Minutes",
@@ -5905,12 +5909,12 @@ def full_skim(
     print(
         f" - - solving TAZ to TAZ for {len(taz_nodes)} origins (of {len(all_tazs)} taz's)"
     )
-    taz_to_taz = makePath(serpm_clean, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
+    taz_to_taz = PMT.make_path(clean_serpm_dir, f"TAZ_to_TAZ_{skim_version}_{model_year}.csv")
 
     with open(taz_to_taz, "w") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(
-            [prep_conf.SKIM_O_FIELD, prep_conf.SKIM_D_FIELD, prep_conf.SKIM_IMP_FIELD]
+            [p_conf.SKIM_O_FIELD, p_conf.SKIM_D_FIELD, p_conf.SKIM_IMP_FIELD]
         )
         for i in taz_nodes:
             if FULL.has_node(i):
@@ -5923,162 +5927,3 @@ def full_skim(
                         out_row = (i, j, time)
                         out_rows.append(out_row)
                 writer.writerows(out_rows)
-
-# DEPRECATED
-# def geojson_to_gdf(geojson, crs, use_cols=None, rename_dict=None):
-#     """
-#     reads in geojson, drops unnecessary attributes and renames the kept attributes
-#     Parameters
-#     --- --- --- -
-#     geojson: json
-#         GeoJSON text file consisting of points for bike/ped crashes
-#     crs:
-#         EPSG code representing
-#     use_cols: list
-#         list of columns to use in formatting
-#     rename_dict: dict
-#         dictionary to map existing column names to more readable names
-#     Returns
-#     --- --- -
-#         geodataframe
-#     """
-#     if rename_dict is None:
-#         rename_dict = []
-#     if use_cols is None:
-#         use_cols = []
-#     with open(str(geojson), "r") as src:
-#         js = json.load(src)
-#         gdf = gpd.GeoDataFrame.from_features(js["features"], crs=crs, columns=use_cols)
-#         gdf.rename(columns=rename_dict, inplace=True)
-#     return gdf
-# DEPRECATED
-# def polygon_to_points_gpd(poly_fc, id_field=None):
-#     # TODO: add validation and checks
-#     poly_df = gpd.read_file(poly_fc)
-#     if id_field:
-#         columns = poly_df.columns
-#         drops = [col for col in columns if col != id_field]
-#         poly_df = poly_df.drop(columns=drops)
-#     pts_df = poly_df.copy()
-#     pts_df['geometry'] = pts_df['geometry'].centroid
-#     return pts_df
-
-# crash functions   DEPRECATED
-# def update_crash_type(feature_class, data_fields, update_field):
-#     arcpy.AddField_management(
-#         in_table=feature_class, field_name=update_field, field_type="TEXT"
-#     )
-#     with arcpy.da.UpdateCursor(
-#         feature_class, field_names=[update_field] + data_fields
-#     ) as cur:
-#         for row in cur:
-#             both, ped, bike = row
-#             if ped == "Y":
-#                 row[0] = "PEDESTRIAN"
-#             if bike == "Y":
-#                 row[0] = "BIKE"
-#             cur.updateRow(row)
-#     for field in data_fields:
-#         arcpy.DeleteField_management(in_table=feature_class, drop_field=field)
-
-
-# def prep_bike_ped_crashes(in_fc, out_path, out_name, where_clause=None):
-#     # dump subset to new FC
-#     out_fc = PMT.makePath(out_path, out_name)
-#     arcpy.FeatureClassToFeatureClass_conversion(in_features=in_fc, out_path=out_path,
-#                                                 out_name=out_name, where_clause=where_clause)
-#     # update city code/injury severity/Harmful event to text value
-#     update_field_values(in_fc=out_fc, fields=CRASH_CODE_TO_STRING,
-#                         mappers=[CRASH_CITY_CODES, CRASH_SEVERITY_CODES, CRASH_HARMFUL_CODES])
-#
-#     # combine bike and ped type into single attribute and drop original
-#     update_crash_type(feature_class=out_fc, data_fields=["PED_TYPE", "BIKE_TYPE"], update_field="TRANS_TYPE")
-#
-#
-# def update_field_values(in_fc, fields, mappers):
-#     """
-#     deprecated function
-#     Args:
-#         in_fc:
-#         fields:
-#         mappers:
-#
-#     Returns:
-#
-#     """
-#     # ensure number of fields and dictionaries is the same
-#     try:
-#         if len(fields) == len(mappers):
-#             for attribute, mapper in zip(fields, mappers):
-#                 # check that bother input types are as expected
-#                 if isinstance(attribute, str) and isinstance(mapper, dict):
-#                     with arcpy.da.UpdateCursor(in_fc, field_names=attribute) as cur:
-#                         for row in cur:
-#                             code = row[0]
-#                             if code is not None:
-#                                 if mapper.get(int(code)) in mapper:
-#                                     row[0] = mapper.get(int(code))
-#                                 else:
-#                                     row[0] = "None"
-#                             cur.updateRow(row)
-#     except ValueError:
-#         logger.log_msg(
-#             "either attributes (String) or mappers (dict) are of the incorrect type"
-#         )
-#         logger.log_error()
-
-# def clean_skim(in_csv, o_field, d_field, imp_fields, out_csv,
-#                chunk_size=100000, rename={}, **kwargs):
-#     """A simple function to read rows from a skim table (csv file), select
-#         key columns, and save to an ouptut csv file. Keyword arguments can be
-#         given to set column types, etc.
-#     Args:
-#         in_csv (str): Path to skim table csv
-#         o_field (str): field containing origin ids
-#         d_field (str): field containing destination ids
-#         imp_fields (str, list): [String, ...]; impedance fields
-#         out_csv (str): Path to processed table
-#         chunk_size (int): Integer, default=1000000; number of rows to process as a subset
-#         rename (dict): Dict, default={}; A dictionary to rename columns with keys reflecting
-#             existing column names and values new column names.
-#         kwargs: Keyword arguments parsed by the pandas `read_csv` method.
-#     """
-#     # Manage vars
-#     if isinstance(imp_fields, string_types):
-#         imp_fields = [imp_fields]
-#     # Read chunks
-#     mode = "w"
-#     header = True
-#     usecols = [o_field, d_field] + imp_fields
-#     for chunk in pd.read_csv(in_csv, usecols=usecols, chunksize=chunk_size, **kwargs):
-#         if rename:
-#             chunk.rename(columns=rename, inplace=True)
-#         # write output
-#         chunk.to_csv(out_csv, header=header, mode=mode, index=False)
-#         header = False
-#         mode = "a"
-#
-# def polygon_to_points_arc(in_fc, id_field=None, point_loc="INSIDE"):
-#     """
-#     Generate points from polygon centroids inside polygon
-#     *UNUSED IN CURRENT ITERATION*
-
-#     Args:
-#         in_fc (str): path to polygon featureclass
-#         id_field (str): if not None, the new features created will only have an ID attribute
-#         point_loc (str): CENTROID or INSIDE (see documentation of arcpy.FeatureToPoint)
-
-#     Returns:
-#         temporary feature class
-#     """
-#     try:
-#         # convert json to temp feature class
-#         temp_feature = PMT.make_inmem_path()
-#         arcpy.FeatureToPoint_management(
-#             in_features=in_fc, out_feature_class=temp_feature, point_location=point_loc
-#         )
-#         if id_field:
-#             clean_and_drop(feature_class=temp_feature, use_cols=[id_field])
-#         return temp_feature
-#     except:
-#         print("something went wrong converting polygon to points")
