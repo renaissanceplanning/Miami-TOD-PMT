@@ -162,6 +162,18 @@ class Timer:
 
 # column and aggregation classes
 class Column:
+    """
+    A class that defines key attributes of an existing or prospective column to facilitate processing
+    
+    Attributes:
+        name (str): The original name of the column
+        default (var): The default value to fill missing/nan values.
+            Type depends on column data type.
+        rename (str, default=None): If given, this column will be renamed in a dataframe.
+        domain (obj, default=None): DomainColumn; If given, values in this Column will be used to
+            define a new column that assings them to an Ordinal domain. This is primarily
+            useful to enforce ordering of rows in a dataframe by category.
+    """
     def __init__(self, name, default=0.0, rename=None, domain=None):
         self.name = name
         self.default = default
@@ -177,6 +189,16 @@ class Column:
         super().__setattr__(name, value)
 
     def applyDomain(self, df, col=None):
+        """
+        Method to create the domain column associated with this Column in the given dataframe.
+
+        args:
+            df (pd.DataFrame): a dataframe having this Column as a member
+            col (str, default=None): if None, this Column's values are mapped onto its Domain
+                attribute to generate a new column `self.Domain.name`. This argument is generally
+                not needed, but some child classes rely on the ability to specify another column
+                as the domain reference.
+        """
         if self.domain is not None:
             if col is None:
                 col = self.name
@@ -191,6 +213,17 @@ class Column:
 
 
 class DomainColumn(Column):
+    """
+    A Column that applies a domain mapping (original values to ordinal values) to another
+    Column.
+
+    Attributes:
+        name (str): the name of this DomainColumn when added to any data frame
+        default (var): the value to apply to missing values (those not found in
+            `domain_map`)
+        domain_map (dict): key-value pairs that relate original values in a reference 
+            Column to ordinal values recorded in this DomainColumn.
+    """
     def __init__(self, name, default=-1, domain_map={}):
         # domain_map = {value_in_ref_col: domain_val}
         # TODO: validate to confirm domain_val as int
@@ -199,12 +232,36 @@ class DomainColumn(Column):
 
 
 class AggColumn(Column):
+    """
+    A Column that will be aggregated in a downstream group by/agg process.
+
+    Attributes:
+        name (str): the name of the column to aggregate
+        agg_method (str or callable): the aggregation method to apply (see pandas.DataFrame.agg)
+        default (numeric, default=0.0): values to replace missing/nan records with prior to aggregation
+        rename (str, default=None): see `Column`
+        domain (object, default=None): see `Column`, `DomainColumn`
+    """
     def __init__(self, name, agg_method=sum, default=0.0, rename=None, domain=None):
         Column.__init__(self, name, default, rename, domain)
         self.agg_method = agg_method
 
 
 class CollCollection(AggColumn):
+    """
+    A building-block class that is a child of AggColumn (i.e., it anticipates a 
+    downstream aggregateion process). The `CollCollection` specifies
+    multiple column parameters to facilitate various column procedures. This class
+    is never initialized. See `Consolitation`, `MeltColumn`.
+
+    Attributes:
+        Name (str): see `AggColumn`
+        input_cols (list): Names of columns that will be used to generate a new column
+        agg_method (str or callabe): see `AggColumn`
+        default (var or dict): One or more default values to apply to `input_cols` to replace
+            missing/nan values. If multiple defaults are given, specify them as a dictionary
+            whose keys are `input_cols` and whose values are corresponding defaults.
+    """
     def __init__(self, name, input_cols, agg_method=sum, default=0.0, domain=None):
         AggColumn.__init__(self, name, agg_method, default)
         self.input_cols = input_cols
@@ -229,6 +286,9 @@ class CollCollection(AggColumn):
             super().__setattr__(name, value)
 
     def defaultsDict(self):
+        """
+        If self.
+        """
         if isinstance(self.default, Iterable) and not isinstance(
                 self.default, string_types
         ):
@@ -238,12 +298,40 @@ class CollCollection(AggColumn):
 
 
 class Consolidation(CollCollection):
+    """
+    A column collection that collapses multiple columns into a single column
+    through a row-wise aggregation.
+
+    Attributes:
+        name (str): Name of the new column to be created when `input_cols` are 
+            consolidated.
+        input_cols (list): Names of columns that will be consolidated into a new column
+        cons_method (str or callable): the aggregation method to apply row-wise to
+            generate a new column from `input_cols` (see pandas.DataFrame.agg)
+        agg_method (str or callabe): see `AggColumn`
+        default (var or dic): see `CollCollection`
+    """
     def __init__(self, name, input_cols, cons_method=sum, agg_method=sum, default=0.0):
         CollCollection.__init__(self, name, input_cols, agg_method, default)
         self.cons_method = cons_method
 
 
 class MeltColumn(CollCollection):
+    """
+    A column collection that collapses multiple columns into a single column through
+    table elongation (melting).
+
+    Attributes:
+        label_col (str): Name of the new column to be created to store `input_cols`
+            headings when the table is melted.
+        val_col (str): Name of the new column to be created to store `input_cols`
+            values when the table is melted.
+        input_cols (list): Names of columns that will be melted into the new columns
+            `label_col` and `val_col`.
+        agg_method (str or callabe): see `AggColumn`
+        default (var or dic): see `CollCollection`
+        domain (object, default=None): see `Column`, `DomainColumn`
+    """
     def __init__(
             self, label_col, val_col, input_cols, agg_method=sum, default=0.0, domain=None
     ):
@@ -253,26 +341,48 @@ class MeltColumn(CollCollection):
         self.domain = domain
 
     def applyDomain(self, df):
+        """
+        DomainColumn specifications are applied in the same way as other Column objects,
+        but for the `MeltColumn` class, `self.label_col` is used for mapping the domain.
+        """
         super().applyDomain(df, col=self.label_col)
 
 
-class Join(CollCollection):
-    def __init__(self, on_col, input_cols, agg_method=sum, default=0.0):
-        CollCollection.__init__(self, None, input_cols, agg_method, default)
-        self.on_col = on_col
+# class Join(CollCollection):
+#     """
+#     A column collection that collapses multiple columns into a single column through
+#     table elongation (melting).
 
-    """ comparison classes """
+#     Attributes:
+#         label_col (str): Name of the new column to be created to store `input_cols`
+#             headings when the table is melted.
+#         val_col (str): Name of the new column to be created to store `input_cols`
+#             values when the table is melted.
+#         input_cols (list): Names of columns that will be melted into the new columns
+#             `label_col` and `val_col`.
+#         agg_method (str or callabe): see `AggColumn`
+#         default (var or dic): see `CollCollection`
+#         domain (object, default=None): see `Column`, `DomainColumn`
+#     """
+#     def __init__(self, on_col, input_cols, agg_method=sum, default=0.0):
+#         CollCollection.__init__(self, None, input_cols, agg_method, default)
+#         self.on_col = on_col
 
-
+    """Comparison Classes """
 class Comp:
     """
-    Comparison methods:
-      - __eq__() = equals [==]
-      - __ne__() = not equal to [!=]
-      - __lt__() = less than [<]
-      - __le__() = less than or equal to [<=]
-      - __gt__() = greater than [>]
-      - __ge__() = greater than or equal to [>=]
+    A naive class that allows string-based specification of comparison operators for
+    process configuration support purposes.
+
+    Attributes:
+        comp_method (str): Comparison methods provided as strings:
+            - "==" is 'equals' or `__eq__()`
+            - "!=" is 'not equal to' or `__ne__()`
+            - "<" is 'less than' or `__lt__()`
+            - "<=" is 'is less than or equal to' or `__le__()`
+            - ">" is 'greater than' or `__gt__()`
+            - ">=" is 'greater than or equal to' or `__ge__()`
+        v (var): the value to compare other values against using the `comp_method`
     """
 
     def __init__(self, comp_method, v):
@@ -288,11 +398,22 @@ class Comp:
         self.v = v
 
     def eval(self, val):
+        """
+        Evaluate the comparison of this value against `self.v`
+
+        args:
+            val (var): the value to comparea against `self.v` using `self.comp_method`
+        """
         return getattr(val, self.comp_method)(self.v)
 
 
 class And:
     """
+    A stack of `Comp` objects that define conditions that must all evaluate to True when
+    applied against a given value.
+
+    Attributes:
+        criteria (list): a list of `Comp` objects.
     """
 
     def __init__(self, criteria):
@@ -317,6 +438,12 @@ class And:
 
     def eval(self, *vals):
         """
+        Evaluate the comparison of this value(s) against all values in `self.criteria` using
+        the comparison methods specified for each criterion.
+
+        args:
+            *vals: one more values to evaluate against `self.criteria`. Returns a boolean 
+            vector that has True values only where all criteria are met.
         """
         # Check
         try:
@@ -330,6 +457,13 @@ class And:
 
 class Or:
     """
+    A stack of `Comp` or 'And' objects that define conditions, any of which must evaluate to True
+    when applied agaianst a vector of values.
+
+    Attributes:
+        vector (np.array-like): A vector of values to test against `self.criteria`.
+        criteria (list): [Comp, And, ...] Criteria that will be applied to check if values in `vector`
+            meet any.
     """
 
     def __init__(self, vector, criteria):
@@ -340,6 +474,10 @@ class Or:
             self.criteria = [criteria]
 
     def eval(self):
+        """
+        Returns a boolean vector like `self.vector` that has True values where the values in
+        `self.vector` evaluate to True for any criterion given in `self.criteria`.
+        """
         return np.logical_or.reduce([c.eval(self.vector) for c in self.criteria])
 
 
@@ -348,6 +486,19 @@ class NetLoader:
     A naive class for specifying network location loading preferences.
     Simplifies network functions by passing loading specifications as
     a single argument. This class does no validation of assigned preferences.
+
+    All attributes correspond to arcpy attribute specifications defined here:
+    https://pro.arcgis.com/en/pro-app/latest/tool-reference/network-analyst/add-locations.htm
+
+    Attributes:
+        search_tolerance (str)
+        search_criteria (str)
+        match_type (str)
+        append (str)
+        snap (str)
+        offset (str)
+        exclude_restricted (str)
+        search_query (str)
     """
 
     def __init__(
@@ -377,13 +528,16 @@ class ServiceAreaAnalysis:
         and polygons.
 
     Args:
-        name: String
-        network_dataset: Path
-        facilities: Path or Feature Layer
-        name_field: String
-        net_loader: NetLoader
+        name (str): Name of the service area problem to generate
+        network_dataset (str): Path to the network dataset that will
+            determine the service area
+        facilities (str or Feature Layer): Path to point features representing
+            locations for which service areas will be created.
+        name_field (str): A field in `facilities` that identifies each facility
+            (can tag a group of facilities)
+        net_loader (object): NetLoader; specifications for how to relate `facilities`
+            to features in the `network_dataset`.
     """
-
     def __init__(self, name, network_dataset, facilities, name_field, net_loader):
         self.name = name
         self.network_dataset = network_dataset
@@ -405,20 +559,19 @@ class ServiceAreaAnalysis:
         """Create service area lines and polygons for this object's `facilities`.
 
         Args:
-            imped_attr: String
-                The impedance attribute in this object's `network_dataset` to use
+            imped_attr (str): The impedance attribute in this object's `network_dataset` to use
                 in estimating service areas.
-            cutoff: Numeric
-                The size of the service area to create (in units corresponding to
+            cutoff (numeric): The size of the service area to create (in units corresponding to
                 those used by `imped_attr`).
-            out_was: Path
-                A workspace where service area feature class ouptuts will be
+            out_ws (str): Path to a workspace where service area feature class ouptuts will be
                 stored.
-            restrictions: String
-                A semi-colon-separated list of restriction attributes in
+            restrictions (str): A semi-colon-separated list of restriction attributes in
                 `self.network_dataset` to honor when creating service areas.
-            use_hierarchy: Boolean, default=False
-            net_location_fields: String, default=""
+            use_hierarchy (bool, default=False)
+            net_location_fields (str, default=""): if `self.facilities` have pre-calculated
+                network location fields, list the fields in order ("SourceOID", "SourceID", "PosAlong",
+                "SideOfEdge", "SnapX", "SnapY", "Distance",). This speeds up processing times since
+                spatial analysis to load locations on the network is not needed.
         """
         for overlap, merge in zip(self.overlaps, self.merges):
             print(f"...{overlap}/{merge}")
@@ -463,10 +616,12 @@ class ServiceAreaAnalysis:
 def make_path(in_folder, *subnames):
     """Dynamically set a path (e.g., for iteratively referencing
         year-specific geodatabases)
+
     Args:
         in_folder (str): String or Path
         subnames (list/tuple): A list of arguments to join in making the full path
             `{in_folder}/{subname_1}/.../{subname_n}
+    
     Returns:
         Path
     """
@@ -474,10 +629,12 @@ def make_path(in_folder, *subnames):
 
 
 def make_inmem_path(file_name=None):
-    """generates an in_memory path usable by arcpy that is
+    """Generates an in_memory path usable by arcpy that is
         unique to avoid any overlapping names. If a file_name
+
     Returns:
         String; in_memory path
+    
     Raises:
         ValueError, if file_name has been used already
     """
@@ -496,7 +653,7 @@ def make_inmem_path(file_name=None):
 
 
 def validate_directory(directory):
-    """helper function to check if a directory exists and create if not"""
+    """Helper function to check if a directory exists and create if not"""
     if os.path.isdir(directory):
         return directory
     else:
@@ -508,7 +665,7 @@ def validate_directory(directory):
 
 
 def validate_geodatabase(gdb_path, overwrite=False):
-    """helper function to check if a geodatabase exists, and create if not"""
+    """Helper function to check if a geodatabase exists, and create if not"""
     exists = False
     desc_gdb = arcpy.Describe(gdb_path)
     if gdb_path.endswith(".gdb"):
@@ -535,11 +692,13 @@ def validate_geodatabase(gdb_path, overwrite=False):
 
 
 def validate_feature_dataset(fds_path, sr, overwrite=False):
-    """validate that a feature dataset exists and is the correct sr,
+    """Validate that a feature dataset exists and is the correct sr,
         otherwise create it and return the path
+
     Args:
         fds_path (str): String; path to existing or desired feature dataset
         sr (spatial reference): arcpy.SpatialReference object
+    
     Returns:
         fds_path (str): String; path to existing or newly created feature dataset
     """
@@ -571,12 +730,14 @@ def validate_feature_dataset(fds_path, sr, overwrite=False):
 def check_overwrite_output(output, overwrite=False):
     """A helper function that checks if an output file exists and
         deletes the file if an overwrite is expected.
+    
     Args:
         output: Path
             The file to be checked/deleted
         overwrite: Boolean
             If True, `output` will be deleted if it already exists.
             If False, raises `RuntimeError`.
+    
     Raises:
         RuntimeError:
             If `output` exists and `overwrite` is False.
@@ -590,7 +751,7 @@ def check_overwrite_output(output, overwrite=False):
 
 
 def check_overwrite_path(output, overwrite=True):
-    """ non-arcpy version of check_overwrite_output """
+    """Non-arcpy version of check_overwrite_output"""
     output = Path(output)
     if output.exists():
         if overwrite:
@@ -608,8 +769,10 @@ def check_overwrite_path(output, overwrite=True):
 
 def dbf_to_df(dbf_file):
     """Reads in dbf file and returns Pandas DataFrame object
+    
     Args:
         dbf_file: String; path to dbf file
+    
     Returns:
         pandas DataFrame object
     """
@@ -625,21 +788,21 @@ def intersect_features(
         in_temp_dir=False,
         full_geometries=False,
 ):
-    """creates a temporary intersected feature class for disaggregation of data
+    """Creates a temporary intersected feature class for disaggregation of data
 
     Args:
-        summary_fc (str): String; path to path to polygon feature class with data to be disaggregated from
-        disag_fc (str): String; path to polygon feature class with data to be disaggregated to
-        disag_fields (list): [String,...]; list of fields to pass over to intersect function
-        as_df (bool): Boolean; if True, returns a data frame (table) of the resulting intersect. Otherwise
+        summary_fc (str): Path to path to polygon feature class with data to be disaggregated from
+        disag_fc (str): Path to polygon feature class with data to be disaggregated to
+        disag_fields (list): List of fields to pass over to intersect function
+        as_df (bool): If True, returns a data frame (table) of the resulting intersect. Otherwise
             returns the path to a temporary feature class
-        in_temp_dir (bool): Boolean; if True, intersected features are stored in a temp directory, otherwise
+        in_temp_dir (bool): If True, intersected features are stored in a temp directory, otherwise
             they are stored in memory
-        full_geometries (bool): Boolean; if True, intersections are run against the complete geometries of
+        full_geometries (bool): If True, intersections are run against the complete geometries of
             features in `disag_fc`, otherwise only centroids are used.
 
     Returns:
-        int_fc (str): String; path to temp intersected feature class
+        int_fc (str): Path to temp intersected feature class
     """
     desc = arcpy.Describe(value=disag_fc)
     if in_temp_dir:
@@ -688,6 +851,7 @@ def json_to_featureclass(
         json_obj, out_file, new_id_field="ROW_ID", exclude=None, sr=4326, overwrite=False
 ):
     """Creates a feature class or shape file from a json object.
+    
     Args:
         json_obj (dict)
         out_fc (str)
@@ -696,6 +860,7 @@ def json_to_featureclass(
         sr (spatial reference), default=4326: A spatial reference specification.
             Authority/factory code, WKT, WKID, ESRI name, path to .prj file, etc.
         overwrite (bool): True/False whether to overwrite an existing dataset
+    
     Returns:
         out_fc: Path
 
@@ -755,7 +920,7 @@ def json_to_featureclass(
 
 
 def json_to_table(json_obj, out_file):
-    """Creates an ArcGIS table from a json object. Assumes potentially a geoJSON object
+    """Creates an ArcGIS table from a json object. Assumes potentially a geoJSON object.
 
     Args:
         json_obj (dict): dict
@@ -777,13 +942,17 @@ def json_to_table(json_obj, out_file):
 
 
 def iter_rows_as_chunks(in_table, chunksize=1000):
-    """A generator to iterate over chunks of a table for arcpy processing.
-        This method cannot be reliably applied to a table view of feature
+    """
+    A generator to iterate over chunks of a table for arcpy processing.
+    
+    This method cannot be reliably applied to a table view or feature
         layer with a current selection as it alters selections as part
         of the chunking process.
+    
     Args:
-        in_table: Table View or Feature Layer
-        chunksize: Integer, default=1000
+        in_table (Table View or Feature Layer): The rows/features to process
+        chunksize (int, default=1000): The number of rows/features to process at a time
+    
     Returns:
         in_table: Table View of Feature Layer
             `in_table` is returned with iterative selections applied
@@ -807,12 +976,14 @@ def iter_rows_as_chunks(in_table, chunksize=1000):
 def copy_features(in_fc, out_fc, drop_columns=[], rename_columns={}):
     """Copy features from a raw directory to a cleaned directory.
         During copying, columns may be dropped or renamed.
+    
     Args:
         in_fc (str): Path to input feature class
         out_fc (str): Path to output feature class
         drop_columns (list): [String,...]; A list of column names to drop when copying features.
         rename_columns (dict): {String: String,...} A dictionary with keys that reflect raw column names and
             values that assign new names to these columns.
+    
     Returns:
         out_fc (str): Path to the file location for the copied features.
     """
@@ -842,13 +1013,15 @@ def copy_features(in_fc, out_fc, drop_columns=[], rename_columns={}):
 
 
 def col_multi_index_to_names(columns, separator="_"):
-    """For a collection of columns in a data frame, collapse index levels to
+    """
+    For a collection of columns in a data frame, collapse index levels to
     flat column names. Index level values are joined using the provided
     `separator`.
 
     Args:
-        columns (pandas.Index): pd.Index
-        separator (str): String
+        columns (pandas.Index): The columns to flatten (i.e, df.columns)
+        separator (str): The string value used to flatten multi-level column names
+    
     Returns:
         flat_columns: pd.Index
     """
@@ -858,20 +1031,17 @@ def col_multi_index_to_names(columns, separator="_"):
 
 
 def extend_table_df(in_table, table_match_field, df, df_match_field, **kwargs):
-    """Use a pandas data frame to extend (add columns to) an existing table based
+    """
+    Use a pandas data frame to extend (add columns to) an existing table based
     through a join on key columns. Key values in the existing table must be
     unique.
+
     Args:
-        in_table (str): Path, feature layer, or table view
-            The existing table to be extended
-        table_match_field (str): String
-            The field in `in_table` on which to join values from `df`
-        df (pandas.DataFrame): DataFrame
-            The data frame whose columns will be added to `in_table`
-        df_match_field (str): String
-            The field in `df` on which join values to `in_table`
-        kwargs:
-            Optional keyword arguments to be passed to `arcpy.da.ExtendTable`.
+        in_table (str, feature layer, or table view): Path to the existing table to be extended
+        table_match_field (str): The field in `in_table` on which to join values from `df`
+        df (pandas.DataFrame): The data frame whose columns will be added to `in_table`
+        df_match_field (str): The field in `df` on which join values to `in_table`
+        kwargs: Optional keyword arguments to be passed to `arcpy.da.ExtendTable`.
 
     Returns:
         None; `in_table` is modified in place
@@ -889,10 +1059,12 @@ def extend_table_df(in_table, table_match_field, df, df_match_field, **kwargs):
 
 def df_to_table(df, out_table, overwrite=False):
     """Use a pandas data frame to export an arcgis table.
+    
     Args:
         df (pandas.DataFrame): DataFrame
         out_table (str): Path to output table
-        overwrite (bool): Boolean, default=False
+        overwrite (bool, default=False)
+    
     Returns:
         out_table (str): Path
     """
@@ -905,17 +1077,18 @@ def df_to_table(df, out_table, overwrite=False):
 
 def df_to_points(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
     """Use a pandas data frame to export an arcgis point feature class.
+    
     Args:
-        df (pandas.DataFrame: DataFrame
-        out_fc (str): Path
-        shape_fields (list): [String,...]
-            Columns to be used as shape fields (x, y)
-        from_sr (arcpy.SpatialReference): SpatialReference
-            The spatial reference definition for the coordinates listed
-            in `shape_field`
-        to_sr (arcpy.SpatialReference): SpatialReference
-            The spatial reference definition for the output features.
-        overwrite (bool): Boolean, default=False
+        df (pandas.DataFrame): A dataframe with valid `shape_fields` that can be 
+            interpreted as x,y coordinates
+        out_fc (str): Path to the point feature class to be generated.
+        shape_fields (list): Columns to be used as shape fields (x, y)
+        from_sr (arcpy.SpatialReference): The spatial reference definition for 
+            the coordinates listed in `shape_field`
+        to_sr (arcpy.SpatialReference): The spatial reference definition 
+            for the output features.
+        overwrite (bool, default=False)
+    
     Returns:
         out_fc (str): Path
     """
@@ -964,12 +1137,14 @@ def df_to_points(df, out_fc, shape_fields, from_sr, to_sr, overwrite=False):
 
 
 def table_to_df(in_tbl, keep_fields="*", skip_nulls=False, null_val=0):
-    """converts a table to a pandas dataframe
+    """Converts a table to a pandas dataframe
+
     Args:
         in_tbl (str): Path to input table
-        keep_fields (list): default="*", list of fields to keep
+        keep_fields (list, default="*"): list of fields to keep ("*" = keep all fields)
         skip_nulls (bool): Control whether records using nulls are skipped.
         null_val (int): Replaces null values from the input with a new value.
+
     Returns:
         df (pd.DataFrame): pandas dataframe of the table
     """
@@ -988,18 +1163,19 @@ def table_to_df(in_tbl, keep_fields="*", skip_nulls=False, null_val=0):
 
 
 def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
-    """converts feature class/feature layer to pandas DataFrame object, keeping
-        only a subset of fields if provided
-        - drops all spatial data
+    """Converts feature class/feature layer to pandas DataFrame object, keeping
+        only a subset of fields if provided and dropping all spatial data
+
     Args:
-        in_fc (str): String; path to a feature class
-        keep_fields (list): List or Tuple; field names to return in the dataframe,
-            "*" is default and will return all fields
+        in_fc (str): Path to a feature class
+        keep_fields (list, default="*"): Field names to return in the dataframe
+            ("*" will return all fields)
         skip_nulls (bool): Control whether records using nulls are skipped.
-        null_val (int): value to be used for nulls found in the data. can be given as a
+        null_val (int, float, or dict): value to be used for nulls found in the data. Can be given as a
             dict of default values by field
+    
     Returns:
-        pandas Dataframe
+        pandas.Dataframe
     """
     # setup fields
     if keep_fields == "*":
@@ -1018,10 +1194,12 @@ def featureclass_to_df(in_fc, keep_fields="*", skip_nulls=False, null_val=0):
 
 
 def which_missing(table, field_list):
-    """returns a list of the fields that are missing from a given table
+    """Returns a list of the fields that are missing from a given table
+
     Args:
-        table (str): path to a table
-        field_list (list): list of fields
+        table (str): Path to a table
+        field_list (list): List of fields
+    
     Returns:
         list
     """
@@ -1030,13 +1208,15 @@ def which_missing(table, field_list):
 
 
 def multipolygon_to_polygon_arc(file_path):
-    """convert multipolygon geometries in a single row into
+    """
+    Convert multipolygon geometries in a single row into
     multiple rows of simple polygon geometries, returns original file if not multipart
+    
     Args:
-        file_path (str): String; path to input Poly/MultiPoly feature class
+        file_path (str): Path to input Poly/MultiPoly feature class
 
     Returns:
-        String; path to in_memory Polygon feature class
+        str: path to in_memory Polygon feature class
     """
     polygon_fcs = file_path
     if is_multipart(polygon_fc=file_path):
@@ -1048,10 +1228,10 @@ def multipolygon_to_polygon_arc(file_path):
 
 
 def is_multipart(polygon_fc):
-    """helper function to determine if polygon FC has multipart features
+    """Helper function to determine if polygon FC has multipart features
 
     Args:
-        polygon_fc (str): path to polygon feature class
+        polygon_fc (str): Path to polygon feature class
 
     Returns:
         bool
@@ -1069,14 +1249,15 @@ def is_multipart(polygon_fc):
 
 
 def polygons_to_points(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
-    """ Convenience function to dump polygon features to centroids and
+    """Convenience function to dump polygon features to centroids and
         save as a new feature class.
+   
    Args:
-        in_fc (str): path to input feature class
-        out_fc (str): path to output point fc
-        fields (str/list): [String,...], default="*", fields to include in conversion
-        skip_nulls (bool): Boolean, default=False
-        null_value (int): Integer, default=0
+        in_fc (str): Path to input feature class
+        out_fc (str): Path to output point fc
+        fields (str or list, default="*"): [String,...] fields to include in conversion
+        skip_nulls (bool, default=False): Control whether records using nulls are skipped.
+        null_value (int, default=0): Replaces null values from the input with a new value.
     """
     # TODO: adapt to search-cursor-based derivation of polygon.centroid to ensure point is within polygon
     sr = arcpy.Describe(in_fc).spatialReference
@@ -1095,13 +1276,15 @@ def polygons_to_points(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0
     return out_fc
 
 
-def add_unique_id(feature_class, new_id_field=None):
-    """adds a unique incrementing integer value to a feature class and returns that name
+def add_unique_id(feature_class, new_id_field="ProcessID"):
+    """Adds a unique incrementing integer value to a feature class and returns that name
+
     Args:
-        feature_class (str): String; path to a feature class
-        new_id_field (str): String; name of new id field, if none is provided, ProcessID is used
+        feature_class (str): Path to a feature class
+        new_id_field (str, default="ProcessID"): Name of new id field.
+
     Returns:
-        new_id_field (str): String; name of new id field
+        new_id_field (str): Name of new id field
     """
     # OID = arcpy.Describe(feature_class).OIDFIeldName
     if new_id_field is None:
@@ -1132,13 +1315,16 @@ def count_rows(
     """Counts rows in a table.
 
     Args:
-        in_table (str): fc path, feature layer, table path, table view, DataFrame
-        groupby_field (list): [String,...]
-        out_field (str): String, default=None
-        skip_nulls (bool): Boolean
-        null_value (dict): Var or dict
-        inplace (bool): Boolean, default=True
-            Only matters if `out_field` is given.
+        in_table (str, feature layer, table view or DataFrame): (Path to) the table for which to
+            return a row count
+        groupby_field (list, default=None): If given, the number of rows in the table with unique
+            combinations of specified fields is returned.
+        out_field (str, default=None): If given, the count is added to features in the table
+        skip_nulls (bool, default=False): Control whether records using nulls are skipped.
+        null_value (var or dict): Replaces null values from the input with a new value. Can be provided
+            as a dict to set null replacement values for specific columns.
+        inplace (bool, default=True): Only applies when `out_field` is provided.
+            If True, `in_table` is updated in-place with a new field.
 
     Returns:
         Int, DataFrame, or None
@@ -1381,46 +1567,37 @@ def gen_sa_lines(
         net_location_fields=None,
 ):
     """
+    Creates service area lines around given facilities using a network dataset.
+
     Args:
-        facilities: Path or feature layer
-            The facilities for which service areas will be generated.
-        name_field: String
-            The field in `facilities` that identifies each location.
-        in_nd: Path
-            Path to the network dataset
-        imped_attr: String
-            The name of the impedance attribute to use when solving the network
+        facilities (str or feature layer): The facilities for which service areas will be generated.
+        name_field (str): The field in `facilities` that identifies each location.
+        in_nd (str): Path to the network dataset
+        imped_attr (str): The name of the impedance attribute to use when solving the network
             and generating service area lines
-        cutoff: Numeric, or [Numeric,...]
-            The search radius (in units of `imped_attr`) that defines the limits
-            of the service area. If a list is given, the highest value defines the
-            cutoff and all other values are used as break points, which are used
-            to split output lines.
-        net_loader: NetLoader
-            Location loading preferences
-        from_to: String, default="TRAVEL_FROM"
-            If "TRAVEL_FROM", service areas reflect the reach of the network from
-            `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
-            network to the facilities. If not applying one-way restrictions, the
-            outcomes are effectively equivalent.
-        overlap: String, deault="OVERLAP"
-            If "OVERLAP", ...
-        restrictions: String or [String,...], default=""
-            Specify restriction attributes (oneway, e.g.) to honor when generating
-            service area lines. If the restrictions are paramterized, default
-            parameter values are used in the solve.
-        uturns: String, default="ALLOW_UTURNS"
-            Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
+        cutoff (numeric): The search radius (in units of `imped_attr`) that
+            defines the limits of the service area. If a list is given, the highest value defines the
+            cutoff and all other values are used as break points, which are used to split output lines.
+        net_loader (obj): NetLoader; Location loading preferences
+        out_fc (str): Path to service area polygon feature class to be created
+        from_to (str, default="TRAVEL_FROM"): If "TRAVEL_FROM", service areas reflect the reach
+            of the network from `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
+            network to the facilities. If not applying one-way restrictions, the outcomes are effectively equivalent.
+        overlap (str, deault="OVERLAP"): If "OVERLAP", individual sets of line features for each facility will be
+            generated; if "SPLIT", line service area features are assigned to the nearest facility.
+        restrictions (str, default=None): Specify restriction attributes (oneway, e.g.) to honor when generating
+            service area lines. If the restrictions are parameterized, default parameter values are used in the solve.
+        uturns (str, default="ALLOW_UTURNS"): Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
             "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
-        use_hierarchy: Boolean, default=False
-            If a hierarchy is defined for `in_nd`, it will be applied when solving
-            the network if `use_hierarchy` is True; otherwise a simple,
-            non-hierarchical solve is executed.
-        net_location_fields: [String,...], default=None
-            If provided, list the fields in the `facilities` attribute table that
-            define newtork loading locations. Fields must be provided in the
-            following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX,
-            SnapY, Distance.
+        use_hierarchy (bool, default=False): If a hierarchy is defined for `in_nd`, it will be
+            applied when solving the network if `use_hierarchy` is True; otherwise a simple, non-hierarchical
+            solve is executed.
+        net_location_fields (list, default=None): If provided, list the fields in the `facilities`
+            attribute table that define newtork loading locations. Fields must be provided in the
+            following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX, SnapY, Distance.
+
+    Returns:
+        out_fc (str): Path
 
     See Also:
         NetLoader
@@ -1495,30 +1672,30 @@ def gen_sa_polys(
         net_location_fields=None,
 ):
     """
+    Creates service area polygons around given facilities using a network dataset.
+
     Args:
-        facilities (str): Path or feature layer
-            The facilities for which service areas will be generated.
-        name_field (str): String; The field in `facilities` that identifies each location.
-        in_nd (str): Path; Path to the network dataset
-        imped_attr (str): String; The name of the impedance attribute to use when solving the network
+        facilities (str or feature layer): The facilities for which service areas will be generated.
+        name_field (str): The field in `facilities` that identifies each location.
+        in_nd (str): Path to the network dataset
+        imped_attr (str): The name of the impedance attribute to use when solving the network
             and generating service area lines
-        cutoff (numeric): Numeric, or [Numeric,...]; The search radius (in units of `imped_attr`) that
+        cutoff (numeric): The search radius (in units of `imped_attr`) that
             defines the limits of the service area. If a list is given, the highest value defines the
             cutoff and all other values are used as break points, which are used to split output lines.
-        net_loader (NetLoader): NetLoader; Location loading preferences
-        out_fc (str): Path
-        from_to (str): String, default="TRAVEL_FROM"; If "TRAVEL_FROM", service areas reflect the reach
+        net_loader (obj): NetLoader; Location loading preferences
+        out_fc (str): Path to service area polygon feature class to be created
+        from_to (str, default="TRAVEL_FROM"): If "TRAVEL_FROM", service areas reflect the reach
             of the network from `facilities`; if "TRAVEL_TO", service areas reflec the reach of the
             network to the facilities. If not applying one-way restrictions, the outcomes are effectively equivalent.
-        restrictions (str/list): String or [String,...], default=None
-            Specify restriction attributes (oneway, e.g.) to honor when generating service area lines. If the
-            restrictions are paramterized, default parameter values are used in the solve.
-        uturns (str): String, default="ALLOW_UTURNS"; Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
+        restrictions (str, default=None): Specify restriction attributes (oneway, e.g.) to honor when generating
+            service area lines. If the restrictions are parameterized, default parameter values are used in the solve.
+        uturns (str, default="ALLOW_UTURNS"): Options are "ALLOW_UTURNS", "NO_UTURNS", "ALLOW_DEAD_ENDS_ONLY",
             "ALLOW_DEAD_ENDS_AND_INTERSECTIONS_ONLY"
-        use_hierarchy (bool): Boolean, default=False; If a hierarchy is defined for `in_nd`, it will be
+        use_hierarchy (bool, default=False): If a hierarchy is defined for `in_nd`, it will be
             applied when solving the network if `use_hierarchy` is True; otherwise a simple, non-hierarchical
             solve is executed.
-        net_location_fields (list): [String,...], default=None; If provided, list the fields in the `facilities`
+        net_location_fields (list, default=None): If provided, list the fields in the `facilities`
             attribute table that define newtork loading locations. Fields must be provided in the
             following order: SourceID, SourceOID, PosAlong, SideOfEdge, SnapX, SnapY, Distance.
 
@@ -1655,7 +1832,8 @@ def _sanitize_column_names(
 
 def _list_table_paths(gdb, criteria="*"):
     """
-    internal function, returns a list of all tables within a geodatabase
+    Internal function, returns a list of all tables within a geodatabase
+    
     Args:
         gdb (str/path): string path to a geodatabase
         criteria (list): wildcards to limit the results returned from ListTables;
@@ -1680,7 +1858,8 @@ def _list_table_paths(gdb, criteria="*"):
 
 def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
     """
-    internal function, returns a list of all feature classes within a geodatabase
+    Internal function, returns a list of all feature classes within a geodatabase
+    
     Args:
         gdb (str/path): string path to a geodatabase
         fds_criteria (str/list): wildcards to limit results returned. List of
@@ -1713,7 +1892,8 @@ def _list_fc_paths(gdb, fds_criteria="*", fc_criteria="*"):
 
 def _make_access_col_specs(activities, time_breaks, mode, include_average=True):
     """
-    helper function to generate access column specs
+    Helper function to generate access column specs
+
     Args:
         activities (list): list of job sectors
         time_breaks (list): integer list of time bins
@@ -1741,17 +1921,20 @@ def _make_access_col_specs(activities, time_breaks, mode, include_average=True):
 
 def _createLongAccess(int_fc, id_field, activities, time_breaks, mode, domain=None):
     """
+    Generates a table with accessibility sores that is long on activities and time breaks.
 
     Args:
-        int_fc:
-        id_field:
-        activities:
-        time_breaks:
-        mode:
-        domain:
+        int_fc (str): path to an intersection between summary areas and travel zone features (TAZ, MAZ).
+            Field names are expected to be reliably formatted such that columns reflecting activities
+            and time breaks can be found and melted.
+        id_field (str): summary area ID field
+        activities (list): list of activities used to create different accessibility scores
+        time_breaks (list) list of time breaks used to report access by time bin
+        mode (str): scores are expected in separate tables by mode
+        domain (object, defeault=None): see `DomainColumn`
 
     Returns:
-
+        pd.DataFrame: a table of access scores by summary area, long on activities and time breaks
     """
     # result is long on id_field, activity, time_break
     # TODO: update to use Column objects? (null handling, e.g.)
@@ -1803,18 +1986,19 @@ def _get_time_previous_time_break_(time_breaks, tb):
 
 def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
     """
-    helper function to calculate the difference between this_table and base_table
+    Helper function to calculate the difference between this_table and base_table
         ie... this_table minus base_table
+    
     Args:
         this_table (str): path to a snapshot table
-        base_table (str): path to a previous years snapshot table
+        base_table (str): path to a previous year's snapshot table
         idx_cols (list): column names used to generate a common index
         fields (list): if provided, a list of fields to calculate the difference on;
             Default: "*" indicates all fields
-        **kwargs: keyword arguments for featureclass_to_df
+        **kwargs: keyword arguments for `featureclass_to_df`
 
     Returns:
-        pandas.Dataframe; df of difference values
+        pandas.Dataframe: df like `this_table` but containing difference values
     """
     # Fetch data frames
     this_df = featureclass_to_df(in_fc=this_table, keep_fields=fields, **kwargs)
@@ -1837,350 +2021,3 @@ def table_difference(this_table, base_table, idx_cols, fields="*", **kwargs):
 
 if __name__ == "__main__":
     print("nothing set to run")
-
-# DEPRECATED functions
-# def sumToAggregateGeo(
-#         disag_fc,
-#         sum_fields,
-#         groupby_fields,
-#         agg_fc,
-#         agg_id_field,
-#         output_fc,
-#         overlap_type="INTERSECT",
-#         agg_funcs=np.sum,
-#         disag_wc=None,
-#         agg_wc=None,
-#         flatten_disag_id=None,
-#         *args,
-#         **kwargs,
-# ):
-#     """
-#     DEPRECATED
-#
-#     Summarizes values for features in an input feature class based on their
-#     relationship to larger geographic units. For example, summarize dwelling
-#     units from parcels to station areas.
-#
-#     Summarizations are recorded for each aggregation feature. If any groupby
-#     fields are provided or multiple agg funcs are provided, summary values are
-#     reported in multiple columns corresponding to the groupby values or agg
-#     function names. Note that special characters in observed values are
-#     replaced with underscores. This may result in unexpected name collisions.
-#
-#     Parameters
-#     -----------
-#     disag_fc: String or feature layer
-#         Path to a feature class or a feature layer object. The layer whose
-#         features and values will be summarized.
-#     sum_fields: String or [String,...]
-#         One or more field names in `disag_fc` whose values will be summarized
-#         within features in `agg_fc`.
-#     groupby_fields: String or [String,...]
-#         One or more field names in `disag_fc` to be used to group features
-#         prior to aggregation. Unique combinaitons of `groupby_field` values
-#         will appear in field names in `output_fc`.
-#     agg_fc: String or feature layer
-#         The features to which disag_fc will be aggregated and summarized.
-#         These must be polygons.
-#     agg_id_field: String
-#         A field in `agg_fc` that uniquely identifies each aggregation feature.
-#     output_fc: String
-#         Path to a new feature class to be created by the function.
-#     overlap_type: String, default="INTERSECT"
-#         The spatial relationship by which to associate disag features with
-#         aggregation features.
-#     agg_funcs: callable, default=np.sum
-#         Aggregation functions determine what summary statistics are reported
-#         for each aggregation feature.
-#     disag_wc: String, default=None
-#         A where clause for selecting disag features to include in the
-#         summarization process.
-#     agg_wc: String, default=None
-#         A where clause for selecting aggregation features to include in the
-#         summarization process.
-#     flatten_disag_id: String, default=None
-#         If given, the disag features are assumed to contain redundant data,
-#         such as multiple rows showing the same parcel. The mean value by
-#         this field is used prior to summarization to aggregate features.
-#     args:
-#         Positional arguments to pass to `agg_funcs`
-#     kwargs:
-#         Keyword arguments to pass to `agg_funcs`
-#
-#     Returns
-#     --------
-#     None
-#         `output_fc` is written to disk.
-#     """
-#     # Handle inputs
-#     #  - Confirm agg features are polygons
-#     desc = arcpy.Describe(agg_fc)
-#     if desc.shapeType != "Polygon":
-#         raise TypeError("Aggregation features must be polygons")
-#     sr = desc.spatialReference
-#
-#     #  - If path to FC is given, make feature layer
-#     #    Otherwise, let's assume these are already feature layers
-#     if isinstance(disag_fc, string_types):
-#         disag_fc = arcpy.MakeFeatureLayer_management(disag_fc, "__disag_fc__")
-#
-#     if isinstance(agg_fc, string_types):
-#         agg_fc = arcpy.MakeFeatureLayer_management(agg_fc, "__agg_fc__")
-#
-#     #  - Apply where clauses to input layers
-#     if disag_wc:
-#         disag_fc = arcpy.MakeFeatureLayer_management(
-#             in_features=disag_fc, out_layer="__disag_subset__", where_clause=disag_wc
-#         )
-#     if agg_wc:
-#         arcpy.SelectLayerByAttribute_management(
-#             in_layer_or_view=agg_fc,
-#             selection_type="SUBSET_SELECTION",
-#             where_clause=agg_wc,
-#         )
-#
-#     #  - Disag field references
-#     if isinstance(sum_fields, string_types):
-#         sum_fields = [sum_fields]
-#     if isinstance(groupby_fields, string_types):
-#         groupby_fields = [groupby_fields]
-#     disag_fields = sum_fields + groupby_fields
-#     if flatten_disag_id is not None:
-#         disag_fields.append(flatten_disag_id)
-#
-#     # Set up the output feature class (copy features from agg_fc)
-#     out_ws, out_fc = os.path.split(output_fc)
-#     # out_ws, out_fc = output_fc.rsplit(r"\", 1)
-#     if arcpy.Exists(output_fc):
-#         arcpy.Delete_management(output_fc)
-#     arcpy.FeatureClassToFeatureClass_conversion(agg_fc, out_ws, out_fc)
-#     print(output_fc)
-#     sr = arcpy.Describe(agg_fc).spatialReference.exportToString()
-#
-#     # Try, except to rollback
-#     try:
-#         sum_rows = []
-#         # shapes = []
-#         # Iterate over agg features
-#         agg_fields = [agg_id_field, "SHAPE@"]
-#         with arcpy.da.SearchCursor(output_fc, agg_fields) as agg_c:
-#             # with arcpy.da.SearchCursor(agg_fc, agg_fields) as agg_c:
-#             for agg_r in agg_c:
-#                 agg_id, agg_shape = agg_r
-#                 # shapes.append(
-#                 #     POLY(
-#                 #         [(pt.X, pt.Y) for pt in agg_shape.getPart()[0]]
-#                 #     )
-#                 # )
-#                 # Select disag features there
-#                 arcpy.SelectLayerByLocation_management(
-#                     in_layer=disag_fc,
-#                     overlap_type=overlap_type,
-#                     select_features=agg_shape,
-#                     selection_type="NEW_SELECTION",
-#                 )
-#                 # Dump to data frame
-#                 df = pd.DataFrame(
-#                     arcpy.da.TableToNumPyArray(
-#                         disag_fc, disag_fields, skip_nulls=False, null_value=0
-#                     )
-#                 )
-#                 df.fillna(0, inplace=True)
-#                 # Flatten
-#                 if flatten_disag_id is not None:
-#                     gfields = groupby_fields + [flatten_disag_id]
-#                     df = df.groupby(gfields).mean().reset_index()
-#                 # Groupby and apply agg funcs
-#                 if groupby_fields:
-#                     gb = df.groupby(groupby_fields)
-#                     df_sum = gb.agg(agg_funcs, *args, **kwargs)
-#                     if len(groupby_fields) > 1:
-#                         df_unstack = df_sum.unstack(groupby_fields).fillna(0)
-#                     else:
-#                         df_unstack = df_sum.unstack().fillna(0)
-#                 else:
-#                     df_sum = df
-#                     df_unstack = df_sum.unstack().fillna(0)
-#                 df_unstack.index = colMultiIndexToNames(df_unstack.index)
-#                 sum_row = df_unstack.to_frame().T
-#                 # sum_row = df_sum.reset_index()
-#
-#                 # Assign agg feature id
-#                 # TODO: confirm agg_id_field does not collide with sum_row cols
-#                 sum_row[agg_id_field] = agg_id
-#
-#                 # Add row to collection
-#                 sum_rows.append(sum_row)
-#         # Bind all summary rows
-#         sum_data = pd.concat(sum_rows).fillna(0)
-#         # sum_data["geometry"] = shapes
-#         # Rename cols to eliminate special characters
-#         cols = sum_data.columns.to_list()
-#         sum_data.columns = [re.sub(r"[^A-Za-z0-9 ]+", "_", c) for c in cols]
-#
-#         # Join to output table
-#         extendTableDf(output_fc, agg_id_field, sum_data, agg_id_field)
-#         # gdf = gpd.GeoDataFrame(sum_data, geometry="geometry", crs=sr)
-#         # gdfToFeatureClass(gdf, output_fc, sr=sr)
-#
-#     except:
-#         raise
-#
-#     finally:
-#         # delete all temp layers
-#         arcpy.Delete_management("__disag_fc__")
-#         arcpy.Delete_management("__agg_fc__")
-#         arcpy.Delete_management("__disag_subset__")
-#         # Delete output fc
-#         arcpy.Delete_management(output_fc)
-# DEPRECATED GPD functions
-# def fetchJsonUrl(
-#         url, out_file, encoding="utf-8", is_spatial=False, crs=4326, overwrite=False
-# ):
-#     """
-#     Retrieve a json/geojson file at the given url and convert to a
-#     data frame or geodataframe.
-#
-#     Parameters
-#     -----------
-#     url: String
-#     out_file: Path
-#     encoding: String, default="uft-8"
-#     is_spatial: Boolean, default=False
-#         If True, dump json to geodataframe
-#     crs: String
-#     overwrite: Boolean
-#
-#     Returns
-#     ---------
-#     out_file: Path
-#     """
-#     exclude = ["FID", "OID", "ObjectID", "SHAPE_Length", "SHAPE_Area"]
-#     http = urllib3.PoolManager()
-#     req = http.request("GET", url)
-#     req_json = json.loads(req.data.decode(encoding))
-#
-#     if is_spatial:
-#         jsonToFeatureClass(req_json, out_file, sr=4326)
-#
-#     else:
-#         prop_stack = []
-#         gdf = gpd.GeoDataFrame.from_features(req_json["features"], crs=crs)
-#         return pd.DataFrame(gdf.drop(columns="geometry"))
-#
-#
-# def gdfToFeatureClass(gdf, out_fc, new_id_field, exclude, sr=4326, overwrite=False):
-#     """
-#     Creates a feature class or shapefile from a geopandas GeoDataFrame.
-#
-#     Args:
-#         new_id_field
-#         gdf: GeoDataFrame
-#         out_fc: Path
-#         exclude:
-#         sr: spatial reference, default=4326
-#             A spatial reference specification. Authority/factory code, WKT, WKID,
-#             ESRI name, path to .prj file, etc.
-#         overwrite:
-#     Returns:
-#         out_fc: Path
-#     SeeAlso:
-#         jsonToFeatureClass
-#     """
-#     j = json.loads(gdf.to_json())
-#     jsonToFeatureClass(json_obj=j, out_fc=out_fc, new_id_field=new_id_field,
-#                        exclude=exclude, sr=sr, overwrite=overwrite)
-#
-#
-# def multipolygonToPolygon(gdf, in_crs):
-#     """
-#     For a geopandas data frame, convert multipolygon geometries in a single
-#     row into multiple rows of simply polygon geometries.
-#
-#     This function is an adaptation of the approach outlined here:
-#     https://gist.github.com/mhweber/cf36bb4e09df9deee5eb54dc6be74d26
-#
-#     Parameters
-#     -----------
-#     gdf: geodataframe
-#     """
-#     # Setup an empty geodataframe as the output container
-#     poly_df = gpd.GeoDataFrame(columns=gdf.columns)
-#     # Iterate over input rows
-#     for idx, row in gdf.iterrows():
-#         if type(row.geometry) == POLY:
-#             # Append existing simple polygons to the output
-#             poly_df = poly_df.append(row, ignore_index=True)
-#         else:
-#             # Explode multi-polygons to simple features and append
-#             #  - Create a mini-geodataframe to assist
-#             mult_df = gpd.GeoDataFrame(columns=gdf.columns)
-#             recs = len(row.geometry)
-#             #  - Repare the feature many times in the mini-gdf
-#             mult_df = mult_df.append([row] * recs, ignore_index=True)
-#             #  - Iterate over rows keeping the i'th geom element as you go
-#             for geom_i in range(recs):
-#                 mult_df.loc[geom_i, "geometry"] = row.geometry[geom_i]
-#             #  - Append mini-gdf rows to the output container
-#             poly_df = poly_df.append(mult_df, ignore_index=True)
-#     poly_df.crs = in_crs
-#     return poly_df
-#
-#
-# def mergeFeatures(raw_dir, fc_names, clean_dir, out_fc, drop_columns=[], rename_columns=[]):
-#     """
-#         Combine feature classes from a raw folder in a single feature class in
-#         a clean folder.
-#
-#     Args:
-#         raw_dir: String;  The directory path where all raw feature classes are stored.
-#         fc_names: [String,...]; A list of feature classes in `raw_dir` to combine into a single
-#             feature class of all features in `clean_dir`.
-#         clean_dir: String; The directory path where the cleaned output feature class will be stored.
-#         out_fc: String; The name of the output feature class with combined features.
-#         drop_columns: [[String,...]]; A list of lists. Each list corresponds to feature classes listed in
-#             `fc_names`. Each includes column names to drop when combining features.
-#         rename_columns: [{String: String,...},...]; A list of dictionaries. Each dictionary corresponds
-#             to feature classes listed in `fc_names`. Each has keys that reflect raw column names and
-#             values that assign new names to these columns.
-#     Returns:
-#         out_file: String; Path to the output file (merged features saved to disk)
-#     """
-#     # Align inputs
-#     if isinstance(fc_names, string_types):
-#         fc_names = [fc_names]
-#     if not drop_columns:
-#         drop_columns = [[] for _ in fc_names]
-#     if not rename_columns:
-#         rename_columns = [{} for _ in fc_names]
-#
-#     # Iterate over input fc's
-#     all_features = []
-#     for fc_name, drop_cols, rename_cols in zip(fc_names, drop_columns, rename_columns):
-#         # Read features
-#         in_fc = makePath(raw_dir, fc_name)
-#         gdf = gpd.read_file(in_fc)
-#         # Drop/rename
-#         gdf.drop(columns=drop_cols, inplace=True)
-#         gdf.rename(columns=rename_cols, inplace=True)
-#         all_features.append(gdf)
-#
-#     # Concatenate features
-#     merged = pd.concat(all_features)
-#
-#     # Save output
-#     out_file = makePath(clean_dir, out_fc)
-#     merged.to_file(out_file)
-#
-#     return out_file
-
-# DEPRECATED
-# def fetch_json_to_file(url, out_file, encoding="utf-8", overwrite=False):
-#     http = urllib3.PoolManager()
-#     req = http.request("GET", url)
-#     req_json = json.loads(req.data.decode(encoding))
-#     if overwrite:
-#         checkOverwriteOutput(output=out_file, overwrite=overwrite)
-#     with open(out_file, 'w') as dst:
-#         json_txt = json.dumps(req_json)
-#         dst.write(json_txt)
