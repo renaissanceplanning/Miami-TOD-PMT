@@ -19,16 +19,12 @@ script = Path(__file__).parent.parent.absolute()
 sys.path.insert(0, script)
 
 # helper functions from other modules
-try:
-    import census_geo
-    import census
-    import helper
-    import open_street_map
-except:
-    from . import census_geo
-    from . import census
-    from . import helper
-    from . import open_street_map
+
+import PMT_tools.download.census_geo as census_geo
+import PMT_tools.download.census as census
+import PMT_tools.download.helper as helper
+import PMT_tools.download.open_street_map as open_street_map
+
 
 # global values configured for downloading
 import PMT_tools.config.download_config as dl_conf
@@ -195,8 +191,7 @@ def download_urls(overwrite=True):
         - DOWNLOAD_URL_DICT (dictionary of output_name: url found in config.download_config)
 
     Outputs: (11 files)
-        - RAW//{output_name}
-        ['Imperviousness', 'MD_Urban_Growth_Boundary', 'Miami-Dade_County_Boundary',
+        - RAW//{output_name} --> ['Imperviousness', 'MD_Urban_Growth_Boundary', 'Miami-Dade_County_Boundary',
         'Municipal_Parks', 'County_Parks', 'Federal_State_Parks', 'Park_Facilities',
         'Bike_Lanes', 'Paved_Path',  'Paved_Shoulder', 'Wide_Curb_Lane']
     """

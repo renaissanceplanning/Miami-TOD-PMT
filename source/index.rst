@@ -14,6 +14,7 @@ in the following pages.
    :maxdepth: 2
    :caption: Contents:
 
+   readme
    config
    download
    prepare

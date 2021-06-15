@@ -1,7 +1,6 @@
 """
-''''''''''''''''Developer_CTW comment'''''''''''''''''''''''
-much of this code has been borrowed from:
-    https://github.com/censusreporter/census-shapefile-utils
+Comment:
+    much of this code has been borrowed from: https://github.com/censusreporter/census-shapefile-utils
         - fetch_shapefiles.py
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 This script will download TIGER data shapefiles from the Census FTP site.
@@ -34,18 +33,17 @@ in GEO_TYPES_LIST specifically, however. So to fetch the ZCTA data:
     >> python fetch_shapefiles.py -g zcta5
 """
 
-import optparse
 import os
 import sys
 import zipfile
-from os.path import isdir, join, normpath
+from os.path import join, normpath
 
 try:
     from six.moves.urllib import request as urllib2
 except ImportError:
     import urllib2
 
-from __init__ import (
+from PMT_tools.download.__init__ import (
     STATE_ABBREV_LIST,
     GEO_TYPES_LIST,
     DISABLE_AUTO_DOWNLOADS,

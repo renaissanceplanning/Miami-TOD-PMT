@@ -1,4 +1,4 @@
-.. module:: PMT_Tools.build
+.. module:: PMT_tools.build
 
 .. toctree::
    :maxdepth: 2
@@ -10,15 +10,15 @@ TOC Tool Build Scripts
 Builder
 -----------------------------
 .. automodule:: build.builder
-
+    :members:
 
 Builder support
 -----------------------------
 
 **build_helpers** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: builder.build_helpers
-
+.. automodule:: build.build_helper
+    :members:
 
 Indices and tables
 ==================

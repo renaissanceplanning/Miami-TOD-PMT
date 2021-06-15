@@ -1,4 +1,4 @@
-.. module:: PMT_Tools.prepare
+.. module:: PMT_tools.prepare
 
 .. toctree::
    :maxdepth: 2
@@ -10,19 +10,20 @@ TOC Tool Prepare Scripts
 Preparer
 -----------------------------
 .. automodule:: prepare.preparer
-
+    :members:
 
 Preparer support
 -----------------------------
 
 **prepare_helpers** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: perpare.prepare_helpers
+.. automodule:: prepare.prepare_helpers
+    :members:
 
-**preapre_osm_networks** module
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**prepare_osm_networks** module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: prepare.prepare_osm_networks
-
+    :members:
 
 Indices and tables
 ==================

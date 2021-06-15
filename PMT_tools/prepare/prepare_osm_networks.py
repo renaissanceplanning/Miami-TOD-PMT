@@ -16,7 +16,7 @@ import shutil
 # %% IMPORTS
 import arcpy
 
-from .. import PMT as PMT
+from PMT_tools import PMT as PMT
 
 # %% GLOBALS
 NET_VERSIONS = ["_q1_2021"]

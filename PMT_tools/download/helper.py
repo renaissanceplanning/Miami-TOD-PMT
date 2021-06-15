@@ -1,6 +1,6 @@
 """
 The `helper` module provides generalized methods to acquire data given a url endpoint,
-along with some purpose-built methods to obtain and/or clean ACS, OMS, and other
+along with some purpose-built methods to obtain and/or clean ACS, OSM, and other
 datasets used in TOC analysis.
 """
 import os

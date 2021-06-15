@@ -12,8 +12,10 @@ dependencies:
   - numpy
   - scipy
   - rtree=0.9.4
+  - sphinx
   - pip
   - pip:
       - simpledbf
       - censusdata
       - osmnx
+      - sphinx-sizzle-theme

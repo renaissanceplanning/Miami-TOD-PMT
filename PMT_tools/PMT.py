@@ -88,14 +88,13 @@ __all__ = __classes__ + __functions__
 
 
 def make_path(in_folder, *subnames):
-    """Dynamically set a path (e.g., for iteratively referencing
-        year-specific geodatabases)
-
+    """Dynamically set a path (e.g., for iteratively referencing year-specific geodatabases).
+        {in_folder}/{subname_1}/../{subname_n}
     Args:
         in_folder (str): String or Path
         subnames (list/tuple): A list of arguments to join in making the full path
-            `{in_folder}/{subname_1}/.../{subname_n}
-    Returns:
+
+    Returns (str):
         str: String path
     """
     return os.path.join(in_folder, *subnames)
@@ -188,7 +187,7 @@ class Column:
                 raise TypeError(f"`domain` must be DomainColumn, got {type(value)}")
         super().__setattr__(name, value)
 
-    def applyDomain(self, df, col=None):
+    def apply_domain(self, df, col=None):
         """
         Method to create the domain column associated with this Column in the given dataframe.
 
@@ -340,12 +339,12 @@ class MeltColumn(CollCollection):
         self.val_col = val_col
         self.domain = domain
 
-    def applyDomain(self, df):
+    def apply_domain(self, df):
         """
         DomainColumn specifications are applied in the same way as other Column objects,
         but for the `MeltColumn` class, `self.label_col` is used for mapping the domain.
         """
-        super().applyDomain(df, col=self.label_col)
+        super().apply_domain(df, col=self.label_col)
 
 
 # class Join(CollCollection):
@@ -613,24 +612,9 @@ class ServiceAreaAnalysis:
 
 
 # %% FUNCTIONS
-def make_path(in_folder, *subnames):
-    """Dynamically set a path (e.g., for iteratively referencing
-        year-specific geodatabases)
-
-    Args:
-        in_folder (str): String or Path
-        subnames (list/tuple): A list of arguments to join in making the full path
-            `{in_folder}/{subname_1}/.../{subname_n}
-    
-    Returns:
-        Path
-    """
-    return os.path.join(in_folder, *subnames)
-
-
 def make_inmem_path(file_name=None):
-    """Generates an in_memory path usable by arcpy that is
-        unique to avoid any overlapping names. If a file_name
+    """Generates an in_memory path usable by arcpy that is unique to avoid any overlapping names. If a file_name is
+    provided, the in_memory file will be given that name with an underscore appended to the beginning.
 
     Returns:
         String; in_memory path
@@ -1249,8 +1233,7 @@ def is_multipart(polygon_fc):
 
 
 def polygons_to_points(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0):
-    """Convenience function to dump polygon features to centroids and
-        save as a new feature class.
+    """Convenience function to dump polygon features to centroids and save as a new feature class.
    
    Args:
         in_fc (str): Path to input feature class
@@ -1258,6 +1241,9 @@ def polygons_to_points(in_fc, out_fc, fields="*", skip_nulls=False, null_value=0
         fields (str or list, default="*"): [String,...] fields to include in conversion
         skip_nulls (bool, default=False): Control whether records using nulls are skipped.
         null_value (int, default=0): Replaces null values from the input with a new value.
+
+    Returns:
+        out_fc (str): path to output point feature class
     """
     # TODO: adapt to search-cursor-based derivation of polygon.centroid to ensure point is within polygon
     sr = arcpy.Describe(in_fc).spatialReference

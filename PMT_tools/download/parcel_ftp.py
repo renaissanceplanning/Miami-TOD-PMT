@@ -472,8 +472,7 @@ def fdor_gis_and_tax(save_path=None):
 # Written by Aaron
 def fdor_availability(df, year=None, county=None):
     """
-    Filter all available FDOR GIS and Tax Roll data according to desired
-    specifications
+    Filter all available FDOR GIS and Tax Roll data according to desired specifications
 
     Args:
         df (pandas.DataFrame): output of `fdor_gis_and_tax()` (a dataframe of available data)
@@ -495,8 +494,7 @@ def fdor_availability(df, year=None, county=None):
         pandas.DataFrame: dataframe of available data according to the provided specs
     
     Raises:
-        ValueError:
-            if the specs result in no available data
+        ValueError: if the specs result in no available data
     """
 
     # Initialize

@@ -13,7 +13,7 @@ from shapely.geometry import Polygon, MultiPolygon
 from six import string_types
 
 from PMT_tools.PMT import check_overwrite_path, make_path, validate_directory
-import helper as dl_help
+import PMT_tools.download.helper as dl_help
 
 # globals for scripts
 VALID_NETWORK_TYPES = ["drive", "walk", "bike"]

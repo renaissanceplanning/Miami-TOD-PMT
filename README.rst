@@ -1,12 +1,10 @@
-
-Miami-TOD-PMT
-=============
+Introduction and Setup
+======================
 
 Scripts and docs for the Miami-Dade TPO's TOD Performance Monitoring Toolkit
 
 Table of Contents
 -----------------
-
 
 #. `Environment Setup <#environment-setup>`_
 
@@ -32,7 +30,7 @@ Assumptions
 Building python CONDA environment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Environment:** ``pmt_download``
+``pmt_download``
 """""""""""""""""""""""""""""""""""""""""
 
 ``used for download procedures only``
@@ -59,10 +57,10 @@ Building python CONDA environment
 
        pip install censusdata osmnx
 
-**Environment:** ``pmt_tools``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``pmt_download``
+"""""""""""""""""""""""""""""""""""""""""
 
-...repeat steps 1-3 from above
+``...repeat steps 1-3 from above``
 
 
 4) Clone the existing ArcGIS python default environment (\ *arcgispro-py3*\ )

@@ -17,8 +17,7 @@ This module depends on the `build_helper` and `build_config` modules primarily.
 
 Functions:
     year_to_snapshot:
-        - process/task to take year gdb, making the geometries wide where needed and
-        metrics long on categorical data
+        - process/task to take year gdb, making the geometries wide where needed and metrics long on categorical data
 
     snapshot_to_trend: (used to process Trend and NearTerm geodatabases with alterations to inputs)
         - process/task to stack snapshot metrics, making them long on year, ref_YEAR_Snapshot
@@ -31,15 +30,15 @@ from six import string_types
 
 sys.path.insert(0, os.getcwd())
 # build helper functions
-from ..build import build_helper as B_HELP
+from PMT_tools.build import build_helper as b_help
 
 # configuration variables
-from ..config import build_config as B_CONF
-from ..config import prepare_config as P_CONF
+from PMT_tools.config import build_config as b_conf
+from PMT_tools.config import prepare_config as p_conf
 
 # global project functions/variables
-from .. import PMT
-from ..PMT import CLEANED, BUILD, BASIC_FEATURES
+from PMT_tools import PMT
+from PMT_tools.PMT import CLEANED, BUILD, BASIC_FEATURES
 
 import arcpy
 
@@ -72,41 +71,41 @@ def process_year_to_snapshot(year):
     if year == "NearTerm":
         calc_year = 9998
 
-    B_CONF.YEAR_COL.default = year
+    b_conf.YEAR_COL.default = year
     # Make output gdb and copy features
     print("Validating all data have a year attribute...")
     out_path = PMT.validate_directory(directory=BUILD)
     in_gdb = PMT.validate_geodatabase(
         gdb_path=PMT.make_path(CLEANED, f"PMT_{year}.gdb"), overwrite=False
     )
-    B_HELP.add_year_columns(in_gdb=in_gdb, year=calc_year)
+    b_help.add_year_columns(in_gdb=in_gdb, year=calc_year)
     print("Making Snapshot Template...")
-    out_gdb = B_HELP.make_snapshot_template(
+    out_gdb = b_help.make_snapshot_template(
         in_gdb=in_gdb, out_path=out_path, out_gdb_name=None, overwrite=False
     )
 
     # Join tables to the features
     print("Joining tables to feature classes...")
-    B_HELP.process_joins(
+    b_help.process_joins(
         in_gdb=in_gdb,
         out_gdb=out_gdb,
-        fc_specs=B_CONF.FC_SPECS,
-        table_specs=B_CONF.TABLE_SPECS,
+        fc_specs=b_conf.FC_SPECS,
+        table_specs=b_conf.TABLE_SPECS,
     )
 
     # Calculate values as need prior to intersections   # TODO: make this smarter, skip if already performed
     print("Adding and calculating new fields for dashboards...")
-    B_HELP.apply_field_calcs(gdb=out_gdb, new_field_specs=B_CONF.PRECALCS)
+    b_help.apply_field_calcs(gdb=out_gdb, new_field_specs=b_conf.PRECALCS)
 
     # Summarize reference values
     print("Calculating parcels sums to generate regional statistics...")
-    par_sums = B_HELP.sum_parcel_cols(
-        gdb=out_gdb, par_spec=B_CONF.PAR_FC_SPECS, columns=B_CONF.PAR_SUM_FIELDS
+    par_sums = b_help.sum_parcel_cols(
+        gdb=out_gdb, par_spec=b_conf.PAR_FC_SPECS, columns=b_conf.PAR_SUM_FIELDS
     )
 
     # Intersect tables for enrichment
     print("Intersecting feature classes to generate summaries...")
-    int_fcs = B_HELP.build_intersections(gdb=out_gdb, enrich_specs=B_CONF.ENRICH_INTS)
+    int_fcs = b_help.build_intersections(gdb=out_gdb, enrich_specs=b_conf.ENRICH_INTS)
 
     # # Store / load intersection fcs (temp locations) in debugging mode
     # if DEBUG:
@@ -116,30 +115,30 @@ def process_year_to_snapshot(year):
     #     #     int_fcs = pickle.load(__f__)
     # enrich tables
     print("Enriching feature classes with tabular data...")
-    B_HELP.build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=B_CONF.ENRICH_INTS)
+    b_help.build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=b_conf.ENRICH_INTS)
 
     # elongate tables
     print("Elongating tabular data...")
-    B_HELP.build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=B_CONF.ELONGATE_SPECS)
+    b_help.build_enriched_tables(gdb=out_gdb, fc_dict=int_fcs, specs=b_conf.ELONGATE_SPECS)
 
     # build access by mode tables
     print("Access scores by activity and time bin")
-    sa_fc, sa_id, sa_fds = B_CONF.SUM_AREA_FC_SPECS
+    sa_fc, sa_id, sa_fds = b_conf.SUM_AREA_FC_SPECS
     sum_areas_fc = PMT.make_path(out_gdb, sa_fds, sa_fc)
     id_fields = [
-        P_CONF.SUMMARY_AREAS_COMMON_KEY,
-        P_CONF.STN_NAME_FIELD,
-        P_CONF.CORRIDOR_NAME_FIELD,
+        p_conf.SUMMARY_AREAS_COMMON_KEY,
+        p_conf.STN_NAME_FIELD,
+        p_conf.CORRIDOR_NAME_FIELD,
     ]
-    B_HELP.build_access_by_mode(sum_area_fc=sum_areas_fc,
-                                modes=B_CONF.MODES,
+    b_help.build_access_by_mode(sum_area_fc=sum_areas_fc,
+                                modes=b_conf.MODES,
                                 id_field=id_fields,
                                 out_gdb=out_gdb,
                                 year_val=calc_year)
 
     # Prepare regional reference columns
     reg_ref_calcs = []
-    for new_field in B_CONF.REG_REF_CALCS:
+    for new_field in b_conf.REG_REF_CALCS:
         nf_spec, ref_field = new_field
         if isinstance(ref_field, string_types):
             ref_val = [[par_sums[ref_field]]]
@@ -153,7 +152,7 @@ def process_year_to_snapshot(year):
 
     # Calculated values - simple
     print("Calculating remaining fields for dashboards...")
-    B_HELP.apply_field_calcs(gdb=out_gdb, new_field_specs=B_CONF.CALCS + reg_ref_calcs)
+    b_help.apply_field_calcs(gdb=out_gdb, new_field_specs=b_conf.CALCS + reg_ref_calcs)
 
     # Delete tempfiles
     print("--- --- Removing temp files")
@@ -166,7 +165,7 @@ def process_year_to_snapshot(year):
     if year == PMT.SNAPSHOT_YEAR:
         year = "Current"
     year_out_gdb = PMT.make_path(BUILD, f"Snapshot_{year}.gdb")
-    B_HELP.finalize_output(intermediate_gdb=out_gdb, final_gdb=year_out_gdb)
+    b_help.finalize_output(intermediate_gdb=out_gdb, final_gdb=year_out_gdb)
 
 
 def process_years_to_trend(years, tables, long_features, diff_features,
@@ -199,7 +198,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
 
     # make a blank geodatabase
     out_path = PMT.validate_directory(BUILD)
-    out_gdb = B_HELP.make_trend_template(out_path)
+    out_gdb = b_help.make_trend_template(out_path)
 
     # Get snapshot data
     for yi, year in enumerate(years):
@@ -303,7 +302,7 @@ def process_years_to_trend(years, tables, long_features, diff_features,
 
     print("Finalizing the trend")
     final_gdb = PMT.make_path(BUILD, f"{out_gdb_name}.gdb")
-    B_HELP.finalize_output(intermediate_gdb=out_gdb, final_gdb=final_gdb)
+    b_help.finalize_output(intermediate_gdb=out_gdb, final_gdb=final_gdb)
 
 
 def process_all_snapshots(years):
@@ -348,9 +347,9 @@ if __name__ == "__main__":
     print("Building Trend database...")
     process_years_to_trend(
         years=PMT.YEARS,
-        tables=B_CONF.DIFF_TABLES,
-        long_features=B_CONF.LONG_FEATURES,
-        diff_features=B_CONF.DIFF_FEATURES,
+        tables=b_conf.DIFF_TABLES,
+        long_features=b_conf.LONG_FEATURES,
+        diff_features=b_conf.DIFF_FEATURES,
         out_gdb_name="Trend",
     )
 
@@ -358,15 +357,15 @@ if __name__ == "__main__":
     print("Building Near term 'Trend' database...")
     process_years_to_trend(
         years=["Current", "NearTerm"],
-        tables=B_CONF.DIFF_TABLES,
-        long_features=B_CONF.LONG_FEATURES,
-        diff_features=B_CONF.DIFF_FEATURES,
+        tables=b_conf.DIFF_TABLES,
+        long_features=b_conf.LONG_FEATURES,
+        diff_features=b_conf.DIFF_FEATURES,
         base_year="Current",
         snapshot_year="NearTerm",
         out_gdb_name="NearTerm",
     )
 
     # tidy up BUILD folder
-    B_HELP.post_process_databases(
+    b_help.post_process_databases(
         basic_features_gdb=BASIC_FEATURES, build_dir=PMT.make_path(BUILD, "TEMP")
     )

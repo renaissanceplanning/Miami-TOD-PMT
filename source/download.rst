@@ -1,4 +1,4 @@
-.. module:: PMT_Tools.download
+.. module:: PMT_tools.download
 
 .. toctree::
    :maxdepth: 2
@@ -10,22 +10,25 @@ TOC Tool Download Scripts
 Downloader
 -----------------------------
 .. automodule:: download.downloader
+    :members:
 
-
-Downoad support
+Download support
 -----------------------------
 
 **helper** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: download.helper
+    :members:
 
 **census** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: download.census
+    :members:
 
 **census_geo** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: download.census_geo
+    :members:
 
 **open_street_map** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -34,7 +37,7 @@ Downoad support
 **parcel_ftp** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: download.parcel_ftp
-
+    :members:
 
 Indices and tables
 ==================

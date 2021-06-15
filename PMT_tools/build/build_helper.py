@@ -6,10 +6,10 @@ periods and calculate differences, etc. It directly supports the `builder` modul
 arguments taken by functions defined here assume properly-formatted objects as specified in the
 `build_config` module.
 """
+import itertools
 import os
 import uuid
 from collections.abc import Iterable
-import itertools
 
 import arcpy
 import numpy as np
@@ -17,9 +17,9 @@ from six import string_types
 
 from PMT_tools import PMT
 from PMT_tools.PMT import Column, AggColumn, Consolidation, MeltColumn
-from PMT_tools.config import prepare_config as p_conf
-from PMT_tools.config import build_config as b_conf
 from PMT_tools.PMT import _list_table_paths, _list_fc_paths, _createLongAccess
+from PMT_tools.config import build_config as b_conf
+from PMT_tools.config import prepare_config as p_conf
 
 
 def build_access_by_mode(sum_area_fc, modes, id_field, out_gdb, year_val):
@@ -90,7 +90,7 @@ def process_joins(in_gdb, out_gdb, fc_specs, table_specs):
             tbl_name, tbl_id, tbl_fields, tbl_renames = spec
             tbl = PMT.make_path(in_gdb, tbl_name)
             print(f"--- Joining fields from {tbl_name} to {fc_name}")
-            joinAttributes(
+            join_attributes(
                 to_table=fc,
                 to_id_field=fc_id,
                 from_table=tbl,
@@ -113,10 +113,7 @@ def build_intersections(gdb, enrich_specs):
             consolidations, melt/elongation, and boolean for full geometry or centroid use in intersection
     
     Returns:
-        dict: Dictionary of the format {summ fc: {
-                                    disag_fc: path/to/intersection
-                                    }
-                                }
+        dict: Dictionary of the format {summ fc: {disag_fc: path/to/intersection}}
         will return multiple results for each summ_fc if more than one intersection is made against it.
     """
     # Intersect features for long tables
@@ -390,7 +387,7 @@ def _validateAggSpecs(var, expected_type):
     return var
 
 
-def joinAttributes(
+def join_attributes(
     to_table,
     to_id_field,
     from_table,
@@ -556,11 +553,11 @@ def summarize_attributes(
     # Domains
     for group_field in group_fields:
         if group_field.domain is not None:
-            group_field.applyDomain(int_df)
+            group_field.apply_domain(int_df)
             gb_fields.append(group_field.domain.name)
     if melt_col:
         if melt_col.domain is not None:
-            melt_col.applyDomain(int_df)
+            melt_col.apply_domain(int_df)
             gb_fields.append(melt_col.domain.name)
 
     # Group by - summarize
@@ -574,6 +571,21 @@ def summarize_attributes(
     return sum_df
 
 
+# Example:
+#         '''new_field_specs:
+#             {"tables": [PAR_FC_SPECS], "new_field": "RES_AREA", "field_type": "FLOAT",
+#             "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
+#             "code_block": '''
+#             def calc_area(sq_ft, activity):
+#             if activity is None:
+#                 return 0
+#             elif activity <= 0:
+#                 return 0
+#             else:
+#                 return sq_ft
+#             ''',
+#             }
+#             '''
 def apply_field_calcs(gdb, new_field_specs, recalculate=False):
     """
     Helper function that applies field calculations, adding a new field to a table
@@ -584,21 +596,6 @@ def apply_field_calcs(gdb, new_field_specs, recalculate=False):
             expr, code_block
         recalculate (bool): flag to rerun a calculation if the field already exsits in the table;
             currently unused
-
-    Example:
-        new_field_specs:
-            {"tables": [PAR_FC_SPECS], "new_field": "RES_AREA", "field_type": "FLOAT",
-            "expr": "calc_area(!LND_SQFOOT!, !NO_RES_UNTS!)",
-            "code_block": '''
-            def calc_area(sq_ft, activity):
-            if activity is None:
-                return 0
-            elif activity <= 0:
-                return 0
-            else:
-                return sq_ft
-            ''',
-            }
 
     Returns:
         None

@@ -2881,7 +2881,7 @@ def estimate_maz_from_parcels(
     # intersect
     int_fc = PMT.intersect_features(summary_fc=maz_fc, disag_fc=par_fc)
     # Join
-    b_help.joinAttributes(
+    b_help.join_attributes(
         to_table=int_fc,
         to_id_field=par_id_field,
         from_table=se_data,

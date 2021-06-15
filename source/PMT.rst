@@ -8,7 +8,7 @@ TOC Tool Core Module (PMT)
 =============================
 
 .. automodule:: PMT
-
+    :members:
 
 
 Indices and tables

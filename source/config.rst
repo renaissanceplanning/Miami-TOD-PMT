@@ -1,4 +1,4 @@
-.. module:: PMT_Tools.config
+.. module:: PMT_tools.config
 
 .. toctree::
    :maxdepth: 2
@@ -11,11 +11,9 @@ Download Configuration
 -----------------------
 .. automodule:: config.download_config
 
-
 Prepare Configuration
 ----------------------
 .. automodule:: config.prepare_config
-
 
 Build Configuration
 -----------------------
