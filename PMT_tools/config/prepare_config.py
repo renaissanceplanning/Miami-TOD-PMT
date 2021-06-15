@@ -6,14 +6,29 @@ are defined, but some settings are assigned as custom classes defined in `PMT`.
 
 from collections import OrderedDict
 
-from PMT_tools.PMT import (
-    Comp,
-    And,
-    Column,
-    AggColumn,
-    Consolidation,
-    NetLoader,
-)
+try:
+    from PMT_tools.PMT import (
+        Comp,
+        And,
+        Column,
+        AggColumn,
+        Consolidation,
+        NetLoader,
+    )
+except:
+    from pathlib import Path
+    import sys
+    root_path = Path(__file__).parents[1]
+    print(root_path)
+    sys.path.append(root_path)
+    from PMT import(
+        Comp,
+        And,
+        Column,
+        AggColumn,
+        Consolidation,
+        NetLoader,
+    )
 
 # CRS
 IN_CRS = 4326  # WGS84 latitude/longitude

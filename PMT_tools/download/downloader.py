@@ -19,10 +19,16 @@ script = Path(__file__).parent.parent.absolute()
 sys.path.insert(0, script)
 
 # helper functions from other modules
-import census_geo
-import census
-import helper
-import open_street_map
+try:
+    import census_geo
+    import census
+    import helper
+    import open_street_map
+except:
+    from . import census_geo
+    from . import census
+    from . import helper
+    from . import open_street_map
 
 # global values configured for downloading
 import PMT_tools.config.download_config as dl_conf

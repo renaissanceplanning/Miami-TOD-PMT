@@ -1,7 +1,7 @@
 """
 The `preparer` module standardizes and formats all raw datasets into a common storage pattern, normalizing or
 separating geospatial data from tabular data where possible to decrease overall file sizes. The standardized
-databases include PMT_BasicFeatures and PMT_YYYY (where YYYY = the relevant year of data). Standardization includes
+databases include `PMT_BasicFeatures` and `PMT_YYYY` (where `YYYY` = the relevant year of data). Standardization includes
 removing unnecessary attributes, renaming attributes for readability, merging data where needed, and placing outputs
 in a common geodatabase structure. In addition to standardization, much of the analytical processing is performed via
 this module.
@@ -10,32 +10,32 @@ Functions defined in this module are purpose-built for TOC analysis in Miami-Dad
 on more abstract functions and classes defined in `prepare_helpers`, `PMT` and other supporting modules.
 
 Functions:
-    process_normalized_geometries()
-    process_basic_features()
-    process_parks()
-    process_udb()
-    process_transit()
-    process_parcels()
-    process_permits()
-    enrich_block_groups()
-    process_parcel_land_use()
-    process_imperviousness()
-    process_osm_networks()
-    process_bg_apply_activity_models()
-    process_allocate_bg_to_parcels()
-    process_model_se_data()
-    process_osm_skims()
-    process_model_skims()
-    process_osm_service_areas()
-    process_centrality()
-    process_walk_times()
-    process_ideal_walk_times()
-    process_access()
-    process_contiguity()
-    process_bike_miles()
-    process_travel_stats()
-    process_walk_to_transit_skim()
-    process_serpm_transit()
+  - process_normalized_geometries()
+  - process_basic_features()
+  - process_parks()
+  - process_udb()
+  - process_transit()
+  - process_parcels()
+  - process_permits()
+  - enrich_block_groups()
+  - process_parcel_land_use()
+  - process_imperviousness()
+  - process_osm_networks()
+  - process_bg_apply_activity_models()
+  - process_allocate_bg_to_parcels()
+  - process_model_se_data()
+  - process_osm_skims()
+  - process_model_skims()
+  - process_osm_service_areas()
+  - process_centrality()
+  - process_walk_times()
+  - process_ideal_walk_times()
+  - process_access()
+  - process_contiguity()
+  - process_bike_miles()
+  - process_travel_stats()
+  - process_walk_to_transit_skim()
+  - process_serpm_transit()
 
 """
 import csv

@@ -9,9 +9,25 @@ defined here. Most variables defined in this module focus on one of the followin
 """
 import numpy as np
 
-from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
-from PMT_tools.PMT import _make_access_col_specs
-from PMT_tools.config import prepare_config as pconfig
+try:
+    from PMT_tools.PMT import Column, DomainColumn, AggColumn, Consolidation, MeltColumn
+    from PMT_tools.PMT import _make_access_col_specs
+    from PMT_tools.config import prepare_config as pconfig
+except:
+    from pathlib import Path
+    import sys
+    root_path = Path(__file__).parents[1]
+    print(root_path)
+    sys.path.append(root_path)
+    from PMT import(
+        Column,
+        DomainColumn,
+        AggColumn,
+        Consolidation,
+        MeltColumn,
+        _make_access_col_specs,
+    )
+    from . import prepare_config as pconfig
 
 # GLOBALS
 # SNAPSHOT_YEAR = PMT.YEARS[-1] # TODO: not a config item? always take a snapshot of each year in PMT.YEARS?
