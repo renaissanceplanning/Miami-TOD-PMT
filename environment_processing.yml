@@ -1,0 +1,15 @@
+name: pmt_tools
+channels:
+  - esri
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - arcgis
+  - arcpy
+  - momepy
+  - sphinx
+  - dask
+  - pip
+  - pip:
+      - simpledbf

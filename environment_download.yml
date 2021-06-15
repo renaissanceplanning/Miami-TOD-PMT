@@ -1,0 +1,19 @@
+name: pmt_download
+channels:
+  - esri
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - arcgis
+  - arcpy
+  - geopandas
+  - pandas
+  - numpy
+  - scipy
+  - rtree=0.9.4
+  - pip
+  - pip:
+      - simpledbf
+      - censusdata
+      - osmnx
