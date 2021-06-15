@@ -1124,14 +1124,20 @@ def process_model_se_data(overwrite=True):
 
 def process_model_skims():
     """
-    Combine transit skims for local and premium transit into one table.
-    Get best available transit time, eliminating false connections
+    For each SERPM model year, combine transit skims for local and premium
+    transit into one table. Get best available transit time, eliminating false 
+    connections.
+
         :: Assumes transit and auto skims have same fields. ::
 
     Inputs:
-        - some data
+        - RAW//SERPM//AM_HWY_SKIMS_{model_year}.csv
+        - RAW//SERPM//DLY_VEH_TRIPS_{model_year}.csv
+        - CLEANED//SERPM//TAZ_to_TAZ_local_{model_year}.csv
+        - CLEANED//SERPM//TAZ_to_TAZ_prem_{model_year}.csv
+
     Outputs:
-        - some output data
+        - CLEANED//SERPM/SERPM_OD_{model_year}.csv
     """
     # Get field definitions
     o_field = prep_conf.SKIM_O_FIELD

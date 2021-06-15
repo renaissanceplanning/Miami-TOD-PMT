@@ -1,0 +1,308 @@
+---
+title: "PMT Metrics and Methodology"
+author: "Renaissance Planning"
+date: "June 2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(readxl)
+library(tidyverse)
+library(pander)
+library(rlist)
+
+setwd("K:\\Projects\\MiamiDade\\PMT\\Docs")
+```
+
+## Introduction
+The Transit Oriented Communities Tool (the TOC Tool) is a
+web-based data visualization tool to track progress towards local and regional
+planning and development goals along major rapid transit corridors in the
+Miami-Dade region. The TOC Tool aims to provide insight into how transit station
+areas and corridors change over time through public and private investments in
+housing, commercial buildings, recreational space, transportation infrastructure
+and more. The TOC Tool focuses on transit-oriented development (TOD) areas, which
+combine the region's growth management emphasis on urban centers and nodal
+community development with areawide investment in rapid transit and multimodal
+infrastructure. Trends in growth and development, multimodal travel, urban
+design, accessibility, and more are summarized and tracked for rapid transit
+corridors and station areas. The TOC Tool is a collaborative product led by the 
+Miami-Dade Transportation Planning Organization (the TPO) in conjunction with
+local jurisdictions and partner agencies.
+
+The TOC Tool development effort is guided by the following goals, which aim to 
+maximize its relevance and value as a data and analysis resource for policy
+planners and decision-makers.
+
+-	Focus on the goals and objectives of the Strategic Miami Area Rapid Transit 
+(SMART) Plan that can be addressed through TOC.
+
+-	Develop performance metrics that clearly indicate the region’s performance 
+relative to SMART Plan TOC goals across multiple topics.
+
+-	Track trends over time by summarizing baseline performance and routinely 
+updating data and metrics.
+    
+-	Provide a simple interface for users to summarize the story of TOC at 
+various scales.
+
+-	Explore detailed metrics and data.
+
+This document provides a detailed inventory of metrics reported
+in the TOC Tool and visualized in web maps and dashboards. Metrics are organized
+by reporting topic. Details pertaining to data sources, metric development 
+(methodology), etc. are listed for each metric. More information pertaining to
+data sources listed for each metric may be found in the [Data Inventory] section
+of this document. Finally, some metrics rely on complex procedures that combine
+multiple datasets. For relevant metrics, these procedures are referenced among
+the methodological information provided, but the details of the procedures
+are found in the [Analytical Procedures] section of this document.
+
+The TPO developed an organizational framework defining appropriate topics
+and metrics for TOC reporting and monitoring in conjunction with 
+the Project Working Group (PWG), a panel of planning professionals representing
+many of the TPO's local and regional partners in implementing the SMART Plan.
+The framework was informed by a review of industry literature pertaining to TOC
+and similar reporting/monitoring efforts in peer regions across the country.
+The inventory of prospective TOC metrics provided below synthesizes the
+results of these combined efforts.
+
+
+## Metrics
+```{r metrics, results='asis'}
+all_rows <- read_xlsx(
+  "Metric_Inventory_for_R.xlsx", sheet="MetricMethodology"
+) %>% 
+  filter(Include == 1)
+
+topics <- unique(all_rows$Topic)
+for(t in topics){
+    pander::pandoc.header(t, level = 3)
+  
+    topic_rows <- all_rows %>% 
+      filter(Topic == t)
+    elements <- unique(topic_rows$Element)
+    
+    for(e in elements){
+      pander::pandoc.header(e, level = 4)
+      
+      element_rows <- topic_rows %>% 
+        filter(Element == e)
+      metrics <- unique(element_rows$Metric)
+      
+      
+      for(m in metrics){
+        metric_rows <- element_rows %>% 
+          filter(Metric == m)
+        attributes <- unique(metric_rows[["Widget Attribute"]])
+        bullet_list <- list()
+        bullet_list <- list.append(bullet_list, paste0("**", m, "**"))
+        for(a in attributes){
+          attr_row <- metric_rows %>% 
+            filter(`Widget Attribute` == a)
+          attrs = c(
+            paste("*Summary:*", attr_row$Summary),
+            #paste("*PMT Dataset:*", attr_row$Dataset), 
+            paste("*Source(s):*", paste(
+              paste0("[", str_split(
+                attr_row[["Source (see Data Inventory doc)"]], ";") %>% 
+                       unlist,"]"), 
+              collapse = "; ")),
+            paste("*Method:*", attr_row$Methodology),
+            paste("*Notes:*", attr_row$Notes)
+          )
+            
+          attr_list <- list(attr_row[["Widget Attribute"]], attrs)
+          bullet_list <- list.append(bullet_list, attr_list)
+          
+        } #/attributes
+        pandoc.list(bullet_list, "bullet")
+      } #/metrics
+    } #/elements
+  } #/topics
+
+
+
+```
+
+
+## Data Inventory
+```{r load and format data, message=FALSE, warning=FALSE}
+# Read
+df = read_xlsx("Data_Inventory_for_R.xlsx", sheet="Data")
+
+# Slice off the first row (just describes what's in columns)
+df = df[-1,]
+
+# Remove certain columns (if any to remove)
+del_cols = c("In Use", "Date Fetched", "Cleaned", "Processing Steps", "Scripts")
+if(length(del_cols) > 0){
+  df = df %>% select(-del_cols)
+}
+```
+```{r data inventory pandoc, results='asis'}
+# Each row is unique, so we have a section for each row
+
+for(i in 1:nrow(df)){
+  # Header for the section
+  pander::pandoc.header(df$Name[i], level = 4)
+  
+  # Initialize storage for section information
+  bullets = list()
+  
+  # Loop through remaining columns to set up section information
+  for(j in names(df)[2:ncol(df)]){
+    bullets = list.append(bullets,
+                          paste0("**", j, ":** ",
+                                 df[i, j]))
+  }
+  
+  # Bullet list for the section information
+  pandoc.list(bullets, "bullet")
+}
+```
+
+## Analytical Procedures
+### Demographic and Employment Estimation and Allocation
+Allocation of Census data to parcels for the TOC Tool requires two broad steps. The first is estimating Census data at the block group level. The second is applying rules based on parcel land uses to estimate parcel-level values from block group-level totals.
+
+Census data to be allocated includes the following activity categories:
+
+- Population data
+  - *Description*: population counts by race and ethnicity
+  - *Source*: American Community Survey (ACS)
+  - *Level*: block group
+  - *PMT years available at publication*: 2014 - 2018
+  - *PMT years unavailable at publication*: 2019
+  
+- Employment data
+  - *Description*: employment counts by NAICS sector
+  - *Source*: LEHD Origin-Destination Employment Statistics (LODES)
+  - *Level*: block (allocated up to the block group for consistency with ACS data)
+  - *PMT years available at publication*: 2014 - 2017
+  - *PMT years unavailable at publication*: 2018 - 2019
+
+- Commute data
+  - *Description*: commute counts by mode
+  - *Source*: American Community Survey (ACS)
+  - *Level*: block group
+  - *PMT years available at publication*: 2014 - 2018
+  - *PMT years unavailable at publication*: 2019
+  
+Once the requisite data is collected, block group-level estimation proceeds according to the steps below.
+
+- Modeling
+  - Calculate total population, total employment, and total commutes in observed years by summing over the relevant activity sub-categories (racial/ethnic subgroups, NAICS sectors, and commute modes, respectively).
+  - Fill any missing values for the above calculations with "0"; this indicates that block group had no population, employment, and/or commutes.
+  - Using a fixed set of explanatory variables, fit linear models to predict total population, employment, and commutes across the set of observed years.
+    - For each of the three response variables, the predictive model includes all explanatory variables that showed a statistically significant correlation -- positive or negative -- with the response.
+
+- Calculating shares
+  - Fill any missing values with "0" for all population, employment, and commute sub-categories.
+  - For each activity category, calculate the block group share for the activity sub-categories in each year by dividing the sub-category total by the category total ("drove alone" commutes as a share of all commutes, e.g.).
+    - If any block groups have no data for a given category, try to take the block group share for the sub-categories as the mean of the block group share for the sub-categories in all neighboring block groups that had data for that category.
+    - If any block groups still have no data for a given cateogry after trying the above, take the block group share for the sub-categories as the block group share for the sub-categories in the nearest block group with data.
+
+- Forecasting shares
+  - For un-observed years of each category, apply a "constant-shares" approach to estimate sub-category shares in unobserved years: the shares stay the same as they were in the most recently observed year (refer to the data section to see what years this affects).
+
+- Estimating
+  - Apply the linear models to estimate total population, employment, and commutes in **all** PMT years. 
+    - Note that model results are used *even in observed years* to improve the year-over-year consistency of activity estimates. 
+  - Multiply the category estimate for a year by the block group shares for the sub-categories in that year to get the final results.
+  
+The outputs of the estimation process are block-group level estimates of all activity categories and sub-categories in all PMT years. With this data in place, allocation proceeds according to the steps below. The steps describe the process of allocation for one year only, but the same process is used to allocate from the block group to the parcel for all years.
+
+- Spatial processing
+  - Convert the parcels to centroids
+  - Intersect the parcel centroids with the block group estimation results to match parcels (and their attributes) to a single block group
+  
+- Initializing allocation
+  - For each sub-category, identify land uses that *would be expected* to house units of that sub-category. This is called the "Land Use Mask"
+    - e.g. population and commutes should only associated with residential land uses
+    - e.g. jobs in Agriculture should primarily be associated with agricultural land uses
+  - Make a secondary mask called the "Non-residential Mask", which comprises all land uses in the "Land Use Mask" for any employment sub-category.
+  - Make a tertiary mask called the "All-developed  Mask", which comprises all land uses in the "Land Use Mask", regardless of category.
+  - For each sub-category in each block group, estimate a "block group total" of available building area by summing the building area in all parcels with relevant land uses according to the "Land Use Mask". **It is possible that the Land Use Mask will fail because it sub-category-specific land uses are not found**. So, if this results in 0 building area available for a sub-category, follow through the steps below until some amount of area is obtained:
+    - *For employment sub-categories only*, sum building area in the block group for all parcels with land uses in the "Non-residential Mask". This sort of search is not relevant for population or commutes sub-categories, because the initial search occurs over all residential areas; for residence-based categories, begin at the step below.
+    - If there is still no building area estimated, try to sum building area in the block group for all parcels with land uses in the "All-developed Mask".
+    - If there is still a building area estimate of 0.0, sum building area in the block group for all parcels, regardless of land use.
+    - If there is still a building area estimate of 0.0, total land area in the block group across all parcels, regardless of land use. This step is implemented as a last resort, and is guaranteed to work since all parcels have land area (actual instances of land-area-based allocation are rare).
+  - Depending on what step above yielded the block group total, identify the "eligible parcels" that are candidates to receive units of each sub-category in each block group
+    - e.g. if use of the Land Use Mask produced the block group total for block group $A$ for NAICS sector Agriculture, only parcels with agricultural land uses as specified by the Mask are eligible to receive Agriculture jobs in block group $A$
+    
+- Allocating
+  - For each sub-category in each block group, divide the area (building or land, depending on how the block group total was calculated) of each eligible parcel by the block group total to get a "share" for each parcel
+    - Ineligible parcels are given a share of 0
+  - Multiply the block group estimate for a sub-category by the sub-category share in that block group to achieve a parcel level estimate.
+  
+The results of the allocation process are parcel-level estimates of all activity categories and sub-categories in all PMT years. These estimates are used to inform localized analysis and visualizations of demographic data in Miami-Dade County.
+
+
+
+### Developable Area and Contiguity
+Contiguity and developable area for a parcel are assessed based on the *Contiguity Index*, or $CONTIG$, landscape metric developed and released by the University of Massachusetts Landscape Ecology Lab as a part of the *FRAGSTATS* software . In the context of urban development, contiguity can be interpreted as the degree to which non-developed land is contiguous; developable area can be interpreted as the total area of non-developed land
+
+For more information on *FRAGSTATS*, see the [*FRAGSTATS* homepage](https://www.umass.edu/landeco/research/fragstats/fragstats.html). For mathematical specifics and a detailed description of the $CONTIG$ metric, see the [$CONTIG$ documentation](http://www.umass.edu/landeco/research/fragstats/documents/Metrics/Shape%20Metrics/Metrics/P12%20-%20CONTIG.htm).
+
+For the PMT, contiguity and developable area calculations requires two datasets:
+
+- parcel boundaries (obtained from FDOR)
+
+- building polygons (obtained from OSM)
+
+Once these data are collected, contiguity and developable area are calculated according to the following procedure:
+
+- Take the spatial difference of the parcels and the buildings. This yields a shape of *all* un-built, or developable, area. Each polygon in the resulting shape will be tagged with a parcel ID that can be used to assign an area to a parcel.
+
+- Split any multi-part polygons in the difference shape into unique single-part polygons. The unique parts of a multi-part polygon are inherently non-contiguous, so $CONTIG$ will have to be calculated for each individual polygon and summarized back up to the parcel level. Each polygon in the resulting shape will be tagged with a sub-parcel ID that can be used to assign a polygon to a parcel.
+
+- Rasterize the single-part difference shape with a user-defined cell size. The values of these raster cells will be either a sub-parcel ID or a null value (meaning that cell is not developable).
+  - This cell size should be large enough that a new building could reasonably fit within a single cell. As a default, the cell size is 40 feet (associated with a 1600 square foot building footprint). 
+
+- Count the number of cells with sub-parcels belonging to each parcel, and multiply by the cell size. This is the **developable area** of a parcel.
+
+- For each raster cell, identify its "valid neighbors". Valid neighbors meet the following criteria:
+  - The neighboring cell must be developable. 
+  - The neighboring cell must belong to the same sub-parcel as the cell of interest.
+\
+\
+
+- Using a pre-set weighting system, sum the weight for each cell based on it's neighbors to get a "weight total". 
+  - The weighting system is intended to quantify the value of being contiguous to a particular neighbor (the value of the cell itself is 1 regardless of system). As a default, contiguity in the development context is assessed with *Nearest neighbors (NN)* weighting, where all neighbors are worth 1. A user is allowed to specify whatever system they want, but some other common options include:
+    - *Rook*: horizontal and vertical neighbors are worth 1, diagonal neighbors are worth 0
+    - *Queen*: horizontal and vertical neighbors are worth 2, diagonal neighbors are worth 1
+\
+\
+
+- Sum the weight totals by sub-parcel ID, and divide this by the count of cells with that sub-parcel ID. This is become the basis for the $CONTIG$ calculation.
+
+- Complete the calculation of $CONTIG$ for a sub-parcel by subtracting 1 from the value calculated above, and dividing by the maximum weight total minus 1 (which, in the case of the default is 9-1 = 8).
+
+- Using a pre-set function, summarize the sub-parcel contiguity scores to the parcel. This is the **contiguity index** of a parcel.
+  - This can be any function that return as a scalar value as a summary of a set of values. As a default, *mean*, *median*, *minimum*, and *maximum* are all used to summarize sub-parcel contiguity to the parcel, but the *median* is likely the most robust single value in the development context.
+\
+\
+
+- As an added step, a user could multiply the final contiguity index by developable area to get a "value of developable area" metric. 
+  - This is a natural extension because $CONTIG$ is naturally constrained to [0,1] to define minimum and maximum contiguity. 
+  - Note, however, that this approach assumes that the value of developing a parcel is dependent on the contiguity of *all* developable area, not a subset of interest.
+  
+The result of this analysis are parcel-level assessments of contiguity of developable area and total developable area. These metrics are used to inform localized analysis and visualizations of development potential in Miami-Dade County.
+  
+### Network Analysis - Zone Skims
+Many TOC-related metrics focus on network connectivity and access to jobs, housing, and other trip generators by various modes. 
+
+For motorized modes (auto and transit), the [Southeast Florida Regional Planning Model (SERPM)](https://www.fsutmsonline.net/index.php?/model_pages/modD44/index/) is used to generate matrices of travel times and distances among travel analysis zones (TAZ). In SERPM, OD data for transit travel opportunities are reported for transit access points (TAPs). To get TAZ-to-TAZ data, two sub-networks are created from the OD matrix: the TAP-to-TAP matrix from SERPM and a TAZ-to-TAP matrix using OSM walk networks (see non-motorized modes below). These sub-networks are combined and solved to estimate the shortest walk-access/egress-to-transit travel times among TAZs.
+
+For non-motorized travel modes (walking and biking), digital representations of the local network are obtained from [OpenStreetMap](https://www.openstreetmap.org) using the [OSMNX python package](https://osmnx.readthedocs.io/en/stable/). These data are used to construct mode-specific network datasets using ESRI's [network template tools](https://pro.arcgis.com/en/pro-app/latest/tool-reference/network-analyst/create-template-from-network-dataset.htm). These network datasets are then used to evaluate travel times among micro-analysis zones (MAZ) features, which are smaller than TAZ's, using ESRI's [OD cost matrix](https://pro.arcgis.com/en/pro-app/latest/help/analysis/networks/od-cost-matrix-analysis-layer.htm) network solver.
+
+These origin-destination (OD) matrices are used to estimate the number of activities reachable from a given zone, where destination-end activities (jobs, e.g.) are related to the matrix and summarized for each zone of origin. For example, if $Zone A$ can reach $Zone B$ and $Zone C$, and $Zone B$ has 20 jobs and $Zone C$ has 30 jobs, then $Zone A$ can reach 50 jobs. These summaries are generated for each respective mode using consistent travel time ranges for reporting: 0-15 minutes, 15-30 minutes, 30-45 minutes, and 45-60 minutes.
+
+Additionally, non-motorized networks are used to generate service areas defining the geographic areas and individual street segments within 30 minutes of parks and transit stations areas using ESRI's [service area](https://pro.arcgis.com/en/pro-app/latest/help/analysis/networks/service-area-analysis-layer.htm) network solver. Parcel features are intersected with the resulting service areas to approximate the time it takes to walk from each parcel to the nearest park and to the nearest rapid transit station. This allows parel attributes to be summarized in terms of proximity to transit and park spaces (floor area by walk time to transit, e.g.).
+
+
+
