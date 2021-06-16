@@ -35,7 +35,7 @@ else:
 
 import numpy as np
 import pandas as pd
-#from simpledbf import Dbf5
+from simpledbf import Dbf5
 from six import string_types
 
 

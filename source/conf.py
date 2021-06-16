@@ -17,7 +17,6 @@ sys.path.insert(0, os.path.abspath('.'))
 PMT_tools_path = os.path.join(os.path.abspath('..'), "PMT_Tools")
 print(PMT_tools_path)
 sys.path.append(PMT_tools_path)
-import config
 
 
 # -- Project information -----------------------------------------------------
