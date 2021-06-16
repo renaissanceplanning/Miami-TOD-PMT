@@ -33,15 +33,9 @@ Download support
 **open_street_map** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: download.open_street_map
+    :members:
 
 **parcel_ftp** module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: download.parcel_ftp
     :members:
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

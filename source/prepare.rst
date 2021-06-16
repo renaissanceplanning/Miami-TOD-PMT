@@ -25,9 +25,3 @@ Preparer support
 .. automodule:: prepare.prepare_osm_networks
     :members:
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

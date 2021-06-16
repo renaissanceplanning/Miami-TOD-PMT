@@ -20,9 +20,3 @@ Builder support
 .. automodule:: build.build_helper
     :members:
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
