@@ -479,7 +479,7 @@ def process_permits(overwrite=True):
         near_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_NearTerm.gdb"))
         # input data
         permit_csv = make_path(
-            permit_dir, "Road Impact Fee Collection Report -- 2019.csv"
+            permit_dir, f"Road Impact Fee Collection Report -- {PMT.SNAPSHOT_YEAR}.csv"
         )
         snap_parcels = make_path(snap_gdb, "Polygons", "Parcels")
         # output data
@@ -2318,7 +2318,7 @@ if __name__ == "__main__":
     # UDB might be ignored as this isnt likely to change and can be updated ad-hoc
     # process_udb()  # TODO: add print statements
     #
-    process_basic_features()
+    # process_basic_features()
     #
     # # MERGES PARK DATA INTO A SINGLE POINT FEATURESET AND POLYGON FEARTURESET
     # process_parks()
@@ -2334,7 +2334,7 @@ if __name__ == "__main__":
     #
     # # CLEANS AND GEOCODES PERMITS TO ASSOCIATED PARCELS AND
     # #   GENERATES A NEAR TERM PARCELS LAYER WITH PERMIT INFO
-    # process_permits()  # TESTED CR 03/01/21
+    process_permits()  # TESTED CR 03/01/21
 
     ###################################################################
     # ---------------------- ENRICH DATA------------------------------

@@ -21,6 +21,7 @@ import scipy
 import xlrd
 from six import string_types
 from sklearn import linear_model
+from arcgis import GeoAccessor, GeoSeriesAccessor
 
 from PMT_tools import PMT as PMT
 from PMT_tools.PMT import arcpy, pd, np
@@ -982,6 +983,14 @@ def clean_permit_data(
     #   fix parcelno to string of 13 len
     permit_df[permit_key] = permit_df[permit_key].astype(np.str)
     permit_df[poly_key] = permit_df[permit_key].apply(lambda x: x.zfill(13))
+    permit_df["CONST_COST"] = permit_df["CONST_COST"].apply(
+        lambda x: x.replace('$', '')).apply(
+        lambda x: x.replace(' ', '')).apply(
+        lambda x: x.replace(',', '')).astype(float)
+    permit_df["ADMIN_COST"] = permit_df["ADMIN_COST"].apply(
+        lambda x: x.replace('$', '')).apply(
+        lambda x: x.replace(' ', '')).apply(
+        lambda x: x.replace(',', '')).astype(float)
     permit_df["COST"] = permit_df["CONST_COST"] + permit_df["ADMIN_COST"]
     #   id project as pedestrain oriented
     permit_df["PED_ORIENTED"] = np.where(
