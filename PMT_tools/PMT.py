@@ -651,16 +651,16 @@ def validate_directory(directory):
 def validate_geodatabase(gdb_path, overwrite=False):
     """Helper function to check if a geodatabase exists, and create if not"""
     exists = False
-    desc_gdb = arcpy.Describe(gdb_path)
     if gdb_path.endswith(".gdb"):
-        if arcpy.Exists(gdb_path) and desc_gdb.dataType == "Workspace":
-            exists = True
-            if overwrite:
-                check_overwrite_output(gdb_path, overwrite=overwrite)
-                exists = False
+        if arcpy.Exists(gdb_path):
+            desc_gdb = arcpy.Describe(gdb_path)
+            if desc_gdb.dataType == "Workspace":
+                exists = True
+                if overwrite:
+                    check_overwrite_output(gdb_path, overwrite=overwrite)
+                    exists = False
     else:
         raise Exception("path provided does not contain a geodatabase")
-
     if exists:
         # If we get here, the gdb exists, and it won't be overwritten
         return gdb_path
