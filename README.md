@@ -51,26 +51,26 @@ Building python CONDA environment
 > 3.  In the command window run the below commands:
 >     :   1.  Create a new environment
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > conda create --name %LocalAppData%\\ESRI\\conda\\envs\\pmt_download
 >             > ```
 >
 >         2.  Activate the newly created environment
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > activate pmt_download
 >             > ```
 >
 >         3.  Install conda packages
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > conda install geopandas pandas numpy scipy rtree=0.9.4
 >             > * enter 'y/yes' and return when asked
 >             > ```
 >
 >         4.  Install pip packages
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > pip install censusdata osmnx
 >             > ```
 >
@@ -82,13 +82,13 @@ Building python CONDA environment
 > 2.  Navigate to or search for Anaconda Prompt
 > 3.  Change directory to pmt\_code project
 >
->     > ``` {.sourceCode .}
+>     > ``` 
 >     > cd /path/to/code
 >     > ```
 >
 > 4.  Run the following commands
 >
->     > ``` {.sourceCode .}
+>     > ``` 
 >     > conda install -c conda-forge mamba
 >     > mamba env create -f environment_download.yml
 >     > ```
@@ -103,19 +103,19 @@ Building python CONDA environment
 >     :   1.  Clone the existing ArcGIS python default environment
 >             (*arcgispro-py3*)
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > conda create --clone arcgispro-py3 --name %LocalAppData%\\ESRI\\conda\\envs\\pmt_tools
 >             > ```
 >
 >         2.  Activate the newly created environment
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > activate pmt_tools
 >             > ```
 >
 >         3.  Install conda packages using **conda-forge** channel
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > conda install -c conda-forge momepy sphinx dask
 >             > * enter 'y/yes' and return when asked
 >             > * spyder is optional if you want to install a Data Science focused IDE
@@ -123,7 +123,7 @@ Building python CONDA environment
 >
 >         4.  Install pip packages
 >
->             > ``` {.sourceCode .}
+>             > ``` 
 >             > pip install simpledbf
 >             > ```
 >
@@ -135,13 +135,13 @@ Building python CONDA environment
 > 2.  Navigate to or search for Anaconda Prompt
 > 3.  Change directory to pmt\_code project
 >
->     > ``` {.sourceCode .}
+>     > ``` 
 >     > cd /path/to/code_dir
 >     > ```
 >
 > 4.  Run the following commands
 >
->     > ``` {.sourceCode .}
+>     > ``` 
 >     > conda install -c conda-forge mamba
 >     > mamba env create -f environment_processing.yml
 >     > ```
@@ -173,13 +173,13 @@ environment\_process.yml matches the installation of Pro*
 > > 2.  Navigate to or search for Anaconda Prompt
 > > 3.  Change directory to pmt\_code project
 > >
-> >     > ``` {.sourceCode .}
+> >     > ``` 
 > >     > cd /path/to/code_dir
 > >     > ```
 > >
 > > 4.  Run the following commands
 > >
-> >     > ``` {.sourceCode .}
+> >     > ``` 
 > >     > conda install -c conda-forge mamba
 > >     > mamba env create -f environment_docs.yml
 > >     > ```
@@ -202,13 +202,13 @@ Download Tools
 >
 > 4.  activate pmt\_download environment
 >
->     > ``` {.sourceCode .}
+>     > ``` 
 >     > conda activate pmt_download
 >     > ```
 >
 > 5.  run downloader script
 >
->     > ``` {.sourceCode .}
+>     > ``` 
 >     > Usage: python downloader.py
 >     >
 >     >  download all available datasources automagically and place them in the RAW folder by data category
