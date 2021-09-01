@@ -3,8 +3,6 @@
 :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 SETLOCAL
-SET PROJECT_NAME=PROJECT_epa_fiscal_impact
-SET SUPPORT_LIBRARY = epa_fiscal_impact
 SET DOC_ENV_NAME=pmt_docs
 SET DL_ENV_NAME=pmt_dl
 SET PROC_ENV_NAME=pmt_tools
