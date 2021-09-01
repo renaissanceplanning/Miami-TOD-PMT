@@ -32,7 +32,7 @@ Assumptions
 -----------
 
 -   ArcGIS Pro is installed in a standard location
-    :   ex: C:Program FilesArcGISPro
+    :   ex: C:\Program Files\ArcGISPro
 
 -   ArcGIS Pro version \> 2.7
 -   Familiarity with command line interactions
@@ -51,28 +51,28 @@ Building python CONDA environment
 > 3.  In the command window run the below commands:
 >     :   1.  Create a new environment
 >
->             > ``` 
+>             >  
 >             > conda create --name %LocalAppData%\\ESRI\\conda\\envs\\pmt_download
->             > ```
+>             > 
 >
 >         2.  Activate the newly created environment
 >
->             > ``` 
+>             >  
 >             > activate pmt_download
->             > ```
+>             > 
 >
 >         3.  Install conda packages
 >
->             > ``` 
+>             >  
 >             > conda install geopandas pandas numpy scipy rtree=0.9.4
 >             > * enter 'y/yes' and return when asked
->             > ```
+>             > 
 >
 >         4.  Install pip packages
 >
->             > ``` 
+>             >  
 >             > pip install censusdata osmnx
->             > ```
+>             > 
 >
 > **Semi-Automated Install**
 >
@@ -82,16 +82,17 @@ Building python CONDA environment
 > 2.  Navigate to or search for Anaconda Prompt
 > 3.  Change directory to pmt\_code project
 >
->     > ``` 
+>     >  
 >     > cd /path/to/code
->     > ```
+>     > ex: cd "C:\github\project\Miami-TOD-PMT"
+>     > 
 >
 > 4.  Run the following commands
 >
->     > ``` 
+>     >  
 >     > conda install -c conda-forge mamba
 >     > mamba env create -f environment_download.yml
->     > ```
+>     > 
 >
 ### `pmt_tools`
 
@@ -103,29 +104,29 @@ Building python CONDA environment
 >     :   1.  Clone the existing ArcGIS python default environment
 >             (*arcgispro-py3*)
 >
->             > ``` 
+>             >  
 >             > conda create --clone arcgispro-py3 --name %LocalAppData%\\ESRI\\conda\\envs\\pmt_tools
->             > ```
+>             > 
 >
 >         2.  Activate the newly created environment
 >
->             > ``` 
+>             >  
 >             > activate pmt_tools
->             > ```
+>             > 
 >
 >         3.  Install conda packages using **conda-forge** channel
 >
->             > ``` 
+>             >  
 >             > conda install -c conda-forge momepy sphinx dask
 >             > * enter 'y/yes' and return when asked
 >             > * spyder is optional if you want to install a Data Science focused IDE
->             > ```
+>             > 
 >
 >         4.  Install pip packages
 >
->             > ``` 
+>             >  
 >             > pip install simpledbf
->             > ```
+>             > 
 >
 > **Semi-Automated Install**
 >
@@ -135,16 +136,16 @@ Building python CONDA environment
 > 2.  Navigate to or search for Anaconda Prompt
 > 3.  Change directory to pmt\_code project
 >
->     > ``` 
+>     >  
 >     > cd /path/to/code_dir
->     > ```
+>     > 
 >
 > 4.  Run the following commands
 >
->     > ``` 
+>     >  
 >     > conda install -c conda-forge mamba
 >     > mamba env create -f environment_processing.yml
->     > ```
+>     > 
 >
 *WARNING:*
 ----------
@@ -157,7 +158,7 @@ environment\_process.yml matches the installation of Pro*
 
 -   Remove env
 
-    > conda env remove -n pmt\_tools
+    > conda env remove -n pmt_tools
 
 -   Follow the above steps to recreate the environment
 
@@ -173,16 +174,16 @@ environment\_process.yml matches the installation of Pro*
 > > 2.  Navigate to or search for Anaconda Prompt
 > > 3.  Change directory to pmt\_code project
 > >
-> >     > ``` 
+> >     >  
 > >     > cd /path/to/code_dir
-> >     > ```
+> >     > 
 > >
 > > 4.  Run the following commands
 > >
-> >     > ``` 
+> >     >  
 > >     > conda install -c conda-forge mamba
 > >     > mamba env create -f environment_docs.yml
-> >     > ```
+> >     > 
 > >
 Tool Usage
 ==========
@@ -202,13 +203,13 @@ Download Tools
 >
 > 4.  activate pmt\_download environment
 >
->     > ``` 
+>     >  
 >     > conda activate pmt_download
->     > ```
+>     > 
 >
 > 5.  run downloader script
 >
->     > ``` 
+>     >  
 >     > Usage: python downloader.py
 >     >
 >     >  download all available datasources automagically and place them in the RAW folder by data category
@@ -224,7 +225,7 @@ Download Tools
 >     >
 >     > Example Usage:
 >     >
->     >     python downloader.py -s -u [setup download folder and download url endpoints]****
->     > ```
+>     >     python downloader.py -s -u [will build the download folder structure and download url endpoints]****
+>     > 
 >
 
