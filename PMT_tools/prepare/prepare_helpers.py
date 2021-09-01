@@ -4503,56 +4503,6 @@ def enp_diversity(
     return diversity_col
 
 
-# TODO: create chi squared method like other diversity metrics above
-# def chi_squared_diversity(in_df, group_col, weight_col=None, total_col=None,
-#                   pct_col=None, count_lu=None, **kwargs):
-#     """
-#     Chi-squared goodness of fit: the ratio of an observed chi-squared
-#        goodness of fit test statistic to a "worst case scenario" chi-squared
-#        goodness of fit test statistic. The goodness of fit test requires the
-#        definition of an "optimal" land use distribution ("optimal" is assumed
-#        to be equal abundance of all land uses, but can be specified by the
-#        user). The "worst case scenario" defines the highest possible
-#        chi-squared statistic that could be observed under the optimal land use
-#        distribution. In practice, this "worst case scenario" is the equivalent
-#        of the least likely land use [according to the optimal distribution]
-#        comprising the entire area. Ranges from 0 (all land uses present
-#        in equal abundance) to 1 (only one land use present)
-#     """
-
-#     if chisq_props is not None:
-#         props = pd.DataFrame({"LU": list(chisq_props.keys()),
-#                                 "ChiP": list(chisq_props.values())})
-#     else:
-#         chisq_props = dict()
-#         for lu in relevant_land_uses:
-#             chisq_props[lu] = 1 / nlu
-#         props = pd.DataFrame({"LU": list(chisq_props.keys()),
-#                                 "ChiP": list(chisq_props.values())})
-#         d = dict()
-
-#     ####
-#     ub = np.unique(in_df[group_col])
-
-#     d[aggregate_geometry_id_field] = np.repeat(ub, len(relevant_land_uses))
-#     d["LU"] = relevant_land_uses * len(ub)
-#     lu_dummies = pd.DataFrame(d)
-#     on = divdf[[aggregate_geometry_id_field, "LU", "ON"]].drop_duplicates()
-#     totals = divdf[[aggregate_geometry_id_field, "Total"]].drop_duplicates()
-#     mc = lu_dummies.merge(on, how="left").merge(totals, how="left")
-#     mc = mc.fillna({"ON": 0})
-#     mc = mc.merge(props, how="left")
-#     mc = mc.assign(EXP=mc["ChiP"] * mc["Total"])
-#     mc = mc.assign(Chi2=(mc["ON"] - mc["EXP"]) ** 2 / mc["EXP"])
-#     mc = mc.assign(WCS=(mc["Total"] - mc["EXP"]) ** 2 / mc["EXP"] - mc["EXP"])
-#     diversity = mc.groupby(aggregate_geometry_id_field).apply(
-#         lambda x: sum(x.Chi2) / (sum(x.EXP) + max(x.WCS))).reset_index()
-#     diversity.columns = [aggregate_geometry_id_field, "ChiSquared"]
-#     # Adjust to 0-1 scale
-#     diversity["ChiSquared"] = 1 - diversity["ChiSquared"]
-#     diversity_metrics.append(diversity)
-
-
 def assign_features_to_agg_area(
         in_features, agg_features=None, buffer=None, in_fields="*", as_df=False
 ):

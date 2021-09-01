@@ -2255,42 +2255,6 @@ def process_serpm_transit():
                 solved.append(model_year)
 
 
-def run(args):
-    if args.overwrite:
-        overwrite = True
-    if args.setup:
-        setup_download_folder(dl_folder=RAW)
-    if args.urls:
-        download_urls(overwrite=overwrite)
-    if args.osm:
-        download_osm_data(overwrite=overwrite)
-    if args.census_geo:
-        download_census_geo(overwrite=overwrite)
-    if args.commutes:
-        download_commute_data(overwrite=overwrite)
-    if args.race:
-        download_race_data(overwrite=overwrite)
-    if args.lodes:
-        download_lodes_data(overwrite=overwrite)
-
-
-def main():
-    # todo: add more utility to this, making the download script executable
-    import argparse
-    parser = argparse.ArgumentParser(prog="downloader",
-                                     description="Download RAW data...")
-    parser.add_argument("-x", "--overwrite",    dest="overwrite",   action="store_false")
-    parser.add_argument("-s", "--setup",        dest="setup",       action="store_false")
-    parser.add_argument("-u", "--urls",         dest="urls",        action="store_true")
-    parser.add_argument("-o", "--osm",          dest="osm",         action="store_false")
-    parser.add_argument("-g", "--census_geo",   dest="census_geo",  action="store_false")
-    parser.add_argument("-c", "--commutes",     dest="commutes",    action="store_false")
-    parser.add_argument("-r", "--race",         dest="race",        action="store_false")
-    parser.add_argument("-l", "--lodes",        dest="lodes",       action="store_false")
-    args = parser.parse_args()
-    run(args)
-
-
 if __name__ == "__main__":
     DEBUG = False
     if DEBUG:
