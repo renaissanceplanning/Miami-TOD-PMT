@@ -101,7 +101,8 @@ Building python CONDA environment
 > 1.  Select Windows Start
 > 2.  Navigate to 'Python Command Prompt' under ArcGIS folder --\> Open
 > 3.  In the command window run the below commands:
->     :   1.  Clone the existing ArcGIS python default environment
+> 
+>         1.  Clone the existing ArcGIS python default environment
 >             (*arcgispro-py3*)
 >
 >             >  
@@ -134,7 +135,7 @@ Building python CONDA environment
 >
 > 1.  Select Windows Start
 > 2.  Navigate to or search for Anaconda Prompt
-> 3.  Change directory to pmt\_code project
+> 3.  Change directory to pmt_code project
 >
 >     >  
 >     > cd /path/to/code_dir
@@ -144,6 +145,7 @@ Building python CONDA environment
 >
 >     >  
 >     > conda install -c conda-forge mamba
+
 >     > mamba env create -f environment_processing.yml
 >     > 
 >
@@ -182,6 +184,7 @@ environment\_process.yml matches the installation of Pro*
 > >
 > >     >  
 > >     > conda install -c conda-forge mamba
+
 > >     > mamba env create -f environment_docs.yml
 > >     > 
 > >
