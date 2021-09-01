@@ -2292,7 +2292,7 @@ def main():
 
 
 if __name__ == "__main__":
-    DEBUG = True
+    DEBUG = False
     if DEBUG:
         """
         if DEBUG is True, you can change the path of the root directory and test any
@@ -2403,85 +2403,3 @@ if __name__ == "__main__":
     # process_contiguity()
 
 
-""" deprecated """
-# cleans and geocodes crashes to included Lat/Lon
-# process_crashes()
-# def process_crashes():
-#     """ crashes """
-#     crash_json = makePath(RAW, "Safety_Security", "bike_ped.geojson")
-#     all_features = P_HELP.geojson_to_feature_class_arc(
-#         geojson_path=crash_json, geom_type="POINT"
-#     )
-#     arcpy.FeatureClassToFeatureClass_conversion(all_features, RAW, "DELETE_crashes.shp")
-#     # reformat attributes and keep only useful
-#     P_HELP.clean_and_drop(
-#         feature_class=all_features,
-#         use_cols=prep_conf.USE_CRASH,
-#         rename_dict=prep_conf.CRASH_FIELDS_DICT,
-#     )
-#     for year in YEARS:
-#         # use year variable to setup outputs
-#         out_gdb = validate_geodatabase(os.path.join(CLEANED, f"PMT_{year}.gdb"))
-#         FDS = validate_feature_dataset(makePath(out_gdb, "Points"), sr=SR_FL_SPF)
-#         out_name = "BikePedCrashes"
-#         year_wc = f'"YEAR" = {year}'
-#         # clean and format crash data
-#         P_HELP.prep_bike_ped_crashes(
-#             in_fc=all_features, out_path=FDS, out_name=out_name, where_clause=year_wc
-#         )
-#     arcpy.Delete_management(in_data=all_features)
-
-
-# updates parcels based on permits for near term analysis
-# process_short_term_parcels()
-#   - record parcel land use groupings and multipliers/overwrites
-#   - replace relevant attributes for parcels with current permits
-
-# def process_short_term_parcels():
-#     """
-#     try:
-#         1) set up parcels --> returns parcel_df, and copy of parcels path (shape, FOLIO, UID)
-#         2) process permit --> returns permits_df with appropriate fields
-#         3) update permit data --> returns df
-#         4) update parcels data --> returns nothing, parcel copy is filled with new data extendTableDf
-#         5) delete features of original parcel layer
-#         6) append parcel copy
-#         7) delete parcel copy
-#     except:
-#         raise error and delete parcel copy
-#     """
-#     parcels = makePath(YEAR_GDB_FORMAT.replace("YEAR", "NearTerm"), "Polygons", "Parcels")
-#     permits = makePath(YEAR_GDB_FORMAT.replace("YEAR", "NearTerm"), "Points", "BuildingPermits")
-#     # save_gdb = validate_geodatabase(makePath(ROOT, CLEANED, "near_term_parcels.gdb"))
-#     # permits_ref_df = create_permits_units_reference(parcels=parcels, permits=permits,
-#     #                                                 lu_key=prep_conf.LAND_USE_COMMON_KEY,
-#     #                                                 parcels_living_area_key=prep_conf.PARCEL_BLD_AREA_COL,
-#     #                                                 permit_value_key=prep_conf.PERMITS_UNITS_FIELD,
-#     #                                                 permits_units_name=prep_conf.PERMITS_BLD_AREA_NAME,
-#     #                                                 units_match_dict=prep_conf.PARCEL_REF_TABLE_UNITS_MATCH)
-#     build_short_term_parcels(parcel_fc=parcels, permit_fc=permits,
-#                              permits_ref_df=permits_ref_df, parcels_id_field=prep_conf.PARCEL_COMMON_KEY,
-#                              parcels_lu_field=prep_conf.LAND_USE_COMMON_KEY,
-#                              parcels_living_area_field=prep_conf.PARCEL_BLD_AREA_COL,
-#                              parcels_land_value_field=prep_conf.PARCEL_LAND_VALUE,
-#                              parcels_total_value_field=prep_conf.PARCEL_JUST_VALUE,
-#                              parcels_buildings_field=prep_conf.PARCEL_BUILDINGS,
-#                              permits_id_field=prep_conf.PERMITS_ID_FIELD,
-#                              permits_lu_field=prep_conf.PERMITS_LU_FIELD,
-#                              permits_units_field=prep_conf.PERMITS_UNITS_FIELD,
-#                              permits_values_field=prep_conf.PERMITS_VALUES_FIELD,
-#                              permits_cost_field=prep_conf.PERMITS_COST_FIELD,
-#                              save_gdb_location=save_gdb,
-#                              units_field_match_dict=prep_conf.SHORT_TERM_PARCELS_UNITS_MATCH)
-
-# def process_bg_estimate_activity_models():
-#     bg_enrich = makePath(YEAR_GDB_FORMAT, "Enrichment_census_blockgroups")
-#     save_path = P_HELP.analyze_blockgroup_model(
-#         bg_enrich_tbl_name="Enrichment_census_blockgroups",
-#         bg_key="GEOID",
-#         fields="*",
-#         acs_years=prep_conf.ACS_YEARS,
-#         lodes_years=prep_conf.LODES_YEARS,
-#         save_directory=REF,
-#     )
-#     return save_path

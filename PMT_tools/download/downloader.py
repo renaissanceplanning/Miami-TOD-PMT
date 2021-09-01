@@ -284,34 +284,3 @@ if __name__ == "__main__":
     t.start()
     main()
     t.stop()
-
-# TODO:     - download_parcels.py (pull parcel geometry by year and NAL data where available), currently parcel_ftp.py
-
-# DEPRECATED from PMT_tools.config.download_config import (RESIDENTIAL_ENERGY_CONSUMPTION_URL,
-# COMMERCIAL_ENERGY_CONSUMPTION_URL)
-# specialized modules
-# from esridump.dumper import EsriDumper  # DEPRECATED usage given BikePed crash data unused
-
-# def download_crashes(): # DEPRECATED
-#     """ download bike/ped crashes
-#         - downloads filtered copy of the FDOT crash data for MD county as geojson
-#     """
-#     out_path = makePath(RAW, "Safety_Security")
-#     out_name = "bike_ped.geojson"
-#     validate_directory(out_path)
-#     download_bike_ped_crashes(all_crashes_url=dl_conf.CRASHES_SERVICE, fields="ALL",
-#                               where_clause=dl_conf.PED_BIKE_QUERY, out_crs='4326',
-#                               out_dir=out_path, out_name=out_name)
-
-# def download_energy_consumption(): # DEPRECATED FROM PROJECTS
-#     """ download energy consumption tables from EIA
-#         - pulls the raw commercial and residential energy consumption data for the South
-#         - TODO: update the URL configuration to contain each region for modularity later
-#     """
-#     energy_dir = validate_directory(makePath(RAW, "ENERGY_CONSUMPTION"))
-#     commercial_energy_tbl = makePath(energy_dir, "commercial_energy_consumption_EIA.xlsx")
-#     residential_energy_tbl = makePath(energy_dir, "residential_energy_consumption_EIA.xlsx")
-#     print("ENERGY CONSUMPTION REFERENCE:")
-#     for dl_url, tbl in zip([COMMERCIAL_ENERGY_CONSUMPTION_URL, RESIDENTIAL_ENERGY_CONSUMPTION_URL],
-#                            [commercial_energy_tbl, residential_energy_tbl]):
-#         download_file_from_url(url=dl_url, save_path=tbl)
